@@ -48,7 +48,7 @@ public enum Knob implements KnobSpec {
     /** @see dev.luizloyola.anima.core.brain.instinct.WanderInstinct#idlePressure() */
     WANDER_IDLE_PRESSURE("instincts.wander_idle_pressure", Kind.DOUBLE, 0.15, 0.0, 1.0,
             "The do-something floor. Every real drive must beat this; at 0 an unbothered "
-                    + "Person stands still."),
+                    + "agent stands still."),
     /** @see dev.luizloyola.anima.core.brain.instinct.WanderInstinct#defaultRadius() */
     WANDER_RADIUS("instincts.wander_radius", Kind.INT, 8, 1, 64,
             "How far (blocks) an idle saunter may roll its next beat."),
@@ -172,7 +172,7 @@ public enum Knob implements KnobSpec {
             "How often the journal store evicts aged-out entries."),
     /** Read by the mod-side journal file sink when a world loads. */
     JOURNAL_FILE_SINK("journal.file_sink", Kind.BOOL, 0, 0, 1,
-            "Mirror each Person's journal to logs/autarkia/<person>.log on disk.");
+            "Mirror each agent's journal to logs/anima/agent-<id>.log on disk.");
 
     private final String key;
     private final Kind kind;

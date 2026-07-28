@@ -18,14 +18,14 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * The world-scoped, persisted home of every contact book — the {@code PersonDirectory} pattern
- * applied to acquaintance ({@code <world>/data/autarkia_contacts.dat}).
+ * applied to acquaintance ({@code <world>/data/anima_contacts.dat}).
  *
- * <p>Players are persisted here too, not in player data: a player's {@link AgentId} is minted from
- * their account UUID, so one store covers both and gossip about a logged-out player needs no special
- * case.
+ * <p>It persists for PLAYERS too: a name you were told is not something a relog may take back.
+ * Their books live here rather than in player data because a player's {@link AgentId} is minted
+ * from their account UUID, so gossip about a logged-out player needs no special case.
  *
- * <p>The pure {@link ContactBook} holds the logic; this owns persistence and the dirty flag, so
- * every mutation goes through here.
+ * <p>{@link ContactBook} holds the logic; this owns persistence and the dirty flag, so every
+ * mutation goes through here rather than handing the book out.
  */
 public final class ContactData extends SavedData {
     private static final Identifier ID = Identifier.fromNamespaceAndPath("anima", "contacts");

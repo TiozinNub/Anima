@@ -28,23 +28,21 @@ import net.minecraft.server.MinecraftServer;
 
 /**
  * The durable half of the debug log: a {@link JournalService} subscriber writing every entry to a
- * per-person file, {@code logs/autarkia/person-<UUID>-<NAME>-<TIMESTAMP>.log}. The service's rings
- * are the ephemeral recall behind {@code /autarkia log}; this is the keep-forever archive.
+ * per-person file, {@code logs/anima/agent-<UUID>-<NAME>-<TIMESTAMP>.log}. The service's rings are
+ * the ephemeral recall (for {@code /autarkia log}); this is the archive.
  *
  * <p><b>Off the tick, batched.</b> {@link #onEntry} runs on the server thread and only resolves the
- * name (a directory read, which must stay server-thread) and queues; a daemon thread drains every
- * {@link #FLUSH_SECONDS}, grouped by person, one append per file per cycle. A crash loses at most
- * the last cadence; a clean {@code SERVER_STOPPING} loses nothing (see {@link #close}).
+ * name (a directory read, which must stay server-thread) and queues the entry; one daemon thread
+ * drains every {@link #FLUSH_SECONDS} and appends each person's file once per cycle. A crash loses
+ * at most one cadence; a clean {@code SERVER_STOPPING} loses nothing ({@link #close}).
  *
- * <p><b>Bounded open files.</b> At most {@link #MAX_OPEN_FILES} writers stay open (access-ordered
- * LRU); a colder handle is closed and reopened in append mode, so thousands of Persons cannot
- * exhaust file descriptors. Past the constructor's field setup everything runs on the writer
- * thread; the queue and the name cache are the only cross-thread state, both concurrent.
+ * <p><b>Bounded open files.</b> At most {@link #MAX_OPEN_FILES} writers (access-ordered LRU), a
+ * colder handle reopened in append mode, so thousands of Persons cannot exhaust descriptors. Past
+ * the constructor everything runs on the writer thread; the queue and the name cache are the only
+ * cross-thread state, both concurrent.
  *
- * <p>{@code <TIMESTAMP>} is the run's wall-clock start, shared by every file this boot, and the
- * service is rebuilt each boot, so each run mints a fresh set. A file keeps the name it opened
- * with — mid-run renames are not tracked, the UUID identifies it regardless. Cleanup of old runs
- * and a {@code graveyard/} for the dead are deferred.
+ * <p>{@code <TIMESTAMP>} is the run's wall-clock start, shared by every file this boot, so each run
+ * mints a fresh set. A file keeps the name it opened with; the UUID identifies it regardless.
  */
 public final class JournalFileSink {
 
@@ -92,7 +90,7 @@ public final class JournalFileSink {
 
     /** Create a sink for {@code server} and subscribe it to {@code journal}. Called once per boot. */
     static JournalFileSink attach(MinecraftServer server, JournalService journal) {
-        Path dir = FabricLoader.getInstance().getGameDir().resolve("logs").resolve("autarkia");
+        Path dir = FabricLoader.getInstance().getGameDir().resolve("logs").resolve(AnimaMod.MOD_ID);
         String stamp = LocalDateTime.now().format(STAMP); // real wall-clock — mod code, not a workflow
         JournalFileSink sink = new JournalFileSink(server, dir, stamp);
         journal.subscribe(sink::onEntry);
@@ -144,7 +142,7 @@ public final class JournalFileSink {
         }
         Files.createDirectories(dir);
         String name = names.getOrDefault(id, "unknown");
-        Path file = dir.resolve("person-" + id.value() + "-" + name + "-" + runStamp + ".log");
+        Path file = dir.resolve("agent-" + id.value() + "-" + name + "-" + runStamp + ".log");
         boolean fresh = !Files.exists(file);
         BufferedWriter out = Files.newBufferedWriter(file, StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE, StandardOpenOption.APPEND);

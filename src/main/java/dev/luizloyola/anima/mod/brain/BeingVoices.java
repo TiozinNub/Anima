@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.brain;
 
+import dev.luizloyola.anima.mod.AnimaMod;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -10,24 +11,21 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.gameevent.GameEvent;
 
 /**
- * The voice channel — {@code autarkia:being_voice}, a REGISTERED game event emitted whenever a
- * living body sounds like itself: an idle call ({@code Mob#playAmbientSound}) or a hurt cry
+ * The voice channel — {@code anima:being_voice}, a REGISTERED game event emitted whenever a living
+ * body sounds like itself: an idle call ({@code Mob#playAmbientSound}) or a hurt cry
  * ({@code LivingEntity#playHurtSound}), hooked by the two voice mixins. Vanilla plays those as
- * plain sounds — no game event, so a sculk sensor ignores a mooing cow and why the
- * ear was structurally deaf to them (verified in 26.1.2 bytecode). Riding a custom event
- * through the vibration bus is the "elegant" dispatch (decision: Luiz): vanilla's own listener
- * registry does the spatial delivery and {@link BeingEar} receives it like any other sound.
+ * plain sounds with no game event at all (verified in 26.1.2 bytecode), so the ear was deaf to
+ * them; riding a custom event through the vibration bus (decision: Luiz) leaves spatial delivery to
+ * vanilla's listener registry, and {@link BeingEar} receives it like any other sound.
  *
- * <p>A voice NAMES its SPECIES — the identification ladder's middle rung: a groan behind a
- * wall makes "something" into "a zombie", sight never involved. (A bowshot does the same via
- * vanilla's own {@code PROJECTILE_SHOOT}; the ear treats both as voice-tier.)
+ * <p>A voice NAMES its SPECIES — the ladder's middle rung: a groan behind a wall makes "something"
+ * into "a zombie", sight never involved; a bowshot does the same via {@code PROJECTILE_SHOOT}.
  *
- * <p>Vanilla listeners must stay deaf to it: sculk-family listeners map events to vibration
- * frequencies and an unregistered event's frequency is 0 → filtered before any state changes
- * (checked at build; regression-checked live with a sculk sensor).
+ * <p>Vanilla listeners stay deaf: an unregistered event's vibration frequency is 0, so the sculk
+ * family filters it before any state changes (regression-checked with a sculk sensor).
  */
 public final class BeingVoices {
-    public static final Identifier ID = Identifier.fromNamespaceAndPath("autarkia", "being_voice");
+    public static final Identifier ID = Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "being_voice");
     public static final ResourceKey<GameEvent> KEY = ResourceKey.create(Registries.GAME_EVENT, ID);
 
     /** The registered event; set once in {@link #init}. Radius covers the hearing knob's max. */

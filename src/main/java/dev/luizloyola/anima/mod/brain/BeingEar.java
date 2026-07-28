@@ -16,19 +16,21 @@ import net.minecraft.world.level.gameevent.PositionSource;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * A AgentBody's EAR — a {@link GameEventListener} on the sculk vibration machinery, vanilla's own
- * model of "things that make noise". Push-based, so hearing costs nothing until something sounds.
- * It hears every living body and applies the universal ladder (decision: Luiz):
+ * An AgentBody's EAR — a {@link GameEventListener} riding the sculk vibration machinery, vanilla's
+ * own model of "things that make noise". Push-based, so hearing costs nothing until something
+ * sounds. It hears every living body, on the universal ladder (decision: Luiz):
  *
  * <ul>
  *   <li>a step or any incidental noise says POSITION only;</li>
- *   <li>a VOICE — {@code autarkia:being_voice}, or vanilla's {@code PROJECTILE_SHOOT} — names the
- *       SPECIES, never the individual;</li>
- *   <li>only sight tells the rest.</li>
+ *   <li>a VOICE — {@code anima:being_voice} from the voice mixins, or vanilla's own
+ *       {@code PROJECTILE_SHOOT} (a bowshot sounds like its maker) — names the SPECIES, never the
+ *       individual;</li>
+ *   <li>only sight, elsewhere, tells the rest.</li>
  * </ul>
  *
- * <p>A person's sounds carry a per-event story (heard mining, a heard scuffle); a creature's carry
- * no occupation. Sneaking quiets FEET for anyone; LOUD events carry regardless.
+ * <p>A person's sounds carry a per-event story; a creature's carry no occupation. Sneaking quiets
+ * FEET for anyone (vanilla's step-omission plus the crouch check below); LOUD events carry
+ * regardless.
  */
 public final class BeingEar implements GameEventListener {
     private final AgentBody person;

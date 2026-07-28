@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.brain;
 
+import dev.luizloyola.anima.mod.AnimaMod;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.luizloyola.anima.compat.SavedDatas;
@@ -21,17 +22,17 @@ import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
- * The world-scoped, persisted home of every person's knowledge: {@code AgentId}-keyed, on the
- * overworld's data storage ({@code <world>/data/autarkia_knowledge.dat}), outliving every entity.
- * Memories are not physical — on death the inventory drops and the knowledge does not.
+ * The world-scoped, persisted home of every person's knowledge: {@code AgentId}-keyed, attached to
+ * the overworld's data storage ({@code <world>/data/anima_knowledge.dat}), surviving chunk
+ * unloads, death (the inventory drops, the knowledge doesn't) and restarts.
  *
  * <p>Serialization is codec-based and lives here so {@code core} stays free of DataFixerUpper.
- * Loading rebuilds the pure {@link KnowledgeRegistry} by replaying {@code note()}: entries were
- * stored post-merge and insertion-ordered, so the replay reproduces the store exactly. Only the
- * durable tier is saved — claim indexes and pending queues rebuild from re-walking the world.
+ * Loading replays {@code note()} into a fresh {@link KnowledgeRegistry} — entries were stored
+ * post-merge and insertion-ordered, so the replay reproduces the store exactly. Only the durable
+ * tier is saved; claim indexes and pending queues rebuild from re-walking.
  */
 public final class KnowledgeData extends SavedData {
-    private static final Identifier ID = Identifier.fromNamespaceAndPath("autarkia", "knowledge");
+    private static final Identifier ID = Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "knowledge");
 
     private static final Codec<Pos> POS_CODEC = BlockPos.CODEC.xmap(
             bp -> new Pos(bp.getX(), bp.getY(), bp.getZ()),
