@@ -82,9 +82,6 @@ public final class BeingSense {
      *  generous on purpose ("allow further from the crafting table", decision: Luiz). */
     private static final double STATION_REACH = 4.0;
 
-    /** The one species string every person-shaped body shares — seamlessness by construction. */
-    public static final String PERSON_SPECIES = "person";
-
     private final AgentBody person;
     private final BeingSensorCore sensor = new BeingSensorCore();
     private final BeingWorld world = new Oracle();
@@ -410,7 +407,7 @@ public final class BeingSense {
         BlockPos cell = body.blockPosition();
         Being.Activity activity = classify(body, streak, atTable, locomotion);
         boolean aimedAt = activity == Being.Activity.AIMING && gazeOnHer(body, AIM_ALIGN);
-        return new BeingReading(id, Being.Kind.AGENT, PERSON_SPECIES,
+        return new BeingReading(id, Being.Kind.AGENT, speciesOf(body),
                 knownName(body, personId), null, false,
                 new Pos(cell.getX(), cell.getY(), cell.getZ()),
                 body.distanceTo(person.entity()), locomotion, body.isCrouching(), watching, aimedAt,
