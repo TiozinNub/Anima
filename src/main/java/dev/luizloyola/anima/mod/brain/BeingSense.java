@@ -504,11 +504,9 @@ public final class BeingSense {
     // --- journal -----------------------------------------------------------------------------
 
     /**
-     * The kind gate (decision recorded in the spec): persons — and the not-yet-made-out
-     * somethings, which may well BE persons — narrate every axis flip; identified creatures
-     * narrate only spotted / recognized / lost, or a chase's approaching-flips would drown
-     * the journal and the viewer chat. The full state is always on demand in
-     * {@code /autarkia peers}.
+     * The kind gate: persons (and the not-yet-made-out somethings) narrate every axis flip;
+     * identified creatures narrate only spotted / recognized / lost, or a chase's approaching-flips
+     * would drown the journal and the viewer chat. Full state on demand in {@code /anima peers}.
      */
     private static boolean narratable(BeingEvent event) {
         boolean chatty = event.being().kind() == Being.Kind.AGENT

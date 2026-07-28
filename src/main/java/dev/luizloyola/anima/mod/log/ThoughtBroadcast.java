@@ -10,11 +10,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 
 /**
- * The thinking-out-loud debug channel: tasks narrate their intent through {@code think} journal
- * lines, and this sink forwards an ENABLED person's think-lines to every player's chat as a
- * gray-italic aside, while the journal file keeps the same story for later.
+ * The thinking-out-loud debug channel (asked for by Luiz, 2026-07-27): tasks narrate their intent
+ * through {@code think} journal lines, and this sink forwards an ENABLED person's think-lines to
+ * every player's chat as a gray-italic aside.
  *
- * <p>Off by default and per-person ({@code /autarkia think} toggles the resolved person), so a
+ * <p>Off by default and per-person ({@code /anima think} toggles the resolved person), so a
  * fifty-person settlement doesn't shout fifty monologues into chat. The toggle set is transient
  * debug state, wiped with the server like the rings.
  */

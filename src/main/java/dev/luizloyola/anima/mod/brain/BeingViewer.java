@@ -16,16 +16,14 @@ import net.minecraft.server.level.ServerPlayer;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The being viewer — {@code KnowledgeViewer}'s sibling for the being sense: toggle a person
- * with {@code /autarkia peers view true} and every narratable {@link BeingEvent} they perceive
- * is chatted as it happens (persons: every axis flip; identified creatures: spotted /
- * recognized / lost — {@code BeingSense}'s gate). Renders their PERCEPTION, not the world:
- * watching them lose track of someone standing in plain sight behind their back is the viewer
- * working correctly.
+ * The being viewer — {@code KnowledgeViewer}'s sibling: {@code /anima peers view true} chats every
+ * narratable {@link BeingEvent} a person perceives, on {@code BeingSense}'s gate. It renders their
+ * PERCEPTION, not the world: losing track of someone in plain sight behind their back is the
+ * viewer working correctly.
  *
- * <p>Toggled by a player, the lines go to that player alone; toggled from the CONSOLE, they
- * broadcast to everyone (and thus the server log) — which is what makes the viewer usable
- * from the headless harness. Transient debug state, one watcher map per server, gone on stop.
+ * <p>A player's toggle whispers to that player; a CONSOLE toggle broadcasts to everyone and thus
+ * the server log — what makes the viewer usable from the headless harness. Transient state, one
+ * watcher map per server, gone on stop.
  */
 public final class BeingViewer {
     private BeingViewer() {}
@@ -54,7 +52,7 @@ public final class BeingViewer {
     /**
      * Who this person's narration currently goes to — a player's UUID, {@link #EVERYONE} for a
      * console toggle, or {@code null} when they aren't being narrated at all. The read side the
-     * status readout of {@code /autarkia peers view} prints.
+     * status readout of {@code /anima peers view} prints.
      */
     public static @Nullable UUID viewer(MinecraftServer server, AgentId person) {
         Map<AgentId, UUID> watched = WATCHERS.get(server);

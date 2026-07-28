@@ -29,7 +29,7 @@ import net.minecraft.server.MinecraftServer;
 /**
  * The durable half of the debug log: a {@link JournalService} subscriber writing every entry to a
  * per-person file, {@code logs/anima/agent-<UUID>-<NAME>-<TIMESTAMP>.log}. The service's rings are
- * the ephemeral recall (for {@code /autarkia log}); this is the archive.
+ * the ephemeral recall (for {@code /anima log}); this is the archive.
  *
  * <p><b>Off the tick, batched.</b> {@link #onEntry} runs on the server thread and only resolves the
  * name (a directory read, which must stay server-thread) and queues the entry; one daemon thread
@@ -81,7 +81,7 @@ public final class JournalFileSink {
             }
         };
         this.writer = Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "autarkia-journal-writer");
+            Thread thread = new Thread(runnable, "anima-journal-writer");
             thread.setDaemon(true);
             return thread;
         });

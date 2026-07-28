@@ -41,7 +41,7 @@ public final class WanderInstinct implements Instinct {
 
     /**
      * Wander with the {@link #defaultRadius() configured radius} — and keep following it, so a
-     * {@code /autarkia config reload} re-tunes Persons already walking around rather than only
+     * {@code /anima config reload} re-tunes Persons already walking around rather than only
      * the next ones spawned.
      */
     public WanderInstinct(RandomGenerator random) {

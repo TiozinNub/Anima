@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.net;
 
+import dev.luizloyola.anima.mod.AnimaMod;
 import dev.luizloyola.anima.core.agent.AgentId;
 import java.util.List;
 import java.util.UUID;
@@ -11,17 +12,17 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 
 /**
- * S2C: the names this player has earned. A Person's custom name would be broadcast to everyone
- * tracking them (the leak the contact book closes), so it travels here instead, only to the client
- * that has met them.
+ * S2C: the names this player has earned. Not entity data — a Person's custom name is broadcast to
+ * everyone tracking them, the leak the contact book exists to close — so it travels here, only to
+ * the client that has met them.
  *
- * <p>{@link #replace} true is the whole book (login, respawn, {@code /autarkia contacts clear}),
- * false a single entry pushed the moment a name is learned, so a nameplate appears at the
- * introduction rather than at the next reconnect.
+ * <p>{@link #replace} true is the whole book (login, respawn, {@code /anima contacts clear}),
+ * false one entry pushed as the name is learned, so a nameplate appears at the introduction
+ * rather than at the next reconnect.
  */
 public record ContactsPayload(boolean replace, List<Known> contacts) implements CustomPacketPayload {
     public static final Type<ContactsPayload> TYPE =
-            new Type<>(Identifier.fromNamespaceAndPath("autarkia", "contacts"));
+            new Type<>(Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "contacts"));
 
     /** One earned name: the Person's id as the client already knows it (synced), and what to call them. */
     public record Known(UUID id, String name) {

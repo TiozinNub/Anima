@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.net;
 
+import dev.luizloyola.anima.mod.AnimaMod;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -40,7 +41,7 @@ public record DebugViewPayload(
         int senseRadius) implements CustomPacketPayload {
 
     public static final Type<DebugViewPayload> TYPE =
-            new Type<>(Identifier.fromNamespaceAndPath("autarkia", "debug_view"));
+            new Type<>(Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "debug_view"));
 
     /**
      * One leg of the walked path: the cell, and how they mean to get into it. The renderer colours

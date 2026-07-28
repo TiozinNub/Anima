@@ -89,5 +89,5 @@
   "anima.config.option.journal.sweep_interval_ticks": "Intervalo de limpeza",
   "anima.config.option.journal.sweep_interval_ticks.desc": "De quanto em quanto tempo o diário descarta as entradas que passaram do prazo.",
   "anima.config.option.journal.file_sink": "Gravar em disco",
-  "anima.config.option.journal.file_sink.desc": "Também grava o diário de cada Pessoa em logs/autarkia/<pessoa>.log no disco."
+  "anima.config.option.journal.file_sink.desc": "Também grava o diário de cada agente em logs/anima/agent-<id>.log no disco."
 }

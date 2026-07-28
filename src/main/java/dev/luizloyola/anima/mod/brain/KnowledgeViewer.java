@@ -58,7 +58,7 @@ public final class KnowledgeViewer {
 
     /**
      * The player currently receiving this person's discovery chat, or {@code null} when nobody is
-     * viewing them — the read side the status readout of {@code /autarkia knowledge view} prints.
+     * viewing them — the read side the status readout of {@code /anima knowledge view} prints.
      */
     public static @Nullable UUID viewer(MinecraftServer server, AgentId person) {
         Map<AgentId, UUID> watched = WATCHERS.get(server);

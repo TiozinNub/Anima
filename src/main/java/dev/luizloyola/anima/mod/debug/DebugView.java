@@ -37,16 +37,17 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The in-world debug view, server half: who is watching what, and the snapshot that feeds it.
- * Drawing happens on the client, so each watching player gets one {@link DebugViewPayload} every
- * {@link #SEND_INTERVAL_TICKS}, carrying only what the client cannot already see.
  *
- * <p><b>The view follows the selection.</b> Layers switch per PLAYER and the body drawn is whoever
- * that player pinned in {@code AgentSelection} — the slot the wand and {@code select} share, so
- * there is no second notion of who is being debugged.
+ * <p>Drawing happens on the client, so the facts travel: one {@link DebugViewPayload} per watching
+ * player every {@link #SEND_INTERVAL_TICKS}, carrying only what the client cannot see for itself.
  *
- * <p>All layers off, or an empty or unloaded pin, sends exactly one
- * {@link DebugViewPayload#clear()} and then silence; without it the client redraws its last
- * snapshot forever. Transient state, one map per server, gone on stop.
+ * <p><b>The view follows the selection.</b> Layers are switched per PLAYER; the body drawn is that
+ * player's pin in {@code AgentSelection}, the slot the debug wand and {@code /anima select} share.
+ *
+ * <p>Layers all off, or a pin that is empty or unloaded, gets exactly one
+ * {@link DebugViewPayload#clear()} and then silence — without that edge the client would redraw
+ * its last snapshot forever. Transient state, one map per server, gone on stop: the
+ * {@code Journals} lifecycle every viewer here follows.
  */
 public final class DebugView {
     private DebugView() {}

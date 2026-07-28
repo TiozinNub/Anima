@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.net;
 
+import dev.luizloyola.anima.mod.AnimaMod;
 import dev.luizloyola.anima.core.agent.AgentId;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,7 +20,7 @@ import org.jspecify.annotations.Nullable;
  */
 public record DebugGlowPayload(Optional<UUID> selected) implements CustomPacketPayload {
     public static final Type<DebugGlowPayload> TYPE =
-            new Type<>(Identifier.fromNamespaceAndPath("autarkia", "debug_glow"));
+            new Type<>(Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "debug_glow"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, DebugGlowPayload> CODEC =
             StreamCodec.composite(

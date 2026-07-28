@@ -24,10 +24,10 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * A development tool that <em>selects</em> a {@link AgentBody}: right-clicking one pins that person
- * to the player's slot in {@link AgentSelection}, the slot {@code /autarkia select} uses.
+ * A development tool that <em>selects</em> an {@link AgentBody}: right-clicking one pins that agent
+ * to the player's slot in {@link AgentSelection}, the slot {@code select} uses under either root.
  * Per-player rather than per stack (the item is stateless), server-side, and mirrored to the client
- * only for the glow. Right-clicking a block sends the pinned person walking there ({@link #useOn}).
+ * only for the glow. Right-clicking a block sends the pinned agent walking there ({@link #useOn}).
  */
 public class DebugWandItem extends Item {
     public DebugWandItem(Properties properties) {
@@ -95,8 +95,8 @@ public class DebugWandItem extends Item {
     /**
      * The wand's debug-view cycle: shift-click a AgentBody to walk their layers one at a time —
      * path, brain, memory, peers, then off. It REPLACES the layer set rather than adding to it
-     * (decision: Luiz); {@code /autarkia debug} is the only way to have several up at once.
-     * Clicking pins them first, so the view draws whoever was last clicked.
+     * (decision: Luiz); {@code /anima debug} is the only way to have several up at once. Clicking
+     * pins them first, so the view draws whoever was last clicked.
      */
     private static void cycleDebugLayer(ServerPlayer player, AgentBody person) {
         AgentId id = person.agentId();

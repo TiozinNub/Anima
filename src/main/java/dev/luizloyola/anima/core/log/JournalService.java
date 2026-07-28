@@ -63,9 +63,8 @@ public final class JournalService {
     private final List<BiConsumer<AgentId, Entry>> sinks = new ArrayList<>();
 
     /**
-     * A service that follows the configured retention bounds — and keeps following them, so a
-     * {@code /autarkia config reload} retunes a world's journal without a restart. {@code clock}
-     * is the game-time source.
+     * A service that follows the configured retention bounds live, so a {@code /anima config
+     * reload} retunes a world's journal without a restart. {@code clock} is the game-time source.
      */
     public JournalService(LongSupplier clock) {
         this.clock = Objects.requireNonNull(clock, "clock");

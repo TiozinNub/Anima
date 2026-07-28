@@ -12,7 +12,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The transient "who am I commanding" pin behind {@code /autarkia select}.
+ * The transient "who am I commanding" pin behind {@code /anima select}.
  *
  * <p>Every person-scoped subcommand used to target the {@code Person} nearest the command source
  * (a 32-block radius). That is unusable when several Persons cluster, when one is across the map,
@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>A pin holds only a {@link AgentId} — the stable, entity-independent handle. Turning it back
  * into a live entity, and failing loudly when that entity is gone, is the resolver's job in
- * {@link AutarkiaCommands}: a stale pin must never silently fall through to whoever is nearest, which
+ * the command resolver: a stale pin must never silently fall through to whoever is nearest, which
  * would quietly command the wrong Person.
  *
  * <p>A <em>player's</em> pin is the same slot the debug wand writes to, and every change to it is
@@ -55,7 +55,7 @@ public final class AgentSelection {
     }
 
     /** Pins {@code id} to {@code player}'s slot — the debug wand's entry point, keyed by UUID exactly
-     *  like this player's {@code /autarkia select}, so the wand and the command share one selection. */
+     *  like this player's {@code /anima select}, so the wand and the command share one selection. */
     public static void pin(ServerPlayer player, AgentId id) {
         PINS.put(player.getUUID(), id);
         sync(player, id);

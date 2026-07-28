@@ -38,10 +38,10 @@ public final class BeingKnocks {
         }
         Vec3 at = Vec3.atCenterOf(pos);
         // Ears belong to the living: a killed AgentBody lingers as a corpse and heard() writes
-        // synchronously, so without this filter a body accrues beings nothing will ever read.
-        //
-        // Queried as LivingEntity and filtered: the body contract is an interface, invisible to
-        // vanilla's type-indexed lookup, and filtering makes one scan serve every consumer.
+        // into its sense table synchronously, so without this filter a corpse accrues beings
+        // nothing will read. Same guard the aggro mixin applies.
+        // Queried as LivingEntity and filtered: the body contract is an interface a consumer's
+        // entity implements, not an entity class, so vanilla's type-indexed lookup cannot see it.
         for (LivingEntity nearby : level.getEntitiesOfClass(LivingEntity.class,
                 AABB.ofSize(at, radius * 2.0, radius * 2.0, radius * 2.0),
                 EntitySelector.LIVING_ENTITY_STILL_ALIVE)) {

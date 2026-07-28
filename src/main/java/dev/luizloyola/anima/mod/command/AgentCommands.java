@@ -87,7 +87,7 @@ import dev.luizloyola.anima.core.agent.PrivateIdentity;
  * the contact book. A work board, a chop, a quota or an appearance are a consuming mod's.
  *
  * <p>Every subcommand is a <b>factory</b>: Brigadier parents a builder at registration, so a cached
- * node could be mounted only once, where {@code /anima nav} and {@code /autarkia nav} are one.
+ * node could be mounted only once, and more than one root mounts this tree.
  */
 public final class AgentCommands {
 
@@ -296,7 +296,7 @@ public final class AgentCommands {
                                                         ItemArgument.getItem(ctx, "item")))));
     }
 
-    /** Default number of journal lines {@code /autarkia log} prints when no count is given. */
+    /** Default number of journal lines {@code /anima log} prints when no count is given. */
     private static final int DEFAULT_LOG_COUNT = 30;
 
     /** The equipment slots a Person actually has (a player's set): both hands + the four armor pieces. */
@@ -517,7 +517,7 @@ public final class AgentCommands {
         source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + "'s brain auto is "
                         + auto + " — " + (auto
                                 ? "the arbiter is deciding."
-                                : "manual; hand it back with /autarkia brain auto true."))
+                                : "manual; hand it back with /anima brain auto true."))
                 .withStyle(auto ? ChatFormatting.GREEN : ChatFormatting.GRAY), false);
         return auto ? 1 : 0;
     }
@@ -526,7 +526,7 @@ public final class AgentCommands {
      *  call is what took the wheel from the arbiter. */
     /** Public: a consumer's own brain verbs report the autonomy switch the same way. */
     public static String autoDisabledSuffix(boolean autoDisabled) {
-        return autoDisabled ? " (auto disabled — re-enable with /autarkia brain auto true)" : "";
+        return autoDisabled ? " (auto disabled — re-enable with /anima brain auto true)" : "";
     }
 
     /** A {@code log <category>} branch: dumps only that subsystem's lines (optionally a count). */
@@ -872,13 +872,6 @@ public final class AgentCommands {
         return "offhand";
     }
 
-    /**
-     * The living Person nearest the source's position, within {@link #NEAREST_RADIUS}, or
-     * {@code null} having reported that there is none. Searches the SOURCE's dimension and position,
-     * so {@code execute at}/{@code positioned} moves the search and {@code execute as} does not —
-     * that one is {@link #resolve}'s job. {@code isAlive} is filtered on, like {@link Persons#loaded}:
-     * a corpse would otherwise be the nearest thing to a console standing where they died.
-     */
     /** The nearest live agent body of any kind — the generic half of the resolve ladder. */
     private static @Nullable AgentBody nearestBody(CommandSourceStack source) {
         ServerLevel level = source.getLevel();
@@ -896,20 +889,6 @@ public final class AgentCommands {
         return nearest;
     }
 
-    /**
-     * The target of a person-scoped command: the Person it runs <em>as</em>, else the source's
-     * pinned Person, else the nearest ({@link #nearest}). Returns {@code null} having reported why.
-     *
-     * <p>{@code as} outranks a pin because it names one Person for one invocation where a pin is a
-     * sticky default — and it is the only handle that <em>iterates</em>, so
-     * {@code /execute as @e[type=autarkia:person] run autarkia <anything>} addresses each in turn.
-     *
-     * <p>Tests the entity, not the position: {@code execute as} rebinds only the source's entity, so
-     * a position test would search from the console's spot at world origin.
-     *
-     * <p>Both non-nearest paths fail loudly rather than falling through — a pin whose entity is no
-     * longer loaded, and an {@code as} target no longer alive (a body that died mid-chain).
-     */
     /**
      * The target for an agent-scoped command, in precedence order: the body this command runs
      * <em>as</em>, else the source's pin, else the nearest body. Reports the reason and returns
@@ -931,7 +910,7 @@ public final class AgentCommands {
         AgentBody live = AgentBodies.findLoaded(source.getServer(), id);
         if (live == null) {
             source.sendFailure(Component.literal("Selected " + label(source.getServer(), id)
-                    + " isn't loaded — /autarkia select clear, or select someone else."));
+                    + " isn't loaded — /anima select clear, or select someone else."));
         }
         return live;
     }
@@ -1005,7 +984,7 @@ public final class AgentCommands {
     }
 
     /** No-argument {@code select}: running <em>as</em> a Person pins that Person
-     *  ({@code /execute as @e[…,limit=1] run autarkia select}); a player pins the Person under their
+     *  ({@code /execute as @e[…,limit=1] run anima select}); a player pins the Person under their
      *  crosshair, or unpins when looking at nobody; the console pins the nearest one. */
     private static int selectHere(CommandSourceStack source) {
         Entity self = source.getEntity();
@@ -1092,7 +1071,7 @@ public final class AgentCommands {
         }
         source.sendFailure(Component.literal(
                 "The console knows everyone and nobody — run this as a player, or "
-                        + "/execute as <person> run autarkia contacts …"));
+                        + "/execute as <person> run anima contacts …"));
         return null;
     }
 
@@ -1314,9 +1293,10 @@ public final class AgentCommands {
     }
 
     /**
-     * {@code /autarkia debug <layer>} with the {@code true|false} left off READS that layer for this
-     * player instead of moving it, as every {@code true|false} switch in this file does: a status
-     * line has to be safe to run when you have forgotten the state.
+     * {@code /anima debug <layer>} with the {@code true|false} left off: READS that layer for this
+     * player instead of moving it. Every {@code true|false} switch in this file answers bare the
+     * same way — bare never toggles, so a status line is safe to run when you have forgotten what
+     * the state is.
      */
     private static int debugLayerShow(CommandSourceStack source, String token) {
         ServerPlayer player = source.getPlayer();

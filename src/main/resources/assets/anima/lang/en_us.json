@@ -89,5 +89,5 @@
   "anima.config.option.journal.sweep_interval_ticks": "Sweep interval",
   "anima.config.option.journal.sweep_interval_ticks.desc": "How often the journal clears out entries that have aged past their lifetime.",
   "anima.config.option.journal.file_sink": "Write to disk",
-  "anima.config.option.journal.file_sink.desc": "Also mirror each Person's journal to logs/autarkia/<person>.log on disk."
+  "anima.config.option.journal.file_sink.desc": "Also mirror each agent's journal to logs/anima/agent-<id>.log on disk."
 }
