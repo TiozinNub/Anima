@@ -9,22 +9,23 @@ import java.util.Deque;
 import java.util.List;
 
 /**
- * The whole "notice as you go" pipeline: one per person, pure core; the mod-layer {@code PoiSensor}
- * hands it the person's feet, the game time and a live {@link BlockProbe} each tick. Crescent →
- * pending queue → probe → (confirm-ray → growth) → store + claims, all inside one per-tick read
- * wallet, so the cost ceiling is constant.
+ * The whole "notice as you go" pipeline, assembled — one per person, pure core; the mod-layer
+ * {@code PoiSensor} owns one and hands it the person's feet, the game time and a live
+ * {@link BlockProbe} each tick. Crescent → pending queue → probe → (confirm-ray → growth) → store
+ * + claims, all inside one per-tick read wallet, so the cost ceiling is a constant.
  *
  * <p>Per probed column the claims answer first (the O(1) fast path):
  * <ul>
- *   <li>a claim <em>above</em> the surface — that block is gone: the region's belief is invalidated
- *       and the remains re-discover on later crescents;</li>
- *   <li>the surface cell claimed and matching — refreshed; mismatching — invalidated (a negative
- *       claim is just cleared);</li>
+ *   <li>a claim <em>above</em> the surface — that block is gone, which the heightmap cannot say
+ *       otherwise: the region's belief is invalidated, the remains re-discovered on later
+ *       crescents;
+ *   <li>the surface cell claimed and matching — refreshed; mismatching — invalidated, or cleared
+ *       for a negative claim;
  *   <li>claims only <em>below</em> the surface — something new on an investigated footprint, so a
  *       fresh hypothesis. A live region's interior always sits under a claimed surface; skipping
- *       this arm made any taller rebuild invisible forever (live-caught);</li>
- *   <li>no claims — hypothesis: leaves/log grow a {@link TreeRule} scan, water a {@link WaterRule}
- *       one, gated by the confirm-ray. One growth runs at a time.</li>
+ *       this arm made any taller rebuild invisible forever (live-caught);
+ *   <li>no claims — hypothesis: a seen block grows whatever rule a consumer registered (see
+ *       {@link GrowthRules}), gated by the confirm-ray. One growth at a time.
  * </ul>
  */
 public final class PoiSensorCore {
@@ -200,11 +201,11 @@ public final class PoiSensorCore {
     }
 
     /**
-     * A claimed cell stopped matching the world. The claims drop either way, but the MEMORY is only
-     * wrong when its anchor is gone: a half-felled tree still stands on its stump, the cell its
-     * anchor names and the one the chop's partial exit means to come back for. Forgetting it here
-     * was the lone-stump factory — the bare stump then failed {@link TreeRule}'s sunlit-leaf test
-     * and was negative-claimed, findable by nobody. Costs one probe read.
+     * A claimed cell stopped matching the world. The claims drop either way, but the MEMORY is
+     * only wrong when its anchor is gone: a half-felled tree still stands on its stump, the cell
+     * its anchor names, and the chop's partial exit kept that memory to come back for. Forgetting
+     * it here was the lone-stump factory — the stump failed its rule's own liveness test, was
+     * dismissed and negative-claimed, and nothing could find it again. Costs one probe read.
      */
     private int invalidate(Pos at, ClaimIndex.Claim claim, BlockProbe probe, List<SenseEvent> events) {
         if (claim.anchor() == null) {

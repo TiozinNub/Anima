@@ -14,24 +14,24 @@ import java.util.List;
 /**
  * The one way down: un-build the body's standing ledger ({@link Scaffolder#placed()}), highest cell
  * first, column by column, broken with the {@link BlockBreaker} and reclaimed by the walk-over
- * pickup. Shared by {@link ChopTree} and {@link UnbuildPillar}, because the ledger outlives the
- * tasks that built it.
+ * pickup. Shared by {@link UnbuildPillar} and by any consumer task that pillared up, because the
+ * ledger outlives tasks.
  *
- * <p><b>Strictly top-down within a column.</b> A cell is broken only while no higher cell of its
- * column stands; taking a lower one eats a tower's bottom out from under its standing top and
- * manufactures the floating columns this exists never to leave. A column whose top cannot be
- * reached — or that is <b>holding real blocks up</b> (an interrupted climb leaves the trunk remnant
- * on those cells) — is conceded whole: every cell struck from the ledger, the tower left intact and
- * journalled. A conceded in-column pillar reads as a grounded trunk, so the next chop fells remnant
- * and pillar as one tree.
+ * <p><b>Strictly top-down within a column.</b> The first revision struck cells it could not reach
+ * and broke the ones it could, eating a tower's BOTTOM out from under its standing top — the
+ * floating columns this exists never to leave (2026-07-27). A cell is broken only while no higher
+ * cell of its column stands.
  *
- * <p>Reach ladder for a tower not being stood on: swing at its top → WALK back to it (once per
- * column) → RE-CLIMB on their own carried logs ({@link Scaffolder#up}), whose recovery steps ledger
- * like any others.
+ * <p>A column whose top cannot be reached, or is <b>holding real blocks up</b> (an interrupted climb
+ * leaves the trunk remnant on its cells), is conceded whole: struck from the ledger, left standing
+ * and journalled. It then reads as a grounded trunk, so the next chop fells remnant and pillar as
+ * one tree.
  *
- * <p>Never fails: {@link #tick} returns RUNNING while there is un-building to do and SUCCESS the
- * moment the ledger is empty — an empty ledger is a cheap no-op SUCCESS, which lets callers use it
- * as a gate.
+ * <p>Reach ladder for a tower not stood on: swing at its top → WALK back → RE-CLIMB a tall one on
+ * carried logs ({@link Scaffolder#up}), whose steps ledger like any others.
+ *
+ * <p>Never fails: RUNNING while un-building remains, SUCCESS once the ledger is empty with no break
+ * in flight — an empty ledger is a no-op SUCCESS callers use as a gate.
  */
 public final class PillarDescent {
     /** Action-less ticks (top unreachable, walk spent, no climb possible) before the column
