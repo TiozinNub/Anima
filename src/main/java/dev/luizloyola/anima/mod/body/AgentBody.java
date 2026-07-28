@@ -6,6 +6,9 @@ import dev.luizloyola.anima.core.agent.Pronouns;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.mod.brain.AgentBlockBreaker;
+import dev.luizloyola.anima.mod.brain.AgentScaffolder;
+import dev.luizloyola.anima.mod.brain.BeingSense;
 import dev.luizloyola.anima.mod.nav.Navigator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
@@ -63,6 +66,18 @@ public interface AgentBody {
      * steering. The brain asks for destinations, not for legs.
      */
     Navigator navigator();
+
+    /**
+     * What this body currently perceives — eyes, ears, attention and the identification ladder.
+     * Owned and ticked by the body: perception is something a body <em>does</em>.
+     */
+    BeingSense beingSense();
+
+    /** The body's block-breaking actuator, which it owns and ticks (crack, drops, exhaustion). */
+    AgentBlockBreaker blockBreaker();
+
+    /** The body's scaffolding actuator — the pillar ledger lives with the body that built it. */
+    AgentScaffolder scaffolder();
 
     // ---- act verbs: intent, not physics ------------------------------------------------
 

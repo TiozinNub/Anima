@@ -1,0 +1,97 @@
+package dev.luizloyola.anima.mod.brain;
+
+import dev.luizloyola.anima.compat.sense.LevelProbe;
+import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
+import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
+import dev.luizloyola.anima.core.brain.knowledge.PoiSensorCore;
+import dev.luizloyola.anima.core.brain.knowledge.SenseEvent;
+import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.log.Category;
+import dev.luizloyola.anima.mod.body.AgentBody;
+import java.util.List;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import org.jspecify.annotations.Nullable;
+
+/**
+ * Mounts the pure {@link PoiSensorCore} pipeline on an {@link AgentBody} — the perception twin of
+ * {@link BrainDriver}, and only the Minecraft boundary (feet, game time, a {@link LevelProbe} over
+ * their level and eyes). A <em>body</em> sense, not a brain organ: it runs beside the brain in
+ * {@code serverAiStep} and writes into the person's knowledge; the brain reads memory, never the
+ * world.
+ *
+ * <p>Resolved lazily on first tick, the {@code AgentId} and the server being absent at
+ * construction. What it learns is narrated to the journal ({@link Category#SENSE}) and to the
+ * viewer's discovery chat.
+ */
+public final class PoiSensor {
+    private final AgentBody person;
+    private @Nullable KnowledgeData data;
+    private @Nullable PoiSensorCore core;
+    private @Nullable LevelProbe probe;
+
+    public PoiSensor(AgentBody person) {
+        this.person = person;
+    }
+
+    /** One perception tick, from {@link AgentBody#serverAiStep()}. */
+    public void tick() {
+        ServerLevel level = (ServerLevel) this.person.level();
+        if (this.core == null) {
+            this.data = KnowledgeData.get(level.getServer());
+            this.core = new PoiSensorCore(
+                    this.data.registry().forPerson(this.person.agentId()));
+            this.probe = new LevelProbe(this.person.entity());
+        }
+        BlockPos feet = this.person.blockPosition();
+        List<SenseEvent> events = this.core.tick(
+                new Pos(feet.getX(), feet.getY(), feet.getZ()), level.getGameTime(), this.probe);
+        // Unconditional: setDirty is a boolean flag, and knowledge mutates silently (refreshes
+        // don't surface as events) — cheaper to always flag than to track what changed.
+        this.data.setDirty();
+        for (SenseEvent event : events) {
+            this.person.journal().record(Category.SENSE, verb(event.type()), describe(event));
+            KnowledgeViewer.onEvent(level.getServer(), this.person.agentId(),
+                    this.person.entity().getName().getString(), event);
+        }
+    }
+
+    /** The journal's event column, one word per outcome. */
+    private static String verb(SenseEvent.Type type) {
+        return switch (type) {
+            case NOTED -> "noticed";
+            case FORGOT -> "forgot";
+            case OVERLOOKED -> "overlooked";
+            case DISMISSED -> "dismissed";
+        };
+    }
+
+    /** Transient claim count — the debug command's "how full is the dismissal index" line. */
+    public int claimCount() {
+        return this.core == null ? 0 : this.core.claimCount();
+    }
+
+    /** One line description, shared with the viewer chat:
+     *  {@code TREE (10, 64, 8) 4 logs} / {@code HERD cow (…) 6 head} / {@code WATER … partial}. */
+    static String describe(SenseEvent event) {
+        StringBuilder line = new StringBuilder(event.kind().name());
+        PoiMemory memory = event.memory();
+        if (memory != null && !memory.detail().isEmpty()) {
+            line.append(' ').append(memory.detail());
+        }
+        line.append(" (").append(event.anchor().x()).append(", ").append(event.anchor().y())
+                .append(", ").append(event.anchor().z()).append(")");
+        if (memory != null) {
+            line.append(' ').append(memory.units())
+                    .append(switch (memory.kind()) {
+                        case TREE -> " logs";
+                        case HERD -> " head";
+                        default -> " cells";
+                    });
+            if (memory.partial()) {
+                line.append(", partial");
+            }
+        }
+        return line.toString();
+    }
+}
