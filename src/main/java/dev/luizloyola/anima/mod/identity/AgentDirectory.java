@@ -2,7 +2,10 @@ package dev.luizloyola.anima.mod.identity;
 
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.PrivateIdentity;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
@@ -38,6 +41,21 @@ public interface AgentDirectory {
     }
 
     /**
+     * Every agent this directory knows — <b>loaded or not</b>. A listing built from a body scan
+     * omits everyone asleep in an unloaded chunk, which reads as "gone" rather than "elsewhere".
+     *
+     * <p>Id-keyed so a caller can label each row, and named {@code known} rather than {@code all}
+     * because an implementor's own {@code all()} returns its concrete type, which invariant
+     * generics will not let satisfy this.
+     */
+    Map<AgentId, PrivateIdentity> known();
+
+    /** How many agents this directory knows. */
+    default int size() {
+        return known().size();
+    }
+
+    /**
      * Registers a directory for every server. Call during mod initialization; providers are
      * asked in registration order and the first that recognises an id wins.
      */
@@ -45,17 +63,35 @@ public interface AgentDirectory {
         Providers.REGISTERED.add(provider);
     }
 
-    /** Everything registered, asked in turn, as one directory. */
+    /**
+     * Everything registered, asked in turn, as one directory: lookups stop at the first provider
+     * that recognises an id, and the union sees a settlement and a kennel at once.
+     */
     static AgentDirectory of(MinecraftServer server) {
         List<Function<MinecraftServer, AgentDirectory>> providers = Providers.REGISTERED;
-        return id -> {
-            for (Function<MinecraftServer, AgentDirectory> provider : providers) {
-                Optional<PrivateIdentity> found = provider.apply(server).identity(id);
-                if (found.isPresent()) {
-                    return found;
+        return new AgentDirectory() {
+            @Override
+            public Optional<PrivateIdentity> identity(AgentId id) {
+                for (Function<MinecraftServer, AgentDirectory> provider : providers) {
+                    Optional<PrivateIdentity> found = provider.apply(server).identity(id);
+                    if (found.isPresent()) {
+                        return found;
+                    }
                 }
+                return Optional.empty();
             }
-            return Optional.empty();
+
+            @Override
+            public Map<AgentId, PrivateIdentity> known() {
+                // Insertion-ordered and provider-ordered, so a listing is stable between calls.
+                Map<AgentId, PrivateIdentity> union = new LinkedHashMap<>();
+                for (Function<MinecraftServer, AgentDirectory> provider : providers) {
+                    // putIfAbsent: identity() resolves first-provider-wins, and a union that
+                    // disagreed with it would be a subtle way to report two different names.
+                    provider.apply(server).known().forEach(union::putIfAbsent);
+                }
+                return Collections.unmodifiableMap(union);
+            }
         };
     }
 
