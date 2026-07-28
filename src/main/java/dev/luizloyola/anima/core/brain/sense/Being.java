@@ -51,8 +51,10 @@ public record Being(BeingId id, Kind kind, String species, String name,
     public enum Kind {
         /** Identification below {@link Identified#SPECIES} — the observer can't say yet. */
         UNKNOWN,
-        /** A Person or a live player — seamlessly, and the only kind fully classified. */
-        PERSON,
+        /** A minded body (any {@code AgentBody}) or a live player — seamlessly, and the only kind
+         *  fully classified. Named for what it is to the observer: someone with a mind, not a
+         *  settler specifically. */
+        AGENT,
         /** The game's {@code Enemy} — always {@link #aggressive}. */
         MONSTER,
         /** The game's {@code NeutralMob} — aggressive only while visibly angry. */
@@ -92,7 +94,7 @@ public record Being(BeingId id, Kind kind, String species, String name,
         if (identified == Identified.NONE) {
             return "someone";
         }
-        if (kind == Kind.PERSON) {
+        if (kind == Kind.AGENT) {
             if (identified != Identified.INDIVIDUAL) {
                 return "someone";
             }
@@ -122,7 +124,7 @@ public record Being(BeingId id, Kind kind, String species, String name,
      * tells its head count. Renderers append their own awareness tag.
      */
     public String tell(String observerPronoun) {
-        if (kind != Kind.PERSON) {
+        if (kind != Kind.AGENT) {
             if (herd()) {
                 return count + " head, centered there";
             }

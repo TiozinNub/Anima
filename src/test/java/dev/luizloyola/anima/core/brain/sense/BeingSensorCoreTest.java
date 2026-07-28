@@ -231,7 +231,7 @@ class BeingSensorCoreTest {
 
         Being heard = only();
         assertEquals(Being.Identified.SPECIES, heard.identified(), "the voice climbed one rung");
-        assertEquals(Being.Kind.PERSON, heard.kind(), "…and a person-voice says person-kind");
+        assertEquals(Being.Kind.AGENT, heard.kind(), "…and a person-voice says person-kind");
         assertEquals("someone", heard.knownAs(),
                 "but a person's species names nobody — 'someone' until SEEN");
     }
@@ -461,7 +461,7 @@ class BeingSensorCoreTest {
         static BeingReading person(BeingId id, String name, Pos pos, double distance,
                                    Being.Locomotion legs, boolean sneaking, boolean watching,
                                    boolean aimedAt, Being.Activity activity) {
-            return new BeingReading(id, Being.Kind.PERSON, "person", name, null, false, pos,
+            return new BeingReading(id, Being.Kind.AGENT, "person", name, null, false, pos,
                     distance, legs, sneaking, watching, aimedAt, false, Being.Gear.NONE,
                     activity);
         }

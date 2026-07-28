@@ -410,7 +410,7 @@ public final class BeingSense {
         BlockPos cell = body.blockPosition();
         Being.Activity activity = classify(body, streak, atTable, locomotion);
         boolean aimedAt = activity == Being.Activity.AIMING && gazeOnHer(body, AIM_ALIGN);
-        return new BeingReading(id, Being.Kind.PERSON, PERSON_SPECIES,
+        return new BeingReading(id, Being.Kind.AGENT, PERSON_SPECIES,
                 knownName(body, personId), null, false,
                 new Pos(cell.getX(), cell.getY(), cell.getZ()),
                 body.distanceTo(person.entity()), locomotion, body.isCrouching(), watching, aimedAt,
@@ -514,7 +514,7 @@ public final class BeingSense {
      * {@code /autarkia peers}.
      */
     private static boolean narratable(BeingEvent event) {
-        boolean chatty = event.being().kind() == Being.Kind.PERSON
+        boolean chatty = event.being().kind() == Being.Kind.AGENT
                 || event.being().kind() == Being.Kind.UNKNOWN;
         return chatty || event.type() != BeingEvent.Type.READING_CHANGED;
     }
