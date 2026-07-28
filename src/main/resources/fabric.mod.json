@@ -13,6 +13,9 @@
     "main": [
       "dev.luizloyola.anima.mod.AnimaMod"
     ],
+    "client": [
+      "dev.luizloyola.anima.mod.client.AnimaClient"
+    ],
     "modmenu": [
       "dev.luizloyola.anima.mod.config.AnimaModMenu"
     ]

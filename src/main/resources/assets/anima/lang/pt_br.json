@@ -1,4 +1,13 @@
 {
+  "item.anima.debug_wand": "Varinha de Depuração",
+  "item.anima.debug_wand.selected": "Seleção: %s",
+  "item.anima.debug_wand.no_identity": "Esse agente ainda não tem identidade",
+  "item.anima.debug_wand.debug_layer": "%s — depuração: %s",
+  "item.anima.debug_wand.debug_off": "%s — depuração desligada",
+  "item.anima.debug_wand.no_selection": "Ninguém selecionado — clique com o botão direito em um agente primeiro",
+  "item.anima.debug_wand.not_loaded": "O agente selecionado não está carregado",
+  "item.anima.debug_wand.moving": "Mandando %s andar até %s, %s, %s",
+  "item.anima.debug_wand.running": "Mandando %s correr até %s, %s, %s",
   "anima.config.category.brain": "Arbitragem",
   "anima.config.category.instincts": "Instintos",
   "anima.config.category.perception": "Percepção",

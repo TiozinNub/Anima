@@ -36,6 +36,7 @@ public final class AnimaCommands {
                         .then(AgentCommands.log())
                         .then(AgentCommands.knowledge())
                         .then(AgentCommands.peers())
+                        .then(AgentCommands.debug())
                         .then(AgentCommands.inv(registry))
                         .then(ConfigCommands.tree(Config.store(), configFile))));
     }

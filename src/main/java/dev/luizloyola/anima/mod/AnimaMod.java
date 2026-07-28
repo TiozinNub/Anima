@@ -3,6 +3,7 @@ package dev.luizloyola.anima.mod;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.mod.command.AnimaCommands;
 import dev.luizloyola.anima.mod.config.ConfigFile;
+import dev.luizloyola.anima.mod.item.AnimaItems;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +33,7 @@ public final class AnimaMod implements ModInitializer {
         for (String problem : CONFIG.reload()) {
             LOGGER.warn("config: {}", problem);
         }
+        AnimaItems.init();
         AnimaCommands.register(CONFIG);
         LOGGER.info("Anima loaded — the machinery is ready for whoever wants a mind.");
     }
