@@ -89,7 +89,7 @@ public final class ConfigFile {
             store.install(set.defaults());
             Danger.reset();
             save(set.defaults());
-            AnimaMod.LOGGER.info("Autarkia config: wrote defaults to {}", path);
+            AnimaMod.LOGGER.info("{} config: wrote defaults to {}", set.title(), path);
             return List.of();
         }
 
@@ -131,7 +131,7 @@ public final class ConfigFile {
         store.install(loaded.config());
 
         for (String problem : problems) {
-            AnimaMod.LOGGER.warn("Autarkia config: {}", problem);
+            AnimaMod.LOGGER.warn("{} config: {}", set.title(), problem);
         }
         return List.copyOf(problems);
     }
@@ -154,7 +154,7 @@ public final class ConfigFile {
             }
             return true;
         } catch (IOException e) {
-            AnimaMod.LOGGER.error("Autarkia config: could not write {}", path, e);
+            AnimaMod.LOGGER.error("{} config: could not write {}", set.title(), path, e);
             return false;
         }
     }
@@ -237,7 +237,7 @@ public final class ConfigFile {
         String message = fileName() + " " + why + " — falling back to defaults; "
                 + "the file was left untouched so you can fix it and run "
                 + "/" + set.id() + " config reload";
-        AnimaMod.LOGGER.error("Autarkia config: {} ({})", message, path);
+        AnimaMod.LOGGER.error("{} config: {} ({})", set.title(), message, path);
         store.install(set.defaults());
         return List.of(message);
     }
