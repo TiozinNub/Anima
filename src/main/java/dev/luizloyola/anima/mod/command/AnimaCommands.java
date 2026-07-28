@@ -24,6 +24,19 @@ public final class AnimaCommands {
     public static void register(ConfigFile configFile) {
         CommandRegistrationCallback.EVENT.register((dispatcher, registry, environment) ->
                 dispatcher.register(Commands.literal("anima")
+                        // The whole agent-shaped surface, for a world running the library on its
+                        // own — and mounted again by each consumer under its own root, so nobody
+                        // relearns a command they already type.
+                        .then(AgentCommands.list())
+                        .then(AgentCommands.select())
+                        .then(AgentCommands.contacts())
+                        .then(AgentCommands.nav())
+                        .then(AgentCommands.brain())
+                        .then(AgentCommands.think())
+                        .then(AgentCommands.log())
+                        .then(AgentCommands.knowledge())
+                        .then(AgentCommands.peers())
+                        .then(AgentCommands.inv(registry))
                         .then(ConfigCommands.tree(Config.store(), configFile))));
     }
 }
