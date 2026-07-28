@@ -69,6 +69,7 @@ import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -575,7 +576,7 @@ public final class AgentCommands {
         AgentId id = resolveDirectory(source, token);
         if (id == null) return 0;
         MinecraftServer server = source.getServer();
-        String name = AgentDirectory.of(server).nameOf(id).orElse(shortId(id));
+        String name = label(server, id);
         boolean loaded = AgentBodies.findLoaded(server, id) != null;
         return dumpJournal(source, id, name, loaded, category, count);
     }
@@ -608,21 +609,23 @@ public final class AgentCommands {
     }
 
     /**
-     * Resolves a {@code name|id} token against the whole directory (loaded or not) to a single
-     * {@link AgentId}, or {@code null} having reported why. An id or short-id prefix is tried
-     * first, then a case-insensitive name; since names are not unique and an unloaded person has no
-     * "nearest", an ambiguous name fails hard, listing the candidates' short-ids.
+     * Resolves a {@code name|id} token against everyone {@link #nameable} — the whole directory
+     * (every registered agent, loaded or not) and the online players — to a single {@link AgentId},
+     * or {@code null} (having reported why). An id or short-id prefix is tried first, then a
+     * case-insensitive name. Names are not unique and there is no "nearest" for an unloaded agent,
+     * so an ambiguous name is a hard failure listing the candidates' short-ids — a Person sharing a
+     * player's name lands there too.
      */
     private static @Nullable AgentId resolveDirectory(CommandSourceStack source, String rawToken) {
         String token = rawToken.trim();
         String lower = token.toLowerCase(Locale.ROOT);
-        Map<AgentId, PrivateIdentity> all = AgentDirectory.of(source.getServer()).known();
+        Map<AgentId, String> all = nameable(source.getServer());
         List<AgentId> matches = all.keySet().stream()
                 .filter(id -> id.toString().toLowerCase(Locale.ROOT).startsWith(lower))
                 .toList();
         if (matches.isEmpty()) {
             matches = all.entrySet().stream()
-                    .filter(e -> e.getValue().name().equalsIgnoreCase(token))
+                    .filter(e -> e.getValue().equalsIgnoreCase(token))
                     .map(Map.Entry::getKey)
                     .toList();
         }
@@ -929,13 +932,13 @@ public final class AgentCommands {
         return SharedSuggestionProvider.suggest(tokens, builder);
     };
 
-    /** Suggests every registered person's name + short id (loaded or not) for {@code log for},
-     *  which (unlike {@code select}) can reach an unloaded person's journal. */
+    /** Suggests every name + short id that {@link #resolveDirectory} accepts — every registered
+     *  agent, loaded or not (so {@code log for} can reach an unloaded person's journal, which
+     *  {@code select} cannot), plus the online players a contact book has to be able to name. */
     private static final SuggestionProvider<CommandSourceStack> ALL_PERSON_SUGGESTIONS = (ctx, builder) -> {
-        Stream<String> tokens = AgentDirectory.of(ctx.getSource().getServer()).known().entrySet().stream()
+        Stream<String> tokens = nameable(ctx.getSource().getServer()).entrySet().stream()
                 .flatMap(entry -> Stream.of(
-                        entry.getValue().name().contains(" ")
-                                ? '"' + entry.getValue().name() + '"' : entry.getValue().name(),
+                        entry.getValue().contains(" ") ? '"' + entry.getValue() + '"' : entry.getValue(),
                         shortId(entry.getKey())));
         return SharedSuggestionProvider.suggest(tokens, builder);
     };
@@ -1046,10 +1049,36 @@ public final class AgentCommands {
         return hit != null && hit.getEntity() instanceof AgentBody body ? body : null;
     }
 
-    /** The person's name if the directory knows it, else the short id — a stable label for messages. */
+    /** The agent's name if anyone can put one to it, else the short id — a stable label for messages. */
     /** Public: the name-or-short-id an operator sees, shared by every surface. */
     public static String label(MinecraftServer server, AgentId id) {
-        return AgentDirectory.of(server).nameOf(id).orElse(shortId(id));
+        return AgentDirectory.of(server).nameOf(id)
+                .or(() -> Optional.ofNullable(server.getPlayerList().getPlayer(id.value()))
+                        .map(player -> player.getName().getString()))
+                .orElse(shortId(id));
+    }
+
+    /**
+     * Every agent a command may put a NAME to: the whole directory (loaded or not) and the online
+     * players, mapped to what each is called.
+     *
+     * <p>Players belong here because a player's account uuid <em>is</em> their agent id — the rule
+     * {@link #sourceIdentity} mints by and {@link ContactData} persists by — while no directory
+     * ever holds them. Without this half no {@code name|id} argument could name a player at all.
+     *
+     * <p>The player list is the only version-neutral name source, so an <em>offline</em> player
+     * still labels as a short id: the profile cache is a different class on either side of 26.1
+     * and would want a compat facade first.
+     *
+     * <p>Directory first, so a consumer's own record for an id wins over the account behind it.
+     */
+    private static Map<AgentId, String> nameable(MinecraftServer server) {
+        Map<AgentId, String> named = new LinkedHashMap<>();
+        AgentDirectory.of(server).known().forEach((id, identity) -> named.put(id, identity.name()));
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            named.putIfAbsent(AgentId.of(player.getUUID()), player.getName().getString());
+        }
+        return named;
     }
 
     /**
