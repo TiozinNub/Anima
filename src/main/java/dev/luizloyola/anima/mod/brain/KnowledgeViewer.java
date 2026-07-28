@@ -10,6 +10,7 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.agent.AgentId;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.UUID;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -115,7 +116,7 @@ public final class KnowledgeViewer {
         KnowledgeRegistry registry = Knowledges.of(server);
         for (AgentId person : watched.keySet()) {
             AgentKnowledge knowledge = registry.forPerson(person);
-            for (PoiKind kind : PoiKind.values()) {
+            for (PoiKind kind : PoiKind.all()) {
                 for (PoiMemory memory : knowledge.all(kind)) {
                     emit(level, memory);
                 }
@@ -123,13 +124,26 @@ public final class KnowledgeViewer {
         }
     }
 
+    /**
+     * What each kind of belief looks like in the air. A consuming mod registers a particle for the
+     * kinds it declared; anything unregistered still draws, anonymously rather than blank.
+     */
+    private static final Map<PoiKind, SimpleParticleType> PARTICLES = new ConcurrentHashMap<>();
+
+    private static final SimpleParticleType DEFAULT_PARTICLE = ParticleTypes.DRIPPING_WATER;
+
+    static {
+        PARTICLES.put(PoiKind.HERD, ParticleTypes.HEART); // Anima's own kind
+    }
+
+    /** Declares how {@code kind} should be drawn by the knowledge viewer. */
+    public static void particle(PoiKind kind, SimpleParticleType particle) {
+        PARTICLES.put(kind, particle);
+    }
+
     /** One belief: a rising column at the anchor, a dot on each bounds corner. */
     private static void emit(ServerLevel level, PoiMemory memory) {
-        SimpleParticleType particle = switch (memory.kind()) {
-            case TREE -> ParticleTypes.HAPPY_VILLAGER;
-            case HERD -> ParticleTypes.HEART;
-            default -> ParticleTypes.DRIPPING_WATER;
-        };
+        SimpleParticleType particle = PARTICLES.getOrDefault(memory.kind(), DEFAULT_PARTICLE);
         Pos anchor = memory.anchor();
         for (int i = 0; i < 4; i++) {
             level.sendParticles(particle,

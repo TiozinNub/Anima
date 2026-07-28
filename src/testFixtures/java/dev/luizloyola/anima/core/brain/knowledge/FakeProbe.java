@@ -17,7 +17,7 @@ public final class FakeProbe implements BlockProbe {
     private final Map<Pos, BlockKind> blocks = new HashMap<>();
     private final Set<Column> unloaded = new HashSet<>();
     private final Set<Pos> hidden = new HashSet<>();
-    int reads;
+    public int reads;
 
     public void set(int x, int y, int z, BlockKind kind) {
         blocks.put(new Pos(x, y, z), kind);

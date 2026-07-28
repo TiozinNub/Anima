@@ -2,6 +2,7 @@ package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.mod.AnimaMod;
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.luizloyola.anima.compat.SavedDatas;
 import dev.luizloyola.anima.core.brain.knowledge.KnowledgeRegistry;
@@ -38,7 +39,17 @@ public final class KnowledgeData extends SavedData {
             bp -> new Pos(bp.getX(), bp.getY(), bp.getZ()),
             p -> new BlockPos(p.x(), p.y(), p.z()));
 
-    private static final Codec<PoiKind> KIND_CODEC = Codec.STRING.xmap(PoiKind::valueOf, PoiKind::name);
+    /**
+     * Kinds round-trip by their stable key. An unknown one means its mod is gone: the entry errors
+     * rather than guessing a merge radius, and the loader below drops it with a warning instead of
+     * failing the whole file.
+     */
+    private static final Codec<PoiKind> KIND_CODEC = Codec.STRING.comapFlatMap(
+            key -> PoiKind.byKey(key)
+                    .map(DataResult::success)
+                    .orElseGet(() -> DataResult.error(() -> "no POI kind is registered as \"" + key
+                            + "\" — was a mod removed?")),
+            PoiKind::key);
 
     private static final Codec<PoiMemory> MEMORY_CODEC = RecordCodecBuilder.create(m -> m.group(
             KIND_CODEC.fieldOf("kind").forGetter(PoiMemory::kind),
@@ -98,7 +109,7 @@ public final class KnowledgeData extends SavedData {
         for (AgentId id : registry.persons()) {
             AgentKnowledge knowledge = registry.forPerson(id);
             List<PoiMemory> pois = new ArrayList<>();
-            for (PoiKind kind : PoiKind.values()) {
+            for (PoiKind kind : PoiKind.all()) {
                 pois.addAll(knowledge.all(kind));
             }
             if (!pois.isEmpty()) {

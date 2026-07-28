@@ -12,13 +12,13 @@ import java.util.List;
  * fake position, and {@code placed.push(...)} the cell the "block" landed in, the way
  * {@code AgentScaffolder.tick()} ledgers at the actual placement.
  */
-final class FakeScaffolder implements Scaffolder {
-    ScaffoldState state = ScaffoldState.IDLE;
-    boolean refuse;
-    int ups;
-    String lastItem;
+public final class FakeScaffolder implements Scaffolder {
+    public ScaffoldState state = ScaffoldState.IDLE;
+    public boolean refuse;
+    public int ups;
+    public String lastItem;
     /** The standing ledger, newest first — tests seed it (a leftover tower) or fill it as the body. */
-    final Deque<Pos> placed = new ArrayDeque<>();
+    public final Deque<Pos> placed = new ArrayDeque<>();
 
     @Override
     public boolean up(String itemId) {

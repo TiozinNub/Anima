@@ -31,7 +31,7 @@ class KnowledgeRegistryTest {
         KnowledgeRegistry registry = new KnowledgeRegistry();
         Pos anchor = new Pos(10, 64, 0);
         registry.forPerson(person(1))
-                .note(new PoiMemory(PoiKind.TREE, anchor, Region.of(anchor), 6, false, 100));
+                .note(new PoiMemory(TestPois.TREE, anchor, Region.of(anchor), 6, false, 100));
 
         assertEquals(1, registry.forPerson(person(1)).size());
         assertEquals(0, registry.forPerson(person(2)).size(),

@@ -10,17 +10,17 @@ import java.util.List;
  * DUMB about state: {@code begin} does not flip it to CONSUMING, so a pre-set FINISHED survives
  * the call — which is what makes the ConsumeItem first-tick test meaningful.
  */
-final class FakeConsumer implements ItemConsumer {
+public final class FakeConsumer implements ItemConsumer {
     /** Ordered call log, e.g. {@code "begin(14)"}, {@code "abort"} — for sequencing asserts. */
-    final List<String> events = new ArrayList<>();
-    int beginCalls;
-    int abortCalls;
-    int lastSlot = -1;
+    public final List<String> events = new ArrayList<>();
+    public int beginCalls;
+    public int abortCalls;
+    public int lastSlot = -1;
     /** Script what {@link #begin} answers — {@code false} = "nothing to eat there". */
-    boolean beginResult = true;
+    public boolean beginResult = true;
     private ConsumeState state = ConsumeState.IDLE;
 
-    void setState(ConsumeState state) {
+    public void setState(ConsumeState state) {
         this.state = state;
     }
 

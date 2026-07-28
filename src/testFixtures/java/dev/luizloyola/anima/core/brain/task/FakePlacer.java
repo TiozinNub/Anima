@@ -9,12 +9,12 @@ import java.util.List;
  * Scripted {@link BlockPlacer}, refusing on demand. Does not touch the inventory —
  * the real placer consumes the item, so tests that care seed and assert it themselves.
  */
-final class FakePlacer implements BlockPlacer {
-    record Placement(String itemId, Pos cell) {
+public final class FakePlacer implements BlockPlacer {
+    public record Placement(String itemId, Pos cell) {
     }
 
-    final List<Placement> placed = new ArrayList<>();
-    boolean refuse;
+    public final List<Placement> placed = new ArrayList<>();
+    public boolean refuse;
 
     @Override
     public boolean place(String itemId, Pos target) {

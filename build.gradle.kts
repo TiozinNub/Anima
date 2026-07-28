@@ -1,6 +1,9 @@
 plugins {
     // This plugin applies the correct loom variant based on the Minecraft version
     id("dev.kikugie.loom-back-compat")
+    // Anima ships its brain test doubles (FakeContext and friends) as test fixtures: a library
+    // that wants other mods to write tests against its machinery has to hand them the harness.
+    `java-test-fixtures`
     id("me.modmuss50.mod-publish-plugin") version "2.1.1"
 }
 
@@ -93,6 +96,11 @@ dependencies {
     modCompileOnly("maven.modrinth:modmenu:$modMenu")
 
     // core/-layer unit tests: plain JUnit, headless — no Minecraft on the test classpath.
+    // The fixtures are pure core (no Minecraft), but they use the nullness annotations that
+    // reach the main source set transitively through Loom. Named explicitly here.
+    testFixturesCompileOnly("org.jspecify:jspecify:1.0.0")
+    testFixturesImplementation(platform("org.junit:junit-bom:5.11.4"))
+    testFixturesImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

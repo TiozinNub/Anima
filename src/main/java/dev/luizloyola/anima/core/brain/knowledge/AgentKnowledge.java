@@ -35,13 +35,13 @@ public final class AgentKnowledge {
                 .i(dev.luizloyola.anima.core.config.Knob.KNOWLEDGE_MAX_PER_KIND);
     }
 
-    private final Map<PoiKind, Map<Pos, PoiMemory>> byKind = new EnumMap<>(PoiKind.class);
+    private final Map<PoiKind, Map<Pos, PoiMemory>> byKind = new java.util.LinkedHashMap<>();
     /**
      * TRANSIENT avoid-marks: anchors that are true but not worth retrying right now (an
      * unworkable tree). Never serialized (a fresh boot retries clean), and consulted only by
      * method selection; the memory itself stays.
      */
-    private final Map<PoiKind, Map<Pos, Long>> avoidedUntil = new EnumMap<>(PoiKind.class);
+    private final Map<PoiKind, Map<Pos, Long>> avoidedUntil = new java.util.LinkedHashMap<>();
 
     /**
      * Records a belief: merges into an existing same-kind entry within merge radius (the new

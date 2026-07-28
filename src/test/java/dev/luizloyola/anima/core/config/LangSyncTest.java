@@ -12,6 +12,10 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.net.URI;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystemNotFoundException;
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -103,14 +107,29 @@ class LangSyncTest {
         return found;
     }
 
+    /**
+     * The lang directory as a walkable path, whether the classpath hands it over as a plain
+     * directory or inside a jar. It became a jar when Anima started publishing test fixtures, and
+     * a {@code file:}-only lookup failed for a reason that had nothing to do with translations.
+     */
     private static Path langDir() {
         URL url = LangSyncTest.class.getResource(LANG_DIR);
         assertNotNull(url, "missing resource directory " + LANG_DIR);
-        assertEquals("file", url.getProtocol(),
-                "expected " + LANG_DIR + " on the classpath as a directory, not " + url);
         try {
-            return Paths.get(url.toURI());
-        } catch (URISyntaxException e) {
+            URI uri = url.toURI();
+            if ("jar".equals(uri.getScheme())) {
+                // Opened for the life of the JVM on purpose: closing it would invalidate every
+                // Path handed back from here, and a test JVM is short-lived anyway.
+                FileSystem jar;
+                try {
+                    jar = FileSystems.getFileSystem(uri);
+                } catch (FileSystemNotFoundException absent) {
+                    jar = FileSystems.newFileSystem(uri, Map.of());
+                }
+                return jar.getPath(LANG_DIR);
+            }
+            return Paths.get(uri);
+        } catch (URISyntaxException | IOException e) {
             throw new AssertionError("could not resolve " + url, e);
         }
     }

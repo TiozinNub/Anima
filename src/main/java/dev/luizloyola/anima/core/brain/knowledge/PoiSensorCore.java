@@ -222,11 +222,8 @@ public final class PoiSensorCore {
         return 1;
     }
 
+    /** Whatever a consuming mod said this seed grows, or null — see {@link GrowthRules}. */
     private static GrowthRule ruleFor(BlockKind kind) {
-        return switch (kind) {
-            case LOG, LEAVES -> TreeRule.INSTANCE;
-            case WATER -> WaterRule.INSTANCE;
-            default -> null;
-        };
+        return GrowthRules.forSeed(kind).orElse(null);
     }
 }

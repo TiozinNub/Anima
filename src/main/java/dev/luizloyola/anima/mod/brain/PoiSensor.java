@@ -9,6 +9,7 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import java.util.List;
+import java.util.Locale;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import org.jspecify.annotations.Nullable;
@@ -74,7 +75,7 @@ public final class PoiSensor {
     /** One line description, shared with the viewer chat:
      *  {@code TREE (10, 64, 8) 4 logs} / {@code HERD cow (…) 6 head} / {@code WATER … partial}. */
     static String describe(SenseEvent event) {
-        StringBuilder line = new StringBuilder(event.kind().name());
+        StringBuilder line = new StringBuilder(event.kind().key().toUpperCase(Locale.ROOT));
         PoiMemory memory = event.memory();
         if (memory != null && !memory.detail().isEmpty()) {
             line.append(' ').append(memory.detail());
@@ -82,12 +83,10 @@ public final class PoiSensor {
         line.append(" (").append(event.anchor().x()).append(", ").append(event.anchor().y())
                 .append(", ").append(event.anchor().z()).append(")");
         if (memory != null) {
-            line.append(' ').append(memory.units())
-                    .append(switch (memory.kind()) {
-                        case TREE -> " logs";
-                        case HERD -> " head";
-                        default -> " cells";
-                    });
+            // The kind carries what its units count; a kind that never registered one is
+            // still countable, just not in anything more specific than cells.
+            String unit = memory.kind().unit();
+            line.append(' ').append(memory.units()).append(unit.isEmpty() ? " cells" : unit);
             if (memory.partial()) {
                 line.append(", partial");
             }

@@ -17,12 +17,12 @@ class AgentKnowledgeTest {
 
     private static PoiMemory tree(int x, int y, int z, int logs, long seen) {
         Pos anchor = new Pos(x, y, z);
-        return new PoiMemory(PoiKind.TREE, anchor, Region.of(anchor), logs, false, seen);
+        return new PoiMemory(TestPois.TREE, anchor, Region.of(anchor), logs, false, seen);
     }
 
     private static PoiMemory water(int x, int y, int z, long seen) {
         Pos anchor = new Pos(x, y, z);
-        return new PoiMemory(PoiKind.WATER, anchor, Region.of(anchor), 1, false, seen);
+        return new PoiMemory(TestPois.WATER, anchor, Region.of(anchor), 1, false, seen);
     }
 
     @Test
@@ -32,16 +32,16 @@ class AgentKnowledgeTest {
         knowledge.note(tree(40, 64, 0, 6, 100));
         knowledge.note(water(12, 63, 0, 100));
 
-        PoiMemory nearest = knowledge.nearest(PoiKind.TREE, new Pos(0, 64, 0)).orElseThrow();
+        PoiMemory nearest = knowledge.nearest(TestPois.TREE, new Pos(0, 64, 0)).orElseThrow();
         assertEquals(new Pos(10, 64, 0), nearest.anchor(), "closer tree wins; water ignored");
-        assertTrue(knowledge.nearest(PoiKind.TREE, new Pos(100, 64, 0)).isPresent());
+        assertTrue(knowledge.nearest(TestPois.TREE, new Pos(100, 64, 0)).isPresent());
     }
 
     @Test
     void nearestOnAnEmptyKindIsEmpty() {
         AgentKnowledge knowledge = new AgentKnowledge();
         knowledge.note(water(5, 63, 5, 1));
-        assertTrue(knowledge.nearest(PoiKind.TREE, new Pos(0, 64, 0)).isEmpty());
+        assertTrue(knowledge.nearest(TestPois.TREE, new Pos(0, 64, 0)).isEmpty());
     }
 
     @Test
@@ -49,13 +49,13 @@ class AgentKnowledgeTest {
         AgentKnowledge knowledge = new AgentKnowledge();
         knowledge.note(tree(10, 64, 0, 6, 100));
 
-        assertTrue(knowledge.refresh(PoiKind.TREE, new Pos(10, 64, 0), 500));
-        PoiMemory refreshed = knowledge.all(PoiKind.TREE).iterator().next();
+        assertTrue(knowledge.refresh(TestPois.TREE, new Pos(10, 64, 0), 500));
+        PoiMemory refreshed = knowledge.all(TestPois.TREE).iterator().next();
         assertEquals(500, refreshed.lastSeenTick());
         assertEquals(0, refreshed.age(500));
 
-        assertFalse(knowledge.refresh(PoiKind.TREE, new Pos(99, 64, 0), 500), "unknown anchor");
-        assertFalse(knowledge.refresh(PoiKind.WATER, new Pos(10, 64, 0), 500), "wrong kind");
+        assertFalse(knowledge.refresh(TestPois.TREE, new Pos(99, 64, 0), 500), "unknown anchor");
+        assertFalse(knowledge.refresh(TestPois.WATER, new Pos(10, 64, 0), 500), "wrong kind");
     }
 
     @Test
@@ -64,11 +64,11 @@ class AgentKnowledgeTest {
         knowledge.note(tree(10, 64, 0, 6, 100));
         knowledge.note(tree(40, 64, 0, 4, 100));
 
-        assertTrue(knowledge.forget(PoiKind.TREE, new Pos(10, 64, 0)));
-        assertFalse(knowledge.forget(PoiKind.TREE, new Pos(10, 64, 0)), "already gone");
+        assertTrue(knowledge.forget(TestPois.TREE, new Pos(10, 64, 0)));
+        assertFalse(knowledge.forget(TestPois.TREE, new Pos(10, 64, 0)), "already gone");
         assertEquals(1, knowledge.size());
         assertEquals(new Pos(40, 64, 0),
-                knowledge.nearest(PoiKind.TREE, new Pos(0, 64, 0)).orElseThrow().anchor());
+                knowledge.nearest(TestPois.TREE, new Pos(0, 64, 0)).orElseThrow().anchor());
     }
 
     @Test
@@ -80,7 +80,7 @@ class AgentKnowledgeTest {
         knowledge.note(rediscovered);
 
         assertEquals(1, knowledge.size(), "one grove, one memory");
-        PoiMemory stored = knowledge.all(PoiKind.TREE).iterator().next();
+        PoiMemory stored = knowledge.all(TestPois.TREE).iterator().next();
         assertEquals(rediscovered, stored, "the fresher expansion wins outright");
     }
 
@@ -119,9 +119,9 @@ class AgentKnowledgeTest {
         knowledge.note(tree(0, 64, 500, 5, 5000));
 
         assertEquals(AgentKnowledge.maxPerKind(), knowledge.size(), "capacity holds");
-        assertFalse(knowledge.forget(PoiKind.TREE, new Pos(200, 64, 0)),
+        assertFalse(knowledge.forget(TestPois.TREE, new Pos(200, 64, 0)),
                 "the stalest entry (i=20, seen at tick 0) was the one evicted");
-        assertTrue(knowledge.forget(PoiKind.TREE, new Pos(0, 64, 500)), "newcomer is in");
+        assertTrue(knowledge.forget(TestPois.TREE, new Pos(0, 64, 500)), "newcomer is in");
     }
 
     @Test
@@ -130,10 +130,10 @@ class AgentKnowledgeTest {
         knowledge.note(tree(40, 64, 0, 4, 100));
         knowledge.note(tree(10, 64, 0, 6, 200));
 
-        List<PoiMemory> all = List.copyOf(knowledge.all(PoiKind.TREE));
+        List<PoiMemory> all = List.copyOf(knowledge.all(TestPois.TREE));
         assertEquals(new Pos(40, 64, 0), all.get(0).anchor(), "insertion order, not distance");
         assertThrows(UnsupportedOperationException.class,
-                () -> knowledge.all(PoiKind.TREE).clear());
+                () -> knowledge.all(TestPois.TREE).clear());
     }
 
     @Test
@@ -142,9 +142,9 @@ class AgentKnowledgeTest {
         Region bounds = new Region(new Pos(0, 64, 0), new Pos(4, 70, 4));
         assertTrue(bounds.contains(anchor));
         assertThrows(IllegalArgumentException.class, () ->
-                new PoiMemory(PoiKind.TREE, new Pos(9, 64, 0), bounds, 5, false, 0));
+                new PoiMemory(TestPois.TREE, new Pos(9, 64, 0), bounds, 5, false, 0));
         assertThrows(IllegalArgumentException.class, () ->
-                new PoiMemory(PoiKind.TREE, anchor, bounds, -1, false, 0));
+                new PoiMemory(TestPois.TREE, anchor, bounds, -1, false, 0));
         assertThrows(IllegalArgumentException.class, () ->
                 new Region(new Pos(1, 0, 0), new Pos(0, 5, 5)));
     }

@@ -33,7 +33,7 @@ import java.util.List;
  * moment the ledger is empty — an empty ledger is a cheap no-op SUCCESS, which lets callers use it
  * as a gate.
  */
-final class PillarDescent {
+public final class PillarDescent {
     /** Action-less ticks (top unreachable, walk spent, no climb possible) before the column
      *  is conceded whole. */
     static final int STALL_TICKS = 3;
@@ -49,7 +49,7 @@ final class PillarDescent {
     private boolean columnSet;
 
     /** One decision per tick against the ledger; see the class doc for the contract. */
-    TaskStatus tick(BrainContext ctx) {
+    public TaskStatus tick(BrainContext ctx) {
         BlockBreaker breaker = ctx.actuators().breaker();
         Scaffolder scaffolder = ctx.actuators().scaffolder();
         if (breaking) {
@@ -170,7 +170,7 @@ final class PillarDescent {
     }
 
     /** Release the actuators a descent may hold — the cancel half of the Navigator contract. */
-    void cancel(BrainContext ctx) {
+    public void cancel(BrainContext ctx) {
         ctx.actuators().breaker().abort();
         ctx.actuators().mover().stop();
         ctx.actuators().scaffolder().abort();

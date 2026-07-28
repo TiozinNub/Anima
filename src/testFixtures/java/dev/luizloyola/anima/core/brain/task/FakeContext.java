@@ -20,35 +20,35 @@ import dev.luizloyola.anima.core.agent.AgentId;
  * The test {@link BrainContext}: everything a task or method can reach, scripted and inspectable.
  * Mirrors what the mod {@code BrainDriver} assembles over a live Person, minus Minecraft.
  */
-final class FakeContext implements BrainContext {
-    final FakeMover mover = new FakeMover();
-    final FakeConsumer consumer = new FakeConsumer();
-    final FakeBreaker breaker = new FakeBreaker();
-    final FakePlacer placer = new FakePlacer();
-    final FakeScaffolder scaffolder = new FakeScaffolder();
-    final FakePercepts percepts = new FakePercepts();
+public final class FakeContext implements BrainContext {
+    public final FakeMover mover = new FakeMover();
+    public final FakeConsumer consumer = new FakeConsumer();
+    public final FakeBreaker breaker = new FakeBreaker();
+    public final FakePlacer placer = new FakePlacer();
+    public final FakeScaffolder scaffolder = new FakeScaffolder();
+    public final FakePercepts percepts = new FakePercepts();
     /** A real knowledge store (pure and headless anyway) — chop tests seed and inspect it. */
-    final AgentKnowledge knowledge = new AgentKnowledge();
+    public final AgentKnowledge knowledge = new AgentKnowledge();
     /** This fake person's identity — what its claims are held under. */
-    final AgentId self = AgentId.random();
+    public final AgentId self = AgentId.random();
     /** The narrating voice behind journal pronouns — settable so a test can assert either one. */
-    Pronouns pronouns = Pronouns.of("she", "her", "her");
+    public Pronouns pronouns = Pronouns.of("she", "her", "her");
     /**
      * A real claim registry (pure anyway), private by default so solo tests behave as before;
      * contention tests point two contexts at one shared instance to simulate a settlement.
      */
-    SiteClaims siteClaims = new SiteClaims();
+    public SiteClaims siteClaims = new SiteClaims();
     /**
      * A real (in-memory) journal on a fixed-tick clock, so a narrating task records somewhere
      * inspectable ({@code journalService.recent(...)}). Bound to one throwaway person.
      */
-    final JournalService journalService = new JournalService(() -> 0L);
+    public final JournalService journalService = new JournalService(() -> 0L);
     private final AgentJournal journal = journalService.forPerson(AgentId.random());
     /**
      * The cost ceiling the executor gates methods by (raw food is priced out at 60, admitted at
      * ∞). Defaults to ∞, so tests predating cost tolerance see every applicable method.
      */
-    double costTolerance = Double.POSITIVE_INFINITY;
+    public double costTolerance = Double.POSITIVE_INFINITY;
     private final ActuatorAccess actuators = new ActuatorAccess() {
         @Override
         public Mover mover() {

@@ -25,27 +25,27 @@ import java.util.UUID;
  * {@link FoodLookup} for compat's registry+recipe read. Nothing is cookable by default,
  * mirroring compat finding no bettering recipe.
  */
-final class FakePercepts implements Percepts {
-    final Inventory inventory = new Inventory();
-    final Needs needs = new Needs();
+public final class FakePercepts implements Percepts {
+    public final Inventory inventory = new Inventory();
+    public final Needs needs = new Needs();
     /** The feet cell — settable; defaults to a plausible stance so wander targets are sane. */
-    Pos position = new Pos(0, 64, 0);
-    List<Being> beings = List.of();
+    public Pos position = new Pos(0, 64, 0);
+    public List<Being> beings = List.of();
     /** The block world — a real {@link FakeProbe} (flat ground at y 63, sparse blocks on top). */
-    final FakeProbe blocks = new FakeProbe();
-    List<Drop> drops = List.of();
+    public final FakeProbe blocks = new FakeProbe();
+    public List<Drop> drops = List.of();
     /** The game clock — settable; tests that price staleness advance it. */
-    long time;
+    public long time;
     private final Map<String, FoodValue> foodById = new HashMap<>();
     private final Map<String, FoodValue> cookedById = new HashMap<>();
 
     /** Register item {@code id} as edible with the given value — the test's food registry. */
-    void food(String id, FoodValue value) {
+    public void food(String id, FoodValue value) {
         foodById.put(id, value);
     }
 
     /** Register {@code id}'s strictly-better one-step cooked form — the test's recipe book. */
-    void cooked(String id, FoodValue cookedValue) {
+    public void cooked(String id, FoodValue cookedValue) {
         cookedById.put(id, cookedValue);
     }
 
@@ -71,7 +71,7 @@ final class FakePercepts implements Percepts {
 
     /** An identified, aggressive, bare-handed zombie (danger weight 1.0) at this range —
      *  the standard test threat; {@code approaching} maps to the old targeting bonus. */
-    static Being monsterAt(Pos pos, double distance, boolean approaching) {
+    public static Being monsterAt(Pos pos, double distance, boolean approaching) {
         return new Being(BeingId.of(UUID.randomUUID()), Being.Kind.MONSTER, "zombie", "",
                 null, pos, distance, 1, 0, false, List.of(), Being.Activity.IDLE,
                 Being.Locomotion.STILL, false, false, false, approaching, true,

@@ -13,18 +13,18 @@ import java.util.Locale;
  * first-tick test meaningful. Records the gait of the latest order ({@link #lastGait}), which the
  * 3-arg {@link Mover#moveTo(int, int, int)} always threads through as {@link Gait#WALK}.
  */
-final class FakeMover implements Mover {
+public final class FakeMover implements Mover {
     /** Ordered call log, e.g. {@code "moveTo(1, 2, 3)"}, {@code "stop"} — for sequencing asserts. */
-    final List<String> events = new ArrayList<>();
-    int moveToCalls;
-    int stopCalls;
-    int lastX;
-    int lastY;
-    int lastZ;
-    Gait lastGait;
+    public final List<String> events = new ArrayList<>();
+    public int moveToCalls;
+    public int stopCalls;
+    public int lastX;
+    public int lastY;
+    public int lastZ;
+    public Gait lastGait;
     private MoveState state = MoveState.IDLE;
 
-    void setState(MoveState state) {
+    public void setState(MoveState state) {
         this.state = state;
     }
 

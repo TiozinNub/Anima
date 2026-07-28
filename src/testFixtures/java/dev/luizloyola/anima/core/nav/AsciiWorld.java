@@ -20,7 +20,7 @@ import java.util.Map;
  * For shapes a heightmap cannot draw (ceilings, tunnels), {@link #fill} overrides a box of cells
  * with an explicit type.
  */
-final class AsciiWorld implements NavGrid {
+public final class AsciiWorld implements NavGrid {
     private final String[] rows;
     private final Map<Long, CellType> overrides = new HashMap<>();
 
@@ -28,12 +28,12 @@ final class AsciiWorld implements NavGrid {
         this.rows = rows;
     }
 
-    static AsciiWorld of(String... rows) {
+    public static AsciiWorld of(String... rows) {
         return new AsciiWorld(rows);
     }
 
     /** Overrides every cell in the inclusive box with {@code type} — for ceilings and tunnels. */
-    AsciiWorld fill(int x1, int y1, int z1, int x2, int y2, int z2, CellType type) {
+    public AsciiWorld fill(int x1, int y1, int z1, int x2, int y2, int z2, CellType type) {
         for (int x = x1; x <= x2; x++) {
             for (int y = y1; y <= y2; y++) {
                 for (int z = z1; z <= z2; z++) {
