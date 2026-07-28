@@ -3,7 +3,7 @@
   "id": "${id}",
   "version": "${version}",
   "name": "${name}",
-  "description": "The machinery of souls, for any body — brains, navigation and perception for autonomous mod entities.",
+  "description": "The machinery of thinking souls.",
   "authors": [
     "Luiz Loyola"
   ],

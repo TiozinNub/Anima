@@ -13,10 +13,11 @@ import org.slf4j.LoggerFactory;
 public final class AnimaMod implements ModInitializer {
     public static final String MOD_ID = "anima";
 
-    private static final Logger LOG = LoggerFactory.getLogger(MOD_ID);
+    /** The library's log channel, shared by everything under {@code dev.luizloyola.anima}. */
+    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     @Override
     public void onInitialize() {
-        LOG.info("Anima loaded — no souls yet, just the machinery.");
+        LOGGER.info("Anima loaded — the machinery is ready for whoever wants a mind.");
     }
 }

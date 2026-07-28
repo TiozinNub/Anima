@@ -8,10 +8,9 @@ import java.util.Deque;
 import java.util.List;
 
 /**
- * Scripted {@link Scaffolder}: {@code up} succeeds (and goes RISING) unless refused or the
- * ledger is at {@link #PILLAR_MAX}; the test plays the body — flip {@link #state} to RISEN,
- * raise the fake position, and {@code placed.push(...)} the cell the "block" landed in, the
- * way {@code PersonScaffolder.tick()} ledgers at the actual placement.
+ * Scripted {@link Scaffolder}. The test plays the body — flip {@link #state} to RISEN, raise the
+ * fake position, and {@code placed.push(...)} the cell the "block" landed in, the way
+ * {@code AgentScaffolder.tick()} ledgers at the actual placement.
  */
 final class FakeScaffolder implements Scaffolder {
     ScaffoldState state = ScaffoldState.IDLE;

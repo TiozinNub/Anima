@@ -327,7 +327,7 @@ class ChopTreeTest {
             status = task.tick(ctx);
             if (ctx.scaffolder.state == ScaffoldState.RISING) {
                 // Play the body: land one block higher on a block from the pack — and LEDGER
-                // the landed cell, the way PersonScaffolder does at the actual placement.
+                // the landed cell, the way AgentScaffolder does at the actual placement.
                 Pos feet = ctx.percepts.position;
                 ctx.percepts.blocks.set(feet.x(), feet.y(), feet.z(), BlockKind.LOG);
                 ctx.scaffolder.placed.push(feet);
@@ -486,7 +486,7 @@ class ChopTreeTest {
         ChopTree task = new ChopTree(memory, false);
         TaskStatus status = TaskStatus.RUNNING;
         for (int i = 0; i < 400 && status == TaskStatus.RUNNING; i++) {
-            // Play the body's own headroom check (PersonScaffolder.up): while a block stands two
+            // Play the body's own headroom check (AgentScaffolder.up): while a block stands two
             // above their feet, there is no room to jump and the step is refused.
             Pos feet = ctx.percepts.position;
             ctx.scaffolder.refuse = ctx.percepts.blocks.at(feet.x(), feet.y() + 2, feet.z())

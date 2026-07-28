@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>{@link FakeConsumer} neither chews nor feeds the body, so the test plays it: driving the
  * consumer to FINISHED and applying the nutrition to
- * {@link dev.luizloyola.anima.core.agent.Needs} as {@code PersonItemConsumer} does. Cost tolerance stays unbounded
+ * {@link dev.luizloyola.anima.core.agent.Needs} as {@code AgentItemConsumer} does. Cost tolerance stays unbounded
  * (bread is free ready food); the gate itself is pinned in {@link EatLastResortTest}.
  */
 class AutonomousLoopTest {
