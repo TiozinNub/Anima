@@ -98,7 +98,10 @@ public final class ConfigCommands {
     }
 
     private static int get(CommandSourceStack source, ConfigStore store, String key) {
-        if (key.startsWith("danger.")) {
+        // Knobs win over species. `danger.` is a shared prefix: five real knobs live there
+        // (danger.melee_mult and friends) alongside the open-ended species table, so asking the
+        // set first is what stops `danger.melee_mult` being read as a mob called "melee_mult".
+        if (key.startsWith("danger.") && store.set().byKey(key).isEmpty()) {
             String species = key.substring("danger.".length());
             double weight = Danger.weight(species);
             source.sendSuccess(() -> Component.literal(key + " = " + weight
@@ -122,7 +125,9 @@ public final class ConfigCommands {
 
     private static int set(CommandSourceStack source, ConfigStore store, ConfigFile file,
             String key, String value) {
-        if (key.startsWith("danger.")) {
+        // Knobs win over species — see get(). Without this, `set danger.melee_mult 2` wrote a
+        // species weight for a mob named "melee_mult" and silently left the knob alone.
+        if (key.startsWith("danger.") && store.set().byKey(key).isEmpty()) {
             String species = key.substring("danger.".length());
             double parsed;
             try {

@@ -8,20 +8,21 @@ import dev.isxander.yacl3.api.controller.DoubleFieldControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerFieldControllerBuilder;
 import dev.isxander.yacl3.api.controller.TickBoxControllerBuilder;
 import dev.luizloyola.anima.core.brain.instinct.Danger;
-import dev.luizloyola.anima.core.config.ConfigValues;
 import dev.luizloyola.anima.core.config.Config;
-import dev.luizloyola.anima.core.config.Knob;
-import java.util.EnumMap;
+import dev.luizloyola.anima.core.config.ConfigStore;
+import dev.luizloyola.anima.core.config.ConfigValues;
+import dev.luizloyola.anima.core.config.KnobSet;
+import dev.luizloyola.anima.core.config.KnobSpec;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 /**
- * The optional YACL config screen — one category per {@link Knob#section()}, one option per knob,
- * built from the enum so it cannot fall out of step with the file or the command.
+ * The optional YACL config screen — one category per {@link KnobSpec#section()}, one option per
+ * knob, built from a {@link KnobSet} so it cannot fall out of step with the file or the command.
  *
- * <p><b>YACL is the GUI only.</b> {@link ConfigFile} keeps {@code config/anima.json} for an atomic
+ * <p><b>YACL is the GUI only.</b> {@link ConfigFile} keeps {@code config/<mod>.json} for an atomic
  * write, unknown-key reporting and regenerated {@code "// name"} doc lines; values stay in the
  * immutable {@link ConfigValues} behind {@link Config}, whose whole-object swap keeps a reload safe
  * for the off-thread pathfinder.
@@ -33,32 +34,36 @@ import net.minecraft.network.chat.Component;
  * <p>Controllers get the ranges, but the guarantee is {@link ConfigValues#with}, which clamps again
  * on the way in.
  */
-final class YaclConfigScreen {
+public final class YaclConfigScreen {
 
     private YaclConfigScreen() {
     }
 
-    /** Builds the screen. Called only via {@link AnimaModMenu}, only with YACL present. */
-    static Screen create(Screen parent) {
-        ConfigValues live = Config.get();
+    /**
+     * Builds the screen for one mod's knob set. Called only with YACL present — see
+     * {@link AnimaModMenu}, which is the guard.
+     */
+    public static Screen create(Screen parent, ConfigStore store, ConfigFile file) {
+        KnobSet set = store.set();
+        ConfigValues live = store.get();
 
         // Staged rather than applied per-option: YACL calls the setters as the user edits, and one
         // atomic install on Save keeps a half-applied config from being observed mid-tick.
-        Map<Knob, Double> staged = new EnumMap<>(Knob.class);
+        Map<KnobSpec, Double> staged = new LinkedHashMap<>();
 
-        // Sections in Knob declaration order, each becoming one category tab.
+        // Sections in declaration order, each becoming one category tab.
         Map<String, ConfigCategory.Builder> categories = new LinkedHashMap<>();
-        for (Knob knob : Knob.values()) {
+        for (KnobSpec knob : set.knobs()) {
             categories.computeIfAbsent(knob.section(), section -> ConfigCategory.createBuilder()
                     .name(Component.translatableWithFallback(
-                            "anima.config.category." + section, prettify(section))))
-                    .option(option(knob, live, staged));
+                            set.langRoot() + ".category." + section, prettify(section))))
+                    .option(option(set, knob, live, staged));
         }
-        // The per-species flee weights ride the danger tab beside the modifier knobs. Not
-        // knobs (open key set) — each label borrows the mob's own lang entry, so nothing
-        // here ever needs a hand-written name (decision: Luiz).
+        // The per-species flee weights ride the danger tab beside the modifier knobs — not knobs
+        // (open key set), each label borrowing the mob's own lang entry (decision: Luiz). Guarded
+        // on Anima's own set, so a consuming mod naming a section "danger" gets its own knobs.
         Map<String, Double> stagedDanger = new LinkedHashMap<>();
-        ConfigCategory.Builder dangerTab = categories.get("danger");
+        ConfigCategory.Builder dangerTab = set == Config.SET ? categories.get("danger") : null;
         if (dangerTab != null) {
             dangerTab.option(dangerOption(Danger.DEFAULT_KEY, stagedDanger));
             Danger.table().keySet().stream()
@@ -68,21 +73,22 @@ final class YaclConfigScreen {
         }
 
         YetAnotherConfigLib.Builder builder = YetAnotherConfigLib.createBuilder()
-                .title(Component.literal("Autarkia"));
+                .title(Component.literal(set.title()));
         for (ConfigCategory.Builder category : categories.values()) {
             builder.category(category.build());
         }
-        return builder.save(() -> apply(staged, stagedDanger)).build().generateScreen(parent);
+        return builder.save(() -> apply(store, file, staged, stagedDanger)).build().generateScreen(parent);
     }
 
-    private static Option<?> option(Knob knob, ConfigValues live, Map<Knob, Double> staged) {
-        // Labels are translation keys with the knob as the fallback, so an untranslated knob still
-        // reads sensibly and any label can be overridden without touching Java. The last tooltip
-        // line stays literal: the dotted key and range are what you type, not prose to translate.
+    private static Option<?> option(KnobSet set, KnobSpec knob, ConfigValues live,
+            Map<KnobSpec, Double> staged) {
+        // Translation keys with the knob as fallback, so a knob with no lang entry reads sensibly
+        // and any label is overridable in any language without touching Java. The last tooltip
+        // line stays literal: the dotted key and range are typed into the config command.
         Component name = Component.translatableWithFallback(
-                nameKey(knob), prettify(knob.leaf()));
+                nameKey(set, knob), prettify(knob.leaf()));
         OptionDescription description = OptionDescription.of(
-                Component.translatableWithFallback(nameKey(knob) + ".desc", knob.doc()),
+                Component.translatableWithFallback(nameKey(set, knob) + ".desc", knob.doc()),
                 Component.literal(""),
                 Component.literal(knob.key() + " — accepts " + knob.expects()));
         switch (knob.kind()) {
@@ -116,9 +122,9 @@ final class YaclConfigScreen {
         }
     }
 
-    /** {@code anima.config.option.<section>.<leaf>}; append {@code .desc} for the tooltip. */
-    private static String nameKey(Knob knob) {
-        return "anima.config.option." + knob.key();
+    /** {@code <mod>.config.option.<section>.<leaf>}; append {@code .desc} for the tooltip. */
+    private static String nameKey(KnobSet set, KnobSpec knob) {
+        return set.langRoot() + ".option." + knob.key();
     }
 
     /** {@code sense_radius} -> {@code Sense radius} — the label an untranslated knob falls back to. */
@@ -131,7 +137,7 @@ final class YaclConfigScreen {
     /** One species weight row — named by the mob's own lang entry, never hand-written. */
     private static Option<Double> dangerOption(String species, Map<String, Double> staged) {
         Component name = species.equals(Danger.DEFAULT_KEY)
-                ? Component.translatableWithFallback("anima.config.option.danger.default_weight",
+                ? Component.translatableWithFallback(Config.SET.langRoot() + ".option.danger.default_weight",
                         "Default (unlisted mobs)")
                 : speciesName(species);
         return Option.<Double>createBuilder()
@@ -153,17 +159,18 @@ final class YaclConfigScreen {
     }
 
     /** Install the edited values as one config, then persist — the same path {@code config set} takes. */
-    private static void apply(Map<Knob, Double> staged, Map<String, Double> stagedDanger) {
-        ConfigValues updated = Config.get();
-        for (Map.Entry<Knob, Double> change : staged.entrySet()) {
+    private static void apply(ConfigStore store, ConfigFile file, Map<KnobSpec, Double> staged,
+            Map<String, Double> stagedDanger) {
+        ConfigValues updated = store.get();
+        for (Map.Entry<KnobSpec, Double> change : staged.entrySet()) {
             updated = updated.with(change.getKey(), change.getValue());
         }
-        Config.install(updated);
+        store.install(updated);
         if (!stagedDanger.isEmpty()) {
             Map<String, Double> merged = new LinkedHashMap<>(Danger.table());
             merged.putAll(stagedDanger);
             Danger.install(merged);
         }
-        dev.luizloyola.anima.mod.AnimaMod.CONFIG.save(updated);
+        file.save(updated);
     }
 }
