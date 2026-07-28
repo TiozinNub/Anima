@@ -1,5 +1,10 @@
 package dev.luizloyola.anima.core.brain.sense;
 
+import java.util.Optional;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.Collections;
+import java.util.Collection;
 import java.util.Locale;
 import org.jspecify.annotations.Nullable;
 
@@ -49,21 +54,97 @@ public record Being(BeingId id, Kind kind, String species, String name,
         INDIVIDUAL
     }
 
-    public enum Kind {
-        /** Identification below {@link Identified#SPECIES} — the observer can't say yet. */
-        UNKNOWN,
-        /** A minded body (any {@code AgentBody}) or a live player — seamlessly, and the only kind
-         *  fully classified. Named for what it is to the observer: someone with a mind, not a
-         *  settler specifically. */
-        AGENT,
-        /** The game's {@code Enemy} — always {@link #aggressive}. */
-        MONSTER,
-        /** The game's {@code NeutralMob} — aggressive only while visibly angry. */
-        NEUTRAL,
+    /**
+     * What an observer takes a perceived body to BE — the coarse bucket deciding whether it is
+     * someone to talk to, something to fear, or scenery.
+     *
+     * <p><b>Open, not an enum</b>, for the same reason {@code PoiKind} is: a consumer may perceive
+     * distinctions the library has no word for — a tamed companion, a mount, a construct that is
+     * neither creature nor person — so it registers a kind and a classifier ({@code BeingKinds}),
+     * and nothing here branches on the identity of a constant.
+     *
+     * <p>Behaviour comes from the two flags, not {@code ==}: {@link #minded()} makes a peer,
+     * {@link #hostile()} a threat before it has done anything.
+     */
+    public static final class Kind {
+
+        private static final Map<String, Kind> REGISTERED = new LinkedHashMap<>();
+
+        /** Identification below {@code SPECIES} — the observer cannot say yet. */
+        public static final Kind UNKNOWN = register("unknown", false, false);
+        /** A minded body (any {@code AgentBody}) or a live player — seamlessly. */
+        public static final Kind AGENT = register("agent", true, false);
+        /** The game's {@code Enemy} — aggressive without provocation. */
+        public static final Kind MONSTER = register("monster", false, true);
+        /** The game's {@code NeutralMob} — aggressive only while visibly angry, which the sensor
+         *  reads off the body rather than off the kind. */
+        public static final Kind NEUTRAL = register("neutral", false, false);
         /** Everything else living — herd animals among them collapse into herds. */
-        PASSIVE,
-        /** An {@code AbstractVillager} — villager or wandering trader, species tells. */
-        VILLAGER
+        public static final Kind PASSIVE = register("passive", false, false);
+        /** An {@code AbstractVillager} — villager or wandering trader; species tells which. */
+        public static final Kind VILLAGER = register("villager", false, false);
+
+        private final String key;
+        private final boolean minded;
+        private final boolean hostile;
+
+        private Kind(String key, boolean minded, boolean hostile) {
+            this.key = key;
+            this.minded = minded;
+            this.hostile = hostile;
+        }
+
+        /**
+         * Declares a kind of thing an observer can recognise, or returns the existing one when
+         * this key is already registered with the same flags.
+         *
+         * @param key     stable id, also what a saved or transmitted reading carries
+         * @param minded  whether this counts as a peer — named, spoken to, listed by {@code peers()}
+         * @param hostile whether it is a threat before it has done anything
+         */
+        public static synchronized Kind register(String key, boolean minded, boolean hostile) {
+            Kind existing = REGISTERED.get(key);
+            if (existing != null) {
+                if (existing.minded != minded || existing.hostile != hostile) {
+                    throw new IllegalStateException("being kind \"" + key + "\" is already "
+                            + "registered with different behaviour — two mods disagree about it");
+                }
+                return existing;
+            }
+            Kind kind = new Kind(key, minded, hostile);
+            REGISTERED.put(key, kind);
+            return kind;
+        }
+
+        /** The kind with this key, or empty. */
+        public static synchronized Optional<Kind> byKey(String key) {
+            return Optional.ofNullable(REGISTERED.get(key));
+        }
+
+        /** Every registered kind, in registration order. */
+        public static synchronized Collection<Kind> all() {
+            return Collections.unmodifiableCollection(new LinkedHashMap<>(REGISTERED).values());
+        }
+
+        /** Stable id. */
+        public String key() {
+            return key;
+        }
+
+        /** Whether this is a peer: someone to name, address and count among {@code peers()}. */
+        public boolean minded() {
+            return minded;
+        }
+
+        /** Whether this is a threat before it has done anything. */
+        public boolean hostile() {
+            return hostile;
+        }
+
+        @Override
+        public String toString() {
+            return key;
+        }
     }
 
     /** The sight-tier equipment reads — the danger modifiers (decision: Luiz). */
@@ -95,7 +176,7 @@ public record Being(BeingId id, Kind kind, String species, String name,
         if (identified == Identified.NONE) {
             return "someone";
         }
-        if (kind == Kind.AGENT) {
+        if (kind.minded()) {
             if (identified != Identified.INDIVIDUAL) {
                 return "someone";
             }
@@ -125,7 +206,7 @@ public record Being(BeingId id, Kind kind, String species, String name,
      * tells its head count. Renderers append their own awareness tag.
      */
     public String tell(String observerPronoun) {
-        if (kind != Kind.AGENT) {
+        if (!kind.minded()) {
             if (herd()) {
                 return count + " head, centered there";
             }

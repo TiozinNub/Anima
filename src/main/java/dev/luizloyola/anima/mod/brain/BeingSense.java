@@ -303,7 +303,7 @@ public final class BeingSense {
     private BeingReading readCreature(LivingEntity body) {
         BeingId id = BeingId.of(body.getUUID());
         Being.Kind kind = kindOf(body);
-        boolean aggressive = kind == Being.Kind.MONSTER
+        boolean aggressive = kind.hostile()
                 || (body instanceof NeutralMob neutral && neutral.isAngry());
         String name = body.hasCustomName() ? body.getCustomName().getString() : "";
         BlockPos cell = body.blockPosition();
@@ -314,19 +314,10 @@ public final class BeingSense {
                 Being.Activity.IDLE);
     }
 
-    /** The classification, from the game's own types — NeutralMob first: enderman and
-     *  zombified piglin are both Enemy and NeutralMob, and neutral is the truer story. */
+    /** What this body is, to an observer — consumers first, then Anima's vanilla ladder.
+     *  See {@link BeingKinds}, which is also where a mod teaches the sense a kind of its own. */
     private static Being.Kind kindOf(LivingEntity body) {
-        if (body instanceof NeutralMob) {
-            return Being.Kind.NEUTRAL;
-        }
-        if (body instanceof Enemy) {
-            return Being.Kind.MONSTER;
-        }
-        if (body instanceof AbstractVillager) {
-            return Being.Kind.VILLAGER;
-        }
-        return Being.Kind.PASSIVE;
+        return BeingKinds.of(body);
     }
 
     /** Registry path, namespace-qualified only when not vanilla — {@code Being.species}. */
@@ -509,7 +500,7 @@ public final class BeingSense {
      * would drown the journal and the viewer chat. Full state on demand in {@code /anima peers}.
      */
     private static boolean narratable(BeingEvent event) {
-        boolean chatty = event.being().kind() == Being.Kind.AGENT
+        boolean chatty = event.being().kind().minded()
                 || event.being().kind() == Being.Kind.UNKNOWN;
         return chatty || event.type() != BeingEvent.Type.READING_CHANGED;
     }

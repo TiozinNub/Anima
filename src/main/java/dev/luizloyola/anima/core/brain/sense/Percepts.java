@@ -67,7 +67,7 @@ public interface Percepts {
     default List<Being> peers() {
         List<Being> people = new java.util.ArrayList<>();
         for (Being being : beings()) {
-            if (being.kind() == Being.Kind.AGENT) {
+            if (being.kind().minded()) {
                 people.add(being);
             }
         }

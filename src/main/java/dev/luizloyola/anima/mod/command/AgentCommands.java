@@ -443,7 +443,7 @@ public final class AgentCommands {
         String pronoun = person.pronouns().object();
         for (Being being : beings) {
             String kind = being.kind() == Being.Kind.AGENT || being.kind() == Being.Kind.UNKNOWN
-                    ? "" : " [" + being.kind().name().toLowerCase(Locale.ROOT)
+                    ? "" : " [" + being.kind().key()
                             + (being.aggressive() ? "!" : "") + "]";
             String line = String.format(Locale.ROOT, "%s%s (%d, %d, %d) - %.1f blocks away, %s%s",
                     being.knownAs(), kind, being.pos().x(), being.pos().y(), being.pos().z(),
