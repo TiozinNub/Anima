@@ -1,22 +1,20 @@
 package dev.luizloyola.anima.core.config;
 
-import java.util.Locale;
 import java.util.Optional;
 
 /**
- * The single source of truth for every tunable Autarkia exposes: one enum constant per knob with
- * its dotted key, type, default and legal range. The JSON schema, the {@code /autarkia config}
- * completions, the clamp and the YACL screen all derive from this list, so a new tunable is a line
- * here plus a one-line accessor; nothing reflects over field names.
+ * Anima's own tunables: one constant per knob, carrying its dotted key, type, default and legal
+ * range. The schema, the {@code /anima config} completions, the clamp and the YACL screen all
+ * derive from this list, so a new tunable is a line here plus a one-line accessor. A consuming
+ * mod's knobs belong in its own enum — see {@link KnobSpec} and {@link KnobSet}.
  *
  * <p>Keys are dotted {@code snake_case}, the leading segment naming the object the knob nests
  * under, as Minecraft itself does since 26.1.
  *
- * <p><b>Ranges are safety bounds, not taste:</b> they only stop a hand-edited file producing a
- * Person that cannot function or a server that stalls, and {@link ConfigValues} clamps rather than
- * rejects.
+ * <p><b>Ranges are safety bounds, not taste:</b> they only stop a hand-edited file producing an
+ * unusable agent or a stalled server, and {@link ConfigValues} clamps rather than rejects.
  */
-public enum Knob {
+public enum Knob implements KnobSpec {
 
     // --- arbitration ------------------------------------------------------------------------
 
@@ -176,9 +174,6 @@ public enum Knob {
     JOURNAL_FILE_SINK("journal.file_sink", Kind.BOOL, 0, 0, 1,
             "Mirror each Person's journal to logs/autarkia/<person>.log on disk.");
 
-    /** What a knob holds. Everything is stored as a double; the kind decides how it reads back. */
-    public enum Kind { DOUBLE, INT, BOOL }
-
     private final String key;
     private final Kind kind;
     private final double def;
@@ -195,105 +190,34 @@ public enum Knob {
         this.doc = doc;
     }
 
-    /** The dotted, snake_case key — the name used in JSON, in commands, and in log messages. */
+    @Override
     public String key() {
         return key;
     }
 
-    /** The JSON object this knob nests under ({@code "perception"} for {@code perception.*}). */
-    public String section() {
-        return key.substring(0, key.indexOf('.'));
-    }
-
-    public String leaf() {
-        return key.substring(key.indexOf('.') + 1);
-    }
-
+    @Override
     public Kind kind() {
         return kind;
     }
 
+    @Override
     public double def() {
         return def;
     }
 
+    @Override
     public double min() {
         return min;
     }
 
+    @Override
     public double max() {
         return max;
     }
 
-    /** One sentence for the operator — shown by {@code /autarkia config show} and in the GUI. */
+    @Override
     public String doc() {
         return doc;
-    }
-
-    /** What this knob will accept, phrased for an error message ("a whole number"). */
-    public String expects() {
-        switch (kind) {
-            case BOOL:
-                return "true or false";
-            case INT:
-                return "a whole number in [" + format(min) + ", " + format(max) + "]";
-            case DOUBLE:
-            default:
-                return "a number in [" + format(min) + ", " + format(max) + "]";
-        }
-    }
-
-    /** Constrains {@code raw} to this knob's range, rounding to whole numbers for INT and BOOL. */
-    public double clamp(double raw) {
-        double bounded = Math.min(max, Math.max(min, raw));
-        return kind == Kind.DOUBLE ? bounded : Math.rint(bounded);
-    }
-
-    /** Whether {@code raw} would survive {@link #clamp} untouched — the "is this file sane" check. */
-    public boolean accepts(double raw) {
-        return Double.isFinite(raw) && clamp(raw) == raw;
-    }
-
-    /** Renders a stored value the way it should appear in JSON and in command output. */
-    public String format(double value) {
-        switch (kind) {
-            case BOOL:
-                return value != 0.0 ? "true" : "false";
-            case INT:
-                return Long.toString((long) value);
-            case DOUBLE:
-            default:
-                return String.format(Locale.ROOT, "%s", value);
-        }
-    }
-
-    /**
-     * Reads an operator-typed value ({@code "12"}, {@code "0.45"}, {@code "true"}) for this knob,
-     * or empty when it isn't a value of this knob's kind. Out-of-range but well-formed input parses
-     * fine — clamping is {@link ConfigValues}'s job, so the caller can report what it did.
-     */
-    public Optional<Double> parse(String text) {
-        String trimmed = text.trim();
-        if (kind == Kind.BOOL) {
-            if (trimmed.equalsIgnoreCase("true")) {
-                return Optional.of(1.0);
-            }
-            if (trimmed.equalsIgnoreCase("false")) {
-                return Optional.of(0.0);
-            }
-            return Optional.empty();
-        }
-        try {
-            double parsed = Double.parseDouble(trimmed);
-            if (!Double.isFinite(parsed)) {
-                return Optional.empty();
-            }
-            return kind == Kind.INT && parsed != Math.rint(parsed)
-                    ? Optional.empty()
-                    : Optional.of(parsed);
-        } catch (NumberFormatException e) {
-            return Optional.empty();
-        }
     }
 
     /** The knob with this dotted key, or empty — the lookup behind {@code config get}/{@code set}. */

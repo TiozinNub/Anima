@@ -69,7 +69,7 @@ class DefaultsPreserveLegacyConstantsTest {
     @Test
     @DisplayName("a reload retunes live — the whole point of reading through the holder")
     void installedValuesAreVisibleAtTheCallSites() {
-        Config.install(ConfigValues.DEFAULTS
+        Config.install(Config.SET.defaults()
                 .with(Knob.SENSE_RADIUS, 20.0)
                 .with(Knob.BRAIN_PREEMPT, 0.8)
                 .with(Knob.CLAIM_TTL_TICKS, 1200.0));

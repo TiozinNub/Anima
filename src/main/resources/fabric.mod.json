@@ -12,11 +12,18 @@
   "entrypoints": {
     "main": [
       "dev.luizloyola.anima.mod.AnimaMod"
+    ],
+    "modmenu": [
+      "dev.luizloyola.anima.mod.config.AnimaModMenu"
     ]
   },
   "depends": {
     "fabricloader": ">=0.17",
     "minecraft": "${minecraft}",
     "fabric-api": "*"
+  },
+  "recommends": {
+    "yet_another_config_lib_v3": "*",
+    "modmenu": "*"
   }
 }

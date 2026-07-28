@@ -52,6 +52,10 @@ repositories {
     }
     strictMaven("https://www.cursemaven.com", "CurseForge", "curse.maven")
     strictMaven("https://api.modrinth.com/maven", "Modrinth", "maven.modrinth")
+    // YACL (optional config screen) — upstream's own maven. Note it is not always ahead of
+    // Modrinth: pin per node against this repository's maven-metadata.xml, not against what
+    // Modrinth lists.
+    strictMaven("https://maven.isxander.dev/releases", "Xander", "dev.isxander")
 }
 
 dependencies {
@@ -72,6 +76,21 @@ dependencies {
         "fabric-command-api-v2", "fabric-networking-api-v1", "fabric-entity-events-v1",
         "fabric-rendering-v1", "fabric-object-builder-api-v1"
     )
+
+    // Optional config GUI. Both are compile-only: never shipped, never required at runtime, and
+    // guarded at every call site (see AnimaModMenu). YACL is used for the SCREEN only — its
+    // config API is not used, because mod/config/ConfigFile keeps the atomic
+    // tmp-and-rename write, the unknown-key reporting and the regenerated doc comments that
+    // YACL's serializer does not offer, and core/config/ConfigStore keeps the volatile
+    // whole-object swap that makes a reload safe for the off-thread pathfinder.
+    // Do not bundle YACL: upstream asks not to, and it is almost always already installed.
+    val yacl: String = sc.properties["deps.yacl"]
+    val modMenu: String = sc.properties["deps.modmenu"]
+    // isTransitive=false: YACL's POM pulls org.quiltmc.parsers (its JSON5 serializer), which
+    // lives on a maven we don't otherwise need. We compile against YACL's screen API and never
+    // run it — at runtime the real YACL brings its own nested copies.
+    modCompileOnly("dev.isxander:yet-another-config-lib:$yacl") { isTransitive = false }
+    modCompileOnly("maven.modrinth:modmenu:$modMenu")
 
     // core/-layer unit tests: plain JUnit, headless — no Minecraft on the test classpath.
     testImplementation(platform("org.junit:junit-bom:5.11.4"))

@@ -1,38 +1,41 @@
 package dev.luizloyola.anima.core.config;
 
 /**
- * The live configuration — one process-wide, atomically-swapped {@link ConfigValues} that every
- * tunable reads through. A global rather than a parameter threaded through every instinct, task and
- * sensor, and safe because what is shared is <b>immutable</b>: {@link #install} swaps the reference
- * and never mutates, so a reload lands mid-tick with no reader seeing a half-applied configuration.
- * {@code volatile}, because reads happen off the server thread — pathfinding runs on a worker.
+ * Anima's own live configuration — the store behind every {@link Knob}.
  *
- * <p>Reads are cheap enough for per-tick use (a volatile read plus an array index). That is what
- * lets {@code /autarkia config reload} take effect everywhere at once rather than only on
- * newly-constructed objects. Read on use; do not cache into a field.
+ * <p>A thin, statically-reachable face on a {@link ConfigStore}: Anima's tunables are read on hot
+ * paths and {@code Config.get().i(Knob.X)} is the shape those call sites want. A consuming mod
+ * holds its own — see {@link KnobSet}.
  *
- * <p><b>Tests</b> start at {@link ConfigValues#DEFAULTS} and should {@link #reset} after installing
- * anything.
+ * <p><b>Tests</b> start at the documented defaults; one that installs should {@link #reset} after.
  */
 public final class Config {
 
-    private static volatile ConfigValues current = ConfigValues.DEFAULTS;
+    /** Anima's knob set: {@code config/anima.json}, edited with {@code /anima config}. */
+    public static final KnobSet SET = KnobSet.of("anima", "Anima", Knob.values());
+
+    private static final ConfigStore STORE = new ConfigStore(SET);
 
     private Config() {
     }
 
+    /** The store itself, for the file and command layers. */
+    public static ConfigStore store() {
+        return STORE;
+    }
+
     /** The configuration in force right now. Never null. */
     public static ConfigValues get() {
-        return current;
+        return STORE.get();
     }
 
     /** Swaps in a new configuration; every subsequent read sees it whole. */
     public static void install(ConfigValues config) {
-        current = config == null ? ConfigValues.DEFAULTS : config;
+        STORE.install(config);
     }
 
-    /** Back to {@link ConfigValues#DEFAULTS} — teardown for tests, and the "lost the file" path. */
+    /** Back to the documented defaults. */
     public static void reset() {
-        current = ConfigValues.DEFAULTS;
+        STORE.reset();
     }
 }

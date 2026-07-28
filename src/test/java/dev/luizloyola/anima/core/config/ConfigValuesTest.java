@@ -25,24 +25,24 @@ class ConfigValuesTest {
     @Test
     void defaultsHoldEveryKnobsDeclaredDefault() {
         for (Knob knob : Knob.values()) {
-            assertEquals(knob.def(), ConfigValues.DEFAULTS.get(knob), knob.key());
-            assertTrue(ConfigValues.DEFAULTS.isDefault(knob), knob.key());
+            assertEquals(knob.def(), Config.SET.defaults().get(knob), knob.key());
+            assertTrue(Config.SET.defaults().isDefault(knob), knob.key());
         }
-        assertTrue(ConfigValues.DEFAULTS.describeOverrides().isEmpty());
+        assertTrue(Config.SET.defaults().describeOverrides().isEmpty());
     }
 
     @Test
     @DisplayName("an empty input means defaults, with nothing to report")
     void emptyInputIsClean() {
-        ConfigValues.Loaded loaded = ConfigValues.from(Map.of());
+        ConfigValues.Loaded loaded = ConfigValues.from(Config.SET, Map.of());
         assertTrue(loaded.clean());
-        assertEquals(ConfigValues.DEFAULTS, loaded.config());
+        assertEquals(Config.SET.defaults(), loaded.config());
     }
 
     @Test
     @DisplayName("absent knobs keep their default; only what was supplied changes")
     void partialInputLeavesTheRestAlone() {
-        ConfigValues.Loaded loaded = ConfigValues.from(Map.of(Knob.SENSE_RADIUS, 20.0));
+        ConfigValues.Loaded loaded = ConfigValues.from(Config.SET, Map.of(Knob.SENSE_RADIUS, 20.0));
         assertTrue(loaded.clean());
         assertEquals(20, loaded.config().i(Knob.SENSE_RADIUS));
         assertEquals(Knob.READS_PER_TICK.def(), loaded.config().get(Knob.READS_PER_TICK));
@@ -53,10 +53,10 @@ class ConfigValuesTest {
     @Test
     @DisplayName("an out-of-range value is clamped AND reported — never silently swallowed")
     void outOfRangeIsClampedAndReported() {
-        Map<Knob, Double> raw = new EnumMap<>(Knob.class);
+        Map<KnobSpec, Double> raw = new java.util.LinkedHashMap<>();
         raw.put(Knob.SENSE_RADIUS, 999.0);
         raw.put(Knob.BRAIN_PREEMPT, -1.0);
-        ConfigValues.Loaded loaded = ConfigValues.from(raw);
+        ConfigValues.Loaded loaded = ConfigValues.from(Config.SET, raw);
 
         assertFalse(loaded.clean());
         assertEquals(2, loaded.problems().size(), loaded.problems().toString());
@@ -69,37 +69,37 @@ class ConfigValuesTest {
     @Test
     @DisplayName("there is no way to build a config holding an illegal value")
     void withAlwaysClamps() {
-        assertEquals(32, ConfigValues.DEFAULTS.with(Knob.SENSE_RADIUS, 10_000.0).i(Knob.SENSE_RADIUS),
+        assertEquals(32, Config.SET.defaults().with(Knob.SENSE_RADIUS, 10_000.0).i(Knob.SENSE_RADIUS),
                 "above the max clamps down to it");
-        assertEquals(1, ConfigValues.DEFAULTS.with(Knob.SENSE_RADIUS, -5.0).i(Knob.SENSE_RADIUS),
+        assertEquals(1, Config.SET.defaults().with(Knob.SENSE_RADIUS, -5.0).i(Knob.SENSE_RADIUS),
                 "below the min clamps up to it");
-        assertEquals(13, ConfigValues.DEFAULTS.with(Knob.SENSE_RADIUS, 12.6).i(Knob.SENSE_RADIUS),
+        assertEquals(13, Config.SET.defaults().with(Knob.SENSE_RADIUS, 12.6).i(Knob.SENSE_RADIUS),
                 "a fractional value for a whole-number knob is rounded, not truncated");
         for (Knob knob : Knob.values()) {
-            ConfigValues absurd = ConfigValues.DEFAULTS.with(knob, Double.MAX_VALUE);
+            ConfigValues absurd = Config.SET.defaults().with(knob, Double.MAX_VALUE);
             assertTrue(knob.accepts(absurd.get(knob)), knob.key() + " survived an absurd value");
         }
     }
 
     @Test
     void withIsCopyOnWriteAndLeavesTheOriginalAlone() {
-        ConfigValues original = ConfigValues.DEFAULTS;
+        ConfigValues original = Config.SET.defaults();
         ConfigValues changed = original.with(Knob.WANDER_RADIUS, 24.0);
 
         assertEquals(24, changed.i(Knob.WANDER_RADIUS));
         assertEquals((int) Knob.WANDER_RADIUS.def(), original.i(Knob.WANDER_RADIUS),
                 "the original must be untouched — readers may be holding it mid-tick");
         assertNotEquals(original, changed);
-        assertEquals(original, ConfigValues.DEFAULTS);
+        assertEquals(original, Config.SET.defaults());
     }
 
     @Test
     void toMapRoundTripsThroughFrom() {
-        ConfigValues source = ConfigValues.DEFAULTS
+        ConfigValues source = Config.SET.defaults()
                 .with(Knob.SENSE_RADIUS, 20.0)
                 .with(Knob.JOURNAL_FILE_SINK, 1.0)
                 .with(Knob.BRAIN_STICKINESS, 0.25);
-        ConfigValues.Loaded round = ConfigValues.from(source.toMap());
+        ConfigValues.Loaded round = ConfigValues.from(Config.SET, source.toMap());
 
         assertTrue(round.clean());
         assertEquals(source, round.config());
@@ -107,7 +107,7 @@ class ConfigValuesTest {
 
     @Test
     void describeOverridesNamesOnlyWhatDiffers() {
-        ConfigValues config = ConfigValues.DEFAULTS.with(Knob.CLAIM_TTL_TICKS, 1200.0);
+        ConfigValues config = Config.SET.defaults().with(Knob.CLAIM_TTL_TICKS, 1200.0);
         List<String> overrides = config.describeOverrides();
 
         assertEquals(1, overrides.size(), overrides.toString());
@@ -118,18 +118,18 @@ class ConfigValuesTest {
     @Test
     @DisplayName("the live holder starts at defaults, swaps whole, and resets")
     void holderSwapsAtomically() {
-        assertSame(ConfigValues.DEFAULTS, Config.get());
+        assertSame(Config.SET.defaults(), Config.get());
 
-        ConfigValues custom = ConfigValues.DEFAULTS.with(Knob.SENSE_RADIUS, 5.0);
+        ConfigValues custom = Config.SET.defaults().with(Knob.SENSE_RADIUS, 5.0);
         Config.install(custom);
         assertSame(custom, Config.get());
         assertEquals(5, Config.get().i(Knob.SENSE_RADIUS));
 
         Config.install(null);
-        assertSame(ConfigValues.DEFAULTS, Config.get(), "a null install falls back, never NPEs");
+        assertSame(Config.SET.defaults(), Config.get(), "a null install falls back, never NPEs");
 
         Config.install(custom);
         Config.reset();
-        assertSame(ConfigValues.DEFAULTS, Config.get());
+        assertSame(Config.SET.defaults(), Config.get());
     }
 }

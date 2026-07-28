@@ -1,5 +1,8 @@
 package dev.luizloyola.anima.mod;
 
+import dev.luizloyola.anima.core.config.Config;
+import dev.luizloyola.anima.mod.command.AnimaCommands;
+import dev.luizloyola.anima.mod.config.ConfigFile;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,8 +19,20 @@ public final class AnimaMod implements ModInitializer {
     /** The library's log channel, shared by everything under {@code dev.luizloyola.anima}. */
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
+    /**
+     * Anima's own {@code config/anima.json}. A consuming mod builds its own for its own knob
+     * set — this one is not shared, and neither is the file.
+     */
+    public static final ConfigFile CONFIG = new ConfigFile(Config.store());
+
     @Override
     public void onInitialize() {
+        // Read the file before anything can tune itself off a default. Problems are reported
+        // rather than fatal: a hand-edited file degrades to the nearest legal configuration.
+        for (String problem : CONFIG.reload()) {
+            LOGGER.warn("config: {}", problem);
+        }
+        AnimaCommands.register(CONFIG);
         LOGGER.info("Anima loaded — the machinery is ready for whoever wants a mind.");
     }
 }
