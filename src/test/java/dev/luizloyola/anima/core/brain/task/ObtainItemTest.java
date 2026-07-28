@@ -14,6 +14,8 @@ import dev.luizloyola.anima.core.inv.ItemStack;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -21,6 +23,25 @@ import org.junit.jupiter.api.Test;
  * to make quota (the alternation the cost comparison promises), and the dead end reported as one.
  */
 class ObtainItemTest {
+
+    /**
+     * The suite's own spec, since Anima ships none: Which items matter is a consumer's business.
+     * Registering a producer for it exercises the seam that replaced ObtainItem's hardcoded
+     * {@code spec == LOGS} branch.
+     */
+    private static final ItemSpec LOGS =
+            new ItemSpec("logs", id -> id.endsWith("_log") || id.endsWith("_stem"));
+
+    @BeforeEach
+    void teachTheBrainWhereLogsComeFrom() {
+        Producers.register(LOGS, ChopKnownTree::new);
+    }
+
+    @AfterEach
+    void forgetIt() {
+        Producers.reset();
+    }
+
 
     private final FakeContext ctx = new FakeContext();
     private final TaskExecutor executor = new TaskExecutor();
@@ -73,10 +94,10 @@ class ObtainItemTest {
                 new Drop(new Pos(6, 64, 0), "minecraft:oak_log"),
                 new Drop(new Pos(6, 64, 1), "minecraft:birch_log"));
 
-        Optional<TaskStatus> status = drive(new ObtainItem(ItemSpec.LOGS, 3), 50);
+        Optional<TaskStatus> status = drive(new ObtainItem(LOGS, 3), 50);
 
         assertEquals(Optional.of(TaskStatus.SUCCESS), status);
-        assertEquals(3, ctx.percepts.inventory.count(ItemSpec.LOGS.matcher()),
+        assertEquals(3, ctx.percepts.inventory.count(LOGS.matcher()),
                 "birch counts too — the spec is a class, not an id");
         assertTrue(ctx.breaker.targets.isEmpty(), "nothing was chopped for loot already on the ground");
     }
@@ -87,10 +108,10 @@ class ObtainItemTest {
         oakAt(10, 10);
         oakAt(16, 10);
 
-        Optional<TaskStatus> status = drive(new ObtainItem(ItemSpec.LOGS, 8), 600);
+        Optional<TaskStatus> status = drive(new ObtainItem(LOGS, 8), 600);
 
         assertEquals(Optional.of(TaskStatus.SUCCESS), status);
-        assertEquals(8, ctx.percepts.inventory.count(ItemSpec.LOGS.matcher()),
+        assertEquals(8, ctx.percepts.inventory.count(LOGS.matcher()),
                 "two trees' worth: 4 + 4, rounds until satisfied");
         assertEquals(0, ctx.knowledge.size(), "both groves chopped and forgotten");
     }
@@ -99,7 +120,7 @@ class ObtainItemTest {
     void anEmptyWorldIsAnHonestDeadEnd() {
         ctx.percepts.position = new Pos(0, 64, 0);
 
-        Optional<TaskStatus> status = drive(new ObtainItem(ItemSpec.LOGS, 4), 50);
+        Optional<TaskStatus> status = drive(new ObtainItem(LOGS, 4), 50);
 
         assertEquals(Optional.of(TaskStatus.FAILED), status,
                 "no drops in sight, no remembered trees: nothing applicable, the goal is out of reach");

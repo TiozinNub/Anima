@@ -2,7 +2,6 @@ package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.BrainContext;
-import dev.luizloyola.anima.core.brain.board.AgentBoard;
 import dev.luizloyola.anima.core.brain.board.WorkItem;
 import dev.luizloyola.anima.core.brain.board.WorkSource;
 import dev.luizloyola.anima.core.brain.act.ActuatorAccess;
@@ -19,7 +18,6 @@ import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.brain.task.Task;
-import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.agent.Pronouns;
@@ -80,21 +78,20 @@ public final class BrainDriver {
     private AgentClaims claims;
 
     /**
-     * This person's personal board (layer 3's degenerate v1): the hardcoded keep-16-logs
-     * stock rule every fresh spawn wants — the placeholder demand generator, retired when the
-     * first real project (the axe) posts its own bill of materials. Transient: items
-     * regenerate from the inventory predicate.
+     * Where layer-3 demand comes from, supplied by whoever owns this body: a library cannot know
+     * what an agent should be <em>working on</em>. A pets mod hands over {@link WorkSource#NONE}
+     * and never takes an errand. Transient; a reload re-decides.
      */
-    private final AgentBoard board;
+    private final WorkSource board;
 
-    /** The placeholder stock rule: keep this many logs, at this standing priority. */
-    private static final int STOCK_LOGS = 16;
-    private static final double STOCK_PRIORITY = 0.35;
-
+    /** A body with no layer-3 demand of its own — the pets case, and every test rig. */
     public BrainDriver(AgentBody person) {
+        this(person, WorkSource.NONE);
+    }
+
+    public BrainDriver(AgentBody person, WorkSource board) {
         this.person = person;
-        // Offset the board cadence by entity id so a settlement doesn't re-plan in lockstep.
-        this.board = new AgentBoard(ItemSpec.LOGS, STOCK_LOGS, STOCK_PRIORITY, person.entity().getId());
+        this.board = board;
         Mover mover = new AgentMover(person);
         ItemConsumer consumer = new AgentItemConsumer(person);
         BlockPlacer placer = new AgentBlockPlacer(person);
@@ -280,7 +277,7 @@ public final class BrainDriver {
         return this.claims;
     }
 
-    /** The personal board's status line — see {@link AgentBoard#describe}. */
+    /** The work source's status line, whatever it turns out to be. */
     public String describeBoard() {
         return this.board.describe(this.context);
     }

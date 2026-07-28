@@ -41,4 +41,16 @@ public interface WorkSource {
 
     /** The item's root FAILED — the board unclaims it and paces the retry. */
     void failed(WorkItem item, BrainContext ctx);
+
+    /**
+     * The source's own slow thinking (posting, withdrawing, pacing retries) run once per brain
+     * tick regardless of who is driving. Default no-op.
+     */
+    default void tick(BrainContext ctx) {
+    }
+
+    /** One line for an operator, shown by the board command. Default says there is no board. */
+    default String describe(BrainContext ctx) {
+        return "no board";
+    }
 }

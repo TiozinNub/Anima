@@ -23,11 +23,10 @@ public final class ObtainItem implements AchieveTask {
         this.spec = spec;
         this.count = count;
         List<Method> ways = new ArrayList<>();
+        // Picking one up is the way Anima always knows: it needs no knowledge of where the
+        // thing came from. Everything else is the consuming mod's to teach.
         ways.add(new PickUpNearby(spec));
-        if (spec == ItemSpec.LOGS) {
-            // Chopping produces exactly one thing.
-            ways.add(new ChopKnownTree());
-        }
+        ways.addAll(Producers.forSpec(spec));
         this.methods = List.copyOf(ways);
     }
 
