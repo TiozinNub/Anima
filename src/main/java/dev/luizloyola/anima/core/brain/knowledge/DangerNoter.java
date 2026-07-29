@@ -23,8 +23,14 @@ import java.util.List;
  */
 public final class DangerNoter {
 
-    /** How near a remembered danger must be before its absence counts as evidence against it. */
-    private static final int ABSENCE_RADIUS = 12;
+    /**
+     * How near a remembered danger must be before its absence counts as evidence against it.
+     *
+     * <p>Much shorter than perception: sight is a 150-degree cone, so at notice range
+     * "I do not perceive it" mostly means "I am facing the other way". This close, every channel
+     * covers the spot at once and absence is a real observation rather than an angle.
+     */
+    private static final int ABSENCE_RADIUS = 6;
 
     private DangerNoter() {
     }
