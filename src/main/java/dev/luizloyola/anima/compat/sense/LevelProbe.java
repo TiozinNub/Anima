@@ -113,6 +113,18 @@ public final class LevelProbe implements BlockProbe {
                 new BlockPos(target.x(), target.y(), target.z()));
     }
 
+    @Override
+    public boolean sightClearBetween(Pos from, Pos to) {
+        // Eye height rather than cell centre at both ends: a wall a body could see over is not
+        // cover, and standing in a one-block dip is not hiding.
+        Vec3 origin = new Vec3(from.x() + 0.5, from.y() + EYE_HEIGHT, from.z() + 0.5);
+        Vec3 target = new Vec3(to.x() + 0.5, to.y() + EYE_HEIGHT, to.z() + 0.5);
+        return sightClear(this.level, origin, target, new BlockPos(to.x(), to.y(), to.z()));
+    }
+
+    /** Roughly a standing body's eyes above the cell it occupies. */
+    private static final double EYE_HEIGHT = 1.62;
+
     /**
      * Eye-to-BODY sight: rays from {@code from} to sampled points of the target's hitbox —
      * eyes, torso center, feet — cheapest-first with EARLY-OUT, so any visible body part

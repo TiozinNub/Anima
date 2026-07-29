@@ -100,4 +100,13 @@ public final class FakeProbe implements BlockProbe {
     public boolean visibleFromEyes(Pos target) {
         return !hidden.contains(target);
     }
+
+    /**
+     * Line of sight between two cells: blocked when EITHER end is marked hidden. Crude on purpose —
+     * a cover test says "this spot is behind the wall" without building a wall.
+     */
+    @Override
+    public boolean sightClearBetween(Pos from, Pos to) {
+        return !hidden.contains(from) && !hidden.contains(to);
+    }
 }

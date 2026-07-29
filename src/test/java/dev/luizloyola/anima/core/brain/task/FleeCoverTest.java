@@ -1,0 +1,121 @@
+package dev.luizloyola.anima.core.brain.task;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import dev.luizloyola.anima.core.brain.knowledge.FakeProbe;
+import dev.luizloyola.anima.core.brain.sense.Being;
+import dev.luizloyola.anima.core.brain.sense.BeingId;
+import dev.luizloyola.anima.core.brain.sense.Pos;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+/**
+ * Breaking line of sight, and knowing when not to bother.
+ *
+ * <p>Cover is a tactic, not a drive: <em>how</em> a body flees, chosen where the destination is.
+ * Worth it only against something that shoots — against a zombie, a wall is standing still while
+ * it walks round.
+ */
+class FleeCoverTest {
+
+    private final FakeContext ctx = new FakeContext();
+    private final FakeProbe probe = ctx.percepts.blocks;
+
+    @BeforeEach
+    void placeThePerson() {
+        ctx.percepts.position = new Pos(0, 64, 0);
+    }
+
+    private Being threat(String species, Being.Gear gear, Pos at, double distance) {
+        return new Being(BeingId.of(UUID.randomUUID()), Being.Kind.MONSTER, species, "", null,
+                at, distance, 1, 0, false, List.of(), Being.Activity.IDLE,
+                Being.Locomotion.STILL, false, false, false, false, true, gear,
+                Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
+    }
+
+    /** The goal a flee leg picked, read out of the GoTo it decomposed to. */
+    private Pos fleeTarget() {
+        List<Task> plan = new FleeStep(new Random(0)).methods().get(0).decompose(ctx);
+        assertEquals(1, plan.size());
+        String described = ((PrimitiveTask) plan.get(0)).describe();
+        Matcher m = GOAL.matcher(described);
+        assertTrue(m.find(), "not a goto: " + described);
+        return new Pos(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)),
+                Integer.parseInt(m.group(3)));
+    }
+
+    private static final Pattern GOAL =
+            Pattern.compile("goto \\((-?\\d+), (-?\\d+), (-?\\d+)\\)");
+
+    /**
+     * Marks the whole left half of the escape fan as out of any line — "there is a wall over
+     * there". Which exact cell the search settles on is its business; that it settles on one of
+     * them is the behaviour.
+     */
+    private void putAWallToTheWest() {
+        // Far enough west that the ORDINARY escape (straight away, plus a couple of blocks of
+        // jitter) can never land in it by accident — so a target inside the wall means the search
+        // ran, not that a die came up left.
+        for (int x = -12; x <= -5; x++) {
+            for (int z = 0; z <= 14; z++) {
+                probe.hide(new Pos(x, 64, z));
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("against something that shoots, it runs to where no line reaches")
+    void aShooterIsFledByBreakingLineOfSight() {
+        Pos archer = new Pos(0, 64, -10);
+        ctx.percepts.beings = List.of(threat("skeleton", Being.Gear.NONE, archer, 10.0));
+        putAWallToTheWest();
+
+        Pos target = fleeTarget();
+        assertFalse(probe.visibleFromEyes(target),
+                "cover existed along the escape heading and was not taken: " + target);
+        assertTrue(target.z() > 0, "and it is still away from the archer: " + target);
+    }
+
+    @Test
+    @DisplayName("against something with claws, it just runs — a wall buys nothing")
+    void aMeleeThreatIsFledByRunning() {
+        Pos zombie = new Pos(0, 64, -10);
+        ctx.percepts.beings = List.of(threat("zombie", Being.Gear.NONE, zombie, 10.0));
+        putAWallToTheWest(); // cover exists, and is ignored
+
+        Pos target = fleeTarget();
+        assertTrue(target.z() > 0, "the escape must still be away from the zombie: " + target);
+        assertTrue(probe.visibleFromEyes(target),
+                "standing behind a wall from a zombie is standing still while it walks around");
+    }
+
+    @Test
+    @DisplayName("a visibly held bow makes a shooter of anything")
+    void heldRangedGearCountsWhateverTheSpeciesIs() {
+        Being armed = threat("zombie", new Being.Gear(false, true, false, false, false),
+                new Pos(0, 64, -10), 10.0);
+        ctx.percepts.beings = List.of(armed);
+        putAWallToTheWest();
+
+        assertFalse(probe.visibleFromEyes(fleeTarget()),
+                "the item check is what catches an archer nobody declared");
+    }
+
+    @Test
+    @DisplayName("with nowhere to hide it still runs rather than standing still")
+    void noCoverMeansTheOrdinaryEscape() {
+        ctx.percepts.beings = List.of(
+                threat("skeleton", Being.Gear.NONE, new Pos(0, 64, -10), 10.0));
+
+        Pos target = fleeTarget();
+        assertTrue(target.z() > 0, "no cover anywhere must fall back to running away: " + target);
+    }
+}

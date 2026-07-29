@@ -24,4 +24,13 @@ public interface BlockProbe {
      * spent on a hypothesis), never per column, so the proof costs almost nothing.
      */
     boolean visibleFromEyes(Pos target);
+
+    /**
+     * The same walk between two arbitrary cells: has something at {@code from} a clear line to
+     * {@code to}?
+     *
+     * <p>"Could I be seen from there", not "can I see it" — what a body asks looking for somewhere
+     * out of an archer's line. Rays are expensive: ask at a decision point, never per tick.
+     */
+    boolean sightClearBetween(Pos from, Pos to);
 }
