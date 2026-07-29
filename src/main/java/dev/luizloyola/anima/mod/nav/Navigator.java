@@ -3,6 +3,7 @@ package dev.luizloyola.anima.mod.nav;
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
+import dev.luizloyola.anima.mod.brain.DangerFields;
 import dev.luizloyola.anima.core.nav.CellNeed;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.MoveType;
@@ -269,9 +270,9 @@ public final class Navigator {
         this.state = State.PATHING;
         PathfinderService.Dispatched dispatched = OFF_THREAD
                 ? PathfinderService.request(level(), this.person.blockPosition(), this.goal,
-                        capabilities())
+                        capabilities(), DangerFields.of(this.person))
                 : PathfinderService.computeNow(level(), this.person.blockPosition(), this.goal,
-                        capabilities());
+                        capabilities(), DangerFields.of(this.person));
         this.grid = dispatched.snapshot();
         this.pending = dispatched.result();
     }

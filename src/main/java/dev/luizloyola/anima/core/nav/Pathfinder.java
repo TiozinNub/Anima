@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.nav;
 
+import dev.luizloyola.anima.core.brain.sense.DangerField;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -109,10 +110,17 @@ public final class Pathfinder {
     /** Careful-ground memo: each cell is probed by every incident edge, and one probe costs ~20
      *  grid reads — cache it per search. */
     private final Map<Long, Boolean> carefulCache = new HashMap<>();
+    /**
+     * What this body would rather not walk past. A snapshot taken before the search left the
+     * server thread — see {@link PathRequest#of(int, int, int, int, int, int, MoveCapabilities,
+     * DangerField)}.
+     */
+    private final DangerField danger;
 
     private Pathfinder(NavGrid grid, PathRequest request) {
         this.grid = grid;
         this.profile = request.profile();
+        this.danger = request.danger();
         this.goalX = request.goalX();
         this.goalY = request.goalY();
         this.goalZ = request.goalZ();
@@ -422,7 +430,7 @@ public final class Pathfinder {
 
     /** Standard A* edge relaxation: record-or-improve the neighbour and (re)queue it. */
     private void relax(long current, Node from, long neighbor, MoveType move, double cost) {
-        double g = from.g + cost;
+        double g = from.g + cost + dread(neighbor);
         Node node = this.nodes.get(neighbor);
         if (node == null) {
             node = new Node();
@@ -439,6 +447,35 @@ public final class Pathfinder {
         }
         this.open.push(neighbor, g + heuristic(unpackX(neighbor), unpackZ(neighbor)));
     }
+
+    /**
+     * What it costs this body, in extra steps, to set foot in a cell — nothing at all unless it
+     * knows of something to fear near it.
+     *
+     * <p><b>Zero danger is exactly zero cost.</b> Not approximately: a world with nothing
+     * frightening in it produces bit-identical paths to one computed before any of this existed,
+     * which is what lets the path-integrity regression pair keep meaning what it meant.
+     *
+     * <p><b>It never makes a cell impassable.</b> The surcharge is finite, so a body walled in by
+     * things it is afraid of still finds its way out — a strong preference, not a rule. And since
+     * it only ever raises a cost, the heuristic stays admissible.
+     */
+    private double dread(long cell) {
+        if (danger.isEmpty()) {
+            return 0.0;
+        }
+        return DREAD_COST * danger.at(unpackX(cell), unpackY(cell), unpackZ(cell));
+    }
+
+    /**
+     * How many steps of detour one unit of danger is worth.
+     *
+     * <p>Sized against the field's inverse-square falloff so that the result reads the way the
+     * behaviour is described: standing next to a remembered creeper costs about a dozen steps
+     * (never go there), five blocks away about half a step (lean away), ten blocks away almost
+     * nothing (a route that happens to pass wide is not worth bending).
+     */
+    private static final double DREAD_COST = 8.0;
 
     /**
      * Euclidean distance on the horizontal plane. Admissible because <em>every move costs at least
