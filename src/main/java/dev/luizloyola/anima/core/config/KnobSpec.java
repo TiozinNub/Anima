@@ -8,8 +8,9 @@ import java.util.Optional;
  * operator. Anima's own set is {@link Knob}.
  *
  * <p><b>An interface, not an enum,</b> because none of the config stack cares whose knobs it
- * drives: every mod keeps its own enum, file and command. Implementors are expected to be enums —
- * {@link #ordinal()} indexes the value array.
+ * drives: every mod keeps its own enum, file and command. A knob never knows where its value is
+ * stored — {@link KnobSet#indexOf} decides, so a hand-written enum and a generated family can share
+ * one set.
  *
  * <p>Everything below the accessors is derived: six values per knob buy parsing, clamping,
  * formatting and error phrasing.
@@ -37,11 +38,13 @@ public interface KnobSpec {
     /** One sentence for the operator — shown by {@code config show} and in the GUI. */
     String doc();
 
-    /** Index into the value array. Free from {@link Enum}. */
-    int ordinal();
-
-    /** The constant's own name. Free from {@link Enum}. */
-    String name();
+    /**
+     * The constant's own name, for diagnostics. Derived from the key; an enum keeps its own for
+     * free, since a class method always beats an interface default.
+     */
+    default String name() {
+        return key().toUpperCase(Locale.ROOT).replace('.', '_');
+    }
 
     /** The JSON object this knob nests under ({@code "perception"} for {@code perception.*}). */
     default String section() {

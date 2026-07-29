@@ -9,9 +9,9 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * An immutable set of values for every knob in one {@link KnobSet}. Values sit in a flat array
- * indexed by {@link KnobSpec#ordinal()}, so adding a knob to a set's enum is the only edit a new
- * tunable needs: this class never names one.
+ * An immutable set of values for every knob in one {@link KnobSet}. Values sit in a flat array at
+ * the slot {@link KnobSet#indexOf} assigns, so adding a knob to a set's enum is the only edit a new
+ * tunable needs: this class never names one, and never asks a knob where it belongs.
  *
  * <p><b>Always valid by construction</b>: every entry point runs {@link KnobSpec#clamp}, so loading
  * a hand-edited file cannot fail — {@link #from} returns the nearest legal configuration plus what
@@ -40,28 +40,28 @@ public final class ConfigValues {
 
     /** The raw stored value. Prefer {@link #i}/{@link #b}/{@link #d} at call sites. */
     public double get(KnobSpec knob) {
-        return values[knob.ordinal()];
+        return values[set.indexOf(knob)];
     }
 
     /** A {@link KnobSpec.Kind#DOUBLE} knob. */
     public double d(KnobSpec knob) {
-        return values[knob.ordinal()];
+        return values[set.indexOf(knob)];
     }
 
     /** An {@link KnobSpec.Kind#INT} knob, already rounded by the clamp. */
     public int i(KnobSpec knob) {
-        return (int) values[knob.ordinal()];
+        return (int) values[set.indexOf(knob)];
     }
 
     /** A {@link KnobSpec.Kind#BOOL} knob. */
     public boolean b(KnobSpec knob) {
-        return values[knob.ordinal()] != 0.0;
+        return values[set.indexOf(knob)] != 0.0;
     }
 
     /** This configuration with one knob changed (clamped), leaving the original untouched. */
     public ConfigValues with(KnobSpec knob, double raw) {
         double[] copy = values.clone();
-        copy[knob.ordinal()] = knob.clamp(raw);
+        copy[set.indexOf(knob)] = knob.clamp(raw);
         return new ConfigValues(set, copy);
     }
 
@@ -69,14 +69,14 @@ public final class ConfigValues {
     public Map<KnobSpec, Double> toMap() {
         Map<KnobSpec, Double> map = new LinkedHashMap<>();
         for (KnobSpec knob : set.knobs()) {
-            map.put(knob, values[knob.ordinal()]);
+            map.put(knob, values[set.indexOf(knob)]);
         }
         return map;
     }
 
     /** Whether this knob still sits at its default — what {@code show} marks. */
     public boolean isDefault(KnobSpec knob) {
-        return values[knob.ordinal()] == knob.def();
+        return values[set.indexOf(knob)] == knob.def();
     }
 
     /**
@@ -92,7 +92,7 @@ public final class ConfigValues {
             KnobSpec knob = entry.getKey();
             double supplied = entry.getValue() == null ? knob.def() : entry.getValue();
             double clamped = knob.clamp(supplied);
-            built[knob.ordinal()] = clamped;
+            built[set.indexOf(knob)] = clamped;
             if (clamped != supplied) {
                 problems.add(String.format(Locale.ROOT, "%s: %s is out of range [%s, %s] — using %s",
                         knob.key(), knob.format(supplied), knob.format(knob.min()),
@@ -117,7 +117,7 @@ public final class ConfigValues {
     private static double[] defaultValues(KnobSet set) {
         double[] built = new double[set.size()];
         for (KnobSpec knob : set.knobs()) {
-            built[knob.ordinal()] = knob.def();
+            built[set.indexOf(knob)] = knob.def();
         }
         return built;
     }
