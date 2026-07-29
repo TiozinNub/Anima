@@ -63,10 +63,16 @@ public record DebugViewPayload(
     /** {@code kind} is the POI kind's stable KEY, not a positional index: POI kinds are an open
      *  registry now, so registration order is not a stable wire format the moment a second mod
      *  declares one. */
-    public record Belief(String kind, BlockPos anchor, BlockPos min, BlockPos max, boolean stale) {
+    /**
+     * @param label what this is, in a few words — built server-side because that is where the
+     *     memory actually lives; the client only ever draws the string it was handed
+     */
+    public record Belief(String kind, String label, BlockPos anchor, BlockPos min, BlockPos max,
+                         boolean stale) {
         public static final StreamCodec<RegistryFriendlyByteBuf, Belief> CODEC =
                 StreamCodec.composite(
                         ByteBufCodecs.STRING_UTF8, Belief::kind,
+                        ByteBufCodecs.STRING_UTF8, Belief::label,
                         BlockPos.STREAM_CODEC, Belief::anchor,
                         BlockPos.STREAM_CODEC, Belief::min,
                         BlockPos.STREAM_CODEC, Belief::max,

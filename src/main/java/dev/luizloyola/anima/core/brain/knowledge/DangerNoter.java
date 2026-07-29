@@ -47,15 +47,19 @@ public final class DangerNoter {
             if (!frightening(danger, being)) {
                 continue;
             }
-            String key = keyFor(being);
-            // One memory per thing, moved rather than duplicated.
-            for (PoiMemory existing : List.copyOf(knowledge.all(PoiKind.DANGER))) {
-                if (being.id().value().equals(existing.individual())) {
-                    knowledge.forget(PoiKind.DANGER, existing.anchor());
-                }
+            PoiMemory existing = remembered(knowledge, being);
+            // A fright the body can no longer sense is not re-stamped: its memory ages from the
+            // last time it was really there, not through the sense's whole linger. With no memory
+            // yet, write one now — a creeper glimpsed for a moment is what most needs remembering
+            // (caught live: one perceived, fled from, never recorded).
+            if (being.awareness() == Being.Awareness.REMEMBERED && existing != null) {
+                continue;
             }
-            PoiMemory memory = new PoiMemory(PoiKind.DANGER, key, being.id().value(), being.pos(),
-                    Region.of(being.pos()), 1, false, now);
+            if (existing != null) {
+                knowledge.forget(PoiKind.DANGER, existing.anchor()); // moved, not duplicated
+            }
+            PoiMemory memory = new PoiMemory(PoiKind.DANGER, keyFor(being), being.id().value(),
+                    being.pos(), Region.of(being.pos()), 1, false, now);
             knowledge.note(memory, maxPerKind);
             events.add(SenseEvent.noted(memory));
         }
@@ -77,7 +81,10 @@ public final class DangerNoter {
             }
             boolean stillThere = false;
             for (Being being : beings) {
+                // LIVE perception only. A track the sense is merely remembering is the same belief
+                // by a second route; letting it vouch for itself would disprove nothing, ever.
                 if (frightening(danger, being)
+                        && being.awareness() != Being.Awareness.REMEMBERED
                         && being.id().value().equals(existing.individual())) {
                     stillThere = true;
                     break;
@@ -90,11 +97,19 @@ public final class DangerNoter {
         }
     }
 
-    /** Whether this being is worth remembering the location of — perceived now, and weighs. */
+    /** Whether this being is worth remembering the location of at all. */
     private static boolean frightening(DangerTable danger, Being being) {
-        return being.aggressive()
-                && being.awareness() != Being.Awareness.REMEMBERED
-                && danger.weight(keyFor(being)) > 0.0;
+        return being.aggressive() && danger.weight(keyFor(being)) > 0.0;
+    }
+
+    /** This body's existing memory of that particular thing, or null. */
+    private static PoiMemory remembered(AgentKnowledge knowledge, Being being) {
+        for (PoiMemory memory : List.copyOf(knowledge.all(PoiKind.DANGER))) {
+            if (being.id().value().equals(memory.individual())) {
+                return memory;
+            }
+        }
+        return null;
     }
 
     /** What the table should be asked about this being — its species, or the anonymous key. */

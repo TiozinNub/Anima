@@ -7,6 +7,7 @@ import dev.luizloyola.anima.core.agent.AspectModifier;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.mod.debug.DebugView;
 import dev.luizloyola.anima.mod.debug.DebugLayer;
+import dev.luizloyola.anima.mod.debug.PoiLabels;
 import net.minecraft.commands.CommandBuildContext;
 import java.util.Map;
 import dev.luizloyola.anima.mod.identity.AgentDirectory;
@@ -905,10 +906,8 @@ public final class AgentCommands {
     private static String formatPoi(AgentBody person, PoiMemory memory, long now) {
         double distance = Math.sqrt(person.entity().distanceToSqr(
                 memory.anchor().x() + 0.5, memory.anchor().y() + 0.5, memory.anchor().z() + 0.5));
-        long ageSeconds = memory.age(now) / 20;
-        String age = ageSeconds < 2 ? "just now"
-                : ageSeconds < 120 ? ageSeconds + "s ago"
-                : (ageSeconds / 60) + "m ago";
+        String age = PoiLabels.age(memory, now);
+        int lifetime = memory.kind().lifetimeTicks();
         StringBuilder line = new StringBuilder(memory.kind().key().toUpperCase(java.util.Locale.ROOT));
         if (!memory.detail().isEmpty()) {
             line.append(' ').append(memory.detail());
@@ -917,7 +916,10 @@ public final class AgentCommands {
                 .append(", ").append(memory.anchor().z()).append(") - ")
                 .append(Math.round(distance)).append(" blocks away, ")
                 .append(memory.units()).append(memory.kind().unit().isEmpty() ? " cells" : memory.kind().unit())
-                .append(", seen ").append(age);
+                .append(", seen ").append(age.equals("now") ? "just now" : age + " ago");
+        if (lifetime > 0) {
+            line.append(", ").append(PoiLabels.when(memory, now));
+        }
         if (memory.partial()) {
             line.append(", partial");
         }

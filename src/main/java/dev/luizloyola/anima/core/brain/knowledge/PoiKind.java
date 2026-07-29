@@ -47,16 +47,18 @@ public final class PoiKind {
      * <p>Merge radius 0 as for {@link #HERD}: {@code DangerNoter} owns matching, the rule being
      * identity (one memory per thing, moved not duplicated) not distance.
      */
-    public static final PoiKind DANGER = register("danger", 0, "");
+    public static final PoiKind DANGER = register("danger", 0, "", 6_000);
 
     private final String key;
     private final int mergeRadius;
     private final String unit;
+    private final int lifetimeTicks;
 
-    private PoiKind(String key, int mergeRadius, String unit) {
+    private PoiKind(String key, int mergeRadius, String unit, int lifetimeTicks) {
         this.key = key;
         this.mergeRadius = mergeRadius;
         this.unit = unit;
+        this.lifetimeTicks = lifetimeTicks;
     }
 
     /**
@@ -72,15 +74,29 @@ public final class PoiKind {
      * @throws IllegalStateException when the key is already registered with a different shape
      */
     public static synchronized PoiKind register(String key, int mergeRadius, String unit) {
+        return register(key, mergeRadius, unit, 0);
+    }
+
+    /**
+     * The same, for a kind of memory that goes off. Most do not: a remembered grove is right until
+     * somebody fells it, so it is corrected by looking rather than by a clock. A remembered fright
+     * decays whether or not anybody goes back to check, so it genuinely has a deadline.
+     *
+     * @param lifetimeTicks how long a memory of this kind stays worth anything, or 0 for a kind
+     *     that expires only by being disproven
+     */
+    public static synchronized PoiKind register(String key, int mergeRadius, String unit,
+            int lifetimeTicks) {
         PoiKind existing = REGISTERED.get(key);
         if (existing != null) {
-            if (existing.mergeRadius != mergeRadius || !existing.unit.equals(unit)) {
+            if (existing.mergeRadius != mergeRadius || !existing.unit.equals(unit)
+                    || existing.lifetimeTicks != lifetimeTicks) {
                 throw new IllegalStateException("POI kind \"" + key + "\" is already registered "
                         + "with a different shape — two mods disagree about what it means");
             }
             return existing;
         }
-        PoiKind kind = new PoiKind(key, mergeRadius, unit);
+        PoiKind kind = new PoiKind(key, mergeRadius, unit, lifetimeTicks);
         REGISTERED.put(key, kind);
         return kind;
     }
@@ -107,6 +123,14 @@ public final class PoiKind {
      */
     public int mergeRadius() {
         return mergeRadius;
+    }
+
+    /**
+     * How long a memory of this kind stays worth anything, or 0 for a kind that only expires by
+     * being disproven. One number for the fade curve and every readout.
+     */
+    public int lifetimeTicks() {
+        return lifetimeTicks;
     }
 
     /** What {@code units} counts, for operator-facing text ({@code " logs"}, {@code " head"}). */

@@ -82,6 +82,10 @@ public final class DebugViewRenderer {
     private static final double NAME_TAG_CLEARANCE = 0.9;
     /** Vanilla's left-alignment nudge for stacked debug text. */
     private static final float TEXT_LEFT_ALIGN = 0.5F;
+    /** Height of the anchor marker's column, so it stays findable inside a large bounds box. */
+    private static final float BELIEF_STUB = 1.5F;
+    /** Clearance between the top of what a belief covers and its label. */
+    private static final double BELIEF_LABEL_CLEARANCE = 0.6;
     /** Stand-in height for a peer with no loaded body — a player's, since every peer is one. */
     private static final double ASSUMED_BODY_HEIGHT = 1.8;
 
@@ -225,9 +229,13 @@ public final class DebugViewRenderer {
     }
 
     /**
-     * What they believe is out there: the bounds box they remember and a marker on the anchor they
-     * would actually walk to. A stale belief greys out — the ghost of a grove since chopped down is
-     * the knowledge store working correctly.
+     * What they believe is out there: the bounds box they remember, a marker on the anchor they
+     * would actually walk to, and a word for what it is. A stale belief greys out — the ghost of a
+     * grove since chopped down is the knowledge store working correctly.
+     *
+     * <p><b>The label is the point of the layer.</b> Boxes alone say only where and how stale, and
+     * a settler in a worked area stands in a field of overlapping ones. The text sits at the top of
+     * the anchor's stub so it clears the box's own lines, in the belief's colour.
      */
     private static void drawBeliefs(DebugViewPayload view) {
         for (DebugViewPayload.Belief belief : view.beliefs()) {
@@ -236,9 +244,30 @@ public final class DebugViewRenderer {
                     GizmoStyle.stroke(color, THIN));
             // The anchor gets a stub of a column so it stays findable inside a big bounds box.
             Vec3 anchor = centre(belief.anchor());
-            Gizmos.line(anchor, anchor.add(0.0, 1.5, 0.0), color, PATH_WIDTH);
+            Gizmos.line(anchor, anchor.add(0.0, BELIEF_STUB, 0.0), color, PATH_WIDTH);
             Gizmos.point(anchor, color, 0.2F);
+            if (!belief.label().isEmpty()) {
+                Gizmos.billboardText(belief.label(), labelAt(belief, anchor),
+                                TextGizmo.Style.forColor(color)
+                                        .withScale(DETAIL_SCALE)
+                                        .withLeftAlignment(TEXT_LEFT_ALIGN))
+                        // A belief is a claim ABOUT the blocks, so being hidden by them is exactly
+                        // backwards — and the commonest belief is a tree, a wall of leaves.
+                        .setAlwaysOnTop();
+            }
         }
+    }
+
+    /**
+     * Where a belief's label goes: clear of the TOP OF the THING, not of its anchor.
+     *
+     * <p>A grove's anchor is its lowest trunk log, so a label a stub-height above it sits inside
+     * the canopy (decision: Luiz). Riding the bounds instead clears whatever the belief actually
+     * covers, while a single-cell belief still gets its label just above the marker.
+     */
+    private static Vec3 labelAt(DebugViewPayload.Belief belief, Vec3 anchor) {
+        double top = Math.max(belief.max().getY() + 1, anchor.y + BELIEF_STUB);
+        return new Vec3(anchor.x, top + BELIEF_LABEL_CLEARANCE, anchor.z);
     }
 
     /**

@@ -219,6 +219,7 @@ public final class DebugView {
                 Region bounds = memory.bounds();
                 out.add(new DebugViewPayload.Belief(
                         memory.kind().key(),
+                        PoiLabels.of(memory, now),
                         cell(memory.anchor()),
                         cell(bounds.min()),
                         cell(bounds.max()),

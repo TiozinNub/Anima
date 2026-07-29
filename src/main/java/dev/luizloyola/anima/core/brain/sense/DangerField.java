@@ -28,8 +28,13 @@ import java.util.List;
  */
 public final class DangerField {
 
-    /** A remembered fright is worth nothing after five minutes of game time. */
-    public static final int FADE_TICKS = 6_000;
+    /**
+     * A remembered fright is worth nothing after this long — five minutes of game time.
+     *
+     * <p>Read off the kind rather than declared here, so the curve a settler acts on and the
+     * countdown a readout shows are the same number by construction.
+     */
+    public static final int FADE_TICKS = PoiKind.DANGER.lifetimeTicks();
 
     /** Beyond this many blocks a danger contributes nothing — the field stays a local question. */
     public static final double REACH = 24.0;
