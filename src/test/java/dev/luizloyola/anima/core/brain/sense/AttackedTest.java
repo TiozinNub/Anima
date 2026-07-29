@@ -96,6 +96,22 @@ class AttackedTest {
         assertSame(Being.Kind.UNKNOWN, only().kind(), "back to something unidentified over there");
     }
 
+    @Test
+    @DisplayName("running away from a remembered threat actually gets you away from it")
+    void aRememberedThreatIsRemeasuredAsTheBodyMoves() {
+        sensor.tick(new Pos(0, 64, 0), 0, 0, 100L, new NoWorld());
+        sensor.attacked(at(new Pos(0, 64, 8), 8.0), 100L, false);
+        assertEquals(8.0, only().distance(), 1e-6);
+
+        // The remembered position does not move — object permanence. DISTANCE is a relation
+        // between the two, and one has been running.
+        sensor.tick(new Pos(0, 64, -60), 0, 0, 140L, new NoWorld());
+
+        assertEquals(68.0, only().distance(), 1e-6,
+                "left frozen, fear never decays with the running — a settler read a skeleton as "
+                        + "eight blocks away the whole time and fled about a hundred blocks");
+    }
+
     /** A world with nobody in it: the sense still ticks, it just never sees anything. */
     private static final class NoWorld implements BeingWorld {
         @Override

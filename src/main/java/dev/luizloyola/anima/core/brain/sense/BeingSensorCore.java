@@ -174,6 +174,11 @@ public final class BeingSensorCore {
     private final Set<BeingId> pendingIds = new HashSet<>();
     private final List<BeingEvent> pending = new ArrayList<>();
     private long lastSweepAt = NEVER;
+    /**
+     * Kept so a REMEMBERED reading can re-measure its distance: the position it remembers is
+     * frozen, the body asking is not.
+     */
+    private Pos lastFeet = new Pos(0, 0, 0);
 
     /**
      * One perception tick: sweep on the discovery cadence, re-check whoever is due (rays metered),
@@ -182,6 +187,7 @@ public final class BeingSensorCore {
      */
     public List<BeingEvent> tick(Pos feet, double yawDegrees, double pitchDegrees, long now,
                                  BeingWorld world) {
+        this.lastFeet = feet;
         boolean sweepBeat = now - lastSweepAt >= SWEEP_INTERVAL_TICKS;
         if (sweepBeat) {
             lastSweepAt = now;
@@ -532,7 +538,7 @@ public final class BeingSensorCore {
             x += track.last.pos().x();
             y += track.last.pos().y();
             z += track.last.pos().z();
-            nearest = Math.min(nearest, track.last.distance());
+            nearest = Math.min(nearest, distanceTo(track));
             if (track.awareness == Being.Awareness.SEEN) {
                 best = Being.Awareness.SEEN;
             } else if (track.awareness == Being.Awareness.HEARD
@@ -711,12 +717,31 @@ public final class BeingSensorCore {
                 speciesKnown ? r.species() : "",
                 seen ? r.name() : "",
                 seen ? r.profession() : null,
-                r.pos(), r.distance(), 1, 0,
+                r.pos(), distanceTo(track), 1, 0,
                 speciesKnown && r.herdAnimal(), List.of(),
                 r.activity(), r.locomotion(), r.sneaking(), r.watching(), r.aimedAt(),
                 track.approaching && aggressive, aggressive,
                 seen ? r.gear() : Being.Gear.NONE,
                 tier, track.awareness);
+    }
+
+    /**
+     * How far this track is from the body RIGHT NOW.
+     *
+     * <p>The POSITION is remembered (that is object permanence), but the DISTANCE is
+     * re-measured: it is a relation between the body and that place, and only one of the two has
+     * stopped moving. Frozen, it had a settler reading a fled-from skeleton as eight blocks away
+     * for the whole linger and running about a hundred blocks.
+     */
+    private double distanceTo(Track track) {
+        if (track.awareness != Being.Awareness.REMEMBERED) {
+            return track.last.distance();
+        }
+        Pos at = track.last.pos();
+        double dx = at.x() - lastFeet.x();
+        double dy = at.y() - lastFeet.y();
+        double dz = at.z() - lastFeet.z();
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     /**
