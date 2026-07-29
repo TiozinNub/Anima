@@ -309,8 +309,8 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         person.navigateTo(Vec3.atBottomCenterOf(pos));
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + " -> "
-                + pos.toShortString()).withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " -> "
+                + pos.toShortString()).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -318,16 +318,16 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         person.navigator().stop();
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + " stopped.")
-                .withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " stopped.")
+                .withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
     private static int navStatus(CommandSourceStack source) {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + ": "
-                + person.navigator().describe()).withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
+                + person.navigator().describe()).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -338,8 +338,8 @@ public final class AgentCommands {
         if (person == null) return 0;
         boolean autoDisabled = person.brain().run(new GoTo(pos.getX(), pos.getY(), pos.getZ()));
         String suffix = autoDisabledSuffix(autoDisabled);
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + ": "
-                + person.brain().describe() + suffix).withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
+                + person.brain().describe() + suffix).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -350,8 +350,8 @@ public final class AgentCommands {
         if (person == null) return 0;
         boolean autoDisabled = person.brain().run(new BreakBlock(pos.getX(), pos.getY(), pos.getZ()));
         String suffix = autoDisabledSuffix(autoDisabled);
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + ": "
-                + person.brain().describe() + suffix).withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
+                + person.brain().describe() + suffix).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -366,23 +366,23 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            source.sendFailure(Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
             return 0;
         }
         String name = person.entity().getName().getString();
         if (on) {
             ServerPlayer player = source.getPlayer();
             BeingViewer.watch(source.getServer(), id, player == null ? null : player.getUUID());
-            source.sendSuccess(() -> Component.literal("Narrating " + name
+            Replies.send(source, () -> Component.literal("Narrating " + name
                             + "'s people sense — spotted/lost/activity lines land in "
                             + (player == null ? "everyone's chat (console toggle)." : "your chat."))
-                    .withStyle(ChatFormatting.GREEN), false);
+                    .withStyle(ChatFormatting.GREEN));
         } else {
             boolean was = BeingViewer.unwatch(source.getServer(), id);
-            source.sendSuccess(() -> Component.literal(was
+            Replies.send(source, () -> Component.literal(was
                             ? "Stopped narrating " + name + "'s people sense."
                             : name + "'s people sense wasn't being narrated.")
-                    .withStyle(ChatFormatting.YELLOW), false);
+                    .withStyle(ChatFormatting.YELLOW));
         }
         return 1;
     }
@@ -393,19 +393,19 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            source.sendFailure(Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
             return 0;
         }
         String name = person.entity().getName().getString();
         UUID viewer = BeingViewer.viewer(source.getServer(), id);
         if (viewer == null) {
-            source.sendSuccess(() -> Component.literal(name + "'s peers view is false.")
-                    .withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal(name + "'s peers view is false.")
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal(name + "'s peers view is true — "
+        Replies.send(source, () -> Component.literal(name + "'s peers view is true — "
                         + "spotted/lost/activity lines land in " + describeViewer(source, viewer))
-                .withStyle(ChatFormatting.GREEN), false);
+                .withStyle(ChatFormatting.GREEN));
         return 1;
     }
 
@@ -435,12 +435,12 @@ public final class AgentCommands {
         List<Being> beings = person.brain().percepts().beings();
         String name = person.entity().getName().getString();
         if (beings.isEmpty()) {
-            source.sendSuccess(() -> Component.literal(name + " sees nobody around.")
-                    .withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal(name + " sees nobody around.")
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal(name + " — " + beings.size() + " perceived")
-                .withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(name + " — " + beings.size() + " perceived")
+                .withStyle(ChatFormatting.AQUA));
         String pronoun = person.pronouns().object();
         for (Being being : beings) {
             String kind = being.kind() == Being.Kind.AGENT || being.kind() == Being.Kind.UNKNOWN
@@ -451,9 +451,9 @@ public final class AgentCommands {
                     being.distance(), being.tell(pronoun),
                     being.awareness() == Being.Awareness.SEEN
                             ? "" : " [" + being.awareness().name().toLowerCase(Locale.ROOT) + "]");
-            source.sendSuccess(() -> Component.literal(line)
+            Replies.send(source, () -> Component.literal(line)
                     .withStyle(being.awareness() == Being.Awareness.REMEMBERED
-                            ? ChatFormatting.GRAY : ChatFormatting.GREEN), false);
+                            ? ChatFormatting.GRAY : ChatFormatting.GREEN));
         }
         return beings.size();
     }
@@ -465,16 +465,16 @@ public final class AgentCommands {
         if (person == null) return 0;
         boolean autoDisabled = person.brain().run(new SatisfyHunger());
         String suffix = autoDisabledSuffix(autoDisabled);
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + ": "
-                + person.brain().describe() + suffix).withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
+                + person.brain().describe() + suffix).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
     private static int brainStatus(CommandSourceStack source) {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + ": "
-                + person.brain().describe()).withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
+                + person.brain().describe()).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -482,8 +482,8 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         person.brain().cancel();
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + " task cancelled; "
-                + person.brain().describe()).withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " task cancelled; "
+                + person.brain().describe()).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -493,8 +493,8 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         person.brain().setAuto(auto);
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + ": "
-                + person.brain().describe()).withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
+                + person.brain().describe()).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -505,9 +505,9 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         boolean on = ThoughtBroadcast.toggle(person.agentId());
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString()
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString()
                         + (on ? " is thinking out loud in chat now." : "'s thoughts are quiet again."))
-                .withStyle(ChatFormatting.AQUA), false);
+                .withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -515,11 +515,11 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         boolean auto = person.brain().isAuto();
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + "'s brain auto is "
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + "'s brain auto is "
                         + auto + " — " + (auto
                                 ? "the arbiter is deciding."
                                 : "manual; hand it back with /anima brain auto true."))
-                .withStyle(auto ? ChatFormatting.GREEN : ChatFormatting.GRAY), false);
+                .withStyle(auto ? ChatFormatting.GREEN : ChatFormatting.GRAY));
         return auto ? 1 : 0;
     }
 
@@ -560,7 +560,7 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            source.sendFailure(Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
             return 0;
         }
         return dumpJournal(source, id, person.entity().getName().getString(), true, category, count);
@@ -595,15 +595,15 @@ public final class AgentCommands {
         String scope = category == null ? "" : " (" + category.name().toLowerCase(Locale.ROOT) + ")";
         String tag = loaded ? "" : " (not loaded)";
         if (lines.isEmpty()) {
-            source.sendSuccess(() -> Component.literal(name + " has no" + scope + " log yet" + tag + ".")
-                    .withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal(name + " has no" + scope + " log yet" + tag + ".")
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal(name + " — last " + lines.size() + " lines" + scope + tag)
-                .withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(name + " — last " + lines.size() + " lines" + scope + tag)
+                .withStyle(ChatFormatting.AQUA));
         for (Entry entry : lines) {
-            source.sendSuccess(() -> Component.literal(formatLine(name, entry))
-                    .withStyle(colorFor(entry.category())), false);
+            Replies.send(source, () -> Component.literal(formatLine(name, entry))
+                    .withStyle(colorFor(entry.category())));
         }
         return lines.size();
     }
@@ -630,14 +630,14 @@ public final class AgentCommands {
                     .toList();
         }
         if (matches.isEmpty()) {
-            source.sendFailure(Component.literal(
+            Replies.fail(source, Component.literal(
                     "No agent matches '" + token + "' — try a name or id from the list command."));
             return null;
         }
         if (matches.size() > 1) {
             String ids = matches.stream().map(AgentCommands::shortId)
                     .collect(java.util.stream.Collectors.joining(", "));
-            source.sendFailure(Component.literal(matches.size() + " agents named '" + token
+            Replies.fail(source, Component.literal(matches.size() + " agents named '" + token
                     + "' — pick one by id: " + ids));
             return null;
         }
@@ -666,25 +666,25 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            source.sendFailure(Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
             return 0;
         }
         AgentKnowledge knowledge = Knowledges.of(source.getServer()).forPerson(id);
         String name = person.entity().getName().getString();
         if (knowledge.size() == 0) {
-            source.sendSuccess(() -> Component.literal(name + " remembers no POIs yet.")
-                    .withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal(name + " remembers no POIs yet.")
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         long now = source.getServer().overworld().getGameTime();
-        source.sendSuccess(() -> Component.literal(name + " — " + knowledge.size()
+        Replies.send(source, () -> Component.literal(name + " — " + knowledge.size()
                         + " remembered POI(s), " + person.poiSensor().claimCount() + " claimed blocks")
-                .withStyle(ChatFormatting.AQUA), false);
+                .withStyle(ChatFormatting.AQUA));
         for (PoiKind kind : PoiKind.all()) {
             for (PoiMemory memory : knowledge.all(kind)) {
                 String line = formatPoi(person, memory, now);
-                source.sendSuccess(() -> Component.literal(line)
-                        .withStyle(ChatFormatting.GREEN), false);
+                Replies.send(source, () -> Component.literal(line)
+                        .withStyle(ChatFormatting.GREEN));
             }
         }
         return knowledge.size();
@@ -723,27 +723,27 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            source.sendFailure(Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
             return 0;
         }
         String name = person.entity().getName().getString();
         if (on) {
             ServerPlayer player = source.getPlayer();
             if (player == null) {
-                source.sendFailure(Component.literal(
+                Replies.fail(source, Component.literal(
                         "knowledge view true needs a player — the discovery chat goes to you."));
                 return 0;
             }
             KnowledgeViewer.watch(source.getServer(), id, player.getUUID());
-            source.sendSuccess(() -> Component.literal("Viewing " + name
+            Replies.send(source, () -> Component.literal("Viewing " + name
                             + "'s knowledge — particles mark beliefs (ghosts included), discoveries land in your chat.")
-                    .withStyle(ChatFormatting.GREEN), false);
+                    .withStyle(ChatFormatting.GREEN));
         } else {
             boolean was = KnowledgeViewer.unwatch(source.getServer(), id);
-            source.sendSuccess(() -> Component.literal(was
+            Replies.send(source, () -> Component.literal(was
                             ? "Stopped viewing " + name + "'s knowledge."
                             : name + " wasn't being viewed.")
-                    .withStyle(ChatFormatting.GRAY), false);
+                    .withStyle(ChatFormatting.GRAY));
         }
         return 1;
     }
@@ -758,20 +758,20 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            source.sendFailure(Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
             return 0;
         }
         String name = person.entity().getName().getString();
         UUID viewer = KnowledgeViewer.viewer(source.getServer(), id);
         if (viewer == null) {
-            source.sendSuccess(() -> Component.literal(name + "'s knowledge view is false.")
-                    .withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal(name + "'s knowledge view is false.")
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal(name + "'s knowledge view is true — "
+        Replies.send(source, () -> Component.literal(name + "'s knowledge view is true — "
                         + "particles mark " + person.pronouns().possessive() + " beliefs, "
                         + "discoveries land in " + describeViewer(source, viewer))
-                .withStyle(ChatFormatting.GREEN), false);
+                .withStyle(ChatFormatting.GREEN));
         return 1;
     }
 
@@ -791,15 +791,16 @@ public final class AgentCommands {
         if (person == null) return 0;
         List<Inventory.Entry> occupied = person.inventory().occupied();
         if (occupied.isEmpty()) {
-            source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + " carries nothing.")
-                    .withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal(
+                            person.entity().getName().getString() + " carries nothing.")
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + " carries:")
-                .withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " carries:")
+                .withStyle(ChatFormatting.AQUA));
         for (Inventory.Entry entry : occupied) {
             String line = "  " + slotLabel(entry.slot()) + "  " + entry.stack().id() + " x" + entry.stack().count();
-            source.sendSuccess(() -> Component.literal(line).withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal(line).withStyle(ChatFormatting.GRAY));
         }
         return occupied.size();
     }
@@ -816,9 +817,9 @@ public final class AgentCommands {
                 ItemStacks.templateOf(input, source.registryAccess());
         dev.luizloyola.anima.core.inv.ItemStack remainder = person.inventory().add(template.withCount(count));
         int placed = count - remainder.count();
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + " +" + placed + " "
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " +" + placed + " "
                 + template.id() + (remainder.isEmpty() ? "" : "  (" + remainder.count() + " didn't fit)"))
-                .withStyle(ChatFormatting.AQUA), false);
+                .withStyle(ChatFormatting.AQUA));
         return placed;
     }
 
@@ -836,23 +837,25 @@ public final class AgentCommands {
                 ItemStacks.templateOf(input, source.registryAccess());
         EquipmentSlot slot = ItemStacks.equipmentSlotOf(want);
         if (slot == null) {
-            source.sendFailure(Component.literal(want.id() + " is not equippable."));
+            Replies.fail(source, Component.literal(want.id() + " is not equippable."));
             return 0;
         }
         if (!PERSON_EQUIP_SLOTS.contains(slot)) { // e.g. BODY/SADDLE — no such slot on a Person
-            source.sendFailure(Component.literal(want.id() + " can't be worn by a Person (" + slot.getName() + ")."));
+            Replies.fail(source, Component.literal(
+                    want.id() + " can't be worn by a Person (" + slot.getName() + ")."));
             return 0;
         }
         Inventory inv = person.inventory();
         dev.luizloyola.anima.core.inv.ItemStack piece = inv.takeOne(want.id());
         if (piece.isEmpty()) {
-            source.sendFailure(Component.literal(person.entity().getName().getString() + " has no " + want.id() + " to equip."));
+            Replies.fail(source, Component.literal(person.entity().getName().getString()
+                    + " has no " + want.id() + " to equip."));
             return 0;
         }
         dev.luizloyola.anima.core.inv.ItemStack displaced = placeEquipment(inv, slot, piece);
         if (!displaced.isEmpty()) inv.add(displaced); // whatever was worn there goes back to storage
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + " equipped "
-                + want.id() + " (" + slot.getName() + ")").withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " equipped "
+                + want.id() + " (" + slot.getName() + ")").withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -860,8 +863,8 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         person.inventory().clear();
-        source.sendSuccess(() -> Component.literal(person.entity().getName().getString() + " inventory cleared.")
-                .withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " inventory cleared.")
+                .withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -886,7 +889,7 @@ public final class AgentCommands {
                 .map(AgentBody.class::cast)
                 .orElse(null);
         if (nearest == null) {
-            source.sendFailure(Component.literal(
+            Replies.fail(source, Component.literal(
                     "Nobody with a mind within " + (int) NEAREST_RADIUS + " blocks."));
         }
         return nearest;
@@ -901,7 +904,7 @@ public final class AgentCommands {
     public static @Nullable AgentBody resolveBody(CommandSourceStack source) {
         if (source.getEntity() instanceof AgentBody self) {
             if (!self.entity().isAlive()) {
-                source.sendFailure(Component.literal(
+                Replies.fail(source, Component.literal(
                         self.entity().getName().getString() + " is dead — nothing left to command."));
                 return null;
             }
@@ -912,7 +915,7 @@ public final class AgentCommands {
         AgentId id = pin.get();
         AgentBody live = AgentBodies.findLoaded(source.getServer(), id);
         if (live == null) {
-            source.sendFailure(Component.literal("Selected " + label(source.getServer(), id)
+            Replies.fail(source, Component.literal("Selected " + label(source.getServer(), id)
                     + " isn't loaded — /anima select clear, or select someone else."));
         }
         return live;
@@ -964,7 +967,7 @@ public final class AgentCommands {
                     .toList();
         }
         if (matches.isEmpty()) {
-            source.sendFailure(Component.literal(
+            Replies.fail(source, Component.literal(
                     "Nobody loaded matches '" + token + "' — try the list command."));
             return 0;
         }
@@ -975,14 +978,14 @@ public final class AgentCommands {
             String ids = matches.stream()
                     .map(b -> shortId(b.agentId()))
                     .collect(java.util.stream.Collectors.joining(", "));
-            source.sendFailure(Component.literal(matches.size() + " agents match '" + token
+            Replies.fail(source, Component.literal(matches.size() + " agents match '" + token
                     + "' — pick one by id: " + ids));
             return 0;
         }
         AgentId id = matches.get(0).agentId();
         AgentSelection.pin(source, id);
-        source.sendSuccess(() -> Component.literal("Selected " + label(server, id))
-                .withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal("Selected " + label(server, id))
+                .withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -1004,36 +1007,37 @@ public final class AgentCommands {
         }
         AgentId id = target.agentId();
         if (id == null) {
-            source.sendFailure(Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
             return 0;
         }
         AgentSelection.pin(source, id);
-        source.sendSuccess(() -> Component.literal("Selected " + label(source.getServer(), id))
-                .withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal("Selected " + label(source.getServer(), id))
+                .withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
     private static int selectClear(CommandSourceStack source) {
         if (AgentSelection.clear(source)) {
-            source.sendSuccess(() -> Component.literal("Selection cleared — commands use the nearest Person again.")
-                    .withStyle(ChatFormatting.AQUA), false);
+            Replies.send(source, () -> Component.literal(
+                            "Selection cleared — commands use the nearest Person again.")
+                    .withStyle(ChatFormatting.AQUA));
             return 1;
         }
-        source.sendSuccess(() -> Component.literal("No Person was selected.").withStyle(ChatFormatting.GRAY), false);
+        Replies.send(source, () -> Component.literal("No Person was selected.").withStyle(ChatFormatting.GRAY));
         return 0;
     }
 
     private static int selectShow(CommandSourceStack source) {
         Optional<AgentId> pin = AgentSelection.pinned(source);
         if (pin.isEmpty()) {
-            source.sendSuccess(() -> Component.literal("No selection — commands use the nearest Person.")
-                    .withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal("No selection — commands use the nearest Person.")
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         AgentId id = pin.get();
         boolean loaded = AgentBodies.findLoaded(source.getServer(), id) != null;
-        source.sendSuccess(() -> Component.literal("Selected: " + label(source.getServer(), id)
-                + (loaded ? "" : " (not loaded)")).withStyle(loaded ? ChatFormatting.AQUA : ChatFormatting.GRAY), false);
+        Replies.send(source, () -> Component.literal("Selected: " + label(source.getServer(), id)
+                + (loaded ? "" : " (not loaded)")).withStyle(loaded ? ChatFormatting.AQUA : ChatFormatting.GRAY));
         return loaded ? 1 : 0;
     }
 
@@ -1091,14 +1095,14 @@ public final class AgentCommands {
         if (self instanceof AgentBody body) {
             AgentId id = body.agentId();
             if (id == null) {
-                source.sendFailure(Component.literal("That Person isn't identified yet (still spawning)."));
+                Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
             }
             return id;
         }
         if (self instanceof ServerPlayer player) {
             return AgentId.of(player.getUUID());
         }
-        source.sendFailure(Component.literal(
+        Replies.fail(source, Component.literal(
                 "The console knows everyone and nobody — run this as a player, or "
                         + "/execute as <person> run anima contacts …"));
         return null;
@@ -1121,15 +1125,15 @@ public final class AgentCommands {
         MinecraftServer server = source.getServer();
         Set<AgentId> known = ContactData.get(server).contactsOf(who);
         if (known.isEmpty()) {
-            source.sendSuccess(() -> Component.literal(heading + " nobody yet.")
-                    .withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal(heading + " nobody yet.")
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal(heading + " " + known.size()
-                + (known.size() == 1 ? " person:" : " people:")).withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(heading + " " + known.size()
+                + (known.size() == 1 ? " person:" : " people:")).withStyle(ChatFormatting.AQUA));
         for (AgentId id : known) {
             String line = "  " + label(server, id) + "  " + shortId(id);
-            source.sendSuccess(() -> Component.literal(line).withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal(line).withStyle(ChatFormatting.GRAY));
         }
         return known.size();
     }
@@ -1146,18 +1150,18 @@ public final class AgentCommands {
         if (other == null) return 0;
         MinecraftServer server = source.getServer();
         if (self.equals(other)) {
-            source.sendFailure(Component.literal("You have already met yourself."));
+            Replies.fail(source, Component.literal("You have already met yourself."));
             return 0;
         }
         if (!ContactData.get(server).introduce(self, other)) {
-            source.sendSuccess(() -> Component.literal("Already acquainted.")
-                    .withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal("Already acquainted.")
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         ContactsSync.learned(server, self, other);
         ContactsSync.learned(server, other, self);
-        source.sendSuccess(() -> Component.literal(label(server, self) + " and " + label(server, other)
-                + " have been introduced.").withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(label(server, self) + " and " + label(server, other)
+                + " have been introduced.").withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -1169,13 +1173,13 @@ public final class AgentCommands {
         if (other == null) return 0;
         MinecraftServer server = source.getServer();
         if (!ContactData.get(server).forget(self, other)) {
-            source.sendSuccess(() -> Component.literal("You never knew who that is.")
-                    .withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal("You never knew who that is.")
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         resyncIfOnline(server, self);
-        source.sendSuccess(() -> Component.literal(label(server, other) + " is a stranger again.")
-                .withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(label(server, other) + " is a stranger again.")
+                .withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -1184,13 +1188,13 @@ public final class AgentCommands {
         if (self == null) return 0;
         MinecraftServer server = source.getServer();
         if (!ContactData.get(server).clear(self)) {
-            source.sendSuccess(() -> Component.literal("You knew nobody to begin with.")
-                    .withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal("You knew nobody to begin with.")
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         resyncIfOnline(server, self);
-        source.sendSuccess(() -> Component.literal("Every name forgotten — everyone is a stranger.")
-                .withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal("Every name forgotten — everyone is a stranger.")
+                .withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -1248,8 +1252,8 @@ public final class AgentCommands {
         MinecraftServer server = source.getServer();
         Map<AgentId, PrivateIdentity> known = AgentDirectory.of(server).known();
         if (known.isEmpty()) {
-            source.sendSuccess(() -> Component.literal("Nobody has a mind yet.")
-                    .withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal("Nobody has a mind yet.")
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         Vec3 origin = source.getPosition();
@@ -1261,11 +1265,11 @@ public final class AgentCommands {
                     : String.format(Locale.ROOT, "  %s  %.1fm",
                             body.entity().level().dimension().identifier().getPath(),
                             Math.sqrt(body.entity().distanceToSqr(origin)));
-            source.sendSuccess(() -> Component.literal(String.format(Locale.ROOT,
-                    "  %s: %s (%s)%s", kind, identity.name(), shortId(id), where)), false);
+            Replies.send(source, () -> Component.literal(String.format(Locale.ROOT,
+                    "  %s: %s (%s)%s", kind, identity.name(), shortId(id), where)));
         });
-        source.sendSuccess(() -> Component.literal("  " + known.size() + " known")
-                .withStyle(ChatFormatting.GRAY), false);
+        Replies.send(source, () -> Component.literal("  " + known.size() + " known")
+                .withStyle(ChatFormatting.GRAY));
         return known.size();
     }
 
@@ -1305,7 +1309,7 @@ public final class AgentCommands {
     private static int debugLayer(CommandSourceStack source, String token, boolean on) {
         ServerPlayer player = source.getPlayer();
         if (player == null) {
-            source.sendFailure(Component.literal(
+            Replies.fail(source, Component.literal(
                     "The debug view draws on a client — run it as a player. "
                             + "(For a headless readout use knowledge view / peers view.)"));
             return 0;
@@ -1315,9 +1319,9 @@ public final class AgentCommands {
             return 0;
         }
         EnumSet<DebugLayer> now = DebugView.set(source.getServer(), player.getUUID(), layer, on);
-        source.sendSuccess(() -> Component.literal("Debug " + layer.key() + " " + (on ? "on" : "off")
+        Replies.send(source, () -> Component.literal("Debug " + layer.key() + " " + (on ? "on" : "off")
                         + " — showing " + describeLayers(now))
-                .withStyle(on ? ChatFormatting.GREEN : ChatFormatting.YELLOW), false);
+                .withStyle(on ? ChatFormatting.GREEN : ChatFormatting.YELLOW));
         return 1;
     }
 
@@ -1330,7 +1334,7 @@ public final class AgentCommands {
     private static int debugLayerShow(CommandSourceStack source, String token) {
         ServerPlayer player = source.getPlayer();
         if (player == null) {
-            source.sendFailure(Component.literal("The debug view is per-player — run it as a player."));
+            Replies.fail(source, Component.literal("The debug view is per-player — run it as a player."));
             return 0;
         }
         DebugLayer layer = parseLayer(source, token);
@@ -1339,9 +1343,9 @@ public final class AgentCommands {
         }
         EnumSet<DebugLayer> now = DebugView.layers(source.getServer(), player.getUUID());
         boolean on = now.contains(layer);
-        source.sendSuccess(() -> Component.literal("Debug " + layer.key() + " is " + on
+        Replies.send(source, () -> Component.literal("Debug " + layer.key() + " is " + on
                         + " — showing " + describeLayers(now))
-                .withStyle(on ? ChatFormatting.GREEN : ChatFormatting.GRAY), false);
+                .withStyle(on ? ChatFormatting.GREEN : ChatFormatting.GRAY));
         return on ? 1 : 0;
     }
 
@@ -1349,7 +1353,7 @@ public final class AgentCommands {
     private static @Nullable DebugLayer parseLayer(CommandSourceStack source, String token) {
         DebugLayer layer = DebugLayer.byKey(token).orElse(null);
         if (layer == null) {
-            source.sendFailure(Component.literal("Unknown debug layer '" + token + "' — try "
+            Replies.fail(source, Component.literal("Unknown debug layer '" + token + "' — try "
                     + Stream.of(DebugLayer.values()).map(DebugLayer::key)
                             .collect(Collectors.joining(", "))));
         }
@@ -1360,16 +1364,16 @@ public final class AgentCommands {
     private static int debugShow(CommandSourceStack source) {
         ServerPlayer player = source.getPlayer();
         if (player == null) {
-            source.sendFailure(Component.literal("The debug view is per-player — run it as a player."));
+            Replies.fail(source, Component.literal("The debug view is per-player — run it as a player."));
             return 0;
         }
         EnumSet<DebugLayer> now = DebugView.layers(source.getServer(), player.getUUID());
-        source.sendSuccess(() -> Component.literal("Debug view — showing " + describeLayers(now))
-                .withStyle(ChatFormatting.AQUA), false);
-        source.sendSuccess(() -> Component.literal("  layers: "
+        Replies.send(source, () -> Component.literal("Debug view — showing " + describeLayers(now))
+                .withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.literal("  layers: "
                         + Stream.of(DebugLayer.values()).map(DebugLayer::key)
                                 .collect(Collectors.joining(", ")))
-                .withStyle(ChatFormatting.GRAY), false);
+                .withStyle(ChatFormatting.GRAY));
         return 1;
     }
 
@@ -1377,13 +1381,13 @@ public final class AgentCommands {
     private static int debugOff(CommandSourceStack source) {
         ServerPlayer player = source.getPlayer();
         if (player == null) {
-            source.sendFailure(Component.literal("The debug view is per-player — run it as a player."));
+            Replies.fail(source, Component.literal("The debug view is per-player — run it as a player."));
             return 0;
         }
         boolean had = DebugView.clear(source.getServer(), player.getUUID());
-        source.sendSuccess(() -> Component.literal(had
+        Replies.send(source, () -> Component.literal(had
                         ? "Debug view off." : "Debug view was already off.")
-                .withStyle(ChatFormatting.YELLOW), false);
+                .withStyle(ChatFormatting.YELLOW));
         return had ? 1 : 0;
     }
 

@@ -65,16 +65,16 @@ public final class ConfigCommands {
         KnobSet set = store.set();
         ConfigValues config = store.get();
         List<String> overrides = config.describeOverrides();
-        source.sendSuccess(() -> Component.literal(set.title() + " config — " + file.path())
-                .withStyle(ChatFormatting.AQUA), false);
+        Replies.send(source, () -> Component.literal(set.title() + " config — " + file.path())
+                .withStyle(ChatFormatting.AQUA));
         if (overrides.isEmpty()) {
-            source.sendSuccess(() -> Component.literal("  all " + set.size()
-                    + " knobs at their defaults").withStyle(ChatFormatting.GRAY), false);
+            Replies.send(source, () -> Component.literal("  all " + set.size()
+                    + " knobs at their defaults").withStyle(ChatFormatting.GRAY));
             return 1;
         }
         for (String line : overrides) {
-            source.sendSuccess(() -> Component.literal("  " + line)
-                    .withStyle(ChatFormatting.YELLOW), false);
+            Replies.send(source, () -> Component.literal("  " + line)
+                    .withStyle(ChatFormatting.YELLOW));
         }
         return overrides.size();
     }
@@ -83,16 +83,16 @@ public final class ConfigCommands {
         String title = store.set().title();
         List<String> problems = file.reload();
         if (problems.isEmpty()) {
-            source.sendSuccess(() -> Component.literal(title + " config reloaded — "
+            Replies.send(source, () -> Component.literal(title + " config reloaded — "
                     + store.get().describeOverrides().size() + " override(s) in force")
                     .withStyle(ChatFormatting.GREEN), true);
             return 1;
         }
-        source.sendSuccess(() -> Component.literal(title + " config reloaded with "
+        Replies.send(source, () -> Component.literal(title + " config reloaded with "
                 + problems.size() + " problem(s):").withStyle(ChatFormatting.YELLOW), true);
         for (String problem : problems) {
-            source.sendSuccess(() -> Component.literal("  " + problem)
-                    .withStyle(ChatFormatting.RED), false);
+            Replies.send(source, () -> Component.literal("  " + problem)
+                    .withStyle(ChatFormatting.RED));
         }
         return 1;
     }
@@ -104,22 +104,22 @@ public final class ConfigCommands {
         if (key.startsWith("danger.") && store.set().byKey(key).isEmpty()) {
             String species = key.substring("danger.".length());
             double weight = Danger.weight(species);
-            source.sendSuccess(() -> Component.literal(key + " = " + weight
+            Replies.send(source, () -> Component.literal(key + " = " + weight
                     + " (unlisted species use danger." + Danger.DEFAULT_KEY + ")")
-                    .withStyle(ChatFormatting.AQUA), false);
+                    .withStyle(ChatFormatting.AQUA));
             return 1;
         }
         KnobSpec knob = store.set().byKey(key).orElse(null);
         if (knob == null) return unknown(source, store, key);
         ConfigValues config = store.get();
-        source.sendSuccess(() -> Component.literal(knob.key() + " = " + knob.format(config.get(knob))
+        Replies.send(source, () -> Component.literal(knob.key() + " = " + knob.format(config.get(knob))
                 + (config.isDefault(knob) ? " (default)"
                         : " — default is " + knob.format(knob.def())))
-                .withStyle(ChatFormatting.AQUA), false);
-        source.sendSuccess(() -> Component.literal("  " + knob.doc())
-                .withStyle(ChatFormatting.GRAY), false);
-        source.sendSuccess(() -> Component.literal("  accepts " + knob.expects())
-                .withStyle(ChatFormatting.DARK_GRAY), false);
+                .withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.literal("  " + knob.doc())
+                .withStyle(ChatFormatting.GRAY));
+        Replies.send(source, () -> Component.literal("  accepts " + knob.expects())
+                .withStyle(ChatFormatting.DARK_GRAY));
         return 1;
     }
 
@@ -133,12 +133,12 @@ public final class ConfigCommands {
             try {
                 parsed = Double.parseDouble(value);
             } catch (NumberFormatException e) {
-                source.sendFailure(Component.literal(key + " accepts a number — \"" + value
+                Replies.fail(source, Component.literal(key + " accepts a number — \"" + value
                         + "\" is not one"));
                 return 0;
             }
             double landed = file.setDanger(species, parsed);
-            source.sendSuccess(() -> Component.literal(key + " = " + landed
+            Replies.send(source, () -> Component.literal(key + " = " + landed
                     + (landed != parsed ? " (clamped)" : "")).withStyle(ChatFormatting.GREEN), true);
             return 1;
         }
@@ -146,7 +146,7 @@ public final class ConfigCommands {
         if (knob == null) return unknown(source, store, key);
         Double parsed = knob.parse(value).orElse(null);
         if (parsed == null) {
-            source.sendFailure(Component.literal(knob.key() + " accepts " + knob.expects()
+            Replies.fail(source, Component.literal(knob.key() + " accepts " + knob.expects()
                     + " — \"" + value + "\" is not one"));
             return 0;
         }
@@ -154,7 +154,7 @@ public final class ConfigCommands {
         boolean clamped = landed != parsed;
         store.install(store.get().with(knob, landed));
         file.save(store.get());
-        source.sendSuccess(() -> Component.literal(knob.key() + " = " + knob.format(landed)
+        Replies.send(source, () -> Component.literal(knob.key() + " = " + knob.format(landed)
                 + (clamped ? " (clamped from " + knob.format(parsed) + ")" : ""))
                 .withStyle(ChatFormatting.GREEN), true);
         return 1;
@@ -166,7 +166,7 @@ public final class ConfigCommands {
         if (knob == null) return unknown(source, store, key);
         store.install(store.get().with(knob, knob.def()));
         file.save(store.get());
-        source.sendSuccess(() -> Component.literal(knob.key() + " = " + knob.format(knob.def())
+        Replies.send(source, () -> Component.literal(knob.key() + " = " + knob.format(knob.def())
                 + " (default)").withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
@@ -175,13 +175,13 @@ public final class ConfigCommands {
         KnobSet set = store.set();
         store.reset();
         file.save(store.get());
-        source.sendSuccess(() -> Component.literal(set.title() + " config reset to defaults ("
+        Replies.send(source, () -> Component.literal(set.title() + " config reset to defaults ("
                 + set.size() + " knobs)").withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
 
     private static int unknown(CommandSourceStack source, ConfigStore store, String key) {
-        source.sendFailure(Component.literal("No such config key \"" + key
+        Replies.fail(source, Component.literal("No such config key \"" + key
                 + "\" — try tab-completion, or /" + store.set().id() + " config show"));
         return 0;
     }
