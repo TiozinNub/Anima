@@ -72,6 +72,8 @@
   "anima.config.aspect.senses.near_interval_ticks.desc": "De quanto em quanto tempo, em tiques, um ser bem ao lado é reavaliado.",
   "anima.config.aspect.senses.far_interval_ticks": "Atenção à distância",
   "anima.config.aspect.senses.far_interval_ticks.desc": "De quanto em quanto tempo, em tiques, um ser no limite do alcance é reavaliado. As distâncias intermediárias ficam entre os dois valores.",
+  "anima.config.aspect.senses.attack_decay_ticks": "Duração do rancor",
+  "anima.config.aspect.senses.attack_decay_ticks.desc": "Por quanto tempo ter sido atacado mantém algo lido como hostil, com ou sem um rosto para associar. Bem mais longo que os outros sentidos, de propósito: esquecer um ataque quinze segundos depois é amnésia, não permanência do objeto.",
   "anima.config.aspect.senses.herd_link_radius": "Distância de ligação do rebanho",
   "anima.config.aspect.senses.herd_link_radius.desc": "A que distância dois animais da mesma espécie podem estar e ainda contar como um só rebanho. Rebanhos se ligam em cadeia, então um pasto espalhado ainda se junta.",
   "anima.config.aspect.places.radius": "Raio de percepção",

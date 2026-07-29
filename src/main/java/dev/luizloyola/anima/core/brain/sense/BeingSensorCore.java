@@ -103,6 +103,11 @@ public final class BeingSensorCore {
         return profile.i(ProfileAspect.SENSES_FAR_INTERVAL);
     }
 
+    /** How long being attacked keeps something read as hostile, with or without a face. */
+    public int attackDecayTicks() {
+        return profile.i(ProfileAspect.SENSES_ATTACK_DECAY_TICKS);
+    }
+
     /**
      * Base line-of-sight checks per tick. A LIMIT rather than an aspect: a species that could
      * raise its own is a species that can take a server down, so this one stays the operator's.
@@ -141,6 +146,12 @@ public final class BeingSensorCore {
         boolean approaching;
         /** The herd currently absorbing this body — null when reading out individually. */
         BeingId herd;
+        /**
+         * When this track last attacked us. An ADDITIVE mark like the sneaking and looking-at
+         * ones (true for as long as the detection lasts, not a channel of its own), and it
+         * decays on a much slower clock than the linger.
+         */
+        long attackedAt = NEVER;
     }
 
     /** One herd aggregate: a stable id over a churning member set. */
@@ -207,6 +218,28 @@ public final class BeingSensorCore {
      * incidental noise, true for an idle call, a hurt sound or a projectile launch. Voices never
      * name the INDIVIDUAL.
      */
+    /**
+     * The shot that has no face: something attacked from {@code who}'s position. Modelled as a
+     * track shaped like {@link #heard}, so consumers of {@code beings()} need no change — they
+     * already price the aggressive entries — and the ladder anonymizes it as
+     * {@link Being.Kind#HOSTILE} until a face turns up.
+     *
+     * <p>The position is exact and never blurred here. Precision degrades at the point of
+     * expression instead: the exact point for a cover test, a cone for a hide search, a compass
+     * direction when told to somebody else — as for hearing and remembered knowledge.
+     */
+    public void attacked(BeingReading who, long now, boolean voice) {
+        heard(who, now, voice);
+        Track track = tracks.get(who.id());
+        if (track != null) {
+            Being before = being(track);
+            track.attackedAt = now;
+            if (track.herd == null) {
+                announceIfChanged(track, before);
+            }
+        }
+    }
+
     public void heard(BeingReading who, long now, boolean voice) {
         Track track = tracks.get(who.id());
         if (track == null) {
@@ -534,10 +567,17 @@ public final class BeingSensorCore {
 
     // --- internals --------------------------------------------------------------------------
 
-    /** All channels dark: freeze as remembered, or (linger spent) forget and say so. */
+    /**
+     * All channels dark: freeze as remembered, or (linger spent) forget and say so.
+     *
+     * <p><b>Being attacked outlives the linger.</b> A track carrying a live attack mark is held
+     * past its linger and released when the grudge is spent, so an agent does not forget an
+     * ambush fifteen seconds into running from it.
+     */
     private void goDarkOrForget(Track track, BeingId id, long now,
                                 Iterator<Map.Entry<BeingId, Track>> it) {
-        if (now - track.lastLiveAt > lingerTicks()) {
+        boolean attacked = track.attackedAt != NEVER;
+        if (!attacked && now - track.lastLiveAt > lingerTicks()) {
             track.awareness = Being.Awareness.REMEMBERED;
             if (track.herd == null) {
                 pending.add(BeingEvent.lost(being(track)));
@@ -567,6 +607,14 @@ public final class BeingSensorCore {
                 Being before = being(track);
                 track.last = faded(track.last);
                 track.activityAt = now;
+                if (track.herd == null) {
+                    announceIfChanged(track, before);
+                }
+            }
+            // The attack mark has its own, much longer clock — see Track.attackedAt.
+            if (track.attackedAt != NEVER && now - track.attackedAt > attackDecayTicks()) {
+                Being before = being(track);
+                track.attackedAt = NEVER;
                 if (track.herd == null) {
                     announceIfChanged(track, before);
                 }
@@ -653,9 +701,13 @@ public final class BeingSensorCore {
         Being.Identified tier = track.tier;
         boolean speciesKnown = tier != Being.Identified.NONE;
         boolean seen = tier == Being.Identified.INDIVIDUAL;
-        boolean aggressive = speciesKnown && r.aggressive();
+        // The mask rule's one explicit exception: below SPECIES exposes UNKNOWN — or HOSTILE
+        // when aggression is known anyway: being shot says nothing about who did it and
+        // everything about whether to run.
+        boolean attacked = track.attackedAt != NEVER;
+        boolean aggressive = speciesKnown ? r.aggressive() : attacked;
         return new Being(r.id(),
-                speciesKnown ? r.kind() : Being.Kind.UNKNOWN,
+                speciesKnown ? r.kind() : (attacked ? Being.Kind.HOSTILE : Being.Kind.UNKNOWN),
                 speciesKnown ? r.species() : "",
                 seen ? r.name() : "",
                 seen ? r.profession() : null,

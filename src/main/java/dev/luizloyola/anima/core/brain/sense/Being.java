@@ -72,6 +72,12 @@ public record Being(BeingId id, Kind kind, String species, String name,
 
         /** Identification below {@code SPECIES} — the observer cannot say yet. */
         public static final Kind UNKNOWN = register("unknown", false, false);
+        /**
+         * Below {@code SPECIES} too, but demonstrably dangerous: something attacked and there is
+         * no face to put to it. Earned by an arrow arriving, not by recognising anybody, so it
+         * shares {@link #UNKNOWN}'s rung and upgrades the moment a face does.
+         */
+        public static final Kind HOSTILE = register("hostile", false, true);
         /** A minded body (any {@code AgentBody}) or a live player — seamlessly. */
         public static final Kind AGENT = register("agent", true, false);
         /** The game's {@code Enemy} — aggressive without provocation. */

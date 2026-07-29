@@ -208,6 +208,42 @@ public final class BeingSense {
         }
     }
 
+    /**
+     * Something hit this body. Marks whatever is at {@code from} as hostile — with a face if there
+     * is one to be had, anonymously if not: a hit from something never perceived becomes an
+     * anonymous positioned track, never a track minted from the attacker, or identity walks back in
+     * through the door the ladder closes.
+     *
+     * @param attacker who dealt it, or null when the source has no entity (a hit from nowhere is
+     *     still a hit worth reacting to)
+     * @param from where it came from — the attacker's position, or the projectile's
+     */
+    public void attacked(LivingEntity attacker, Vec3 from) {
+        long now = person.level().getGameTime();
+        BeingReading known = attacker == null ? null : read(attacker);
+        if (known != null) {
+            bodies.put(known.id(), attacker);
+            // A landed hit is a voice: it names its maker as surely as a hurt cry does.
+            sensor.attacked(known, now, true);
+            return;
+        }
+        // Nothing perceived over there. A track keyed by where rather than by who, so repeated
+        // fire from one spot refreshes one track instead of a new anonymous thing per arrow.
+        Pos at = new Pos((int) Math.floor(from.x), (int) Math.floor(from.y), (int) Math.floor(from.z));
+        BeingId anonymous = BeingId.of(new java.util.UUID(ANONYMOUS_HIGH_BITS,
+                (long) at.x() * 73_856_093L ^ (long) at.y() * 19_349_663L ^ (long) at.z() * 83_492_791L));
+        double distance = person.entity().getEyePosition().distanceTo(from);
+        sensor.attacked(new BeingReading(anonymous, Being.Kind.UNKNOWN, "", "", null, false,
+                at, distance, Being.Locomotion.STILL, false, false, false, true,
+                Being.Gear.NONE, Being.Activity.IDLE), now, false);
+    }
+
+    /**
+     * Marks a minted id as ours rather than any entity's uuid. Anonymous tracks are keyed by the
+     * cell a hit came from, and this keeps that key from ever colliding with a real body's.
+     */
+    private static final long ANONYMOUS_HIGH_BITS = 0xA17A_0000_0000_0001L;
+
     // --- the herd-noting beat ----------------------------------------------------------------
 
     /** Folds perceived herd animals into durable knowledge every noter interval. */

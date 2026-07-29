@@ -96,6 +96,11 @@ public enum ProfileAspect {
             "Attention at the edge: re-check interval (ticks) at the limit of perception. "
                     + "Distances between lerp across the two, so the pair is this body's "
                     + "attention span."),
+    SENSES_ATTACK_DECAY_TICKS("senses.attack_decay_ticks", Kind.INT, 0, 24_000,
+            "How long being attacked keeps something read as hostile, with or without a face on "
+                    + "it. Much longer than the other channels on purpose: forgetting an attack "
+                    + "fifteen seconds later is not object permanence, it is amnesia. 0 means "
+                    + "this body reacts to a blow and then lets it go."),
     SENSES_HERD_LINK_RADIUS("senses.herd_link_radius", Kind.INT, 2, 24,
             "How far apart (blocks per axis) two same-species animals may stand and still read "
                     + "to this body as one herd."),

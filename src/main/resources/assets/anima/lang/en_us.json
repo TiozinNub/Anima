@@ -72,6 +72,8 @@
   "anima.config.aspect.senses.near_interval_ticks.desc": "How often, in ticks, a being standing right there is re-checked.",
   "anima.config.aspect.senses.far_interval_ticks": "Attention at range",
   "anima.config.aspect.senses.far_interval_ticks.desc": "How often, in ticks, a being at the edge of range is re-checked. Distances in between fall between the two.",
+  "anima.config.aspect.senses.attack_decay_ticks": "Grudge duration",
+  "anima.config.aspect.senses.attack_decay_ticks.desc": "How long being attacked keeps something read as hostile, with or without a face on it. Much longer than the other senses on purpose: forgetting an attack fifteen seconds later is amnesia, not object permanence.",
   "anima.config.aspect.senses.herd_link_radius": "Herd link distance",
   "anima.config.aspect.senses.herd_link_radius.desc": "How far apart two animals of the same species may stand and still count as one herd. Herds link in chains, so a spread-out pasture still joins up.",
   "anima.config.aspect.places.radius": "Sense radius",

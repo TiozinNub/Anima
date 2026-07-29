@@ -77,7 +77,10 @@ public final class FleeInstinct implements Instinct {
         if (ramped == 0.0) {
             return 0.0;
         }
-        double weight = danger.weight(being.species()) * gearMult(profile, being.gear());
+        // An aggressive thing with no species was masked by the ladder, and the default weight is
+        // the wrong price for something currently shooting at us.
+        String species = being.species().isEmpty() ? DangerTable.HOSTILE_KEY : being.species();
+        double weight = danger.weight(species) * gearMult(profile, being.gear());
         double pressure = ramped * weight;
         if (being.approaching()) {
             pressure *= approachBonus(profile);

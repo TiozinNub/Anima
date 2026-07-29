@@ -29,6 +29,7 @@ public final class TestSpecies {
             .set(ProfileAspect.SENSES_HEARD_DECAY_TICKS, 60)
             .set(ProfileAspect.SENSES_NEAR_INTERVAL, 1)
             .set(ProfileAspect.SENSES_FAR_INTERVAL, 20)
+            .set(ProfileAspect.SENSES_ATTACK_DECAY_TICKS, 600)
             .set(ProfileAspect.SENSES_HERD_LINK_RADIUS, 12)
             .set(ProfileAspect.PLACES_RADIUS, 12)
             .set(ProfileAspect.PLACES_REGION_MAX_SPREAD, 24)
