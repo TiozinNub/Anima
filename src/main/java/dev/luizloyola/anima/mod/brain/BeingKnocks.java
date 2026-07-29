@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.brain;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
@@ -32,10 +33,11 @@ public final class BeingKnocks {
         if (!personShaped) {
             return;
         }
-        int radius = Config.get().i(Knob.PEERS_HEARING_RADIUS);
-        if (radius <= 0) {
-            return;
-        }
+        // A sound has no radius of its own — hearing does, and it is the LISTENER's, per species.
+        // The broadphase is sized to the widest ear the schema permits and each candidate is then
+        // measured against its own: no registry of declared species is needed, and the bound holds
+        // for every consumer that could exist.
+        int searchRadius = (int) ProfileAspect.SENSES_HEARING_RADIUS.max();
         Vec3 at = Vec3.atCenterOf(pos);
         // Ears belong to the living: a killed AgentBody lingers as a corpse and heard() writes
         // into its sense table synchronously, so without this filter a corpse accrues beings
@@ -43,12 +45,14 @@ public final class BeingKnocks {
         // Queried as LivingEntity and filtered: the body contract is an interface a consumer's
         // entity implements, not an entity class, so vanilla's type-indexed lookup cannot see it.
         for (LivingEntity nearby : level.getEntitiesOfClass(LivingEntity.class,
-                AABB.ofSize(at, radius * 2.0, radius * 2.0, radius * 2.0),
+                AABB.ofSize(at, searchRadius * 2.0, searchRadius * 2.0, searchRadius * 2.0),
                 EntitySelector.LIVING_ENTITY_STILL_ALIVE)) {
             if (!(nearby instanceof AgentBody listener)) {
                 continue;
             }
-            if (listener != body && at.distanceTo(listener.entity().getEyePosition()) <= radius) {
+            int radius = listener.profile().i(ProfileAspect.SENSES_HEARING_RADIUS);
+            if (radius > 0 && listener != body
+                    && at.distanceTo(listener.entity().getEyePosition()) <= radius) {
                 listener.beingSense().heard(body, Being.Activity.MINING,
                         Being.Locomotion.STILL, false);
             }

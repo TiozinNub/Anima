@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.config;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -46,13 +47,45 @@ public interface KnobSpec {
         return key().toUpperCase(Locale.ROOT).replace('.', '_');
     }
 
-    /** The JSON object this knob nests under ({@code "perception"} for {@code perception.*}). */
+    /**
+     * The key split on its dots — the nesting the file is written with, one object per segment
+     * before the last. A hand-written key nests one deep, a generated species family three or four
+     * ({@code person.anima_settings.senses.radius}), so the file reads as a species.
+     */
+    default List<String> path() {
+        return List.of(key().split("\\."));
+    }
+
+    /**
+     * The outermost JSON object this knob nests under, and its GUI category — {@code "perception"}
+     * for {@code perception.*}, the species for a generated family.
+     */
     default String section() {
         return key().substring(0, key().indexOf('.'));
     }
 
+    /** The knob's own name within the object that immediately holds it. */
     default String leaf() {
-        return key().substring(key().indexOf('.') + 1);
+        return key().substring(key().lastIndexOf('.') + 1);
+    }
+
+    /**
+     * Where this knob's GUI label lives — the owning mod's namespace, right for a knob that mod
+     * wrote. A GENERATED knob overrides it to point at Anima's single label for the aspect it
+     * carries: the aspects of a mind are Anima's vocabulary, and a set of labels per species per
+     * consumer would be thirty translations each, drifting apart.
+     */
+    default String langKey(KnobSet set) {
+        return set.langRoot() + ".option." + key();
+    }
+
+    /**
+     * Which GUI tab this belongs on. The outermost path segment, except for a generated family,
+     * where one species' whole schema on one tab would be a wall — those group by species and by
+     * what part of a mind the aspect describes.
+     */
+    default String category() {
+        return section();
     }
 
     /** What this knob will accept, phrased for an error message ("a whole number"). */

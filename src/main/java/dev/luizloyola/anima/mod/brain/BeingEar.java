@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.brain;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
@@ -59,8 +60,8 @@ public final class BeingEar implements GameEventListener {
      */
     @Override
     public int getListenerRadius() {
-        return Math.max(Config.get().i(Knob.PEERS_HEARING_RADIUS),
-                Config.get().i(Knob.SOCIAL_HAIL_RADIUS));
+        return Math.max(person.profile().i(ProfileAspect.SENSES_HEARING_RADIUS),
+                person.profile().i(ProfileAspect.SOCIAL_HAIL_RADIUS));
     }
 
     @Override
@@ -75,7 +76,8 @@ public final class BeingEar implements GameEventListener {
         // to the hearing knob here; only a deliberate hail opts out, once the speech slice
         // registers it (whisper 4, chat 12, hail 48). Load-bearing regardless: the vibration
         // dispatch's broadphase is chunk-section coarse — a sheep was heard from 43 blocks.
-        if (pos.distanceTo(person.entity().getEyePosition()) > Config.get().i(Knob.PEERS_HEARING_RADIUS)) {
+        if (pos.distanceTo(person.entity().getEyePosition())
+                > person.profile().i(ProfileAspect.SENSES_HEARING_RADIUS)) {
             return false;
         }
         if (!loud(event) && body.isCrouching()) {

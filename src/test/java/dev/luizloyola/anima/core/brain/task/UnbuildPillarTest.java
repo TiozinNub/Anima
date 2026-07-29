@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.agent.TestSpecies;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -198,8 +199,8 @@ class UnbuildPillarTest {
         DescendInstinct instinct = new DescendInstinct();
         assertEquals(0.0, instinct.pressure(ctx), "no tower, no want");
         tower(new Pos(5, 64, 5));
-        assertEquals(DescendInstinct.strandedPressure(), instinct.pressure(ctx));
-        assertTrue(instinct.pressure(ctx) < Arbiter.preempt(),
+        assertEquals(DescendInstinct.strandedPressure(TestSpecies.PROFILE), instinct.pressure(ctx));
+        assertTrue(instinct.pressure(ctx) < Arbiter.preempt(TestSpecies.PROFILE),
                 "below the arbiter's PREEMPT bar: a chop legitimately mid-climb is never cut");
         assertTrue(instinct.root(ctx) instanceof UnbuildPillar);
     }

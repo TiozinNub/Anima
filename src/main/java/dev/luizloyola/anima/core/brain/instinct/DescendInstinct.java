@@ -1,10 +1,10 @@
 package dev.luizloyola.anima.core.brain.instinct;
 
+import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.UnbuildPillar;
-import dev.luizloyola.anima.core.config.Config;
-import dev.luizloyola.anima.core.config.Knob;
 
 /**
  * The strand-recovery drive: whenever the body's standing ledger holds pillar cells and nothing is
@@ -22,13 +22,15 @@ import dev.luizloyola.anima.core.config.Knob;
 public final class DescendInstinct implements Instinct {
 
     /** See the class doc for where this sits on the shared pressure scale. */
-    public static double strandedPressure() {
-        return Config.get().d(Knob.DESCEND_PRESSURE);
+    public static double strandedPressure(AgentProfile profile) {
+        return profile.d(ProfileAspect.DESCEND_PRESSURE);
     }
 
     @Override
     public double pressure(BrainContext ctx) {
-        return ctx.actuators().scaffolder().placed().isEmpty() ? 0.0 : strandedPressure();
+        return ctx.actuators().scaffolder().placed().isEmpty()
+                ? 0.0
+                : strandedPressure(ctx.profile());
     }
 
     @Override

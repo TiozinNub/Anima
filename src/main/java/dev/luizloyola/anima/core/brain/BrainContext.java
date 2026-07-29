@@ -37,13 +37,12 @@ public interface BrainContext {
 
     /**
      * What the body running this brain is like — the one place a core instinct or task may get an
-     * aspect from, for the same reason as {@link #pronouns()}: a hardcoded 24-block radius is right
-     * for a settler and wrong for a rabbit. Defaults to {@link AgentProfile#CONFIGURED}, so a
-     * context assembled without a body (tests, minimal rigs) reads Anima's configured values.
+     * aspect from: a hardcoded 24-block radius is right for a settler and wrong for a rabbit.
+     *
+     * <p><b>No default</b>: Anima has no values of its own, so the rig assembling a context must
+     * say what body is running this brain — {@code TestSpecies} in the test fixtures answers all.
      */
-    default AgentProfile profile() {
-        return AgentProfile.CONFIGURED;
-    }
+    AgentProfile profile();
 
     /**
      * This person's remembered POIs — memory rather than perception, and the same object the

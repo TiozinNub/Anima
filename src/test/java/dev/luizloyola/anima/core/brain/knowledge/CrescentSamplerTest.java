@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.knowledge;
 
+import dev.luizloyola.anima.core.agent.TestSpecies;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,11 +12,11 @@ import org.junit.jupiter.api.Test;
 /** The leading-crescent geometry: event-driven, zero at rest, full disc on discontinuity. */
 class CrescentSamplerTest {
 
-    private static final int R = CrescentSampler.radius();
+    private static final int R = CrescentSampler.radius(TestSpecies.PROFILE);
 
     @Test
     void firstSightYieldsTheFullDisc() {
-        CrescentSampler sampler = new CrescentSampler();
+        CrescentSampler sampler = new CrescentSampler(TestSpecies.PROFILE);
         List<Column> disc = sampler.advance(new Pos(0, 64, 0));
 
         assertTrue(disc.contains(new Column(0, 0)), "their own column");
@@ -26,7 +27,7 @@ class CrescentSamplerTest {
 
     @Test
     void standingStillEmitsNothingEvenWhenYChanges() {
-        CrescentSampler sampler = new CrescentSampler();
+        CrescentSampler sampler = new CrescentSampler(TestSpecies.PROFILE);
         sampler.advance(new Pos(0, 64, 0));
 
         assertTrue(sampler.advance(new Pos(0, 64, 0)).isEmpty());
@@ -35,7 +36,7 @@ class CrescentSamplerTest {
 
     @Test
     void oneStepEmitsOnlyTheLeadingCrescent() {
-        CrescentSampler sampler = new CrescentSampler();
+        CrescentSampler sampler = new CrescentSampler(TestSpecies.PROFILE);
         sampler.advance(new Pos(0, 64, 0));
         List<Column> crescent = sampler.advance(new Pos(1, 64, 0));
 
@@ -50,7 +51,7 @@ class CrescentSamplerTest {
 
     @Test
     void teleportRefillsTheWholeDiscAtTheNewCenter() {
-        CrescentSampler sampler = new CrescentSampler();
+        CrescentSampler sampler = new CrescentSampler(TestSpecies.PROFILE);
         sampler.advance(new Pos(0, 64, 0));
         List<Column> disc = sampler.advance(new Pos(1000, 64, -3));
 

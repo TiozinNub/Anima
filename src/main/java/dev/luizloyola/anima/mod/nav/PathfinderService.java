@@ -1,7 +1,7 @@
 package dev.luizloyola.anima.mod.nav;
 
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
-import dev.luizloyola.anima.core.nav.AgentProfile;
+import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.PathRequest;
@@ -82,9 +82,10 @@ public final class PathfinderService {
      * future completes on the worker — consume it by polling from a tick, never with a callback
      * that touches the world.
      */
-    public static Dispatched request(ServerLevel level, BlockPos start, BlockPos goal) {
+    public static Dispatched request(ServerLevel level, BlockPos start, BlockPos goal,
+            MoveCapabilities body) {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
-        PathRequest pathRequest = buildRequest(snapshot, start, goal);
+        PathRequest pathRequest = buildRequest(snapshot, start, goal, body);
         CompletableFuture<Path> result = CompletableFuture.supplyAsync(() -> {
             Path path = Pathfinder.find(snapshot, pathRequest);
             // Dev-phase trace; doubles as proof the search left the server thread (log prefix).
@@ -97,16 +98,18 @@ public final class PathfinderService {
     }
 
     /** The same pipeline as {@link #request}, entirely on the calling (server) thread. */
-    public static Dispatched computeNow(ServerLevel level, BlockPos start, BlockPos goal) {
+    public static Dispatched computeNow(ServerLevel level, BlockPos start, BlockPos goal,
+            MoveCapabilities body) {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
-        Path path = Pathfinder.find(snapshot, buildRequest(snapshot, start, goal));
+        Path path = Pathfinder.find(snapshot, buildRequest(snapshot, start, goal, body));
         return new Dispatched(CompletableFuture.completedFuture(path), snapshot);
     }
 
-    private static PathRequest buildRequest(WorldSnapshot snapshot, BlockPos start, BlockPos goal) {
-        BlockPos grounded = groundGoal(snapshot, goal, AgentProfile.PERSON.canSwim());
+    private static PathRequest buildRequest(WorldSnapshot snapshot, BlockPos start, BlockPos goal,
+            MoveCapabilities body) {
+        BlockPos grounded = groundGoal(snapshot, goal, body.canSwim());
         return PathRequest.of(start.getX(), start.getY(), start.getZ(),
-                grounded.getX(), grounded.getY(), grounded.getZ(), AgentProfile.PERSON);
+                grounded.getX(), grounded.getY(), grounded.getZ(), body);
     }
 
     private static WorldSnapshot sharedSnapshot(ServerLevel level, BlockPos start, BlockPos goal) {

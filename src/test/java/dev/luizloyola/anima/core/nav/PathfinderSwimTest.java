@@ -15,11 +15,11 @@ import org.junit.jupiter.api.Test;
 class PathfinderSwimTest {
 
     private static Path find(NavGrid world, int sx, int sy, int sz, int gx, int gy, int gz) {
-        return find(world, sx, sy, sz, gx, gy, gz, AgentProfile.PERSON);
+        return find(world, sx, sy, sz, gx, gy, gz, TestBodies.BIPED);
     }
 
     private static Path find(NavGrid world, int sx, int sy, int sz, int gx, int gy, int gz,
-                             AgentProfile profile) {
+                             MoveCapabilities profile) {
         return Pathfinder.find(world, PathRequest.of(sx, sy, sz, gx, gy, gz, profile));
     }
 
@@ -54,7 +54,7 @@ class PathfinderSwimTest {
 
     @Test
     void aLandWalkerCannotCrossOpenWater() {
-        AgentProfile landOnly = new AgentProfile(2, 1, 3, 3, false);
+        MoveCapabilities landOnly = new MoveCapabilities(2, 1, 3, 3, false);
         Path walker = find(AsciiWorld.of(WIDE_RIVER), 0, 1, 0, 7, 1, 0, landOnly);
         assertFalse(walker.reachedGoal(), "a non-swimmer can't cross a 4-wide river");
         assertFalse(hasMove(walker, MoveType.SWIM), "a non-swimmer never produces a SWIM step");

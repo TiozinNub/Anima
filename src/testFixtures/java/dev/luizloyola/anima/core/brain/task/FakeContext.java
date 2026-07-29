@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.ActuatorAccess;
 import dev.luizloyola.anima.core.brain.act.BlockBreaker;
@@ -33,6 +35,8 @@ public final class FakeContext implements BrainContext {
     public final AgentId self = AgentId.random();
     /** The narrating voice behind journal pronouns — settable so a test can assert either one. */
     public Pronouns pronouns = Pronouns.of("she", "her", "her");
+    /** What the fake body is like — {@code TestSpecies.with(aspect, value)} makes a variant. */
+    public AgentProfile profile = TestSpecies.PROFILE;
     /**
      * A real claim registry (pure anyway), private by default so solo tests behave as before;
      * contention tests point two contexts at one shared instance to simulate a settlement.
@@ -94,6 +98,11 @@ public final class FakeContext implements BrainContext {
     @Override
     public Pronouns pronouns() {
         return pronouns;
+    }
+
+    @Override
+    public AgentProfile profile() {
+        return profile;
     }
 
     @Override

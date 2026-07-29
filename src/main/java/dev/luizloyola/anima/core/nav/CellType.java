@@ -17,10 +17,11 @@ public enum CellType {
     /** Harmful to touch or stand on: lava, fire, cactus, magma. Never entered, never a floor. */
     DANGER,
     /**
-     * Swimmable liquid — one value for every water cell, surface or submerged. Impassable to a
-     * land-only agent ({@link AgentProfile#canSwim()} false: neither {@link #GROUND} nor
-     * {@link #PASSABLE}); a swimmer occupies it. The waterline is derived geometrically (water with
-     * air above), so these same cells serve underwater routing without a second value.
+     * Swimmable liquid — one classification for surface and submerged alike. Neither
+     * {@link #GROUND} nor {@link #PASSABLE}, so a land-only agent
+     * ({@link MoveCapabilities#canSwim()} false) routes around it; a swimmer occupies it. The
+     * waterline is derived geometrically (water with air above), so these cells serve future
+     * underwater routing without a second value.
      */
     WATER
 }

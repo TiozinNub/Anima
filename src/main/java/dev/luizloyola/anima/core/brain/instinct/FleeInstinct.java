@@ -1,11 +1,11 @@
 package dev.luizloyola.anima.core.brain.instinct;
 
+import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.task.FleeStep;
 import dev.luizloyola.anima.core.brain.task.Task;
-import dev.luizloyola.anima.core.config.Config;
-import dev.luizloyola.anima.core.config.Knob;
 import java.util.random.RandomGenerator;
 
 /**
@@ -26,23 +26,18 @@ import java.util.random.RandomGenerator;
 public final class FleeInstinct implements Instinct {
 
     /** Beyond this straight-line distance a melee threat exerts no pressure at all. */
-    public static double range() {
-        return Config.get().d(Knob.FLEE_RANGE);
+    public static double range(AgentProfile profile) {
+        return profile.d(ProfileAspect.FLEE_RANGE);
     }
 
     /** Pressure ramps linearly to full over this many blocks, ending at reach. */
-    public static double ramp() {
-        return Config.get().d(Knob.FLEE_RAMP);
+    public static double ramp(AgentProfile profile) {
+        return profile.d(ProfileAspect.FLEE_RAMP);
     }
 
-    /** @see Knob#FLEE_RANGED_RANGE_MULT */
-    public static double rangedRangeMult() {
-        return Config.get().d(Knob.FLEE_RANGED_RANGE_MULT);
-    }
-
-    /** @see Knob#FLEE_APPROACH_BONUS */
-    public static double approachBonus() {
-        return Config.get().d(Knob.FLEE_APPROACH_BONUS);
+    /** How much harder a threat that is measurably closing in presses on this body. */
+    public static double approachBonus(AgentProfile profile) {
+        return profile.d(ProfileAspect.FLEE_APPROACH_BONUS);
     }
 
     /** The emergency override of {@link Instinct#failCooldown()} — retry almost immediately. */
@@ -58,7 +53,7 @@ public final class FleeInstinct implements Instinct {
     public double pressure(BrainContext ctx) {
         double max = 0.0;
         for (Being being : ctx.percepts().beings()) {
-            double pressure = pressureOf(being);
+            double pressure = pressureOf(ctx.profile(), being);
             if (pressure > max) {
                 max = pressure;
             }
@@ -67,19 +62,24 @@ public final class FleeInstinct implements Instinct {
     }
 
     /** One being's contribution — public so tests and debug readouts price fear the same way. */
-    public static double pressureOf(Being being) {
+    public static double pressureOf(AgentProfile profile, Being being) {
         if (!being.aggressive()) {
             return 0.0; // masked tiers read non-aggressive: unmade-out things exert nothing
         }
-        double reach = range() * (ranged(being) ? rangedRangeMult() : 1.0);
-        double ramped = clamp01((reach - being.distance()) / ramp());
+        // Reach is the weapon's, not a multiple of ours. Something that shoots is feared from as
+        // far as this body can perceive it at all; something that has to reach you is feared from
+        // its own flee range.
+        double reach = ranged(being)
+                ? profile.i(ProfileAspect.SENSES_RADIUS)
+                : range(profile);
+        double ramped = clamp01((reach - being.distance()) / ramp(profile));
         if (ramped == 0.0) {
             return 0.0;
         }
-        double weight = Danger.weight(being.species()) * gearMult(being.gear());
+        double weight = Danger.weight(being.species()) * gearMult(profile, being.gear());
         double pressure = ramped * weight;
         if (being.approaching()) {
-            pressure *= approachBonus();
+            pressure *= approachBonus(profile);
         }
         return Math.min(1.0, pressure);
     }
@@ -92,22 +92,22 @@ public final class FleeInstinct implements Instinct {
     }
 
     /** The visible-equipment story, multiplied — armored < with sword < …. */
-    private static double gearMult(Being.Gear gear) {
+    private static double gearMult(AgentProfile profile, Being.Gear gear) {
         double mult = 1.0;
         if (gear.melee()) {
-            mult *= Danger.meleeMult();
+            mult *= Danger.meleeMult(profile);
         }
         if (gear.ranged()) {
-            mult *= Danger.rangedMult();
+            mult *= Danger.rangedMult(profile);
         }
         if (gear.armored()) {
-            mult *= Danger.armoredMult();
+            mult *= Danger.armoredMult(profile);
         }
         if (gear.mounted()) {
-            mult *= Danger.mountedMult();
+            mult *= Danger.mountedMult(profile);
         }
         if (gear.baby()) {
-            mult *= Danger.babyMult();
+            mult *= Danger.babyMult(profile);
         }
         return mult;
     }

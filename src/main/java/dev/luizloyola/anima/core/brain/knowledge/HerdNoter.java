@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.knowledge;
 
+import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import java.util.ArrayList;
@@ -40,7 +41,7 @@ public final class HerdNoter {
      * One noting beat: fold the current herd-animal sightings into knowledge. Returns the
      * events worth narrating (new memories, downgrades) — empty on the common nothing-new beat.
      */
-    public static List<SenseEvent> note(Pos observer, List<Being> beings,
+    public static List<SenseEvent> note(AgentProfile profile, Pos observer, List<Being> beings,
                                         AgentKnowledge knowledge, long now) {
         List<SenseEvent> events = new ArrayList<>();
         List<Being> herds = new ArrayList<>();
@@ -54,10 +55,10 @@ public final class HerdNoter {
         }
         downgradeAbsent(observer, beings, knowledge, now, events);
         for (Being herd : herds) {
-            noteHerd(herd, knowledge, now, events);
+            noteHerd(profile, herd, knowledge, now, events);
         }
         for (Being loner : loners) {
-            noteLoner(loner, knowledge, now, events);
+            noteLoner(profile, loner, knowledge, now, events);
         }
         return events;
     }
@@ -68,7 +69,7 @@ public final class HerdNoter {
      * their memories retire with it and a stray grazing nearby keeps its own (area consumption ate
      * one, caught by test). A new herd is a NOTED event.
      */
-    private static void noteHerd(Being herd, AgentKnowledge knowledge, long now,
+    private static void noteHerd(AgentProfile profile, Being herd, AgentKnowledge knowledge, long now,
                                  List<SenseEvent> events) {
         int spread = Math.max(2, herd.spread());
         Pos centroid = herd.pos();
@@ -95,7 +96,7 @@ public final class HerdNoter {
                 knowledge.forget(PoiKind.HERD, existing.anchor());
             }
         }
-        knowledge.note(memory);
+        knowledge.note(memory, AgentKnowledge.maxPerKind(profile));
         if (!knownAlready) {
             events.add(SenseEvent.noted(memory));
         }
@@ -109,7 +110,7 @@ public final class HerdNoter {
      * same-species herd memory claiming this ground still wins: that pig is the herd's head count
      * now, and its own memory retires.
      */
-    private static void noteLoner(Being loner, AgentKnowledge knowledge, long now,
+    private static void noteLoner(AgentProfile profile, Being loner, AgentKnowledge knowledge, long now,
                                   List<SenseEvent> events) {
         Pos at = loner.pos();
         boolean fresh = true;
@@ -132,7 +133,7 @@ public final class HerdNoter {
         }
         PoiMemory memory = new PoiMemory(PoiKind.HERD, loner.species(), loner.id().value(),
                 at, Region.of(at), 1, false, now);
-        knowledge.note(memory);
+        knowledge.note(memory, AgentKnowledge.maxPerKind(profile));
         if (fresh) {
             events.add(SenseEvent.noted(memory));
         }

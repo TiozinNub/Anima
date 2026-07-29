@@ -34,7 +34,7 @@ public final class PathIntegrity {
      * The cells whose classification the edge from {@code from} to {@code to} depends on, given the
      * agent's body height — see the class doc for the per-move rule.
      */
-    public static List<CellNeed> edgeNeeds(Waypoint from, Waypoint to, AgentProfile profile) {
+    public static List<CellNeed> edgeNeeds(Waypoint from, Waypoint to, MoveCapabilities profile) {
         int height = profile.height();
         List<CellNeed> needs = new ArrayList<>();
         if (to.move() == MoveType.SWIM) {

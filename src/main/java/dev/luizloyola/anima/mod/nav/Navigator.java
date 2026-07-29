@@ -2,7 +2,7 @@ package dev.luizloyola.anima.mod.nav;
 
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
 import dev.luizloyola.anima.core.log.Category;
-import dev.luizloyola.anima.core.nav.AgentProfile;
+import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.CellNeed;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.MoveType;
@@ -268,8 +268,10 @@ public final class Navigator {
         this.lastLeapPressIndex = -1;
         this.state = State.PATHING;
         PathfinderService.Dispatched dispatched = OFF_THREAD
-                ? PathfinderService.request(level(), this.person.blockPosition(), this.goal)
-                : PathfinderService.computeNow(level(), this.person.blockPosition(), this.goal);
+                ? PathfinderService.request(level(), this.person.blockPosition(), this.goal,
+                        capabilities())
+                : PathfinderService.computeNow(level(), this.person.blockPosition(), this.goal,
+                        capabilities());
         this.grid = dispatched.snapshot();
         this.pending = dispatched.result();
     }
@@ -367,7 +369,7 @@ public final class Navigator {
                                 && this.path.waypoints().get(this.index + 1).move() == MoveType.LEAP));
         if (this.groundedTicks >= 1 && this.groundedTicks <= 3 && this.grid != null && !leapTakeoff) {
             BlockPos feet = this.person.blockPosition();
-            if (NavGrids.isNearDeepDrop(this.grid, AgentProfile.PERSON.maxDrop(),
+            if (NavGrids.isNearDeepDrop(this.grid, capabilities().maxDrop(),
                     feet.getX(), feet.getY(), feet.getZ())) {
                 this.person.stopMoving();
                 return;
@@ -380,7 +382,7 @@ public final class Navigator {
         // brink the body is legitimately up to maxDrop above its landing, and without that any
         // 2–3-block drop burned every retry.
         double aboveTolerance = waypoint.move() == MoveType.DROP
-                ? AgentProfile.PERSON.maxDrop() + 0.5
+                ? capabilities().maxDrop() + 0.5
                 : STRAY_VERTICAL;
         if (this.person.onGround()
                 && (horizontalSq > STRAY_HORIZONTAL * STRAY_HORIZONTAL
@@ -673,7 +675,7 @@ public final class Navigator {
         if (this.grid == null) {
             return false;
         }
-        int maxDrop = AgentProfile.PERSON.maxDrop();
+        int maxDrop = capabilities().maxDrop();
         MoveType move = waypoint.move();
         if (move == MoveType.LEAP) {
             return leapLanding
@@ -757,10 +759,11 @@ public final class Navigator {
         int last = this.path.waypoints().size() - 1;
         int limit = Math.min(this.index + INTEGRITY_LOOKAHEAD, last);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        MoveCapabilities body = capabilities(); // hoisted: this loop runs every tick
         for (int i = this.index + 1; i <= limit; i++) {
             Waypoint from = this.path.waypoints().get(i - 1);
             Waypoint to = this.path.waypoints().get(i);
-            for (CellNeed need : PathIntegrity.edgeNeeds(from, to, AgentProfile.PERSON)) {
+            for (CellNeed need : PathIntegrity.edgeNeeds(from, to, body)) {
                 pos.set(need.x(), need.y(), need.z());
                 if (level.isLoaded(pos) && WorldSnapshot.classifyAt(level, pos) != need.required()) {
                     return need;
@@ -802,5 +805,15 @@ public final class Navigator {
 
     private ServerLevel level() {
         return (ServerLevel) this.person.level(); // only ever ticked server-side (serverAiStep)
+    }
+
+    /**
+     * What this body can physically do, read fresh. Not cached in a field: the profile
+     * behind it is a live view, so a {@code config reload} — or a skill that raises a jump —
+     * retunes an agent already walking. Cheap enough to ask per tick; hoisted out of the one loop
+     * that would otherwise ask per waypoint.
+     */
+    private MoveCapabilities capabilities() {
+        return MoveCapabilities.of(this.person.profile());
     }
 }

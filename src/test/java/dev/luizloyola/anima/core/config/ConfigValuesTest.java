@@ -42,11 +42,11 @@ class ConfigValuesTest {
     @Test
     @DisplayName("absent knobs keep their default; only what was supplied changes")
     void partialInputLeavesTheRestAlone() {
-        ConfigValues.Loaded loaded = ConfigValues.from(Config.SET, Map.of(Knob.SENSE_RADIUS, 20.0));
+        ConfigValues.Loaded loaded = ConfigValues.from(Config.SET, Map.of(Knob.RAY_BUDGET, 20.0));
         assertTrue(loaded.clean());
-        assertEquals(20, loaded.config().i(Knob.SENSE_RADIUS));
+        assertEquals(20, loaded.config().i(Knob.RAY_BUDGET));
         assertEquals(Knob.READS_PER_TICK.def(), loaded.config().get(Knob.READS_PER_TICK));
-        assertFalse(loaded.config().isDefault(Knob.SENSE_RADIUS));
+        assertFalse(loaded.config().isDefault(Knob.RAY_BUDGET));
         assertTrue(loaded.config().isDefault(Knob.READS_PER_TICK));
     }
 
@@ -54,26 +54,26 @@ class ConfigValuesTest {
     @DisplayName("an out-of-range value is clamped AND reported — never silently swallowed")
     void outOfRangeIsClampedAndReported() {
         Map<KnobSpec, Double> raw = new java.util.LinkedHashMap<>();
-        raw.put(Knob.SENSE_RADIUS, 999.0);
-        raw.put(Knob.BRAIN_PREEMPT, -1.0);
+        raw.put(Knob.RAY_BUDGET, 999.0);
+        raw.put(Knob.QUEUE_CAP, -1.0);
         ConfigValues.Loaded loaded = ConfigValues.from(Config.SET, raw);
 
         assertFalse(loaded.clean());
         assertEquals(2, loaded.problems().size(), loaded.problems().toString());
-        assertEquals(32, loaded.config().i(Knob.SENSE_RADIUS));
-        assertEquals(0.0, loaded.config().d(Knob.BRAIN_PREEMPT));
-        assertTrue(loaded.problems().stream().anyMatch(p -> p.startsWith("perception.sense_radius")),
+        assertEquals(256, loaded.config().i(Knob.RAY_BUDGET));
+        assertEquals(16, loaded.config().i(Knob.QUEUE_CAP));
+        assertTrue(loaded.problems().stream().anyMatch(p -> p.startsWith(Knob.RAY_BUDGET.key())),
                 loaded.problems().toString());
     }
 
     @Test
     @DisplayName("there is no way to build a config holding an illegal value")
     void withAlwaysClamps() {
-        assertEquals(32, Config.SET.defaults().with(Knob.SENSE_RADIUS, 10_000.0).i(Knob.SENSE_RADIUS),
+        assertEquals(256, Config.SET.defaults().with(Knob.RAY_BUDGET, 10_000.0).i(Knob.RAY_BUDGET),
                 "above the max clamps down to it");
-        assertEquals(1, Config.SET.defaults().with(Knob.SENSE_RADIUS, -5.0).i(Knob.SENSE_RADIUS),
+        assertEquals(1, Config.SET.defaults().with(Knob.RAY_BUDGET, -5.0).i(Knob.RAY_BUDGET),
                 "below the min clamps up to it");
-        assertEquals(13, Config.SET.defaults().with(Knob.SENSE_RADIUS, 12.6).i(Knob.SENSE_RADIUS),
+        assertEquals(13, Config.SET.defaults().with(Knob.RAY_BUDGET, 12.6).i(Knob.RAY_BUDGET),
                 "a fractional value for a whole-number knob is rounded, not truncated");
         for (Knob knob : Knob.values()) {
             ConfigValues absurd = Config.SET.defaults().with(knob, Double.MAX_VALUE);
@@ -84,10 +84,10 @@ class ConfigValuesTest {
     @Test
     void withIsCopyOnWriteAndLeavesTheOriginalAlone() {
         ConfigValues original = Config.SET.defaults();
-        ConfigValues changed = original.with(Knob.WANDER_RADIUS, 24.0);
+        ConfigValues changed = original.with(Knob.JOURNAL_SWEEP_INTERVAL, 24.0);
 
-        assertEquals(24, changed.i(Knob.WANDER_RADIUS));
-        assertEquals((int) Knob.WANDER_RADIUS.def(), original.i(Knob.WANDER_RADIUS),
+        assertEquals(24, changed.i(Knob.JOURNAL_SWEEP_INTERVAL));
+        assertEquals((int) Knob.JOURNAL_SWEEP_INTERVAL.def(), original.i(Knob.JOURNAL_SWEEP_INTERVAL),
                 "the original must be untouched — readers may be holding it mid-tick");
         assertNotEquals(original, changed);
         assertEquals(original, Config.SET.defaults());
@@ -96,9 +96,9 @@ class ConfigValuesTest {
     @Test
     void toMapRoundTripsThroughFrom() {
         ConfigValues source = Config.SET.defaults()
-                .with(Knob.SENSE_RADIUS, 20.0)
+                .with(Knob.RAY_BUDGET, 20.0)
                 .with(Knob.JOURNAL_FILE_SINK, 1.0)
-                .with(Knob.BRAIN_STICKINESS, 0.25);
+                .with(Knob.REGION_MAX_BLOCKS, 0.25);
         ConfigValues.Loaded round = ConfigValues.from(Config.SET, source.toMap());
 
         assertTrue(round.clean());
@@ -120,10 +120,10 @@ class ConfigValuesTest {
     void holderSwapsAtomically() {
         assertSame(Config.SET.defaults(), Config.get());
 
-        ConfigValues custom = Config.SET.defaults().with(Knob.SENSE_RADIUS, 5.0);
+        ConfigValues custom = Config.SET.defaults().with(Knob.RAY_BUDGET, 5.0);
         Config.install(custom);
         assertSame(custom, Config.get());
-        assertEquals(5, Config.get().i(Knob.SENSE_RADIUS));
+        assertEquals(5, Config.get().i(Knob.RAY_BUDGET));
 
         Config.install(null);
         assertSame(Config.SET.defaults(), Config.get(), "a null install falls back, never NPEs");

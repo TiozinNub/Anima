@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.sense;
 
 import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
 import java.util.ArrayDeque;
@@ -59,68 +60,59 @@ public final class BeingSensorCore {
      */
     private final AgentProfile profile;
 
-    /** A sense for a body with nothing to say about itself — Anima's configured values. */
-    public BeingSensorCore() {
-        this(AgentProfile.CONFIGURED);
-    }
-
     /** A sense shaped by the body wearing it. */
     public BeingSensorCore(AgentProfile profile) {
         this.profile = profile;
     }
 
-    /**
-     * How far this body perceives another at all.
-     *
-     * @see AgentProfile#perceptionRadius()
-     */
+    /** How far this body perceives another at all. */
     public int radius() {
-        return profile.perceptionRadius();
+        return profile.i(ProfileAspect.SENSES_RADIUS);
     }
 
-    /** @see AgentProfile#coneDegrees() */
+    /** Horizontal field of view. */
     public int coneDegrees() {
-        return profile.coneDegrees();
+        return profile.i(ProfileAspect.SENSES_CONE_DEGREES);
     }
 
-    /** @see Knob#PEERS_LINGER_TICKS */
-    public static int lingerTicks() {
-        return Config.get().i(Knob.PEERS_LINGER_TICKS);
+    /** How long this body goes on believing in something every channel has lost. */
+    public int lingerTicks() {
+        return profile.i(ProfileAspect.SENSES_LINGER_TICKS);
     }
 
-    /** @see Knob#PEERS_HEARD_DECAY_TICKS */
-    public static int heardActivityDecayTicks() {
-        return Config.get().i(Knob.PEERS_HEARD_DECAY_TICKS);
+    /** How long a sound-told activity stays believed after the sound stops. */
+    public int heardActivityDecayTicks() {
+        return profile.i(ProfileAspect.SENSES_HEARD_DECAY_TICKS);
     }
 
-    /** @see Knob#PEERS_NEAR_INTERVAL */
-    public static int nearIntervalTicks() {
-        return Config.get().i(Knob.PEERS_NEAR_INTERVAL);
+    /** Attention at point-blank: re-check interval for a body standing right there. */
+    public int nearIntervalTicks() {
+        return profile.i(ProfileAspect.SENSES_NEAR_INTERVAL);
     }
 
-    /** @see Knob#PEERS_FAR_INTERVAL */
-    public static int farIntervalTicks() {
-        return Config.get().i(Knob.PEERS_FAR_INTERVAL);
-    }
-
-    /** @see Knob#PEERS_RAY_BUDGET */
-    public static int rayBudgetBase() {
-        return Config.get().i(Knob.PEERS_RAY_BUDGET);
-    }
-
-    /** @see Knob#PEERS_HERD_LINK_RADIUS */
-    public static int herdLinkRadius() {
-        return Config.get().i(Knob.PEERS_HERD_LINK_RADIUS);
+    /** Attention at the edge: re-check interval at the limit of perception. */
+    public int farIntervalTicks() {
+        return profile.i(ProfileAspect.SENSES_FAR_INTERVAL);
     }
 
     /**
-     * Vertical field half-angle, relative to gaze pitch. Human-shaped vision: wide across
-     * ({@link #coneDegrees()} horizontally), much narrower up-down.
+     * Base line-of-sight checks per tick. A LIMIT rather than an aspect: a species that could
+     * raise its own is a species that can take a server down, so this one stays the operator's.
      *
-     * @see AgentProfile#verticalHalfDegrees()
+     * @see Knob#RAY_BUDGET
      */
+    public static int rayBudgetBase() {
+        return Config.get().i(Knob.RAY_BUDGET);
+    }
+
+    /** How far apart two same-species animals may stand and still read to this body as one herd. */
+    public int herdLinkRadius() {
+        return profile.i(ProfileAspect.SENSES_HERD_LINK_RADIUS);
+    }
+
+    /** Vertical field half-angle from gaze pitch — much narrower than {@link #coneDegrees()}. */
     public int verticalHalfDegrees() {
-        return profile.verticalHalfDegrees();
+        return profile.i(ProfileAspect.SENSES_VERTICAL_DEGREES);
     }
 
     /** One perceived body: the latest reading, which channel carries it, and when it's due. */
@@ -375,7 +367,7 @@ public final class BeingSensorCore {
                 herdable.add(entry);
             }
         }
-        List<List<Map.Entry<BeingId, Track>>> clusters = cluster(herdable);
+        List<List<Map.Entry<BeingId, Track>>> clusters = cluster(herdable, herdLinkRadius());
         Map<BeingId, Herd> next = new LinkedHashMap<>();
         Set<BeingId> grouped = new HashSet<>();
         for (List<Map.Entry<BeingId, Track>> members : clusters) {
@@ -443,7 +435,7 @@ public final class BeingSensorCore {
 
     /** Single-linkage clustering by species over last-known positions — small-N. */
     private static List<List<Map.Entry<BeingId, Track>>> cluster(
-            List<Map.Entry<BeingId, Track>> herdable) {
+            List<Map.Entry<BeingId, Track>> herdable, int link) {
         List<List<Map.Entry<BeingId, Track>>> clusters = new ArrayList<>();
         List<Map.Entry<BeingId, Track>> left = new ArrayList<>(herdable);
         while (!left.isEmpty()) {
@@ -454,7 +446,7 @@ public final class BeingSensorCore {
                 grew = false;
                 for (Iterator<Map.Entry<BeingId, Track>> it = left.iterator(); it.hasNext(); ) {
                     Map.Entry<BeingId, Track> other = it.next();
-                    if (linksToAny(other, cluster)) {
+                    if (linksToAny(other, cluster, link)) {
                         cluster.add(other);
                         it.remove();
                         grew = true;
@@ -467,9 +459,8 @@ public final class BeingSensorCore {
     }
 
     private static boolean linksToAny(Map.Entry<BeingId, Track> candidate,
-                                      List<Map.Entry<BeingId, Track>> cluster) {
+                                      List<Map.Entry<BeingId, Track>> cluster, int link) {
         BeingReading a = candidate.getValue().last;
-        int link = herdLinkRadius();
         for (Map.Entry<BeingId, Track> member : cluster) {
             BeingReading b = member.getValue().last;
             if (a.species().equals(b.species())

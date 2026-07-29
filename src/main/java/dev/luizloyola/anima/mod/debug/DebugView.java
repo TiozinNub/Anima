@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.debug;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
@@ -200,8 +201,8 @@ public final class DebugView {
                 layers.contains(DebugLayer.PEERS) ? peers(person) : List.of(),
                 // The ring and the wedge are drawn from the body's own dimensions, not from
                 // Anima's config: a debug view that draws somebody else's eyesight is wrong.
-                person.profile().coneDegrees(),
-                person.profile().perceptionRadius());
+                person.profile().i(ProfileAspect.SENSES_CONE_DEGREES),
+                person.profile().i(ProfileAspect.SENSES_RADIUS));
     }
 
     /** Everything they remember, of every kind, flattened with staleness resolved server-side. */

@@ -1,5 +1,8 @@
 package dev.luizloyola.anima.core.brain.sense;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.agent.SpeciesProfile;
+import dev.luizloyola.anima.core.agent.TestSpecies;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,7 +31,7 @@ class BeingSensorCoreTest {
 
     /** The observer stands at origin facing +Z (yaw 0); radius 24, ray budget base 8. */
     private final Pos self = new Pos(0, 64, 0);
-    private final BeingSensorCore sensor = new BeingSensorCore();
+    private final BeingSensorCore sensor = new BeingSensorCore(TestSpecies.PROFILE);
     private final FakeBeingWorld world = new FakeBeingWorld();
     private long now;
 
@@ -119,7 +122,7 @@ class BeingSensorCoreTest {
         BeingId ghost = world.addPerson("Gone", new Pos(0, 64, 5), 5.0, Being.Activity.IDLE);
         tickN(2);
         world.hidden.add(ghost);
-        List<BeingEvent> events = tickN(BeingSensorCore.lingerTicks() + 60);
+        List<BeingEvent> events = tickN(sensor.lingerTicks() + 60);
 
         assertEquals(1, events.stream().filter(e -> e.type() == BeingEvent.Type.LOST).count());
         assertTrue(sensor.beings().isEmpty(), "forgotten — the linger is a grace, not forever");
@@ -197,7 +200,7 @@ class BeingSensorCoreTest {
         world.hidden.add(knocker);
         sensor.heard(FakeBeingWorld.person(knocker, "Knocker", new Pos(0, 64, -5), 5.0,
                 Being.Locomotion.WALKING, false, false, false, Being.Activity.MINING), now, false);
-        List<BeingEvent> events = tickN(BeingSensorCore.heardActivityDecayTicks() + 20);
+        List<BeingEvent> events = tickN(sensor.heardActivityDecayTicks() + 20);
 
         assertEquals(Being.Activity.IDLE, only().activity(),
                 "no more knocks: 'mining' faded to 'just someone there' — never stuck forever");
@@ -302,9 +305,19 @@ class BeingSensorCoreTest {
 
     // --- the eyes belong to the body ------------------------------------------------------------
 
-    /** One body's aspects, stated outright — the shape a species profile will hand back. */
-    private record Eyes(int perceptionRadius, int coneDegrees, int verticalHalfDegrees,
-                        double sneakRangeMult) implements AgentProfile {
+    /** One body's eyes, stated as a variation on the test species. */
+    private static AgentProfile eyes(int radius, int cone, int vertical, double sneakMult) {
+        SpeciesProfile.Builder builder = SpeciesProfile.of("test_eyes");
+        for (ProfileAspect aspect : ProfileAspect.values()) {
+            builder.set(aspect, switch (aspect) {
+                case SENSES_RADIUS -> radius;
+                case SENSES_CONE_DEGREES -> cone;
+                case SENSES_VERTICAL_DEGREES -> vertical;
+                case SENSES_SNEAK_RANGE_MULT -> sneakMult;
+                default -> TestSpecies.BIPED.get(aspect);
+            });
+        }
+        return builder.build().fixed();
     }
 
     /** A sensor of its own, over its own world, so two bodies can be compared side by side. */
@@ -326,8 +339,8 @@ class BeingSensorCoreTest {
     @Test
     void twoBodiesInOneWorldSeeWithTheirOwnEyes() {
         // The same someone standing behind both of them: nothing global decides this any more.
-        Body blinkered = Body.of(new Eyes(24, 150, 60, 0.75));
-        Body allRound = Body.of(new Eyes(24, 360, 60, 0.75));
+        Body blinkered = Body.of(eyes(24, 150, 60, 0.75));
+        Body allRound = Body.of(eyes(24, 360, 60, 0.75));
         blinkered.world.addPerson("Lurker", new Pos(0, 64, -5), 5.0, Being.Activity.IDLE);
         allRound.world.addPerson("Lurker", new Pos(0, 64, -5), 5.0, Being.Activity.IDLE);
 
@@ -341,8 +354,8 @@ class BeingSensorCoreTest {
     void theAttentionCurveIsMeasuredAgainstTheBodysOwnRange() {
         // Attention lerps over the body's own range: the same 20 blocks is the far edge for one
         // body and close quarters for the other, so it cannot be one global number.
-        Body shortSighted = Body.of(new Eyes(24, 150, 60, 0.75));
-        Body longSighted = Body.of(new Eyes(64, 150, 60, 0.75));
+        Body shortSighted = Body.of(eyes(24, 150, 60, 0.75));
+        Body longSighted = Body.of(eyes(64, 150, 60, 0.75));
         BeingId nearShort = shortSighted.world.addPerson(
                 "Yonder", new Pos(0, 64, 20), 20.0, Being.Activity.IDLE);
         BeingId nearLong = longSighted.world.addPerson(
@@ -358,15 +371,6 @@ class BeingSensorCoreTest {
                         + glances + " vs " + looks);
     }
 
-    @Test
-    void abodyThatSaysNothingAboutItselfGetsAnimasConfiguredValues() {
-        // The no-arg sensor is the configured one, knob for knob, so a consuming mod sees no
-        // change.
-        BeingSensorCore plain = new BeingSensorCore();
-        assertEquals(Config.get().i(Knob.PEERS_RADIUS), plain.radius());
-        assertEquals(Config.get().i(Knob.PEERS_CONE_DEGREES), plain.coneDegrees());
-        assertEquals(Config.get().i(Knob.PEERS_VERTICAL_DEGREES), plain.verticalHalfDegrees());
-    }
 
     // --- the widened organ -----------------------------------------------------------------------
 
@@ -488,7 +492,7 @@ class BeingSensorCoreTest {
         assertTrue(only().herd());
 
         world.remove(a); // one wanders off the world entirely
-        tickN(BeingSensorCore.lingerTicks() + 40);
+        tickN(sensor.lingerTicks() + 40);
         List<Being> beings = sensor.beings();
         assertEquals(2, beings.size(), "the herd dissolved into the two remaining: " + beings);
         assertTrue(beings.stream().noneMatch(Being::herd));

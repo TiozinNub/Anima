@@ -2,13 +2,13 @@ package dev.luizloyola.anima.core.nav;
 
 /**
  * One pathfinding question: from the start cell (where the agent's feet are) to the goal cell,
- * for an agent with the given {@link AgentProfile capabilities}, expanding at most
+ * for an agent with the given {@link MoveCapabilities capabilities}, expanding at most
  * {@code maxNodes} cells before settling for a partial path.
  */
 public record PathRequest(
         int startX, int startY, int startZ,
         int goalX, int goalY, int goalZ,
-        AgentProfile profile, int maxNodes) {
+        MoveCapabilities profile, int maxNodes) {
 
     /**
      * Default search budget. At ~8 neighbour probes per expansion this bounds worst-case work per
@@ -22,7 +22,7 @@ public record PathRequest(
     }
 
     public static PathRequest of(int startX, int startY, int startZ,
-                                 int goalX, int goalY, int goalZ, AgentProfile profile) {
+                                 int goalX, int goalY, int goalZ, MoveCapabilities profile) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ, profile, DEFAULT_MAX_NODES);
     }
 }

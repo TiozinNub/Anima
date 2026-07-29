@@ -68,12 +68,12 @@ public interface AgentBody {
      * What this body is like — how far it perceives, how wide it looks. Organs read their aspects
      * from here rather than from a global, which makes a wolf's eyesight a wolf's.
      *
-     * <p>Defaults to {@link AgentProfile#CONFIGURED}; return the same object every call, since
-     * organs hold onto it (safe: it is a live view).
+     * <p>No default: inventing one is how every agent in the world came to see exactly
+     * 24 blocks. Return the profile generated from a
+     * {@link dev.luizloyola.anima.core.agent.SpeciesProfile}, the same object every call, since
+     * organs hold onto it (a live view, so that is safe — {@link AgentProfile}).
      */
-    default AgentProfile profile() {
-        return AgentProfile.CONFIGURED;
-    }
+    AgentProfile profile();
 
     /**
      * This body's locomotion state machine — the single owner of pathing, following and per-tick

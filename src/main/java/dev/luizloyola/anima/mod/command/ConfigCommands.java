@@ -3,12 +3,12 @@ package dev.luizloyola.anima.mod.command;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
-import dev.luizloyola.anima.core.brain.instinct.Danger;
 import dev.luizloyola.anima.core.config.ConfigStore;
 import dev.luizloyola.anima.core.config.ConfigValues;
 import dev.luizloyola.anima.core.config.KnobSet;
 import dev.luizloyola.anima.core.config.KnobSpec;
 import dev.luizloyola.anima.mod.config.ConfigFile;
+import dev.luizloyola.anima.mod.config.OpenSection;
 import java.util.List;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -43,7 +43,7 @@ public final class ConfigCommands {
                 .then(Commands.literal("get")
                         .then(Commands.argument("key", StringArgumentType.string())
                                 .suggests(keys)
-                                .executes(ctx -> get(ctx.getSource(), store,
+                                .executes(ctx -> get(ctx.getSource(), store, file,
                                         StringArgumentType.getString(ctx, "key")))))
                 .then(Commands.literal("set")
                         .then(Commands.argument("key", StringArgumentType.string())
@@ -97,17 +97,22 @@ public final class ConfigCommands {
         return 1;
     }
 
-    private static int get(CommandSourceStack source, ConfigStore store, String key) {
-        // Knobs win over species. `danger.` is a shared prefix: five real knobs live there
-        // (danger.melee_mult and friends) alongside the open-ended species table, so asking the
-        // set first is what stops `danger.melee_mult` being read as a mob called "melee_mult".
-        if (key.startsWith("danger.") && store.set().byKey(key).isEmpty()) {
-            String species = key.substring("danger.".length());
-            double weight = Danger.weight(species);
-            Replies.send(source, () -> Component.literal(key + " = " + weight
-                    + " (unlisted species use danger." + Danger.DEFAULT_KEY + ")")
-                    .withStyle(ChatFormatting.AQUA));
-            return 1;
+    private static int get(CommandSourceStack source, ConfigStore store, ConfigFile file,
+            String key) {
+        // Knobs win over open sections: a knob's key is never routed to a table that happens to
+        // share its first segment. That ordering is what stopped `danger.melee_mult` being read as
+        // a mob called "melee_mult" back when the multipliers and the weights shared a section.
+        if (store.set().byKey(key).isEmpty()) {
+            OpenSection section = file.ownerOf(key).orElse(null);
+            if (section != null) {
+                String entry = key.substring(section.name().length() + 1);
+                double value = section.get(entry);
+                Replies.send(source, () -> Component.literal(key + " = " + value)
+                        .withStyle(ChatFormatting.AQUA));
+                Replies.send(source, () -> Component.literal("  " + section.about())
+                        .withStyle(ChatFormatting.GRAY));
+                return 1;
+            }
         }
         KnobSpec knob = store.set().byKey(key).orElse(null);
         if (knob == null) return unknown(source, store, key);
@@ -125,22 +130,26 @@ public final class ConfigCommands {
 
     private static int set(CommandSourceStack source, ConfigStore store, ConfigFile file,
             String key, String value) {
-        // Knobs win over species — see get(). Without this, `set danger.melee_mult 2` wrote a
-        // species weight for a mob named "melee_mult" and silently left the knob alone.
-        if (key.startsWith("danger.") && store.set().byKey(key).isEmpty()) {
-            String species = key.substring("danger.".length());
-            double parsed;
-            try {
-                parsed = Double.parseDouble(value);
-            } catch (NumberFormatException e) {
-                Replies.fail(source, Component.literal(key + " accepts a number — \"" + value
-                        + "\" is not one"));
-                return 0;
+        // Knobs win over open sections — see get(). Without that ordering, `set danger.melee_mult
+        // 2` wrote a species weight for a mob named "melee_mult" and left the knob alone.
+        if (store.set().byKey(key).isEmpty()) {
+            OpenSection section = file.ownerOf(key).orElse(null);
+            if (section != null) {
+                double parsed;
+                try {
+                    parsed = Double.parseDouble(value);
+                } catch (NumberFormatException e) {
+                    Replies.fail(source, Component.literal(key + " accepts a number — \"" + value
+                            + "\" is not one"));
+                    return 0;
+                }
+                double landed = file.setOpen(section, key.substring(section.name().length() + 1),
+                        parsed);
+                Replies.send(source, () -> Component.literal(key + " = " + landed
+                        + (landed != parsed ? " (clamped)" : ""))
+                        .withStyle(ChatFormatting.GREEN), true);
+                return 1;
             }
-            double landed = file.setDanger(species, parsed);
-            Replies.send(source, () -> Component.literal(key + " = " + landed
-                    + (landed != parsed ? " (clamped)" : "")).withStyle(ChatFormatting.GREEN), true);
-            return 1;
         }
         KnobSpec knob = store.set().byKey(key).orElse(null);
         if (knob == null) return unknown(source, store, key);
@@ -174,6 +183,7 @@ public final class ConfigCommands {
     private static int resetAll(CommandSourceStack source, ConfigStore store, ConfigFile file) {
         KnobSet set = store.set();
         store.reset();
+        file.openSections().forEach(OpenSection::reset); // the tables are part of "to defaults" too
         file.save(store.get());
         Replies.send(source, () -> Component.literal(set.title() + " config reset to defaults ("
                 + set.size() + " knobs)").withStyle(ChatFormatting.GREEN), true);

@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.agent.TestSpecies;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -35,7 +36,7 @@ class InstinctTest {
     @Test
     void wanderPressureIsTheConstantIdleFloor() {
         Instinct wander = new WanderInstinct(new Random(0));
-        assertEquals(WanderInstinct.idlePressure(), wander.pressure(ctx));
+        assertEquals(WanderInstinct.idlePressure(TestSpecies.PROFILE), wander.pressure(ctx));
         assertEquals(0.15, wander.pressure(ctx), "the documented idle floor");
         // ... and it does not move with the body's state
         ctx.percepts.needs.setFoodLevel(0);
@@ -63,7 +64,7 @@ class InstinctTest {
 
     @Test
     void defaultRadiusConstructorUsesTheDocumentedRadius() {
-        assertEquals(8, WanderInstinct.defaultRadius());
+        assertEquals(8, WanderInstinct.defaultRadius(TestSpecies.PROFILE));
         // The single-arg ctor must still hand out a working WanderStep (radius wired through).
         assertInstanceOf(WanderStep.class, new WanderInstinct(new Random(1)).root(ctx));
     }

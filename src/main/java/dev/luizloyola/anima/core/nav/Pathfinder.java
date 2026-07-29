@@ -9,21 +9,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A* over a {@link NavGrid}, answering a {@link PathRequest} with a {@link Path}.
+ * A* over a {@link NavGrid}, answering a {@link PathRequest} with a {@link Path}. Pure and
+ * stateless per call ({@link #find} builds a private search instance), so it is safe on a worker
+ * thread: the search sees an immutable classification, never the live world.
  *
- * <p>Stateless per call ({@link #find} builds a private search instance), so it is safe on a worker
- * thread: the search never sees the live world, only a thread-safe classification of it.
+ * <p>The neighbour model is parameterized by {@link MoveCapabilities} — cardinal walk, jump-up-1,
+ * drop-up-to-{@code maxDrop}, level diagonals that refuse to cut corners, plus {@link #STRIDES},
+ * longer flat steps at intermediate angles. Deep holes and {@link CellType#DANGER} cells produce no
+ * neighbour at all.
  *
- * <p>Neighbour model, parameterized by {@link AgentProfile}: cardinal walk, jump-up-1,
- * drop-up-to-{@code maxDrop}, level diagonals that refuse to cut corners, and {@link #STRIDES},
- * longer flat steps at intermediate angles. Deep holes and {@link CellType#DANGER} never produce a
- * neighbour, so the search routes around them for free. Binary-heap open set, {@code long}-packed
- * node records, g accumulated per node.
- *
- * <p>An unreachable goal — walled off, outside the grid, or the {@code maxNodes} budget spent —
- * returns the path to the expanded cell closest to it (smallest heuristic, ties to the cheaper),
- * flagged {@code reachedGoal=false}. Deterministic: ties in f break toward the most recently pushed
- * node, neighbour order is fixed.
+ * <p>An unreachable goal (walled off, outside the grid, or {@code maxNodes} spent) returns the
+ * path to the expanded cell closest to it (smallest heuristic, ties to the cheaper), flagged
+ * {@code reachedGoal=false}. Expansion is deterministic: f-ties break toward the most recently
+ * pushed node, neighbour order is fixed.
  */
 public final class Pathfinder {
     private static final double SQRT2 = Math.sqrt(2.0);
@@ -93,7 +91,7 @@ public final class Pathfinder {
     private static final long NO_PARENT = Long.MIN_VALUE;
 
     private final NavGrid grid;
-    private final AgentProfile profile;
+    private final MoveCapabilities profile;
     private final int goalX;
     private final int goalY;
     private final int goalZ;
@@ -186,9 +184,10 @@ public final class Pathfinder {
     }
 
     /**
-     * Water moves, for a swimmer only ({@link AgentProfile#canSwim()}), surface crossing only: from
-     * a surface feet cell ({@link #isSurfaceSwim}) stroke across or climb out onto a bank,
-     * otherwise step off the shore into water. One method, so diving and surfacing have a home.
+     * Water moves, generated only for a swimmer ({@link MoveCapabilities#canSwim()}): a body in the
+     * water strokes to anywhere within reach or climbs out onto a bank, and a body on land steps
+     * off the shore into water. All of it lives in this one method so the water moves have a
+     * single home.
      */
     private void swimNeighbors(long current, Node node, int x, int y, int z) {
         if (!this.profile.canSwim()) return;

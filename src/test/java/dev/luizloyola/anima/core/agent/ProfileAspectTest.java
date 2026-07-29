@@ -4,33 +4,34 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.config.Knob;
-import dev.luizloyola.anima.core.config.KnobSpec;
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The audit, made enforceable. Every knob Anima has is either something a species declares for
- * itself or something the server keeps for everybody, and this suite fails if one is neither —
- * so knob #38 cannot be added without somebody answering the question.
+ * The audit, made enforceable. Everything Anima can be tuned by is either something a species
+ * declares for itself ({@link ProfileAspect}) or something the server keeps for everybody
+ * ({@link Knob}), and this suite fails if a new one appears that nobody classified.
+ *
+ * <p>The set left in {@code anima.json} is written down here with the reason each earned its
+ * place, so adding to that enum fails the build until somebody says why a species may not answer
+ * it.
  */
 class ProfileAspectTest {
 
     /**
-     * The knobs not per-species, each with the reason it failed the test. Two
-     * reasons only: a species could spend the server's budget with it, or it is not a way one
-     * mind differs from another.
+     * What stays Anima's, each with the reason it is not a way one mind differs from another.
+     * Adding a constant to {@link Knob} without adding it here fails
+     * {@link #animaKeepsOnlyWhatNoSpeciesMayAnswer()}.
      */
     private static final Set<Knob> SERVER_WIDE = EnumSet.of(
             // A species that could raise its own would be a species that can take a server down.
             Knob.READS_PER_TICK,
             Knob.QUEUE_CAP,
             Knob.REGION_MAX_BLOCKS,
-            Knob.PEERS_RAY_BUDGET,
+            Knob.RAY_BUDGET,
             // The contract of a registry two agents share — it belongs to the board, not to
             // either of them.
             Knob.CLAIM_TTL_TICKS,
@@ -41,48 +42,30 @@ class ProfileAspectTest {
             Knob.JOURNAL_FILE_SINK);
 
     @Test
-    @DisplayName("every knob is classified — a new one must be an aspect or a server-wide cap")
-    void theAuditCoversEveryKnob() {
-        Set<String> aspectKeys = new HashSet<>();
-        for (ProfileAspect aspect : ProfileAspect.values()) {
-            aspectKeys.add(aspect.key());
-        }
-
-        List<String> unclassified = new ArrayList<>();
+    @DisplayName("anima.json holds only what no species may answer for itself")
+    void animaKeepsOnlyWhatNoSpeciesMayAnswer() {
+        Set<Knob> unjustified = EnumSet.noneOf(Knob.class);
         for (Knob knob : Knob.values()) {
-            if (!aspectKeys.contains(knob.key()) && !SERVER_WIDE.contains(knob)) {
-                unclassified.add(knob.key());
+            if (!SERVER_WIDE.contains(knob)) {
+                unjustified.add(knob);
             }
         }
-
-        assertTrue(unclassified.isEmpty(),
-                "new knobs with no answer to 'is this per-species?' — add each to ProfileAspect "
-                        + "or to SERVER_WIDE with its reason: " + unclassified);
-        assertEquals(Knob.values().length, aspectKeys.size() + SERVER_WIDE.size(),
-                "the two sets must partition the knobs, not overlap");
+        assertTrue(unjustified.isEmpty(),
+                "new knobs with no answer to 'may a species set this?' — either make it a "
+                        + "ProfileAspect, or list it above with the reason it is the operator's: "
+                        + unjustified);
     }
 
     @Test
-    @DisplayName("nothing is in both sets")
-    void theTwoSetsAreDisjoint() {
-        for (Knob knob : SERVER_WIDE) {
+    @DisplayName("the two key spaces never collide")
+    void theTwoKeySpacesAreDisjoint() {
+        for (Knob knob : Knob.values()) {
             assertTrue(ProfileAspect.byKey(knob.key()).isEmpty(),
                     knob.key() + " is declared both per-species and server-wide");
         }
-    }
-
-    @Test
-    @DisplayName("an aspect and the knob it will replace agree on type and bounds")
-    void aspectsDoNotDriftFromTheKnobsTheyMirror() {
-        // The two live side by side until the aspect knobs leave anima.json. Prose is allowed to
-        // differ (the aspect's doc speaks to whoever is describing a species), but a value legal
-        // in one and illegal in the other would make the migration lossy in a way nobody sees.
         for (ProfileAspect aspect : ProfileAspect.values()) {
-            KnobSpec knob = Knob.byKey(aspect.key()).orElseThrow(
-                    () -> new AssertionError(aspect.key() + " matches no knob"));
-            assertEquals(knob.kind(), aspect.kind(), aspect.key() + " kind");
-            assertEquals(knob.min(), aspect.min(), aspect.key() + " min");
-            assertEquals(knob.max(), aspect.max(), aspect.key() + " max");
+            assertTrue(Knob.byKey(aspect.key()).isEmpty(),
+                    aspect.key() + " is declared both per-species and server-wide");
         }
     }
 

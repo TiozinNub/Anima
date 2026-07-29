@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.core.brain.knowledge;
 
+import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import java.util.Collection;
 import java.util.Collections;
@@ -11,17 +13,14 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * One person's remembered POIs: per kind, an anchor-keyed map with {@link #note} (I saw something),
- * {@link #refresh} (still there) and {@link #forget} (gone). No clock of its own — callers stamp
+ * One person's remembered POIs — the pure, unit-testable heart of the knowledge store: per kind, an
+ * anchor-keyed map of {@link #note}, {@link #refresh}, {@link #forget}. Headless; callers stamp
  * game time into the {@link PoiMemory} they pass.
  *
- * <p>Bounded like a memory: each kind keeps at most {@link #maxPerKind()} entries, and noting one
- * more evicts the stalest (oldest {@code lastSeenTick}).
- *
- * <p>Noting merges rather than duplicating: a new memory within its kind's
- * {@link PoiKind#mergeRadius()} (Chebyshev) of an existing one <em>replaces</em> it, the fresher
- * expansion knowing the current shape better. Insertion order is preserved for deterministic
- * iteration.
+ * <p>Each kind holds at most {@link #maxPerKind(AgentProfile)} entries and evicts the stalest
+ * (oldest {@code lastSeenTick}). A new memory within its kind's {@link PoiKind#mergeRadius()}
+ * (Chebyshev) replaces the old one — the fresher scan knows the current shape, and keeping both
+ * would count the wood twice. Insertion-ordered, for deterministic iteration.
  */
 public final class AgentKnowledge {
     /**
@@ -30,9 +29,8 @@ public final class AgentKnowledge {
      * trees a person works among: at 64, an 81-tree grid churned its far corners between forget
      * and rediscover (2026-07-27: 56 notice events for one tree).
      */
-    public static int maxPerKind() {
-        return dev.luizloyola.anima.core.config.Config.get()
-                .i(dev.luizloyola.anima.core.config.Knob.KNOWLEDGE_MAX_PER_KIND);
+    public static int maxPerKind(AgentProfile profile) {
+        return profile.i(ProfileAspect.PLACES_MAX_PER_KIND);
     }
 
     private final Map<PoiKind, Map<Pos, PoiMemory>> byKind = new java.util.LinkedHashMap<>();
@@ -48,16 +46,28 @@ public final class AgentKnowledge {
      * memory wins — see class doc), otherwise inserts, evicting the stalest entry of that kind
      * if at capacity. Returns the stored memory for chaining.
      */
-    public PoiMemory note(PoiMemory memory) {
+    public PoiMemory note(PoiMemory memory, int maxPerKind) {
         Objects.requireNonNull(memory, "memory");
         Map<Pos, PoiMemory> entries = entriesFor(memory.kind());
         Pos merged = findWithin(entries, memory);
         if (merged != null) {
             entries.remove(merged);
-        } else if (entries.size() >= maxPerKind()) {
+        } else if (entries.size() >= maxPerKind) {
             evictStalest(entries);
         }
         entries.put(memory.anchor(), memory);
+        return memory;
+    }
+
+    /**
+     * Puts back a memory that was already this agent's — what loading a saved world does.
+     *
+     * <p>Uncapped: evicting on the way in would make a restart quietly forget things.
+     * A lowered cap comes into force through {@link #note}, one memory at a time.
+     */
+    public PoiMemory restore(PoiMemory memory) {
+        Objects.requireNonNull(memory, "memory");
+        entriesFor(memory.kind()).put(memory.anchor(), memory);
         return memory;
     }
 

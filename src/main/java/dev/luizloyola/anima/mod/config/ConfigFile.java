@@ -5,7 +5,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
-import dev.luizloyola.anima.core.brain.instinct.Danger;
 import dev.luizloyola.anima.core.config.ConfigValues;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
@@ -19,11 +18,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -31,8 +30,12 @@ import net.fabricmc.loader.api.FabricLoader;
  * The JSON face of {@link ConfigValues} — {@code config/<mod id>.json}, read at startup and on
  * {@code /" + set.id() + " config reload}, written back whenever a knob changes.
  *
- * <p>Derived from {@link Knob}: one object per {@link Knob#section()}, one entry per
- * {@link Knob#leaf()}, so a new tunable appears with no code change here.
+ * <p>Derived from the {@link KnobSet}: the file's shape is the knobs' dotted keys, one object per
+ * segment, so a new tunable appears with no code change here and a generated species aspect
+ * ({@code person.anima_settings.senses.radius}) nests as far as it needs to.
+ *
+ * <p><b>Open-keyed tables are a separate thing</b> — see {@link OpenSection}; a file owns only the
+ * ones its mod registered.
  *
  * <p><b>Self-documenting:</b> each value is preceded by a {@code "// name"} string holding the
  * knob's doc sentence — a {@code //} key is skipped on read, which buys an explained file with a
@@ -46,14 +49,19 @@ public final class ConfigFile {
 
     private final KnobSet set;
     private final ConfigStore store;
+    private final List<OpenSection> open;
 
     /**
-     * One file per knob set; a consumer constructs another for its own set and gets the same
-     * atomic write, unknown-key report and doc comments.
+     * One file per knob set. Anima drives its own; a consuming mod constructs another for its
+     * own set and gets the identical atomic write, unknown-key report and doc comments.
+     *
+     * @param open any {@linkplain OpenSection open-keyed tables} this file owns. A mod's own, and
+     *     only its own — Anima's flee weights belong in {@code anima.json} and nowhere else.
      */
-    public ConfigFile(ConfigStore store) {
+    public ConfigFile(ConfigStore store, OpenSection... open) {
         this.store = store;
         this.set = store.set();
+        this.open = List.of(open);
     }
 
     /** The file's base name, e.g. {@code anima.json}. */
@@ -62,15 +70,6 @@ public final class ConfigFile {
     }
     /** Prefix marking a generated documentation line rather than a value. */
     private static final String DOC_PREFIX = "// ";
-    /**
-     * The per-species flee weights — not knobs (the {@link Knob} enum is closed, entity ids
-     * are an open set), so this section has its own rules: every key is an entity species (or
-     * {@value Danger#DEFAULT_KEY}), unknown ids are VALID (they are modded mobs, not typos),
-     * and values clamp to a sane band instead of a per-knob range.
-     */
-    private static final String DANGER_SECTION = "danger";
-    private static final double DANGER_MIN = 0.0;
-    private static final double DANGER_MAX = 8.0;
 
     /** {@code <game dir>/config/<mod id>.json}. */
     public Path path() {
@@ -87,7 +86,7 @@ public final class ConfigFile {
         Path path = path();
         if (!Files.exists(path)) {
             store.install(set.defaults());
-            Danger.reset();
+            open.forEach(OpenSection::reset);
             save(set.defaults());
             AnimaMod.LOGGER.info("{} config: wrote defaults to {}", set.title(), path);
             return List.of();
@@ -124,7 +123,9 @@ public final class ConfigFile {
             supplied.put(knob, read);
         }
         problems.addAll(unknownKeys(root));
-        problems.addAll(loadDanger(root));
+        for (OpenSection section : open) {
+            problems.addAll(loadOpen(root, section));
+        }
 
         ConfigValues.Loaded loaded = ConfigValues.from(set, supplied);
         problems.addAll(loaded.problems());
@@ -163,72 +164,86 @@ public final class ConfigFile {
     public String render(ConfigValues config) {
         JsonObject root = new JsonObject();
         for (KnobSpec knob : set.knobs()) {
-            JsonObject section = root.getAsJsonObject(knob.section());
-            if (section == null) {
-                section = new JsonObject();
-                root.add(knob.section(), section);
+            List<String> path = knob.path();
+            JsonObject holder = root;
+            for (int i = 0; i < path.size() - 1; i++) {
+                JsonObject nested = holder.getAsJsonObject(path.get(i));
+                if (nested == null) {
+                    nested = new JsonObject();
+                    holder.add(path.get(i), nested);
+                }
+                holder = nested;
             }
-            section.addProperty(DOC_PREFIX + knob.leaf(), knob.doc());
-            section.add(knob.leaf(), toJson(knob, config.get(knob)));
+            String leaf = path.get(path.size() - 1);
+            holder.addProperty(DOC_PREFIX + leaf, knob.doc());
+            holder.add(leaf, toJson(knob, config.get(knob)));
         }
-        JsonObject danger = new JsonObject();
-        danger.addProperty(DOC_PREFIX + "about",
-                "Per-species flee weights. Any entity id is a valid key; mobs not listed use"
-                        + " \"" + Danger.DEFAULT_KEY + "\".");
-        danger.addProperty(Danger.DEFAULT_KEY, Danger.weight(Danger.DEFAULT_KEY));
-        Danger.table().keySet().stream()
-                .filter(species -> !species.equals(Danger.DEFAULT_KEY))
-                .sorted()
-                .forEach(species -> danger.addProperty(species, Danger.weight(species)));
-        root.add(DANGER_SECTION, danger);
+        for (OpenSection section : open) {
+            JsonObject rendered = new JsonObject();
+            rendered.addProperty(DOC_PREFIX + "about", section.about());
+            section.entries().forEach(rendered::addProperty);
+            root.add(section.name(), rendered);
+        }
         return new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create().toJson(root)
                 + System.lineSeparator();
     }
 
-    /** Reads the danger section into {@link Danger} — its open-key, clamp-only rules. */
-    private static List<String> loadDanger(JsonObject root) {
-        Danger.reset();
-        JsonElement section = root.get(DANGER_SECTION);
-        if (section == null) {
-            return List.of(); // absent: the seeded defaults stand — what a fresh file means
+    /** Reads one open-keyed section: values are checked for being numbers, keys never are. */
+    private static List<String> loadOpen(JsonObject root, OpenSection section) {
+        JsonElement found = root.get(section.name());
+        if (found == null) {
+            section.reset();
+            return List.of(); // absent: the built-in table stands — what a fresh file means
         }
-        if (!section.isJsonObject()) {
-            return List.of(DANGER_SECTION + " should be an object — using the built-in weights");
+        if (!found.isJsonObject()) {
+            section.reset();
+            return List.of(section.name() + " should be an object — using the built-in values");
         }
         List<String> problems = new ArrayList<>();
-        Map<String, Double> overrides = new java.util.LinkedHashMap<>();
-        for (String species : section.getAsJsonObject().keySet()) {
-            if (species.startsWith(DOC_PREFIX.trim())) {
-                continue;
+        Map<String, Double> supplied = new java.util.LinkedHashMap<>();
+        JsonObject object = found.getAsJsonObject();
+        for (String key : object.keySet()) {
+            if (key.startsWith(DOC_PREFIX.trim())) {
+                continue; 
             }
-            JsonElement value = section.getAsJsonObject().get(species);
+            JsonElement value = object.get(key);
             if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()
                     || !Double.isFinite(value.getAsDouble())) {
-                problems.add(DANGER_SECTION + "." + species + ": expected a number, found "
+                problems.add(section.name() + "." + key + ": expected a number, found "
                         + value + " — ignored");
                 continue;
             }
-            double raw = value.getAsDouble();
-            double clamped = Math.max(DANGER_MIN, Math.min(DANGER_MAX, raw));
-            if (clamped != raw) {
-                problems.add(String.format(Locale.ROOT,
-                        "%s.%s: %s is out of range [%s, %s] — using %s", DANGER_SECTION,
-                        species, raw, DANGER_MIN, DANGER_MAX, clamped));
-            }
-            overrides.put(species, clamped);
+            supplied.put(key, value.getAsDouble());
         }
-        Danger.install(overrides);
+        problems.addAll(section.install(supplied));
         return problems;
     }
 
-    /** One live weight changed from the command — installs and persists. Returns the clamped value. */
-    public double setDanger(String species, double raw) {
-        double clamped = Math.max(DANGER_MIN, Math.min(DANGER_MAX, raw));
-        Map<String, Double> overrides = new java.util.LinkedHashMap<>(Danger.table());
-        overrides.put(species, clamped);
-        Danger.install(overrides);
+    /** The open sections this file owns — how {@code config get}/{@code set} reach their keys. */
+    public List<OpenSection> openSections() {
+        return open;
+    }
+
+    /**
+     * The open section owning {@code key} ({@code "danger.zombie"} → the flee weights), or empty.
+     * Knobs are checked first by the caller: a knob's key is never routed here even when it shares
+     * a section name. That is what stopped {@code set danger.melee_mult 2} writing a weight for a
+     * mob called "melee_mult" back when both lived under {@code danger}.
+     */
+    public Optional<OpenSection> ownerOf(String key) {
+        int dot = key.indexOf('.');
+        if (dot < 0) {
+            return Optional.empty();
+        }
+        String head = key.substring(0, dot);
+        return open.stream().filter(section -> section.name().equals(head)).findFirst();
+    }
+
+    /** One open-section entry changed from the command — installs and persists. */
+    public double setOpen(OpenSection section, String key, double raw) {
+        double landed = section.set(key, raw);
         save(store.get());
-        return clamped;
+        return landed;
     }
 
     // --- internals -------------------------------------------------------------------------
@@ -242,12 +257,18 @@ public final class ConfigFile {
         return List.of(message);
     }
 
+    /** Walks a knob's dotted path down the tree; null the moment a level is missing or not an object. */
     private static JsonElement lookup(JsonObject root, KnobSpec knob) {
-        JsonElement section = root.get(knob.section());
-        if (section == null || !section.isJsonObject()) {
-            return null;
+        List<String> path = knob.path();
+        JsonObject holder = root;
+        for (int i = 0; i < path.size() - 1; i++) {
+            JsonElement nested = holder.get(path.get(i));
+            if (nested == null || !nested.isJsonObject()) {
+                return null;
+            }
+            holder = nested.getAsJsonObject();
         }
-        return section.getAsJsonObject().get(knob.leaf());
+        return holder.get(path.get(path.size() - 1));
     }
 
     /** The stored double for a JSON value, or null when it isn't the knob's kind. */
@@ -287,37 +308,57 @@ public final class ConfigFile {
      * and either way the operator thinks they set something they did not.
      */
     private List<String> unknownKeys(JsonObject root) {
-        Set<String> known = new LinkedHashSet<>();
-        Set<String> sections = new LinkedHashSet<>();
+        Set<String> leaves = new LinkedHashSet<>();
+        Set<String> branches = new LinkedHashSet<>();
         for (KnobSpec knob : set.knobs()) {
-            known.add(knob.key());
-            sections.add(knob.section());
+            leaves.add(knob.key());
+            List<String> path = knob.path();
+            // Every proper prefix is an object the file is allowed to contain.
+            for (int i = 1; i < path.size(); i++) {
+                branches.add(String.join(".", path.subList(0, i)));
+            }
         }
+        Set<String> openNames = new LinkedHashSet<>();
+        open.forEach(section -> openNames.add(section.name()));
+
         List<String> problems = new ArrayList<>();
-        for (String sectionName : root.keySet()) {
-            if (sectionName.equals(DANGER_SECTION)) {
-                continue; // open-key section — its own loader validates values, never keys
-            }
-            JsonElement section = root.get(sectionName);
-            if (!sections.contains(sectionName)) {
-                problems.add(String.format(Locale.ROOT, "unknown section \"%s\" — ignored", sectionName));
-                continue;
-            }
-            if (!section.isJsonObject()) {
-                problems.add(String.format(Locale.ROOT,
-                        "\"%s\" should be an object — ignored", sectionName));
-                continue;
-            }
-            for (String leaf : section.getAsJsonObject().keySet()) {
-                if (leaf.startsWith(DOC_PREFIX.trim())) {
-                    continue; 
-                }
-                if (!known.contains(sectionName + "." + leaf)) {
-                    problems.add(String.format(Locale.ROOT,
-                            "unknown key \"%s.%s\" — ignored", sectionName, leaf));
-                }
-            }
-        }
+        walk(root, "", leaves, branches, openNames, problems);
         return problems;
+    }
+
+    /**
+     * Recursive half of {@link #unknownKeys}. Nesting is as deep as a key has dots — one for a
+     * hand-written knob, four for a generated species aspect — so this follows the tree rather
+     * than assuming a section and a leaf.
+     */
+    private static void walk(JsonObject object, String prefix, Set<String> leaves,
+            Set<String> branches, Set<String> openNames, List<String> problems) {
+        for (String name : object.keySet()) {
+            if (name.startsWith(DOC_PREFIX.trim())) {
+                continue; 
+            }
+            String key = prefix.isEmpty() ? name : prefix + "." + name;
+            if (prefix.isEmpty() && openNames.contains(name)) {
+                continue; // open-keyed section — its own loader validates values, never keys
+            }
+            JsonElement value = object.get(name);
+            if (leaves.contains(key)) {
+                continue; // a knob, already read by lookup()
+            }
+            if (branches.contains(key)) {
+                if (!value.isJsonObject()) {
+                    problems.add(String.format(Locale.ROOT,
+                            "\"%s\" should be an object — ignored", key));
+                    continue;
+                }
+                walk(value.getAsJsonObject(), key, leaves, branches, openNames, problems);
+                continue;
+            }
+            // Depth matters to whoever has to fix it: a stray top-level object is usually a
+            // section this version renamed or dropped, and saying "section" tells them to look
+            // for where the whole group went rather than for a typo in one line.
+            problems.add(String.format(Locale.ROOT, "unknown %s \"%s\" — ignored",
+                    prefix.isEmpty() ? "section" : "key", key));
+        }
     }
 }

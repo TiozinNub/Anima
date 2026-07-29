@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.core.brain.knowledge;
 
+import dev.luizloyola.anima.core.agent.TestSpecies;
+import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -28,9 +30,9 @@ class AgentKnowledgeTest {
     @Test
     void nearestPicksTheClosestAnchorOfTheAskedKind() {
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.note(tree(10, 64, 0, 6, 100));
-        knowledge.note(tree(40, 64, 0, 6, 100));
-        knowledge.note(water(12, 63, 0, 100));
+        knowledge.note(tree(10, 64, 0, 6, 100), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
+        knowledge.note(tree(40, 64, 0, 6, 100), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
+        knowledge.note(water(12, 63, 0, 100), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
 
         PoiMemory nearest = knowledge.nearest(TestPois.TREE, new Pos(0, 64, 0)).orElseThrow();
         assertEquals(new Pos(10, 64, 0), nearest.anchor(), "closer tree wins; water ignored");
@@ -40,14 +42,14 @@ class AgentKnowledgeTest {
     @Test
     void nearestOnAnEmptyKindIsEmpty() {
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.note(water(5, 63, 5, 1));
+        knowledge.note(water(5, 63, 5, 1), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
         assertTrue(knowledge.nearest(TestPois.TREE, new Pos(0, 64, 0)).isEmpty());
     }
 
     @Test
     void refreshBumpsLastSeenAndMissesAreNotErrors() {
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.note(tree(10, 64, 0, 6, 100));
+        knowledge.note(tree(10, 64, 0, 6, 100), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
 
         assertTrue(knowledge.refresh(TestPois.TREE, new Pos(10, 64, 0), 500));
         PoiMemory refreshed = knowledge.all(TestPois.TREE).iterator().next();
@@ -61,8 +63,8 @@ class AgentKnowledgeTest {
     @Test
     void forgetDropsExactlyTheAskedEntry() {
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.note(tree(10, 64, 0, 6, 100));
-        knowledge.note(tree(40, 64, 0, 4, 100));
+        knowledge.note(tree(10, 64, 0, 6, 100), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
+        knowledge.note(tree(40, 64, 0, 4, 100), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
 
         assertTrue(knowledge.forget(TestPois.TREE, new Pos(10, 64, 0)));
         assertFalse(knowledge.forget(TestPois.TREE, new Pos(10, 64, 0)), "already gone");
@@ -74,10 +76,10 @@ class AgentKnowledgeTest {
     @Test
     void notingWithinMergeRadiusReplacesInsteadOfDuplicating() {
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.note(tree(10, 64, 10, 23, 100));
+        knowledge.note(tree(10, 64, 10, 23, 100), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
         // The same 2x2-trunk grove, re-discovered from its other corner after some chopping.
         PoiMemory rediscovered = tree(11, 64, 11, 17, 900);
-        knowledge.note(rediscovered);
+        knowledge.note(rediscovered, AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
 
         assertEquals(1, knowledge.size(), "one grove, one memory");
         PoiMemory stored = knowledge.all(TestPois.TREE).iterator().next();
@@ -87,9 +89,9 @@ class AgentKnowledgeTest {
     @Test
     void mergeNeverCrossesKindsOrItsRadius() {
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.note(tree(10, 64, 10, 6, 100));
-        knowledge.note(water(11, 64, 11, 100));
-        knowledge.note(tree(12, 64, 10, 4, 100));
+        knowledge.note(tree(10, 64, 10, 6, 100), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
+        knowledge.note(water(11, 64, 11, 100), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
+        knowledge.note(tree(12, 64, 10, 4, 100), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
 
         assertEquals(3, knowledge.size(),
                 "water beside a tree is not the tree; and two trunks two apart are two trees — "
@@ -99,8 +101,8 @@ class AgentKnowledgeTest {
     @Test
     void waterMergesAcrossItsWiderRadius() {
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.note(water(0, 63, 0, 100));
-        knowledge.note(water(7, 63, 5, 200));
+        knowledge.note(water(0, 63, 0, 100), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
+        knowledge.note(water(7, 63, 5, 200), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
 
         assertEquals(1, knowledge.size(), "same lake met from two spots along the shore");
     }
@@ -110,15 +112,15 @@ class AgentKnowledgeTest {
         AgentKnowledge knowledge = new AgentKnowledge();
         // Fill to cap with well-separated groves; entry i was last seen at tick i+1, except
         // entry 20 which is the stalest of all.
-        for (int i = 0; i < AgentKnowledge.maxPerKind(); i++) {
+        for (int i = 0; i < AgentKnowledge.maxPerKind(TestSpecies.PROFILE); i++) {
             long seen = (i == 20) ? 0 : i + 1;
-            knowledge.note(tree(i * 10, 64, 0, 5, seen));
+            knowledge.note(tree(i * 10, 64, 0, 5, seen), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
         }
-        assertEquals(AgentKnowledge.maxPerKind(), knowledge.size());
+        assertEquals(AgentKnowledge.maxPerKind(TestSpecies.PROFILE), knowledge.size());
 
-        knowledge.note(tree(0, 64, 500, 5, 5000));
+        knowledge.note(tree(0, 64, 500, 5, 5000), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
 
-        assertEquals(AgentKnowledge.maxPerKind(), knowledge.size(), "capacity holds");
+        assertEquals(AgentKnowledge.maxPerKind(TestSpecies.PROFILE), knowledge.size(), "capacity holds");
         assertFalse(knowledge.forget(TestPois.TREE, new Pos(200, 64, 0)),
                 "the stalest entry (i=20, seen at tick 0) was the one evicted");
         assertTrue(knowledge.forget(TestPois.TREE, new Pos(0, 64, 500)), "newcomer is in");
@@ -127,8 +129,8 @@ class AgentKnowledgeTest {
     @Test
     void allIsUnmodifiableAndInsertionOrdered() {
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.note(tree(40, 64, 0, 4, 100));
-        knowledge.note(tree(10, 64, 0, 6, 200));
+        knowledge.note(tree(40, 64, 0, 4, 100), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
+        knowledge.note(tree(10, 64, 0, 6, 200), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
 
         List<PoiMemory> all = List.copyOf(knowledge.all(TestPois.TREE));
         assertEquals(new Pos(40, 64, 0), all.get(0).anchor(), "insertion order, not distance");

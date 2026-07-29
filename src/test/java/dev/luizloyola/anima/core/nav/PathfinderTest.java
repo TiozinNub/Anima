@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 class PathfinderTest {
 
     private static Path find(NavGrid world, int sx, int sy, int sz, int gx, int gy, int gz) {
-        return Pathfinder.find(world, PathRequest.of(sx, sy, sz, gx, gy, gz, AgentProfile.PERSON));
+        return Pathfinder.find(world, PathRequest.of(sx, sy, sz, gx, gy, gz, TestBodies.BIPED));
     }
 
     @Test
@@ -318,7 +318,7 @@ class PathfinderTest {
         for (int i = 0; i < 40; i++) row.append('1');
         AsciiWorld world = AsciiWorld.of(row.toString(), row.toString(), row.toString());
         Path path = Pathfinder.find(world,
-                new PathRequest(0, 1, 1, 39, 1, 1, AgentProfile.PERSON, 8));
+                new PathRequest(0, 1, 1, 39, 1, 1, TestBodies.BIPED, 8));
         assertFalse(path.reachedGoal());
         assertFalse(path.isEmpty());
         assertTrue(path.last().x() > 0, "partial path should head toward the goal");

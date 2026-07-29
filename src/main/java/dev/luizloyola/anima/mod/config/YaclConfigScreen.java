@@ -54,9 +54,9 @@ public final class YaclConfigScreen {
         // Sections in declaration order, each becoming one category tab.
         Map<String, ConfigCategory.Builder> categories = new LinkedHashMap<>();
         for (KnobSpec knob : set.knobs()) {
-            categories.computeIfAbsent(knob.section(), section -> ConfigCategory.createBuilder()
+            categories.computeIfAbsent(knob.category(), category -> ConfigCategory.createBuilder()
                     .name(Component.translatableWithFallback(
-                            set.langRoot() + ".category." + section, prettify(section))))
+                            set.langRoot() + ".category." + category, prettify(category))))
                     .option(option(set, knob, live, staged));
         }
         // The per-species flee weights ride the danger tab beside the modifier knobs — not knobs
@@ -86,9 +86,9 @@ public final class YaclConfigScreen {
         // and any label is overridable in any language without touching Java. The last tooltip
         // line stays literal: the dotted key and range are typed into the config command.
         Component name = Component.translatableWithFallback(
-                nameKey(set, knob), prettify(knob.leaf()));
+                knob.langKey(set), prettify(knob.leaf()));
         OptionDescription description = OptionDescription.of(
-                Component.translatableWithFallback(nameKey(set, knob) + ".desc", knob.doc()),
+                Component.translatableWithFallback(knob.langKey(set) + ".desc", knob.doc()),
                 Component.literal(""),
                 Component.literal(knob.key() + " — accepts " + knob.expects()));
         switch (knob.kind()) {

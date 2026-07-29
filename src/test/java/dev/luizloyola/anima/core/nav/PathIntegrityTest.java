@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
  */
 class PathIntegrityTest {
 
-    private static final AgentProfile PERSON = AgentProfile.PERSON; // 2 cells tall
+    private static final MoveCapabilities PERSON = TestBodies.BIPED; // 2 cells tall
 
     @Test
     void unitWalkNeedsFloorGroundAndBodyClearanceAtBothCells() {

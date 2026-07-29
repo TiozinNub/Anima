@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +25,30 @@ class KnobTest {
                             + " is outside [" + knob.min() + ", " + knob.max() + "]");
             assertTrue(knob.accepts(knob.def()), knob.key() + " does not accept its own default");
         }
+    }
+
+    @Test
+    @DisplayName("a key's path is its nesting — one object per dot, however deep it goes")
+    void pathIsTheNesting() {
+        for (Knob knob : Knob.values()) {
+            assertEquals(List.of(knob.key().split("\\.")), knob.path());
+            assertEquals(knob.section(), knob.path().get(0));
+            assertEquals(knob.leaf(), knob.path().get(knob.path().size() - 1));
+        }
+
+        // A generated species aspect nests four deep, and section/leaf still name the ends of it —
+        // which is what lets one render() write both shapes without knowing which it has.
+        KnobSpec deep = new KnobSpec() {
+            @Override public String key() { return "wolf.anima_settings.senses.radius"; }
+            @Override public Kind kind() { return Kind.INT; }
+            @Override public double def() { return 12; }
+            @Override public double min() { return 1; }
+            @Override public double max() { return 64; }
+            @Override public String doc() { return "how far a wolf sees."; }
+        };
+        assertEquals(List.of("wolf", "anima_settings", "senses", "radius"), deep.path());
+        assertEquals("wolf", deep.section());
+        assertEquals("radius", deep.leaf());
     }
 
     @Test
@@ -50,10 +75,9 @@ class KnobTest {
 
     @Test
     void clampBoundsAndRoundsByKind() {
-        assertEquals(1.0, Knob.BRAIN_STICKINESS.clamp(5.0), "above max clamps down");
-        assertEquals(0.0, Knob.BRAIN_STICKINESS.clamp(-2.0), "below min clamps up");
-        assertEquals(0.37, Knob.BRAIN_STICKINESS.clamp(0.37), "in-range doubles pass through");
-        assertEquals(13.0, Knob.SENSE_RADIUS.clamp(12.6), "int knobs round to whole");
+        assertEquals(4096.0, Knob.READS_PER_TICK.clamp(99_999.0), "above max clamps down");
+        assertEquals(1.0, Knob.READS_PER_TICK.clamp(-2.0), "below min clamps up");
+        assertEquals(65.0, Knob.READS_PER_TICK.clamp(64.6), "int knobs round to whole");
         assertEquals(1.0, Knob.JOURNAL_FILE_SINK.clamp(0.7), "bool knobs round to 0 or 1");
     }
 
@@ -64,29 +88,26 @@ class KnobTest {
         assertEquals(Optional.empty(), Knob.JOURNAL_FILE_SINK.parse("1"),
                 "a bool knob wants true/false, not a number");
 
-        assertEquals(Optional.of(14.0), Knob.SENSE_RADIUS.parse("14"));
-        assertEquals(Optional.empty(), Knob.SENSE_RADIUS.parse("12.5"),
+        assertEquals(Optional.of(14.0), Knob.RAY_BUDGET.parse("14"));
+        assertEquals(Optional.empty(), Knob.RAY_BUDGET.parse("12.5"),
                 "a whole-number knob rejects a fraction rather than silently rounding it");
-        assertEquals(Optional.empty(), Knob.SENSE_RADIUS.parse("twelve"));
-
-        assertEquals(Optional.of(0.42), Knob.BRAIN_PREEMPT.parse("0.42"));
-        assertEquals(Optional.empty(), Knob.BRAIN_PREEMPT.parse("NaN"));
-        assertEquals(Optional.empty(), Knob.BRAIN_PREEMPT.parse("Infinity"));
+        assertEquals(Optional.empty(), Knob.RAY_BUDGET.parse("twelve"));
+        assertEquals(Optional.empty(), Knob.RAY_BUDGET.parse("NaN"));
+        assertEquals(Optional.empty(), Knob.RAY_BUDGET.parse("Infinity"));
     }
 
     @Test
     @DisplayName("parse accepts out-of-range input — clamping is a separate, reportable step")
     void parseIsNotValidation() {
-        assertEquals(Optional.of(999.0), Knob.SENSE_RADIUS.parse("999"));
-        assertFalse(Knob.SENSE_RADIUS.accepts(999.0));
-        assertEquals(32.0, Knob.SENSE_RADIUS.clamp(999.0));
+        assertEquals(Optional.of(999.0), Knob.RAY_BUDGET.parse("999"));
+        assertFalse(Knob.RAY_BUDGET.accepts(999.0));
+        assertEquals(256.0, Knob.RAY_BUDGET.clamp(999.0));
     }
 
     @Test
     void formatMatchesTheKind() {
         assertEquals("true", Knob.JOURNAL_FILE_SINK.format(1.0));
         assertEquals("false", Knob.JOURNAL_FILE_SINK.format(0.0));
-        assertEquals("12", Knob.SENSE_RADIUS.format(12.0), "int knobs render without a decimal");
-        assertEquals("0.1", Knob.BRAIN_STICKINESS.format(0.1));
+        assertEquals("12", Knob.RAY_BUDGET.format(12.0), "int knobs render without a decimal");
     }
 }

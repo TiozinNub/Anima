@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.knowledge;
 
+import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
@@ -61,8 +62,9 @@ public final class PoiSensorCore {
     public static final int RAY_RETRY_MAX = 10;
 
     private final AgentKnowledge knowledge;
+    private final AgentProfile profile;
     private final ClaimIndex claims = new ClaimIndex();
-    private final CrescentSampler sampler = new CrescentSampler();
+    private final CrescentSampler sampler;
     private final Deque<Column> pending = new ArrayDeque<>();
     private RegionGrowth active;
     /** The surface cell that seeded {@link #active} — reported on a DISMISSED outcome. */
@@ -70,8 +72,10 @@ public final class PoiSensorCore {
     /** Ray-blocked columns awaiting another look: when each is due, and its attempt count. */
     private final java.util.Map<Column, long[]> rayRetries = new java.util.HashMap<>();
 
-    public PoiSensorCore(AgentKnowledge knowledge) {
+    public PoiSensorCore(AgentKnowledge knowledge, AgentProfile profile) {
         this.knowledge = knowledge;
+        this.profile = profile;
+        this.sampler = new CrescentSampler(profile);
     }
 
     /** One perception tick — the beliefs noted or forgotten, empty on the common quiet tick. */
@@ -171,7 +175,7 @@ public final class PoiSensorCore {
             return reads;
         }
         rayRetries.remove(column);
-        active = new RegionGrowth(rule, surface, kind);
+        active = new RegionGrowth(rule, surface, kind, profile);
         activeSeed = surface;
         return reads;
     }
@@ -184,7 +188,8 @@ public final class PoiSensorCore {
         }
         java.util.Set<Pos> spoken = new java.util.HashSet<>();
         for (GrownRegion.Part part : region.parts()) {
-            PoiMemory memory = knowledge.note(region.toMemory(part, now));
+            PoiMemory memory = knowledge.note(region.toMemory(part, now),
+                    AgentKnowledge.maxPerKind(profile));
             claims.claimRegion(region.kind(), memory.anchor(), part.blocks());
             spoken.addAll(part.blocks().keySet());
             events.add(SenseEvent.noted(memory));

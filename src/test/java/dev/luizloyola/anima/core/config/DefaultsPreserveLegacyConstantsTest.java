@@ -1,7 +1,12 @@
 package dev.luizloyola.anima.core.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.agent.SpeciesKnobs;
+import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.board.SiteClaims;
 import dev.luizloyola.anima.core.brain.instinct.DescendInstinct;
@@ -16,10 +21,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The behaviour-neutrality guard for the config refactor: each literal is transcribed from the
- * {@code static final} constant that used to live at that call site, so an edited default names
- * which behaviour drifted. The brain's numbers came from live observation; an unconfigured server
- * must behave like every build before the config existed.
+ * Read-through, proven at both tiers: <b>nothing caches</b>. A value installed after an organ took
+ * its reference is visible to that organ.
+ *
+ * <p>The old assertion that Anima's defaults equalled the constants they replaced is gone — half
+ * those numbers describe a body, and the mod shipping it declares them (Autarkia's
+ * {@code PersonSpeciesTest}).
  */
 class DefaultsPreserveLegacyConstantsTest {
 
@@ -29,27 +36,14 @@ class DefaultsPreserveLegacyConstantsTest {
     }
 
     @Test
-    @DisplayName("with no config installed, every tunable reads its pre-config constant")
-    void defaultsMatchTheConstantsTheyReplaced() {
+    @DisplayName("with no config installed, Anima's own limits read their documented defaults")
+    void animaLimitsMatchTheirDefaults() {
         Config.reset();
 
-        assertEquals(0.1, Arbiter.stickiness(), "Arbiter.STICKINESS");
-        assertEquals(0.6, Arbiter.preempt(), "Arbiter.PREEMPT");
-
-        assertEquals(16.0, FleeInstinct.range(), "FleeInstinct.RANGE");
-        assertEquals(12.0, FleeInstinct.ramp(), "FleeInstinct.RAMP");
-        assertEquals(0.45, DescendInstinct.strandedPressure(), "DescendInstinct.PRESSURE");
-        assertEquals(0.15, WanderInstinct.idlePressure(), "WanderInstinct.IDLE_PRESSURE");
-        assertEquals(8, WanderInstinct.defaultRadius(), "WanderInstinct.DEFAULT_RADIUS");
-
-        assertEquals(12, CrescentSampler.radius(), "CrescentSampler.RADIUS");
         assertEquals(64, PoiSensorCore.readsPerTick(), "PoiSensorCore.READS_PER_TICK");
         assertEquals(512, PoiSensorCore.queueCap(), "PoiSensorCore.QUEUE_CAP");
         assertEquals(512, RegionGrowth.maxBlocks(), "RegionGrowth.MAX_BLOCKS");
-        assertEquals(24, RegionGrowth.maxSpread(), "RegionGrowth.MAX_SPREAD");
-
         assertEquals(600, SiteClaims.ttlTicks(), "SiteClaims.TTL_TICKS");
-
         assertEquals(256, JournalService.defaultMaxEntriesPerPerson(),
                 "JournalService.DEFAULT_MAX_ENTRIES_PER_PERSON");
         assertEquals(20L * 60 * 10, JournalService.defaultMaxAgeTicks(),
@@ -57,25 +51,60 @@ class DefaultsPreserveLegacyConstantsTest {
     }
 
     @Test
-    @DisplayName("the relationship the descend instinct's doc depends on still holds")
-    void descendStaysBelowThePreemptBar() {
-        // Not a restatement of the numbers above but the INVARIANT between two of them: "a chop
-        // legitimately mid-climb is never interrupted" holds only while descend sits under preempt.
-        Config.reset();
-        assertEquals(true, DescendInstinct.strandedPressure() < Arbiter.preempt(),
-                "descend_pressure must stay below brain.preempt or a mid-climb chop gets cut");
+    @DisplayName("a reload retunes live — an organ that took a reference still sees the change")
+    void installedLimitsAreVisibleAtTheCallSites() {
+        Config.install(Config.SET.defaults()
+                .with(Knob.READS_PER_TICK, 20.0)
+                .with(Knob.CLAIM_TTL_TICKS, 1200.0));
+
+        assertEquals(20, PoiSensorCore.readsPerTick());
+        assertEquals(1200, SiteClaims.ttlTicks());
     }
 
     @Test
-    @DisplayName("a reload retunes live — the whole point of reading through the holder")
-    void installedValuesAreVisibleAtTheCallSites() {
-        Config.install(Config.SET.defaults()
-                .with(Knob.SENSE_RADIUS, 20.0)
-                .with(Knob.BRAIN_PREEMPT, 0.8)
-                .with(Knob.CLAIM_TTL_TICKS, 1200.0));
+    @DisplayName("the same is true one tier down: a species' file retunes a body already walking")
+    void installedAspectsAreVisibleAtTheCallSites() {
+        SpeciesKnobs knobs = SpeciesKnobs.of(TestSpecies.BIPED);
+        KnobSet set = KnobSet.of("testmod", "Test Mod", knobs.knobs());
+        ConfigStore store = new ConfigStore(set);
+        AgentProfile held = knobs.profile(store); // as an organ holds it, for the body's whole life
 
-        assertEquals(20, CrescentSampler.radius());
-        assertEquals(0.8, Arbiter.preempt());
-        assertEquals(1200, SiteClaims.ttlTicks());
+        assertEquals(16.0, FleeInstinct.range(held));
+        assertEquals(12, CrescentSampler.radius(held));
+
+        store.install(set.defaults()
+                .with(knobs.knob(ProfileAspect.FLEE_RANGE), 30.0)
+                .with(knobs.knob(ProfileAspect.PLACES_RADIUS), 20.0));
+
+        assertEquals(30.0, FleeInstinct.range(held),
+                "the same object must see the new file; caching it would strand the agent");
+        assertEquals(20, CrescentSampler.radius(held));
+    }
+
+    @Test
+    @DisplayName("the relationship the descend instinct's doc depends on holds for any species")
+    void descendStaysBelowThePreemptBar() {
+        // An invariant between two aspects: "a chop mid-climb is never interrupted" holds only
+        // while descend sits under the preempt bar. Each mod's own species test answers for its
+        // numbers; this one guards the fixture.
+        AgentProfile profile = TestSpecies.PROFILE;
+        assertTrue(DescendInstinct.strandedPressure(profile) < Arbiter.preempt(profile),
+                "descend_pressure must stay below mind.preempt or a mid-climb chop gets cut");
+    }
+
+    @Test
+    @DisplayName("a body's own numbers reach the instincts that read them")
+    void aspectsReachTheirCallSites() {
+        AgentProfile profile = TestSpecies.PROFILE;
+
+        assertEquals(0.1, Arbiter.stickiness(profile));
+        assertEquals(0.6, Arbiter.preempt(profile));
+        assertEquals(16.0, FleeInstinct.range(profile));
+        assertEquals(12.0, FleeInstinct.ramp(profile));
+        assertEquals(0.45, DescendInstinct.strandedPressure(profile));
+        assertEquals(0.15, WanderInstinct.idlePressure(profile));
+        assertEquals(8, WanderInstinct.defaultRadius(profile));
+        assertEquals(12, CrescentSampler.radius(profile));
+        assertEquals(24, RegionGrowth.maxSpread(profile));
     }
 }

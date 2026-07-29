@@ -112,8 +112,8 @@ class KnobSetTest {
     void foreignKnobIsRefused() {
         KnobSet set = mixed();
         IllegalArgumentException thrown =
-                assertThrows(IllegalArgumentException.class, () -> set.defaults().d(Knob.SENSE_RADIUS));
-        assertTrue(thrown.getMessage().contains(Knob.SENSE_RADIUS.key()), thrown.getMessage());
+                assertThrows(IllegalArgumentException.class, () -> set.defaults().d(Knob.RAY_BUDGET));
+        assertTrue(thrown.getMessage().contains(Knob.RAY_BUDGET.key()), thrown.getMessage());
     }
 
     @Test

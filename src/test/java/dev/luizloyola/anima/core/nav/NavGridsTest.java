@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 class NavGridsTest {
 
     private static boolean nearDrop(AsciiWorld world, int x, int y, int z) {
-        return NavGrids.isNearDeepDrop(world, AgentProfile.PERSON.maxDrop(), x, y, z);
+        return NavGrids.isNearDeepDrop(world, TestBodies.BIPED.maxDrop(), x, y, z);
     }
 
     @Test

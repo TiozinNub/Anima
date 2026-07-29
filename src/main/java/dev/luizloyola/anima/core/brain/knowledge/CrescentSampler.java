@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.core.brain.knowledge;
 
+import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
@@ -13,12 +15,17 @@ import java.util.List;
  * sighting, teleport, any jump beyond R) yields the full disc.
  */
 public final class CrescentSampler {
-    /** Horizontal sense radius in blocks. Configurable; kept inside the threat-scan scale of 16. */
-    public static int radius() {
-        return Config.get().i(Knob.SENSE_RADIUS);
+    /** Horizontal sense radius in blocks — how far this body notices places. */
+    public static int radius(AgentProfile profile) {
+        return profile.i(ProfileAspect.PLACES_RADIUS);
     }
 
+    private final AgentProfile profile;
     private Column center;
+
+    public CrescentSampler(AgentProfile profile) {
+        this.profile = profile;
+    }
 
     /**
      * Advances to the person's current feet cell and returns the newly-in-range columns —
@@ -32,7 +39,7 @@ public final class CrescentSampler {
         }
         this.center = now;
         // Read the radius once per sweep: one crescent always uses one consistent radius.
-        int radius = radius();
+        int radius = radius(this.profile);
         int radiusSq = radius * radius;
         List<Column> fresh = new ArrayList<>();
         boolean jump = before == null || horizontalDistSq(before, now) > radiusSq;

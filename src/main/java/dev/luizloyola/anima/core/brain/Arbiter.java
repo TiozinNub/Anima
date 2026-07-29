@@ -1,56 +1,53 @@
 package dev.luizloyola.anima.core.brain;
 
+import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.board.WorkItem;
 import dev.luizloyola.anima.core.brain.board.WorkSource;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.task.TaskExecutor;
 import dev.luizloyola.anima.core.brain.task.TaskStatus;
-import dev.luizloyola.anima.core.config.Config;
-import dev.luizloyola.anima.core.config.Knob;
 import dev.luizloyola.anima.core.log.Category;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * The always-on "what am I doing right now" component: each tick it reads every {@link Instinct}'s
- * pressure, picks a winner, and keeps its one {@link TaskExecutor} running that winner's task tree.
- * It publishes the cost tolerance the executor gates methods by ({@link #costTolerance()}), taken
- * from the active drive's pressure through {@link ToleranceCurve}. The arbiter alone grants
- * instinct-driven work, so {@code active} always names the instinct whose root is running, and is
- * {@code null} for idle or a manually-installed task.
+ * Every tick, reads each {@link Instinct}'s pressure, picks the winner, and keeps its one
+ * {@link TaskExecutor} running the winner's task tree; publishes the executor's method-cost ceiling
+ * ({@link #costTolerance()}) from the active drive's pressure through {@link ToleranceCurve}. The
+ * arbiter alone grants instinct-driven work, so {@code active} names the instinct whose root runs —
+ * {@code null} for idle, or a task installed on {@link #executor()} directly.
  *
  * <h2>Per-tick arbitration ({@link #tick})</h2>
  * <ol>
- *   <li>Pressures are read once. An instinct sitting out the ticks its
- *       {@link Instinct#failCooldown()} set after a FAILED root is ineligible this tick; its
- *       cooldown then drops by one.</li>
- *   <li>Top eligible bidder by EFFECTIVE pressure — the incumbent gets a {@link #stickiness()}
- *       bonus, ties go to the earlier instinct in the constructor list. <b>Zero raw pressure is not
- *       a bid</b>: with every drive at zero the executor idles, nobody is granted by default.
- *       (Live-caught: zero-pressure Flee won an all-zero tie by list order and sprinted them out of
- *       the loaded world.)</li>
- *   <li><b>Idle</b> → grant the top bidder a fresh {@code root()}; re-granting the incumbent after
+ *   <li>Pressures read once; a drive serving the cooldown {@link Instinct#failCooldown()} set after
+ *       a FAILED root is INELIGIBLE this tick, then counts down.</li>
+ *   <li>Top eligible bidder by EFFECTIVE pressure — incumbent plus
+ *       {@link #stickiness(AgentProfile)}, ties to the earlier instinct in the constructor list.
+ *       <b>Zero raw pressure is not a bid</b>: all-zero idles rather than granting by default
+ *       (live-caught — zero-pressure Flee won that tie by list order and sprinted them out of the
+ *       loaded world).</li>
+ *   <li>Idle → grant the top bidder, {@code root()} called anew: re-granting the incumbent after
  *       SUCCESS is the continuous-behavior loop.</li>
- *   <li><b>Busy</b> → switch only if the top bidder is not the incumbent, beats it on effective
- *       pressure, and its RAW pressure is at least {@link #preempt()}; below that it waits for the
- *       task boundary. Switching cancels the incumbent's task first.</li>
- *   <li>On a boundary crossed this tick (busy before, idle after), a FAILED root puts its instinct
- *       on cooldown; either way {@code active} clears and the next tick re-arbitrates.</li>
+ *   <li>Busy → switch only if the challenger beats the incumbent on effective pressure and its RAW
+ *       pressure reaches {@link #preempt(AgentProfile)}; below that it waits for the task boundary,
+ *       and switching cancels the incumbent's task.</li>
+ *   <li>The executor ticks once; across a boundary a FAILED root goes on cooldown and
+ *       {@code active} clears either way, re-arbitrating next tick.</li>
  * </ol>
- * With no instincts, or none eligible, the executor still ticks — a manually-installed task must
- * keep running.
+ * With none eligible the executor still ticks — a manual task must keep running.
  */
 public final class Arbiter {
 
     /** Incumbency bonus on the active instinct's bid — the hysteresis that stops 51/49 dithering. */
-    public static double stickiness() {
-        return Config.get().d(Knob.BRAIN_STICKINESS);
+    public static double stickiness(AgentProfile profile) {
+        return profile.d(ProfileAspect.MIND_STICKINESS);
     }
 
     /** Minimum RAW pressure to preempt mid-flight; below it a challenger waits for the boundary. */
-    public static double preempt() {
-        return Config.get().d(Knob.BRAIN_PREEMPT);
+    public static double preempt(AgentProfile profile) {
+        return profile.d(ProfileAspect.MIND_PREEMPT);
     }
 
     private final List<Instinct> instincts;
@@ -91,8 +88,8 @@ public final class Arbiter {
         // One reading of the arbitration constants for the whole tick: a reload landing between
         // the bid comparison and the preempt check would otherwise arbitrate against two
         // different rulebooks in a single decision.
-        double stickiness = stickiness();
-        double preempt = preempt();
+        double stickiness = stickiness(ctx.profile());
+        double preempt = preempt(ctx.profile());
 
         // 1. Eligibility is noted before the countdown, so a fresh cooldown buys that many ticks.
         boolean[] eligible = new boolean[n];

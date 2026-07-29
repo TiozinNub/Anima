@@ -124,7 +124,7 @@ public final class KnowledgeData extends SavedData {
         for (PersonEntry entry : entries) {
             AgentKnowledge knowledge = registry.forPerson(entry.id());
             for (PoiMemory memory : entry.pois()) {
-                knowledge.note(memory);
+                knowledge.restore(memory);
             }
         }
         return new KnowledgeData(registry);

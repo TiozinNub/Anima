@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.compat.sense.LevelProbe;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.knowledge.HerdNoter;
 import dev.luizloyola.anima.core.brain.knowledge.SenseEvent;
 import dev.luizloyola.anima.core.brain.sense.Being;
@@ -214,7 +215,7 @@ public final class BeingSense {
         }
         lastHerdNoteAt = now;
         KnowledgeData data = KnowledgeData.get(person.level().getServer());
-        List<SenseEvent> events = HerdNoter.note(feet, sensor.beings(),
+        List<SenseEvent> events = HerdNoter.note(this.profile, feet, sensor.beings(),
                 data.registry().forPerson(self), now);
         data.setDirty();
         for (SenseEvent event : events) {
@@ -231,8 +232,8 @@ public final class BeingSense {
     private final class Oracle implements BeingWorld {
         @Override
         public List<BeingReading> candidates() {
-            double radius = profile.perceptionRadius();
-            double sneakRadius = radius * profile.sneakRangeMult();
+            double radius = profile.i(ProfileAspect.SENSES_RADIUS);
+            double sneakRadius = radius * profile.d(ProfileAspect.SENSES_SNEAK_RANGE_MULT);
             List<LivingEntity> found = person.level().getEntitiesOfClass(
                     LivingEntity.class,
                     // A full cube: the vertical SHAPE of vision belongs to the cone band, not
@@ -267,10 +268,11 @@ public final class BeingSense {
                     || body.level() != person.level()) {
                 return null;
             }
-            double radius = profile.perceptionRadius();
+            double radius = profile.i(ProfileAspect.SENSES_RADIUS);
             double distance = body.distanceTo(person.entity());
             if (distance > radius
-                    || (body.isCrouching() && distance > radius * profile.sneakRangeMult())) {
+                    || (body.isCrouching()
+                            && distance > radius * profile.d(ProfileAspect.SENSES_SNEAK_RANGE_MULT))) {
                 return null;
             }
             return read(body);

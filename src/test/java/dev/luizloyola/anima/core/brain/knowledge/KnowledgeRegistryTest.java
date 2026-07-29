@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.core.brain.knowledge;
 
+import dev.luizloyola.anima.core.agent.TestSpecies;
+import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,7 +33,8 @@ class KnowledgeRegistryTest {
         KnowledgeRegistry registry = new KnowledgeRegistry();
         Pos anchor = new Pos(10, 64, 0);
         registry.forPerson(person(1))
-                .note(new PoiMemory(TestPois.TREE, anchor, Region.of(anchor), 6, false, 100));
+                .note(new PoiMemory(TestPois.TREE, anchor, Region.of(anchor), 6, false, 100),
+                        AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
 
         assertEquals(1, registry.forPerson(person(1)).size());
         assertEquals(0, registry.forPerson(person(2)).size(),

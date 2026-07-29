@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.core.brain.knowledge;
 
+import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
@@ -34,8 +36,8 @@ public final class RegionGrowth {
     }
 
     /** Chebyshev spread cap from the seed — what splits a fused mega-forest into groves. */
-    public static int maxSpread() {
-        return Config.get().i(Knob.REGION_MAX_SPREAD);
+    public static int maxSpread(AgentProfile profile) {
+        return profile.i(ProfileAspect.PLACES_REGION_MAX_SPREAD);
     }
 
     /**
@@ -75,7 +77,11 @@ public final class RegionGrowth {
     private boolean partial;
     private GrownRegion result;
 
-    public RegionGrowth(GrowthRule rule, Pos seed, BlockKind seedKind) {
+    /** Whose scan this is — the spread cap is that body's judgment about places. */
+    private final AgentProfile profile;
+
+    public RegionGrowth(GrowthRule rule, Pos seed, BlockKind seedKind, AgentProfile profile) {
+        this.profile = profile;
         this.rule = rule;
         this.seed = seed;
         this.blocks.put(seed, seedKind);
@@ -90,7 +96,7 @@ public final class RegionGrowth {
     public int step(BlockProbe probe, int maxReads) {
         // Hoisted so one step is always bounded by one consistent pair of caps, even if a
         // reload lands mid-scan.
-        int spreadCap = maxSpread();
+        int spreadCap = maxSpread(this.profile);
         int blockCap = maxBlocks();
         int reads = 0;
         while (result == null && reads < maxReads) {

@@ -1,7 +1,7 @@
 package dev.luizloyola.anima.core.brain.instinct;
 
-import dev.luizloyola.anima.core.config.Config;
-import dev.luizloyola.anima.core.config.Knob;
+import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -78,28 +78,28 @@ public final class Danger {
     }
 
     /** @see Knob#DANGER_MELEE_MULT */
-    public static double meleeMult() {
-        return Config.get().d(Knob.DANGER_MELEE_MULT);
+    public static double meleeMult(AgentProfile profile) {
+        return profile.d(ProfileAspect.DANGER_MELEE_MULT);
     }
 
     /** @see Knob#DANGER_RANGED_MULT */
-    public static double rangedMult() {
-        return Config.get().d(Knob.DANGER_RANGED_MULT);
+    public static double rangedMult(AgentProfile profile) {
+        return profile.d(ProfileAspect.DANGER_RANGED_MULT);
     }
 
     /** @see Knob#DANGER_ARMORED_MULT */
-    public static double armoredMult() {
-        return Config.get().d(Knob.DANGER_ARMORED_MULT);
+    public static double armoredMult(AgentProfile profile) {
+        return profile.d(ProfileAspect.DANGER_ARMORED_MULT);
     }
 
     /** @see Knob#DANGER_MOUNTED_MULT */
-    public static double mountedMult() {
-        return Config.get().d(Knob.DANGER_MOUNTED_MULT);
+    public static double mountedMult(AgentProfile profile) {
+        return profile.d(ProfileAspect.DANGER_MOUNTED_MULT);
     }
 
     /** @see Knob#DANGER_BABY_MULT */
-    public static double babyMult() {
-        return Config.get().d(Knob.DANGER_BABY_MULT);
+    public static double babyMult(AgentProfile profile) {
+        return profile.d(ProfileAspect.DANGER_BABY_MULT);
     }
 
     private static Map<String, Double> defaults() {
