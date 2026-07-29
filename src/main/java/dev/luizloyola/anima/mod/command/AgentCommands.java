@@ -46,7 +46,9 @@ import dev.luizloyola.anima.mod.brain.BeingViewer;
 import dev.luizloyola.anima.mod.log.Journals;
 import dev.luizloyola.anima.mod.log.ThoughtBroadcast;
 import dev.luizloyola.anima.mod.net.ContactsSync;
+import dev.luizloyola.anima.core.social.PartyId;
 import dev.luizloyola.anima.mod.social.ContactData;
+import dev.luizloyola.anima.mod.social.PartyData;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -148,6 +150,33 @@ public final class AgentCommands {
                                                         StringArgumentType.getString(ctx, "person")))))
                                 .then(Commands.literal("clear")
                                         .executes(ctx -> contactsClear(ctx.getSource())));
+    }
+
+    /**
+     * Who belongs with whom — the party roster, and the dev stand-ins for joining and leaving.
+     *
+     * <p>The skeleton of layer 3's scope: a loner is a party of one, and boards will key off the
+     * {@link PartyId}. {@code join}/{@code leave} stand in for the group-up handshake exactly as
+     * {@code contacts meet} stands in for the identity exchange.
+     *
+     * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
+     * so a shared subcommand must be built once per root that mounts it.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> party() {
+        return Commands.literal("party")
+                                .executes(ctx -> partyList(ctx.getSource()))
+                                .then(Commands.literal("of")
+                                        .then(Commands.argument("person", StringArgumentType.string())
+                                                .suggests(ALL_PERSON_SUGGESTIONS)
+                                                .executes(ctx -> partyOfAgent(ctx.getSource(),
+                                                        StringArgumentType.getString(ctx, "person")))))
+                                .then(Commands.literal("join")
+                                        .then(Commands.argument("person", StringArgumentType.string())
+                                                .suggests(ALL_PERSON_SUGGESTIONS)
+                                                .executes(ctx -> partyJoin(ctx.getSource(),
+                                                        StringArgumentType.getString(ctx, "person")))))
+                                .then(Commands.literal("leave")
+                                        .executes(ctx -> partyLeave(ctx.getSource())));
     }
 
     /**
@@ -1378,6 +1407,90 @@ public final class AgentCommands {
         Replies.send(source, () -> Component.literal("Every name forgotten — everyone is a stranger.")
                 .withStyle(ChatFormatting.AQUA));
         return 1;
+    }
+
+    /** The source's own party — who they belong with, themselves included. */
+    private static int partyList(CommandSourceStack source) {
+        AgentId self = sourceIdentity(source);
+        if (self == null) return 0;
+        MinecraftServer server = source.getServer();
+        return printParty(source, PartyData.get(server).partyOf(self), "Your party");
+    }
+
+    /** That agent's party — the omniscient view: a dev tool reads any roster. */
+    private static int partyOfAgent(CommandSourceStack source, String token) {
+        AgentId who = resolveDirectory(source, token);
+        if (who == null) return 0;
+        MinecraftServer server = source.getServer();
+        return printParty(source, PartyData.get(server).partyOf(who),
+                label(server, who) + "'s party");
+    }
+
+    private static int printParty(CommandSourceStack source, PartyId party, String heading) {
+        MinecraftServer server = source.getServer();
+        List<AgentId> members = PartyData.get(server).members(party);
+        String tagged = heading + " (" + shortId(party) + ")";
+        if (members.size() == 1) {
+            Replies.send(source, () -> Component.literal(tagged + " — a party of one.")
+                    .withStyle(ChatFormatting.GRAY));
+            return 1;
+        }
+        Replies.send(source, () -> Component.literal(tagged + " — " + members.size() + " members:")
+                .withStyle(ChatFormatting.AQUA));
+        for (AgentId member : members) {
+            String line = "  " + label(server, member) + "  " + shortId(member);
+            Replies.send(source, () -> Component.literal(line).withStyle(ChatFormatting.GRAY));
+        }
+        return members.size();
+    }
+
+    /**
+     * The source joins {@code token}'s party — the joiner moves, their old party disbands if
+     * emptied, matching the social spec's handshake direction ("Bob joins Alice's party, his
+     * disbands"). A hand-run stand-in until the group-up encounter rung exists.
+     */
+    private static int partyJoin(CommandSourceStack source, String token) {
+        AgentId self = sourceIdentity(source);
+        if (self == null) return 0;
+        AgentId other = resolveDirectory(source, token);
+        if (other == null) return 0;
+        MinecraftServer server = source.getServer();
+        if (self.equals(other)) {
+            Replies.fail(source, Component.literal("You are already in your own party."));
+            return 0;
+        }
+        PartyData parties = PartyData.get(server);
+        PartyId theirs = parties.partyOf(other);
+        if (!parties.join(self, theirs)) {
+            Replies.send(source, () -> Component.literal("Already in the same party.")
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        Replies.send(source, () -> Component.literal(label(server, self) + " joined "
+                + label(server, other) + "'s party (" + parties.members(theirs).size()
+                + " members).").withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
+    /** The source strikes out on their own; their next ask mints a fresh party of one. */
+    private static int partyLeave(CommandSourceStack source) {
+        AgentId self = sourceIdentity(source);
+        if (self == null) return 0;
+        MinecraftServer server = source.getServer();
+        if (!PartyData.get(server).leave(self)) {
+            Replies.send(source, () -> Component.literal("You are already on your own.")
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        Replies.send(source, () -> Component.literal("You left the party — on your own again.")
+                .withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
+    /** The first eight characters of a party id — the same handle style agents get. */
+    public static String shortId(PartyId id) {
+        String text = id.toString();
+        return text.substring(0, Math.min(8, text.length()));
     }
 
     /** Pushes a whole book after a REMOVAL (an incremental add cannot express forgetting). */

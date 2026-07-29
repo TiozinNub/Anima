@@ -30,6 +30,7 @@ public final class AnimaCommands {
                         .then(AgentCommands.list())
                         .then(AgentCommands.select())
                         .then(AgentCommands.contacts())
+                        .then(AgentCommands.party())
                         .then(AgentCommands.nav())
                         .then(AgentCommands.brain())
                         .then(AgentCommands.think())
