@@ -2,6 +2,8 @@ package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
+import dev.luizloyola.anima.core.brain.knowledge.DangerNoter;
 import dev.luizloyola.anima.core.brain.knowledge.HerdNoter;
 import dev.luizloyola.anima.core.brain.knowledge.SenseEvent;
 import dev.luizloyola.anima.core.brain.sense.Being;
@@ -246,7 +248,11 @@ public final class BeingSense {
 
     // --- the herd-noting beat ----------------------------------------------------------------
 
-    /** Folds perceived herd animals into durable knowledge every noter interval. */
+    /**
+     * Folds perceived herd animals (and whatever is currently frightening) into durable knowledge
+     * every noter interval. The two ride the same beat because they are the same act, and a hundred
+     * ticks sits well inside the sense's own linger, so nothing is lost before it is written down.
+     */
     private void noteHerds(Pos feet, long now) {
         if (now - lastHerdNoteAt < HerdNoter.NOTE_INTERVAL_TICKS) {
             return;
@@ -257,8 +263,12 @@ public final class BeingSense {
         }
         lastHerdNoteAt = now;
         KnowledgeData data = KnowledgeData.get(person.level().getServer());
-        List<SenseEvent> events = HerdNoter.note(this.profile, feet, sensor.beings(),
-                data.registry().forPerson(self), now);
+        AgentKnowledge knowledge = data.registry().forPerson(self);
+        List<SenseEvent> events = new java.util.ArrayList<>(
+                DangerNoter.note(person.danger(), feet, sensor.beings(), knowledge, now,
+                        AgentKnowledge.maxPerKind(this.profile)));
+        events.addAll(HerdNoter.note(this.profile, feet, sensor.beings(),
+                data.registry().forPerson(self), now));
         data.setDirty();
         for (SenseEvent event : events) {
             person.journal().record(Category.SENSE,

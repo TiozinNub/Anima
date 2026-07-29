@@ -110,6 +110,49 @@ class FleeCoverTest {
     }
 
     @Test
+    @DisplayName("it does not flee one thing by running into a worse one")
+    void theGapBetweenTwoThreatsIsNotEmptyJustBecauseNothingIsInTheMiddle() {
+        // Two zombies north-west and north-east: their weighted centre is due north, so the old
+        // away-vector fled exactly between them, into a creeper.
+        ctx.percepts.beings = List.of(
+                threat("zombie", Being.Gear.NONE, new Pos(-8, 64, -8), 11.3),
+                threat("zombie", Being.Gear.NONE, new Pos(8, 64, -8), 11.3),
+                threat("creeper", Being.Gear.NONE, new Pos(0, 64, 12), 12.0));
+
+        Pos target = fleeTarget();
+
+        double toCreeper = Math.hypot(target.x() - 0, target.z() - 12);
+        assertTrue(toCreeper > 6.0,
+                "fled straight at the creeper it could see, ending up " + toCreeper
+                        + " blocks from it: " + target);
+    }
+
+    @Test
+    @DisplayName("a fright it can no longer see still steers it, faintly")
+    void aRememberedDangerStillCounts() {
+        // Nothing perceived to the north but a creeper was there a moment ago. Running from a
+        // zombie to the south should still lean away from it.
+        long now = 10_000L;
+        ctx.percepts.time = now;
+        ctx.knowledge.note(new dev.luizloyola.anima.core.brain.knowledge.PoiMemory(
+                        dev.luizloyola.anima.core.brain.knowledge.PoiKind.DANGER, "creeper",
+                        java.util.UUID.randomUUID(), new Pos(0, 64, 12),
+                        dev.luizloyola.anima.core.brain.knowledge.Region.of(new Pos(0, 64, 12)),
+                        1, false, now - 600),
+                dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge.maxPerKind(
+                        dev.luizloyola.anima.core.agent.TestSpecies.PROFILE));
+        ctx.percepts.beings = List.of(
+                threat("zombie", Being.Gear.NONE, new Pos(0, 64, -10), 10.0));
+
+        Pos target = fleeTarget();
+
+        double toRemembered = Math.hypot(target.x() - 0, target.z() - 12);
+        assertTrue(toRemembered > 6.0,
+                "ran straight back over where the creeper was, " + toRemembered
+                        + " blocks from it: " + target);
+    }
+
+    @Test
     @DisplayName("with nowhere to hide it still runs rather than standing still")
     void noCoverMeansTheOrdinaryEscape() {
         ctx.percepts.beings = List.of(

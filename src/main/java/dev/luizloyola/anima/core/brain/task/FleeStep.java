@@ -3,6 +3,7 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Being;
+import dev.luizloyola.anima.core.brain.sense.DangerField;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.Gait;
 import java.util.ArrayList;
@@ -55,6 +56,16 @@ public final class FleeStep implements CompoundTask {
     /** How far either side of the escape heading the search fans, in radians (about 60 degrees). */
     private static final double COVER_ARC = Math.PI * 2.0 / 3.0;
 
+    /**
+     * The edge straight-away gets over an equally frightening cell to one side. Small: enough to
+     * keep a body running in a straight line when nothing distinguishes the options, not enough
+     * to override anything it actually knows.
+     */
+    private static final double STRAIGHT_AWAY_BONUS = 0.01;
+
+    /** How much more frightening a cover cell may be before hiding stops being worth it. */
+    private static final double COVER_TOLERANCE = 0.05;
+
     private final RandomGenerator random;
     private final List<Method> methods;
 
@@ -101,11 +112,9 @@ public final class FleeStep implements CompoundTask {
             double[] direction = escapeDirection(here, threats);
             int jitterX = random.nextInt(2 * JITTER + 1) - JITTER;
             int jitterZ = random.nextInt(2 * JITTER + 1) - JITTER;
-            int targetX = here.x() + (int) Math.round(direction[0] * FLEE_LEG) + jitterX;
-            int targetZ = here.z() + (int) Math.round(direction[1] * FLEE_LEG) + jitterZ;
-            Pos away = new Pos(targetX, here.y(), targetZ);
-
-            Pos goal = takeCoverFrom(ctx, here, threats).orElse(away);
+            DangerField field = DangerField.of(ctx.danger(), ctx.percepts().beings(),
+                    ctx.knowledge(), ctx.percepts().time(), DangerField.FADE_TICKS);
+            Pos goal = safest(ctx, here, threats, direction, jitterX, jitterZ, field);
             return List.of(new GoTo(goal.x(), goal.y(), goal.z(), Gait.SPRINT));
         }
 
@@ -113,6 +122,56 @@ public final class FleeStep implements CompoundTask {
         public String describe() {
             return "escape";
         }
+    }
+
+    /**
+     * Where to run: the least frightening cell on the escape fan, cover preferred among equals.
+     *
+     * <p>Away is not safe — the direction that splits two mobs points at whatever is between them,
+     * and a settler fled two mobs into a creeper that way. Every cell on the fan is priced against
+     * everything the body knows to fear, seen now or remembered, and the cheapest wins.
+     *
+     * <p>The straight-away cell keeps a small edge, so a body with nothing to weigh runs straight.
+     */
+    private Pos safest(BrainContext ctx, Pos here, List<Being> threats, double[] direction,
+            int jitterX, int jitterZ, DangerField field) {
+        Pos away = new Pos(here.x() + (int) Math.round(direction[0] * FLEE_LEG) + jitterX,
+                here.y(),
+                here.z() + (int) Math.round(direction[1] * FLEE_LEG) + jitterZ);
+        if (field.isEmpty()) {
+            return takeCoverFrom(ctx, here, threats).orElse(away);
+        }
+        Pos best = away;
+        double bestDanger = field.at(away) - STRAIGHT_AWAY_BONUS;
+        for (Pos candidate : fan(here, direction)) {
+            double danger = field.at(candidate);
+            if (danger < bestDanger) {
+                bestDanger = danger;
+                best = candidate;
+            }
+        }
+        // Cover only among places already worth going: hiding behind a wall next to a creeper is
+        // not an improvement on being shot at.
+        double ceiling = bestDanger + COVER_TOLERANCE;
+        return takeCoverFrom(ctx, here, threats)
+                .filter(cover -> field.at(cover) <= ceiling)
+                .orElse(best);
+    }
+
+    /** The candidate cells one leg away, fanned around the escape heading. */
+    private static List<Pos> fan(Pos here, double[] direction) {
+        List<Pos> cells = new ArrayList<>(COVER_CANDIDATES);
+        for (int i = 0; i < COVER_CANDIDATES; i++) {
+            double spread = COVER_ARC * ((i % 2 == 0 ? 1 : -1) * ((i + 1) / 2))
+                    / (double) COVER_CANDIDATES;
+            double cos = Math.cos(spread);
+            double sin = Math.sin(spread);
+            cells.add(new Pos(
+                    here.x() + (int) Math.round((direction[0] * cos - direction[1] * sin) * FLEE_LEG),
+                    here.y(),
+                    here.z() + (int) Math.round((direction[0] * sin + direction[1] * cos) * FLEE_LEG)));
+        }
+        return cells;
     }
 
     /**
@@ -138,19 +197,9 @@ public final class FleeStep implements CompoundTask {
             return java.util.Optional.empty();
         }
         BlockProbe probe = ctx.percepts().blocks();
-        double[] away = escapeDirection(here, shooters);
         // Fan out around the escape heading rather than searching a disc: a cover spot behind you
         // is worth nothing if reaching it means running past the archer.
-        for (int i = 0; i < COVER_CANDIDATES; i++) {
-            double spread = COVER_ARC * ((i % 2 == 0 ? 1 : -1) * ((i + 1) / 2)) / (double) COVER_CANDIDATES;
-            double cos = Math.cos(spread);
-            double sin = Math.sin(spread);
-            double dx = away[0] * cos - away[1] * sin;
-            double dz = away[0] * sin + away[1] * cos;
-            Pos candidate = new Pos(
-                    here.x() + (int) Math.round(dx * FLEE_LEG),
-                    here.y(),
-                    here.z() + (int) Math.round(dz * FLEE_LEG));
+        for (Pos candidate : fan(here, escapeDirection(here, shooters))) {
             if (hiddenFromAll(probe, candidate, shooters)) {
                 return java.util.Optional.of(candidate);
             }

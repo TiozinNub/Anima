@@ -37,6 +37,18 @@ public final class PoiKind {
      */
     public static final PoiKind HERD = register("herd", 0, " head");
 
+    /**
+     * Where something frightening was — the durable half of fear. Perception forgets a threat in
+     * seconds, which is right for "is it next to me" and wrong afterwards: a body that ran from a
+     * creeper should not wander back into that clearing, nor flee a skeleton into where the
+     * creeper was. {@code detail} carries the species (or the anonymous-hostile key), so what a
+     * fright is worth is looked up live rather than frozen into the memory.
+     *
+     * <p>Merge radius 0 as for {@link #HERD}: {@code DangerNoter} owns matching, the rule being
+     * identity (one memory per thing, moved not duplicated) not distance.
+     */
+    public static final PoiKind DANGER = register("danger", 0, "");
+
     private final String key;
     private final int mergeRadius;
     private final String unit;
