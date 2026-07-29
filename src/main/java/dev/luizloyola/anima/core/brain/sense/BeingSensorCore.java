@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.sense;
 
+import dev.luizloyola.anima.core.agent.AgentTraits;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
 import java.util.ArrayDeque;
@@ -51,14 +52,36 @@ public final class BeingSensorCore {
     // Half-range sentinel: "never" must survive (now - stamp) without overflowing.
     private static final long NEVER = Long.MIN_VALUE / 2;
 
-    /** @see Knob#PEERS_RADIUS */
-    public static int radius() {
-        return Config.get().i(Knob.PEERS_RADIUS);
+    /**
+     * What the body this organ belongs to is like. The view volume and the attention curve are
+     * read from here rather than from Anima's config, so that the sense a wolf has is the wolf's.
+     * Held rather than re-fetched because it is a live view, not a snapshot — see
+     * {@link AgentTraits}.
+     */
+    private final AgentTraits traits;
+
+    /** A sense for a body with nothing to say about itself — Anima's configured values. */
+    public BeingSensorCore() {
+        this(AgentTraits.CONFIGURED);
     }
 
-    /** @see Knob#PEERS_CONE_DEGREES */
-    public static int coneDegrees() {
-        return Config.get().i(Knob.PEERS_CONE_DEGREES);
+    /** A sense shaped by the body wearing it. */
+    public BeingSensorCore(AgentTraits traits) {
+        this.traits = traits;
+    }
+
+    /**
+     * How far this body perceives another at all.
+     *
+     * @see AgentTraits#perceptionRadius()
+     */
+    public int radius() {
+        return traits.perceptionRadius();
+    }
+
+    /** @see AgentTraits#coneDegrees() */
+    public int coneDegrees() {
+        return traits.coneDegrees();
     }
 
     /** @see Knob#PEERS_LINGER_TICKS */
@@ -95,10 +118,10 @@ public final class BeingSensorCore {
      * Vertical field half-angle, relative to gaze pitch. Human-shaped vision: wide across
      * ({@link #coneDegrees()} horizontally), much narrower up-down.
      *
-     * @see Knob#PEERS_VERTICAL_DEGREES
+     * @see AgentTraits#verticalHalfDegrees()
      */
-    public static int verticalHalfDegrees() {
-        return Config.get().i(Knob.PEERS_VERTICAL_DEGREES);
+    public int verticalHalfDegrees() {
+        return traits.verticalHalfDegrees();
     }
 
     /** One perceived body: the latest reading, which channel carries it, and when it's due. */
@@ -591,7 +614,7 @@ public final class BeingSensorCore {
      * The attention curve: re-check interval lerped from {@link #nearIntervalTicks()} at
      * point-blank to {@link #farIntervalTicks()} at notice range.
      */
-    private static long interval(double distance) {
+    private long interval(double distance) {
         double t = Math.min(1.0, Math.max(0.0, distance / radius()));
         return Math.max(1, Math.round(nearIntervalTicks() + (farIntervalTicks() - nearIntervalTicks()) * t));
     }
@@ -604,7 +627,7 @@ public final class BeingSensorCore {
      * one is still noticed by ear. Yaw/pitch follow the Minecraft convention (yaw 0° = +Z;
      * pitch −90° = straight up).
      */
-    private static boolean inCone(Pos feet, double yawDegrees, double pitchDegrees, Pos target) {
+    private boolean inCone(Pos feet, double yawDegrees, double pitchDegrees, Pos target) {
         double dx = target.x() - feet.x();
         double dy = target.y() - feet.y();
         double dz = target.z() - feet.z();

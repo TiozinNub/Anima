@@ -79,18 +79,24 @@ public enum Knob implements KnobSpec {
 
     // --- peers (the people sense) -----------------------------------------------------------
 
-    /** @see dev.luizloyola.anima.core.brain.sense.BeingSensorCore#radius() */
+    /**
+     * A body's dimension, not the world's, read through
+     * {@link dev.luizloyola.anima.core.agent.AgentTraits#CONFIGURED} — the fallback for a body that
+     * declares nothing about itself.
+     *
+     * @see dev.luizloyola.anima.core.agent.AgentTraits#perceptionRadius()
+     */
     PEERS_RADIUS("peers.radius", Kind.INT, 24, 4, 64,
             "How far (blocks) another person can be perceived at all."),
-    /** Read by the mod-side candidate query against sneaking targets. */
+    /** @see dev.luizloyola.anima.core.agent.AgentTraits#sneakRangeMult() */
     PEERS_SNEAK_RANGE_MULT("peers.sneak_range_mult", Kind.DOUBLE, 0.75, 0.1, 1.0,
             "Detection range multiplier against a SNEAKING target — sneaking shrinks how far "
                     + "away you are noticed, it never makes you invisible."),
-    /** @see dev.luizloyola.anima.core.brain.sense.BeingSensorCore#coneDegrees() */
+    /** @see dev.luizloyola.anima.core.agent.AgentTraits#coneDegrees() */
     PEERS_CONE_DEGREES("peers.cone_degrees", Kind.INT, 150, 30, 360,
             "Horizontal field of view (degrees). People outside it are unseen until they make "
                     + "noise; 360 restores the old omniscience."),
-    /** @see dev.luizloyola.anima.core.brain.sense.BeingSensorCore#verticalHalfDegrees() */
+    /** @see dev.luizloyola.anima.core.agent.AgentTraits#verticalHalfDegrees() */
     PEERS_VERTICAL_DEGREES("peers.vertical_degrees", Kind.INT, 60, 5, 90,
             "Vertical field HALF-angle (degrees) around gaze pitch — human vision is wide "
                     + "across but flat; 90 removes the up/down limit."),

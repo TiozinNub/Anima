@@ -10,10 +10,9 @@ import dev.luizloyola.anima.core.brain.sense.BeingReading;
 import dev.luizloyola.anima.core.brain.sense.BeingSensorCore;
 import dev.luizloyola.anima.core.brain.sense.BeingWorld;
 import dev.luizloyola.anima.core.brain.sense.Pos;
-import dev.luizloyola.anima.core.config.Config;
-import dev.luizloyola.anima.core.config.Knob;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.agent.AgentTraits;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.social.ContactData;
 import java.util.ArrayList;
@@ -83,7 +82,9 @@ public final class BeingSense {
     private static final double STATION_REACH = 4.0;
 
     private final AgentBody person;
-    private final BeingSensorCore sensor = new BeingSensorCore();
+    /** What this body is like — the one object the query, the sensor and the debug ring share. */
+    private final AgentTraits traits;
+    private final BeingSensorCore sensor;
     private final BeingWorld world = new Oracle();
 
     /** Ticks a movement anchor must age before it is re-measured — the anti-flicker window. */
@@ -132,6 +133,8 @@ public final class BeingSense {
 
     public BeingSense(AgentBody person) {
         this.person = person;
+        this.traits = person.traits();
+        this.sensor = new BeingSensorCore(traits);
     }
 
     /** One sense tick, from {@link AgentBody#serverAiStep()}; narrates events to the journal. */
@@ -228,8 +231,8 @@ public final class BeingSense {
     private final class Oracle implements BeingWorld {
         @Override
         public List<BeingReading> candidates() {
-            double radius = BeingSensorCore.radius();
-            double sneakRadius = radius * Config.get().d(Knob.PEERS_SNEAK_RANGE_MULT);
+            double radius = traits.perceptionRadius();
+            double sneakRadius = radius * traits.sneakRangeMult();
             List<LivingEntity> found = person.level().getEntitiesOfClass(
                     LivingEntity.class,
                     // A full cube: the vertical SHAPE of vision belongs to the cone band, not
@@ -264,11 +267,10 @@ public final class BeingSense {
                     || body.level() != person.level()) {
                 return null;
             }
-            double radius = BeingSensorCore.radius();
+            double radius = traits.perceptionRadius();
             double distance = body.distanceTo(person.entity());
             if (distance > radius
-                    || (body.isCrouching()
-                            && distance > radius * Config.get().d(Knob.PEERS_SNEAK_RANGE_MULT))) {
+                    || (body.isCrouching() && distance > radius * traits.sneakRangeMult())) {
                 return null;
             }
             return read(body);

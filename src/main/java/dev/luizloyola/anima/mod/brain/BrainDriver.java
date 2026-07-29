@@ -20,12 +20,12 @@ import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.log.AgentJournal;
+import dev.luizloyola.anima.core.agent.AgentTraits;
 import dev.luizloyola.anima.core.agent.Pronouns;
 import dev.luizloyola.anima.mod.brain.AgentBlockPlacer;
 import dev.luizloyola.anima.mod.brain.AgentItemConsumer;
 import dev.luizloyola.anima.mod.brain.AgentMover;
 import dev.luizloyola.anima.mod.brain.AgentPercepts;
-import dev.luizloyola.anima.core.agent.Pronouns;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import java.util.ArrayList;
 import java.util.List;
@@ -143,6 +143,11 @@ public final class BrainDriver {
             @Override
             public Pronouns pronouns() {
                 return person.pronouns(); // the narrating voice: pronouns are asked for, never spelled
+            }
+
+            @Override
+            public AgentTraits traits() {
+                return person.traits(); // what this body is like — the brain never assumes a species
             }
 
             @Override

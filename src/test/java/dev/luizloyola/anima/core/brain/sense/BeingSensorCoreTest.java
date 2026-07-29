@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.AgentTraits;
+import dev.luizloyola.anima.core.config.Config;
+import dev.luizloyola.anima.core.config.Knob;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -295,6 +298,74 @@ class BeingSensorCoreTest {
         int farReads = world.readCounts.getOrDefault(far, 0);
         assertTrue(nearReads > farReads * 3,
                 "point-blank attention vs edge-of-range glances: " + nearReads + " vs " + farReads);
+    }
+
+    // --- the eyes belong to the body ------------------------------------------------------------
+
+    /** One body's dimensions, stated outright — the shape a species profile will hand back. */
+    private record Eyes(int perceptionRadius, int coneDegrees, int verticalHalfDegrees,
+                        double sneakRangeMult) implements AgentTraits {
+    }
+
+    /** A sensor of its own, over its own world, so two bodies can be compared side by side. */
+    private record Body(BeingSensorCore sensor, FakeBeingWorld world) {
+        static Body of(AgentTraits traits) {
+            return new Body(new BeingSensorCore(traits), new FakeBeingWorld());
+        }
+
+        List<BeingEvent> tickN(Pos self, int ticks) {
+            List<BeingEvent> events = new ArrayList<>();
+            for (int i = 0; i < ticks; i++) {
+                world.newTick();
+                events.addAll(sensor.tick(self, 0.0, 0.0, i, world));
+            }
+            return events;
+        }
+    }
+
+    @Test
+    void twoBodiesInOneWorldSeeWithTheirOwnEyes() {
+        // The same someone standing behind both of them: nothing global decides this any more.
+        Body blinkered = Body.of(new Eyes(24, 150, 60, 0.75));
+        Body allRound = Body.of(new Eyes(24, 360, 60, 0.75));
+        blinkered.world.addPerson("Lurker", new Pos(0, 64, -5), 5.0, Being.Activity.IDLE);
+        allRound.world.addPerson("Lurker", new Pos(0, 64, -5), 5.0, Being.Activity.IDLE);
+
+        assertTrue(blinkered.tickN(self, 5).isEmpty(), "behind a 150° cone: unseen");
+        assertEquals(1, allRound.tickN(self, 5).stream()
+                        .filter(e -> e.type() == BeingEvent.Type.SPOTTED).count(),
+                "behind a 360° cone: there is no behind");
+    }
+
+    @Test
+    void theAttentionCurveIsMeasuredAgainstTheBodysOwnRange() {
+        // Attention lerps over the body's own range: the same 20 blocks is the far edge for one
+        // body and close quarters for the other, so it cannot be one global number.
+        Body shortSighted = Body.of(new Eyes(24, 150, 60, 0.75));
+        Body longSighted = Body.of(new Eyes(64, 150, 60, 0.75));
+        BeingId nearShort = shortSighted.world.addPerson(
+                "Yonder", new Pos(0, 64, 20), 20.0, Being.Activity.IDLE);
+        BeingId nearLong = longSighted.world.addPerson(
+                "Yonder", new Pos(0, 64, 20), 20.0, Being.Activity.IDLE);
+
+        shortSighted.tickN(self, 120);
+        longSighted.tickN(self, 120);
+
+        int glances = shortSighted.world.readCounts.getOrDefault(nearShort, 0);
+        int looks = longSighted.world.readCounts.getOrDefault(nearLong, 0);
+        assertTrue(looks > glances * 2,
+                "20 blocks is the edge of one's world and the middle of the other's: "
+                        + glances + " vs " + looks);
+    }
+
+    @Test
+    void abodyThatSaysNothingAboutItselfGetsAnimasConfiguredValues() {
+        // The no-arg sensor is the configured one, knob for knob, so a consuming mod sees no
+        // change.
+        BeingSensorCore plain = new BeingSensorCore();
+        assertEquals(Config.get().i(Knob.PEERS_RADIUS), plain.radius());
+        assertEquals(Config.get().i(Knob.PEERS_CONE_DEGREES), plain.coneDegrees());
+        assertEquals(Config.get().i(Knob.PEERS_VERTICAL_DEGREES), plain.verticalHalfDegrees());
     }
 
     // --- the widened organ -----------------------------------------------------------------------

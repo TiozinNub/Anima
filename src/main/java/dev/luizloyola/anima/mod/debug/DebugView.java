@@ -5,7 +5,6 @@ import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Being;
-import dev.luizloyola.anima.core.brain.sense.BeingSensorCore;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.Waypoint;
@@ -199,8 +198,10 @@ public final class DebugView {
                 layers.contains(DebugLayer.BRAIN) ? person.brain().describeLines() : List.of(),
                 layers.contains(DebugLayer.MEMORY) ? beliefs(server, person) : List.of(),
                 layers.contains(DebugLayer.PEERS) ? peers(person) : List.of(),
-                BeingSensorCore.coneDegrees(),
-                BeingSensorCore.radius());
+                // The ring and the wedge are drawn from the body's own dimensions, not from
+                // Anima's config: a debug view that draws somebody else's eyesight is wrong.
+                person.traits().coneDegrees(),
+                person.traits().perceptionRadius());
     }
 
     /** Everything they remember, of every kind, flattened with staleness resolved server-side. */
