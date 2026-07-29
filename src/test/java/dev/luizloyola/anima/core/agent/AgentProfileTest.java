@@ -15,7 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /** The seam between a mind and the body wearing it: what a body is like, and who answers. */
-class AgentTraitsTest {
+class AgentProfileTest {
 
     @AfterEach
     void restoreGlobalConfig() {
@@ -23,19 +23,19 @@ class AgentTraitsTest {
     }
 
     @Test
-    @DisplayName("the configured traits are what every agent read before bodies could differ")
+    @DisplayName("the configured profile is what every agent read before bodies could differ")
     void configuredMatchesAnimasOwnKnobs() {
-        AgentTraits traits = AgentTraits.CONFIGURED;
-        assertEquals(Config.get().i(Knob.PEERS_RADIUS), traits.perceptionRadius());
-        assertEquals(Config.get().i(Knob.PEERS_CONE_DEGREES), traits.coneDegrees());
-        assertEquals(Config.get().i(Knob.PEERS_VERTICAL_DEGREES), traits.verticalHalfDegrees());
-        assertEquals(Config.get().d(Knob.PEERS_SNEAK_RANGE_MULT), traits.sneakRangeMult());
+        AgentProfile profile = AgentProfile.CONFIGURED;
+        assertEquals(Config.get().i(Knob.PEERS_RADIUS), profile.perceptionRadius());
+        assertEquals(Config.get().i(Knob.PEERS_CONE_DEGREES), profile.coneDegrees());
+        assertEquals(Config.get().i(Knob.PEERS_VERTICAL_DEGREES), profile.verticalHalfDegrees());
+        assertEquals(Config.get().d(Knob.PEERS_SNEAK_RANGE_MULT), profile.sneakRangeMult());
     }
 
     @Test
     @DisplayName("it is a live view, not a snapshot — a reload retunes a body already in the world")
     void configuredReadsThroughToTheStore() {
-        AgentTraits held = AgentTraits.CONFIGURED; // as an organ holds it, for the body's whole life
+        AgentProfile held = AgentProfile.CONFIGURED; // as an organ holds it, for the body's whole life
         int before = held.perceptionRadius();
 
         Config.install(Config.SET.defaults().with(Knob.PEERS_RADIUS, before + 8.0));
@@ -48,7 +48,7 @@ class AgentTraitsTest {
     }
 
     @Test
-    @DisplayName("a brain assembled without a body still has dimensions to read")
+    @DisplayName("a brain assembled without a body still has a profile to read")
     void brainContextDefaultsToTheConfiguredTraits() {
         BrainContext bare = new BrainContext() {
             @Override public ActuatorAccess actuators() {
@@ -76,7 +76,7 @@ class AgentTraitsTest {
             }
         };
 
-        assertSame(AgentTraits.CONFIGURED, bare.traits(),
+        assertSame(AgentProfile.CONFIGURED, bare.profile(),
                 "the default is the bridge — a test rig reads Anima's own values, as it always did");
     }
 }

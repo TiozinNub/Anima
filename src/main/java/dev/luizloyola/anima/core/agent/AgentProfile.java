@@ -4,25 +4,25 @@ import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
 
 /**
- * What one body is like — the dimensions of a mind that differ between a settler, a wolf and a
- * rabbit. Anima names them; who answers them is the body's business.
+ * What one body is like — the aspects of a mind that differ between a settler, a wolf and a
+ * rabbit. Anima names them; who answers them is the body's business. Full design (species profiles
+ * declared by the consumer, per-agent modifiers on top, {@code anima.json} demoted to server-wide
+ * caps): {@code docs/superpowers/specs/2026-07-28-per-species-minds-design.md}.
  *
- * <p><b>Why this exists.</b> Anima's tunables were global: every agent saw the same 24-block
- * perception radius out of {@code anima.json}, where a rabbit's flight distance and a wolf's
- * eyesight are different bodies, not one dial at two settings. Full design (species profiles from
- * the consumer, per-agent modifiers on top, {@code anima.json} demoted to server-wide caps):
- * {@code docs/superpowers/specs/2026-07-28-per-species-minds-design.md}.
+ * <p>The resolved read, not the declaration: a consumer declares a profile per species, and
+ * modifiers it contributes (a trait, a skill, a job) shift an agent's values before they arrive
+ * here. "Traits" are one such modifier source, in the consumer's private identity tier.
  *
- * <p><b>The seam, not the whole design.</b> Only the dimensions more than one organ reads live
- * here: the sense query, the attention curve and the debug ring all draw on
- * {@link #perceptionRadius()} and each used to reach for the global independently. The rest move
- * when the species profile lands.
+ * <p>A seam, not the whole design: it carries only the aspects more than one organ reads, since
+ * those break when they disagree — the sense query, the attention curve and the debug ring all
+ * draw on {@link #perceptionRadius()}. Aspects read in exactly one place move when the species
+ * profile lands.
  *
- * <p>An interface rather than a record on purpose: {@link #CONFIGURED} is a live view over the
- * config store, so a body may hold one for life and still see a {@code /anima config reload}.
- * Whatever replaces it must keep that property.
+ * <p>Pure core, and an interface rather than a record: {@link #CONFIGURED} is a live view over the
+ * config store, not a snapshot, so a body may hold one for its whole life and still see a
+ * {@code /anima config reload}. Whatever replaces it must keep that property.
  */
-public interface AgentTraits {
+public interface AgentProfile {
 
     /**
      * How far away (blocks) this body can perceive another at all — the outer bound on the being
@@ -51,14 +51,11 @@ public interface AgentTraits {
     double sneakRangeMult();
 
     /**
-     * Every dimension read from Anima's own config file — what every agent used before any of them
-     * had a species.
-     *
-     * <p>A bridge meant to be crossed: introducing the seam changes no behaviour and costs a
-     * consuming mod no edit, and once a consumer declares its species profiles its bodies answer
-     * from those instead.
+     * Every aspect read from Anima's own config file — what every agent used before any of them had
+     * a species. A bridge meant to be crossed: introducing the seam costs a consuming mod no edit,
+     * and once it declares species profiles, Anima's own values stop being anybody's defaults.
      */
-    AgentTraits CONFIGURED = new AgentTraits() {
+    AgentProfile CONFIGURED = new AgentProfile() {
         @Override
         public int perceptionRadius() {
             return Config.get().i(Knob.PEERS_RADIUS);
@@ -81,7 +78,7 @@ public interface AgentTraits {
 
         @Override
         public String toString() {
-            return "AgentTraits.CONFIGURED";
+            return "AgentProfile.CONFIGURED";
         }
     };
 }

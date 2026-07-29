@@ -200,8 +200,8 @@ public final class DebugView {
                 layers.contains(DebugLayer.PEERS) ? peers(person) : List.of(),
                 // The ring and the wedge are drawn from the body's own dimensions, not from
                 // Anima's config: a debug view that draws somebody else's eyesight is wrong.
-                person.traits().coneDegrees(),
-                person.traits().perceptionRadius());
+                person.profile().coneDegrees(),
+                person.profile().perceptionRadius());
     }
 
     /** Everything they remember, of every kind, flattened with staleness resolved server-side. */

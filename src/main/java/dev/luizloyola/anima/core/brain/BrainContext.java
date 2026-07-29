@@ -5,7 +5,7 @@ import dev.luizloyola.anima.core.brain.board.AgentClaims;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.log.AgentJournal;
-import dev.luizloyola.anima.core.agent.AgentTraits;
+import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.Pronouns;
 
 /**
@@ -36,13 +36,13 @@ public interface BrainContext {
     Pronouns pronouns();
 
     /**
-     * What the body running this brain is like — the one place a core instinct or task may get a
-     * dimension from, for the same reason as {@link #pronouns()}: a hardcoded 24-block radius is
-     * right for a settler and wrong for a rabbit. Defaults to {@link AgentTraits#CONFIGURED}, so a
+     * What the body running this brain is like — the one place a core instinct or task may get an
+     * aspect from, for the same reason as {@link #pronouns()}: a hardcoded 24-block radius is right
+     * for a settler and wrong for a rabbit. Defaults to {@link AgentProfile#CONFIGURED}, so a
      * context assembled without a body (tests, minimal rigs) reads Anima's configured values.
      */
-    default AgentTraits traits() {
-        return AgentTraits.CONFIGURED;
+    default AgentProfile profile() {
+        return AgentProfile.CONFIGURED;
     }
 
     /**

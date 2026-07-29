@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.luizloyola.anima.core.agent.AgentTraits;
+import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
 import java.util.ArrayList;
@@ -302,15 +302,15 @@ class BeingSensorCoreTest {
 
     // --- the eyes belong to the body ------------------------------------------------------------
 
-    /** One body's dimensions, stated outright — the shape a species profile will hand back. */
+    /** One body's aspects, stated outright — the shape a species profile will hand back. */
     private record Eyes(int perceptionRadius, int coneDegrees, int verticalHalfDegrees,
-                        double sneakRangeMult) implements AgentTraits {
+                        double sneakRangeMult) implements AgentProfile {
     }
 
     /** A sensor of its own, over its own world, so two bodies can be compared side by side. */
     private record Body(BeingSensorCore sensor, FakeBeingWorld world) {
-        static Body of(AgentTraits traits) {
-            return new Body(new BeingSensorCore(traits), new FakeBeingWorld());
+        static Body of(AgentProfile profile) {
+            return new Body(new BeingSensorCore(profile), new FakeBeingWorld());
         }
 
         List<BeingEvent> tickN(Pos self, int ticks) {

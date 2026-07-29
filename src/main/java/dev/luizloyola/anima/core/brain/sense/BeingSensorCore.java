@@ -1,6 +1,6 @@
 package dev.luizloyola.anima.core.brain.sense;
 
-import dev.luizloyola.anima.core.agent.AgentTraits;
+import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
 import java.util.ArrayDeque;
@@ -53,35 +53,34 @@ public final class BeingSensorCore {
     private static final long NEVER = Long.MIN_VALUE / 2;
 
     /**
-     * What the body this organ belongs to is like. The view volume and the attention curve are
-     * read from here rather than from Anima's config, so that the sense a wolf has is the wolf's.
-     * Held rather than re-fetched because it is a live view, not a snapshot — see
-     * {@link AgentTraits}.
+     * The view volume and the attention curve are read from the body's profile, not from Anima's
+     * config, so the sense a wolf has is the wolf's. Held because it is a live view, not a
+     * snapshot — see {@link AgentProfile}.
      */
-    private final AgentTraits traits;
+    private final AgentProfile profile;
 
     /** A sense for a body with nothing to say about itself — Anima's configured values. */
     public BeingSensorCore() {
-        this(AgentTraits.CONFIGURED);
+        this(AgentProfile.CONFIGURED);
     }
 
     /** A sense shaped by the body wearing it. */
-    public BeingSensorCore(AgentTraits traits) {
-        this.traits = traits;
+    public BeingSensorCore(AgentProfile profile) {
+        this.profile = profile;
     }
 
     /**
      * How far this body perceives another at all.
      *
-     * @see AgentTraits#perceptionRadius()
+     * @see AgentProfile#perceptionRadius()
      */
     public int radius() {
-        return traits.perceptionRadius();
+        return profile.perceptionRadius();
     }
 
-    /** @see AgentTraits#coneDegrees() */
+    /** @see AgentProfile#coneDegrees() */
     public int coneDegrees() {
-        return traits.coneDegrees();
+        return profile.coneDegrees();
     }
 
     /** @see Knob#PEERS_LINGER_TICKS */
@@ -118,10 +117,10 @@ public final class BeingSensorCore {
      * Vertical field half-angle, relative to gaze pitch. Human-shaped vision: wide across
      * ({@link #coneDegrees()} horizontally), much narrower up-down.
      *
-     * @see AgentTraits#verticalHalfDegrees()
+     * @see AgentProfile#verticalHalfDegrees()
      */
     public int verticalHalfDegrees() {
-        return traits.verticalHalfDegrees();
+        return profile.verticalHalfDegrees();
     }
 
     /** One perceived body: the latest reading, which channel carries it, and when it's due. */

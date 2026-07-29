@@ -20,7 +20,7 @@ import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.log.AgentJournal;
-import dev.luizloyola.anima.core.agent.AgentTraits;
+import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.Pronouns;
 import dev.luizloyola.anima.mod.brain.AgentBlockPlacer;
 import dev.luizloyola.anima.mod.brain.AgentItemConsumer;
@@ -146,8 +146,8 @@ public final class BrainDriver {
             }
 
             @Override
-            public AgentTraits traits() {
-                return person.traits(); // what this body is like — the brain never assumes a species
+            public AgentProfile profile() {
+                return person.profile(); // what this body is like — the brain never assumes a species
             }
 
             @Override

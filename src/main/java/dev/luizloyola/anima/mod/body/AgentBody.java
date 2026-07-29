@@ -1,7 +1,7 @@
 package dev.luizloyola.anima.mod.body;
 
 import dev.luizloyola.anima.core.agent.AgentId;
-import dev.luizloyola.anima.core.agent.AgentTraits;
+import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.Needs;
 import dev.luizloyola.anima.core.agent.Pronouns;
 import dev.luizloyola.anima.core.inv.Inventory;
@@ -65,14 +65,14 @@ public interface AgentBody {
     Pronouns pronouns();
 
     /**
-     * What this body is like — how far it perceives, how wide it looks. Organs read their
-     * dimensions from here rather than from a global, which makes a wolf's eyesight a wolf's.
+     * What this body is like — how far it perceives, how wide it looks. Organs read their aspects
+     * from here rather than from a global, which makes a wolf's eyesight a wolf's.
      *
-     * <p>Defaults to {@link AgentTraits#CONFIGURED}; return the same object every call, since
+     * <p>Defaults to {@link AgentProfile#CONFIGURED}; return the same object every call, since
      * organs hold onto it (safe: it is a live view).
      */
-    default AgentTraits traits() {
-        return AgentTraits.CONFIGURED;
+    default AgentProfile profile() {
+        return AgentProfile.CONFIGURED;
     }
 
     /**
