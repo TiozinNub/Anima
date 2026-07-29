@@ -7,7 +7,6 @@ import dev.isxander.yacl3.api.YetAnotherConfigLib;
 import dev.isxander.yacl3.api.controller.DoubleFieldControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerFieldControllerBuilder;
 import dev.isxander.yacl3.api.controller.TickBoxControllerBuilder;
-import dev.luizloyola.anima.core.brain.instinct.Danger;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.ConfigStore;
 import dev.luizloyola.anima.core.config.ConfigValues;
@@ -59,25 +58,13 @@ public final class YaclConfigScreen {
                             set.langRoot() + ".category." + category, prettify(category))))
                     .option(option(set, knob, live, staged));
         }
-        // The per-species flee weights ride the danger tab beside the modifier knobs — not knobs
-        // (open key set), each label borrowing the mob's own lang entry (decision: Luiz). Guarded
-        // on Anima's own set, so a consuming mod naming a section "danger" gets its own knobs.
-        Map<String, Double> stagedDanger = new LinkedHashMap<>();
-        ConfigCategory.Builder dangerTab = set == Config.SET ? categories.get("danger") : null;
-        if (dangerTab != null) {
-            dangerTab.option(dangerOption(Danger.DEFAULT_KEY, stagedDanger));
-            Danger.table().keySet().stream()
-                    .filter(species -> !species.equals(Danger.DEFAULT_KEY))
-                    .sorted()
-                    .forEach(species -> dangerTab.option(dangerOption(species, stagedDanger)));
-        }
 
         YetAnotherConfigLib.Builder builder = YetAnotherConfigLib.createBuilder()
                 .title(Component.literal(set.title()));
         for (ConfigCategory.Builder category : categories.values()) {
             builder.category(category.build());
         }
-        return builder.save(() -> apply(store, file, staged, stagedDanger)).build().generateScreen(parent);
+        return builder.save(() -> apply(store, file, staged)).build().generateScreen(parent);
     }
 
     private static Option<?> option(KnobSet set, KnobSpec knob, ConfigValues live,
@@ -134,20 +121,6 @@ public final class YaclConfigScreen {
                 : Character.toUpperCase(spaced.charAt(0)) + spaced.substring(1);
     }
 
-    /** One species weight row — named by the mob's own lang entry, never hand-written. */
-    private static Option<Double> dangerOption(String species, Map<String, Double> staged) {
-        Component name = species.equals(Danger.DEFAULT_KEY)
-                ? Component.translatableWithFallback(Config.SET.langRoot() + ".option.danger.default_weight",
-                        "Default (unlisted mobs)")
-                : speciesName(species);
-        return Option.<Double>createBuilder()
-                .name(name)
-                .description(OptionDescription.of(Component.literal(
-                        "danger." + species + " — flee weight, accepts 0.0 to 8.0")))
-                .binding(1.0, () -> Danger.weight(species), value -> staged.put(species, value))
-                .controller(opt -> DoubleFieldControllerBuilder.create(opt).range(0.0, 8.0))
-                .build();
-    }
 
     /** The mob's own display name, or the raw species string for ids not in this game's registry. */
     private static Component speciesName(String species) {
@@ -159,18 +132,13 @@ public final class YaclConfigScreen {
     }
 
     /** Install the edited values as one config, then persist — the same path {@code config set} takes. */
-    private static void apply(ConfigStore store, ConfigFile file, Map<KnobSpec, Double> staged,
-            Map<String, Double> stagedDanger) {
+    private static void apply(ConfigStore store, ConfigFile file,
+            Map<KnobSpec, Double> staged) {
         ConfigValues updated = store.get();
         for (Map.Entry<KnobSpec, Double> change : staged.entrySet()) {
             updated = updated.with(change.getKey(), change.getValue());
         }
         store.install(updated);
-        if (!stagedDanger.isEmpty()) {
-            Map<String, Double> merged = new LinkedHashMap<>(Danger.table());
-            merged.putAll(stagedDanger);
-            Danger.install(merged);
-        }
         file.save(updated);
     }
 }

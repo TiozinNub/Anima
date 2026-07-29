@@ -23,9 +23,9 @@ import java.util.Optional;
  * </ul>
  *
  * <p>A consuming mod's own tunables belong in its own enum and file; see {@link KnobSpec} and
- * {@link KnobSet}. The per-species flee weights are
- * not knobs at all (entity ids are an open set), so they are an {@code OpenSection} beside
- * these.
+ * {@link KnobSet}. The flee weights are not knobs at
+ * all (entity ids are an open set, belonging to whoever ships a body), so they are their own
+ * artifact per consumer ({@code DangerFile}).
  *
  * <p>Keys are dotted {@code snake_case}, the file nesting one object per segment, as Minecraft
  * itself moved to in 26.1.

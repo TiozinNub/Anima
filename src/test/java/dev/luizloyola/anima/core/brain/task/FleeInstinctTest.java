@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.agent.TestSpecies;
+import dev.luizloyola.anima.core.brain.sense.TestDanger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -92,22 +93,23 @@ class FleeInstinctTest {
     @Test
     void aScarierSpeciesMultipliesItsWeightIn() {
         // A creeper (danger 1.6) at the same distance a zombie reads 0.5 → 0.8.
-        assertEquals(0.8, FleeInstinct.pressureOf(TestSpecies.PROFILE, speciesAt("creeper", 10.0, Being.Gear.NONE)),
+        assertEquals(0.8, FleeInstinct.pressureOf(TestSpecies.PROFILE, TestDanger.TABLE, speciesAt("creeper", 10.0, Being.Gear.NONE)),
                 1e-9);
     }
 
     @Test
     void aRangedSpeciesIsFearedFromFartherOut() {
-        // A skeleton (ranged species) at exactly melee reach: reach = 16 * 1.5 = 24, so
+        // A skeleton shoots, so it is feared from as far as this body can perceive it at all
+        // (senses.radius, 24) rather than from its flee range (16). At exactly 16 blocks:
         // (24 - 16) / 12 * 1.2 (skeleton weight) = 0.8 — where a zombie there reads zero.
-        assertEquals(0.0, FleeInstinct.pressureOf(TestSpecies.PROFILE, speciesAt("zombie", 16.0, Being.Gear.NONE)), 1e-9);
-        assertEquals(0.8, FleeInstinct.pressureOf(TestSpecies.PROFILE, speciesAt("skeleton", 16.0, Being.Gear.NONE)), 1e-9);
+        assertEquals(0.0, FleeInstinct.pressureOf(TestSpecies.PROFILE, TestDanger.TABLE, speciesAt("zombie", 16.0, Being.Gear.NONE)), 1e-9);
+        assertEquals(0.8, FleeInstinct.pressureOf(TestSpecies.PROFILE, TestDanger.TABLE, speciesAt("skeleton", 16.0, Being.Gear.NONE)), 1e-9);
     }
 
     @Test
     void visibleGearMultipliesTheDanger() {
-        double bare = FleeInstinct.pressureOf(TestSpecies.PROFILE, speciesAt("zombie", 10.0, Being.Gear.NONE));
-        double armed = FleeInstinct.pressureOf(TestSpecies.PROFILE, speciesAt("zombie", 10.0,
+        double bare = FleeInstinct.pressureOf(TestSpecies.PROFILE, TestDanger.TABLE, speciesAt("zombie", 10.0, Being.Gear.NONE));
+        double armed = FleeInstinct.pressureOf(TestSpecies.PROFILE, TestDanger.TABLE, speciesAt("zombie", 10.0,
                 new Being.Gear(true, false, true, false, false))); // sword + armor
         assertEquals(0.5, bare, 1e-9);
         assertEquals(0.5 * 1.15 * 1.2, armed, 1e-9);
@@ -121,7 +123,7 @@ class FleeInstinctTest {
                 null, new Pos(0, 64, 0), 2.0, 1, 0, true, List.of(), Being.Activity.IDLE,
                 Being.Locomotion.STILL, false, false, false, false, false, Being.Gear.NONE,
                 Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
-        assertEquals(0.0, FleeInstinct.pressureOf(TestSpecies.PROFILE, calm));
+        assertEquals(0.0, FleeInstinct.pressureOf(TestSpecies.PROFILE, TestDanger.TABLE, calm));
     }
 
     @Test

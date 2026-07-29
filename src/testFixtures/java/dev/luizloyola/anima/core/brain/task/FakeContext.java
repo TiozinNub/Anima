@@ -12,7 +12,9 @@ import dev.luizloyola.anima.core.brain.board.SiteClaims;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.act.ItemConsumer;
 import dev.luizloyola.anima.core.brain.act.Mover;
+import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
+import dev.luizloyola.anima.core.brain.sense.TestDanger;
 import dev.luizloyola.anima.core.log.JournalService;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.agent.Pronouns;
@@ -37,6 +39,8 @@ public final class FakeContext implements BrainContext {
     public Pronouns pronouns = Pronouns.of("she", "her", "her");
     /** What the fake body is like — {@code TestSpecies.with(aspect, value)} makes a variant. */
     public AgentProfile profile = TestSpecies.PROFILE;
+    /** What the fake body is afraid of. Settable, for a test about a body with other fears. */
+    public DangerTable danger = TestDanger.TABLE;
     /**
      * A real claim registry (pure anyway), private by default so solo tests behave as before;
      * contention tests point two contexts at one shared instance to simulate a settlement.
@@ -103,6 +107,11 @@ public final class FakeContext implements BrainContext {
     @Override
     public AgentProfile profile() {
         return profile;
+    }
+
+    @Override
+    public DangerTable danger() {
+        return danger;
     }
 
     @Override

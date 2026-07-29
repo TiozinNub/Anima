@@ -16,6 +16,7 @@ import dev.luizloyola.anima.core.brain.instinct.EatInstinct;
 import dev.luizloyola.anima.core.brain.instinct.FleeInstinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
+import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.log.Category;
@@ -148,6 +149,11 @@ public final class BrainDriver {
             @Override
             public AgentProfile profile() {
                 return person.profile(); // what this body is like — the brain never assumes a species
+            }
+
+            @Override
+            public DangerTable danger() {
+                return person.danger(); 
             }
 
             @Override

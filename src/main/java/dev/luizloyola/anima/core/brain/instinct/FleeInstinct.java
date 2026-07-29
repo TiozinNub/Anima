@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.sense.Being;
+import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.task.FleeStep;
 import dev.luizloyola.anima.core.brain.task.Task;
 import java.util.random.RandomGenerator;
@@ -53,7 +54,7 @@ public final class FleeInstinct implements Instinct {
     public double pressure(BrainContext ctx) {
         double max = 0.0;
         for (Being being : ctx.percepts().beings()) {
-            double pressure = pressureOf(ctx.profile(), being);
+            double pressure = pressureOf(ctx.profile(), ctx.danger(), being);
             if (pressure > max) {
                 max = pressure;
             }
@@ -62,21 +63,21 @@ public final class FleeInstinct implements Instinct {
     }
 
     /** One being's contribution — public so tests and debug readouts price fear the same way. */
-    public static double pressureOf(AgentProfile profile, Being being) {
+    public static double pressureOf(AgentProfile profile, DangerTable danger, Being being) {
         if (!being.aggressive()) {
             return 0.0; // masked tiers read non-aggressive: unmade-out things exert nothing
         }
         // Reach is the weapon's, not a multiple of ours. Something that shoots is feared from as
         // far as this body can perceive it at all; something that has to reach you is feared from
         // its own flee range.
-        double reach = ranged(being)
+        double reach = ranged(danger, being)
                 ? profile.i(ProfileAspect.SENSES_RADIUS)
                 : range(profile);
         double ramped = clamp01((reach - being.distance()) / ramp(profile));
         if (ramped == 0.0) {
             return 0.0;
         }
-        double weight = Danger.weight(being.species()) * gearMult(profile, being.gear());
+        double weight = danger.weight(being.species()) * gearMult(profile, being.gear());
         double pressure = ramped * weight;
         if (being.approaching()) {
             pressure *= approachBonus(profile);
@@ -86,28 +87,28 @@ public final class FleeInstinct implements Instinct {
 
     /** Whether this threat's reach is a projectile's: seen ranged gear, a drawn aim, or a
      *  species that shoots bare-handed (blaze, ghast — no held item to see). */
-    private static boolean ranged(Being being) {
+    private static boolean ranged(DangerTable danger, Being being) {
         return being.gear().ranged() || being.activity() == Being.Activity.AIMING
-                || Danger.rangedSpecies(being.species());
+                || danger.ranged(being.species());
     }
 
     /** The visible-equipment story, multiplied — armored < with sword < …. */
     private static double gearMult(AgentProfile profile, Being.Gear gear) {
         double mult = 1.0;
         if (gear.melee()) {
-            mult *= Danger.meleeMult(profile);
+            mult *= profile.d(ProfileAspect.DANGER_MELEE_MULT);
         }
         if (gear.ranged()) {
-            mult *= Danger.rangedMult(profile);
+            mult *= profile.d(ProfileAspect.DANGER_RANGED_MULT);
         }
         if (gear.armored()) {
-            mult *= Danger.armoredMult(profile);
+            mult *= profile.d(ProfileAspect.DANGER_ARMORED_MULT);
         }
         if (gear.mounted()) {
-            mult *= Danger.mountedMult(profile);
+            mult *= profile.d(ProfileAspect.DANGER_MOUNTED_MULT);
         }
         if (gear.baby()) {
-            mult *= Danger.babyMult(profile);
+            mult *= profile.d(ProfileAspect.DANGER_BABY_MULT);
         }
         return mult;
     }

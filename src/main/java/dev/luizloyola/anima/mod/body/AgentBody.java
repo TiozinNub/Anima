@@ -5,6 +5,7 @@ import dev.luizloyola.anima.core.agent.AgentModifiers;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.Needs;
 import dev.luizloyola.anima.core.agent.Pronouns;
+import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.nav.Gait;
@@ -85,6 +86,17 @@ public interface AgentBody {
      */
     default AgentModifiers modifiers() {
         return AgentModifiers.NONE;
+    }
+
+    /**
+     * How frightening this body finds each kind of thing. Defaults to {@link DangerTable#NEUTRAL}:
+     * inventing fears for a body that has said nothing would be invention.
+     *
+     * <p>Read through a {@link dev.luizloyola.anima.core.brain.sense.DangerStore}, not cached, so a
+     * world load's regeneration reaches a body already walking around.
+     */
+    default DangerTable danger() {
+        return DangerTable.NEUTRAL;
     }
 
     /**

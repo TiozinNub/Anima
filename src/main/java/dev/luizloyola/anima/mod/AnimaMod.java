@@ -5,7 +5,6 @@ import dev.luizloyola.anima.mod.command.AnimaCommands;
 import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.brain.RayPools;
 import dev.luizloyola.anima.mod.config.ConfigFile;
-import dev.luizloyola.anima.mod.config.DangerSection;
 import dev.luizloyola.anima.mod.item.AnimaItems;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
@@ -27,7 +26,7 @@ public final class AnimaMod implements ModInitializer {
      * Anima's own {@code config/anima.json}. A consuming mod builds its own for its own knob
      * set — this one is not shared, and neither is the file.
      */
-    public static final ConfigFile CONFIG = new ConfigFile(Config.store(), new DangerSection());
+    public static final ConfigFile CONFIG = new ConfigFile(Config.store());
 
     @Override
     public void onInitialize() {

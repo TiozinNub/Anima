@@ -8,7 +8,6 @@ import dev.luizloyola.anima.core.config.ConfigValues;
 import dev.luizloyola.anima.core.config.KnobSet;
 import dev.luizloyola.anima.core.config.KnobSpec;
 import dev.luizloyola.anima.mod.config.ConfigFile;
-import dev.luizloyola.anima.mod.config.OpenSection;
 import java.util.List;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -43,7 +42,7 @@ public final class ConfigCommands {
                 .then(Commands.literal("get")
                         .then(Commands.argument("key", StringArgumentType.string())
                                 .suggests(keys)
-                                .executes(ctx -> get(ctx.getSource(), store, file,
+                                .executes(ctx -> get(ctx.getSource(), store,
                                         StringArgumentType.getString(ctx, "key")))))
                 .then(Commands.literal("set")
                         .then(Commands.argument("key", StringArgumentType.string())
@@ -97,23 +96,7 @@ public final class ConfigCommands {
         return 1;
     }
 
-    private static int get(CommandSourceStack source, ConfigStore store, ConfigFile file,
-            String key) {
-        // Knobs win over open sections: a knob's key is never routed to a table that happens to
-        // share its first segment. That ordering is what stopped `danger.melee_mult` being read as
-        // a mob called "melee_mult" back when the multipliers and the weights shared a section.
-        if (store.set().byKey(key).isEmpty()) {
-            OpenSection section = file.ownerOf(key).orElse(null);
-            if (section != null) {
-                String entry = key.substring(section.name().length() + 1);
-                double value = section.get(entry);
-                Replies.send(source, () -> Component.literal(key + " = " + value)
-                        .withStyle(ChatFormatting.AQUA));
-                Replies.send(source, () -> Component.literal("  " + section.about())
-                        .withStyle(ChatFormatting.GRAY));
-                return 1;
-            }
-        }
+    private static int get(CommandSourceStack source, ConfigStore store, String key) {
         KnobSpec knob = store.set().byKey(key).orElse(null);
         if (knob == null) return unknown(source, store, key);
         ConfigValues config = store.get();
@@ -130,27 +113,6 @@ public final class ConfigCommands {
 
     private static int set(CommandSourceStack source, ConfigStore store, ConfigFile file,
             String key, String value) {
-        // Knobs win over open sections — see get(). Without that ordering, `set danger.melee_mult
-        // 2` wrote a species weight for a mob named "melee_mult" and left the knob alone.
-        if (store.set().byKey(key).isEmpty()) {
-            OpenSection section = file.ownerOf(key).orElse(null);
-            if (section != null) {
-                double parsed;
-                try {
-                    parsed = Double.parseDouble(value);
-                } catch (NumberFormatException e) {
-                    Replies.fail(source, Component.literal(key + " accepts a number — \"" + value
-                            + "\" is not one"));
-                    return 0;
-                }
-                double landed = file.setOpen(section, key.substring(section.name().length() + 1),
-                        parsed);
-                Replies.send(source, () -> Component.literal(key + " = " + landed
-                        + (landed != parsed ? " (clamped)" : ""))
-                        .withStyle(ChatFormatting.GREEN), true);
-                return 1;
-            }
-        }
         KnobSpec knob = store.set().byKey(key).orElse(null);
         if (knob == null) return unknown(source, store, key);
         Double parsed = knob.parse(value).orElse(null);
@@ -183,7 +145,6 @@ public final class ConfigCommands {
     private static int resetAll(CommandSourceStack source, ConfigStore store, ConfigFile file) {
         KnobSet set = store.set();
         store.reset();
-        file.openSections().forEach(OpenSection::reset); // the tables are part of "to defaults" too
         file.save(store.get());
         Replies.send(source, () -> Component.literal(set.title() + " config reset to defaults ("
                 + set.size() + " knobs)").withStyle(ChatFormatting.GREEN), true);

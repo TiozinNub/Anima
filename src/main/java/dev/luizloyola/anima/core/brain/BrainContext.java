@@ -3,6 +3,7 @@ package dev.luizloyola.anima.core.brain;
 import dev.luizloyola.anima.core.brain.act.ActuatorAccess;
 import dev.luizloyola.anima.core.brain.board.AgentClaims;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
+import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.agent.AgentProfile;
@@ -43,6 +44,15 @@ public interface BrainContext {
      * say what body is running this brain — {@code TestSpecies} in the test fixtures answers all.
      */
     AgentProfile profile();
+
+    /**
+     * How frightening this body finds each kind of thing, resolved through the perceiver — a wolf
+     * and a settler do not agree about a sheep. Defaults to {@link DangerTable#NEUTRAL}: a rig with
+     * no table finds everything equally unremarkable.
+     */
+    default DangerTable danger() {
+        return DangerTable.NEUTRAL;
+    }
 
     /**
      * This person's remembered POIs — memory rather than perception, and the same object the
