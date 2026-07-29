@@ -153,6 +153,47 @@ class FleeCoverTest {
     }
 
     @Test
+    @DisplayName("while calm, it wanders away from where something frightening was")
+    void aCalmBodyStillAvoidsARememberedFright() {
+        long now = 10_000L;
+        ctx.percepts.time = now;
+        ctx.percepts.beings = List.of(); // nothing perceived at all — she is pottering
+        ctx.knowledge.note(new dev.luizloyola.anima.core.brain.knowledge.PoiMemory(
+                        dev.luizloyola.anima.core.brain.knowledge.PoiKind.DANGER, "creeper",
+                        java.util.UUID.randomUUID(), new Pos(6, 64, 0),
+                        dev.luizloyola.anima.core.brain.knowledge.Region.of(new Pos(6, 64, 0)),
+                        1, false, now),
+                dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge.maxPerKind(
+                        dev.luizloyola.anima.core.agent.TestSpecies.PROFILE));
+
+        // Over many strolls the average distance kept from the remembered creeper should beat a
+        // uniform roll, or the memory only ever changes how she runs. Most beats are a pause, so
+        // only the ones that picked somewhere count. One generator drawn from repeatedly: Random
+        // seeded with small consecutive numbers returns almost the same first double every time,
+        // so a seed-per-roll loop rolled 0.73 two hundred times and never walked once.
+        double total = 0.0;
+        int walks = 0;
+        WanderStep step = new WanderStep(new Random(20260729L), 8);
+        for (int i = 0; i < 400; i++) {
+            for (Task task : step.methods().get(0).decompose(ctx)) {
+                if (task instanceof PrimitiveTask primitive) {
+                    Matcher m = GOAL.matcher(primitive.describe());
+                    if (m.find()) {
+                        walks++;
+                        total += Math.hypot(Integer.parseInt(m.group(1)) - 6,
+                                Integer.parseInt(m.group(3)) - 0);
+                    }
+                }
+            }
+        }
+        assertTrue(walks > 20, "not enough walk beats to say anything: " + walks);
+        double average = total / walks;
+        assertTrue(average > 6.5,
+                "an unbiased roll around a spot 6 blocks away averages about 6; a wary one "
+                        + "should keep further off than that: " + average);
+    }
+
+    @Test
     @DisplayName("with nowhere to hide it still runs rather than standing still")
     void noCoverMeansTheOrdinaryEscape() {
         ctx.percepts.beings = List.of(
