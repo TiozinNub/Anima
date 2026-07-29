@@ -32,6 +32,7 @@ class ProfileAspectTest {
             Knob.QUEUE_CAP,
             Knob.REGION_MAX_BLOCKS,
             Knob.RAY_BUDGET,
+            Knob.RAYS_PER_TICK,
             // The contract of a registry two agents share — it belongs to the board, not to
             // either of them.
             Knob.CLAIM_TTL_TICKS,

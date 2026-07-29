@@ -51,6 +51,17 @@ public enum Knob implements KnobSpec {
     REGION_MAX_BLOCKS("limits.region_max_blocks", Kind.INT, 512, 16, 16_384,
             "Block cap on one structure scan. Hitting it marks the region partial — the memory is "
                     + "kept and marked incomplete rather than abandoned."),
+    /**
+     * The aggregate ceiling — the one that actually protects a server, because it is the only one
+     * that knows how many agents there are.
+     *
+     * @see dev.luizloyola.anima.core.brain.sense.RayPool
+     */
+    RAYS_PER_TICK("limits.rays_per_tick", Kind.INT, 512, 16, 16_384,
+            "Total line-of-sight checks EVERY agent on the server may spend between them each "
+                    + "tick, shared out fairly. At the ceiling, agents notice things later rather "
+                    + "than not at all — refused checks are deferred, never dropped. Only bites "
+                    + "when the population times the per-agent base below approaches it."),
     /** @see dev.luizloyola.anima.core.brain.sense.BeingSensorCore#rayBudgetBase() */
     RAY_BUDGET("limits.ray_budget", Kind.INT, 8, 1, 256,
             "Base line-of-sight checks per agent per tick. The effective budget scales up with the "

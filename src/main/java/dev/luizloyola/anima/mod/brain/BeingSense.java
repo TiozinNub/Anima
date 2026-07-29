@@ -11,6 +11,7 @@ import dev.luizloyola.anima.core.brain.sense.BeingReading;
 import dev.luizloyola.anima.core.brain.sense.BeingSensorCore;
 import dev.luizloyola.anima.core.brain.sense.BeingWorld;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.brain.sense.RayBudget;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.AgentProfile;
@@ -135,7 +136,12 @@ public final class BeingSense {
     public BeingSense(AgentBody person) {
         this.person = person;
         this.profile = person.profile();
-        this.sensor = new BeingSensorCore(profile);
+        // Sight rays come out of one allowance the whole server shares. Resolved at construction
+        // because a body's server does not change under it; a body built outside a server (a rig)
+        // gets the unmetered budget.
+        MinecraftServer server = person.level().getServer();
+        this.sensor = new BeingSensorCore(profile,
+                server == null ? RayBudget.UNMETERED : RayPools.of(server));
     }
 
     /** One sense tick, from {@link AgentBody#serverAiStep()}; narrates events to the journal. */

@@ -24,6 +24,8 @@
   "anima.config.option.limits.queue_cap.desc": "Quantas colunas avistadas mas ainda não examinadas podem se acumular antes que novos avistamentos sejam descartados.",
   "anima.config.option.limits.region_max_blocks": "Limite de blocos por varredura",
   "anima.config.option.limits.region_max_blocks.desc": "Orçamento de blocos para varrer uma estrutura; ao atingi-lo, a região fica marcada como conhecida apenas em parte.",
+  "anima.config.option.limits.rays_per_tick": "Testes de visão do servidor",
+  "anima.config.option.limits.rays_per_tick.desc": "Total de verificações de linha de visão que todos os agentes do servidor podem gastar juntos a cada tique. No limite, eles notam as coisas um pouco mais tarde, e não deixam de notar — as verificações recusadas são adiadas, nunca descartadas.",
   "anima.config.option.limits.ray_budget": "Testes de visão por tique",
   "anima.config.option.limits.ray_budget.desc": "Verificações básicas de linha de visão por Pessoa a cada tique. O orçamento real cresce com a fila acumulada, então uma leva grande de criaturas é notada em poucos tiques — as verificações são adiadas, nunca puladas.",
   "anima.config.option.claims.ttl_ticks": "Duração da reivindicação",

@@ -83,7 +83,7 @@ public final class AgentBodies {
     }
 
     /** A stable copy — the index is written from the server thread and read from commands. */
-    private static List<AgentBody> snapshot(MinecraftServer server) {
+    public static List<AgentBody> snapshot(MinecraftServer server) {
         synchronized (LOADED) {
             Set<AgentBody> bodies = LOADED.get(server);
             return bodies == null ? List.of() : new ArrayList<>(bodies);

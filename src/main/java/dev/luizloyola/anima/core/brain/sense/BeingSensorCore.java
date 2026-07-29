@@ -59,10 +59,18 @@ public final class BeingSensorCore {
      * snapshot — see {@link AgentProfile}.
      */
     private final AgentProfile profile;
+    /** The scaled ask below is what this sense wants; the grant is what the server can afford. */
+    private final RayBudget rays;
 
-    /** A sense shaped by the body wearing it. */
+    /** A sense shaped by the body wearing it, spending rays no one else is arbitrating. */
     public BeingSensorCore(AgentProfile profile) {
+        this(profile, RayBudget.UNMETERED);
+    }
+
+    /** A sense shaped by the body wearing it, drawing on a budget shared with every other body. */
+    public BeingSensorCore(AgentProfile profile, RayBudget rays) {
         this.profile = profile;
+        this.rays = rays;
     }
 
     /** How far this body perceives another at all. */
@@ -175,8 +183,9 @@ public final class BeingSensorCore {
         int due = countDue(now);
         // The scaled budget: never below the base, never letting a backlog take more than ~4
         // ticks to drain — 100 new mobs must not go unnoticed for seconds.
-        int budget = Math.max(rayBudgetBase(),
+        int wanted = Math.max(rayBudgetBase(),
                 (due + pendingDiscovery.size() + 3) / 4);
+        int budget = rays.grant(this, wanted, now);
         budget = recheckTracked(feet, yawDegrees, pitchDegrees, now, world, budget);
         discover(feet, yawDegrees, pitchDegrees, now, world, budget);
         if (sweepBeat) {
