@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.mod.body;
 
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.agent.AgentModifiers;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.Needs;
 import dev.luizloyola.anima.core.agent.Pronouns;
@@ -74,6 +75,17 @@ public interface AgentBody {
      * organs hold onto it (a live view, so that is safe — {@link AgentProfile}).
      */
     AgentProfile profile();
+
+    /**
+     * What is currently shifting this body away from its species — a trait, a skill, a job.
+     *
+     * <p>Defaults to {@link AgentModifiers#NONE}, unlike {@link #profile()}: "exactly my species" is
+     * a complete answer where "no species at all" was not. Fold a consumer's own set in with
+     * {@link dev.luizloyola.anima.core.agent.ModifiedProfile#of}.
+     */
+    default AgentModifiers modifiers() {
+        return AgentModifiers.NONE;
+    }
 
     /**
      * This body's locomotion state machine — the single owner of pathing, following and per-tick

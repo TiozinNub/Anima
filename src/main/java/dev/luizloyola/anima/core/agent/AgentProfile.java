@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.core.agent;
 
+import java.util.List;
+
 /**
  * What one body is like, resolved — the answer an instinct, a sense or the navigator gets when it
  * asks. Anima names the aspects ({@link ProfileAspect}); who answers them is the body's business.
@@ -41,5 +43,31 @@ public interface AgentProfile {
     /** A {@link dev.luizloyola.anima.core.config.KnobSpec.Kind#BOOL} aspect. */
     default boolean b(ProfileAspect aspect) {
         return raw(aspect) != 0.0;
+    }
+
+    /**
+     * What this aspect was before anything shifted it — the species' own answer. Equal to
+     * {@link #raw} unless something is modifying this agent.
+     *
+     * <p>Here so a readout can be written once and work on any profile: an unmodified profile
+     * answers with an empty middle rather than the readout having to ask what kind of profile it
+     * has.
+     */
+    default double base(ProfileAspect aspect) {
+        return raw(aspect);
+    }
+
+    /** What is shifting this aspect on this particular agent, in application order. */
+    default List<AspectModifier> modifiers(ProfileAspect aspect) {
+        return List.of();
+    }
+
+    /**
+     * Bumped whenever what this profile would answer may have changed — a config reload, a job
+     * gained or lost. Something folding these values compares it against what it folded from; a
+     * profile with nothing behind it never moves.
+     */
+    default long version() {
+        return 0L;
     }
 }

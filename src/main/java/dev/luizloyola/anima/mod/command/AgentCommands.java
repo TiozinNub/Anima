@@ -1,5 +1,10 @@
 package dev.luizloyola.anima.mod.command;
 
+import com.mojang.brigadier.arguments.DoubleArgumentType;
+import dev.luizloyola.anima.core.agent.AgentModifiers;
+import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.AspectModifier;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.mod.debug.DebugView;
 import dev.luizloyola.anima.mod.debug.DebugLayer;
 import net.minecraft.commands.CommandBuildContext;
@@ -269,6 +274,183 @@ public final class AgentCommands {
                                                 .executes(ctx -> peersView(ctx.getSource(), true)))
                                         .then(Commands.literal("false")
                                                 .executes(ctx -> peersView(ctx.getSource(), false))));
+    }
+
+
+    /**
+     * What the resolved agent is actually running: its species' value for every aspect, whatever
+     * is shifting it, and the number the organs really see.
+     *
+     * <p>The config file holds only the first tier, so it cannot answer "I set the radius to 24
+     * but he sees 31": species, then modifiers, then effective.
+     *
+     * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
+     * so a shared subcommand must be built once per root that mounts it.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> profile() {
+        SuggestionProvider<CommandSourceStack> aspects = (ctx, builder) ->
+                SharedSuggestionProvider.suggest(
+                        java.util.Arrays.stream(ProfileAspect.values())
+                                .map(ProfileAspect::key).toList(), builder);
+        return Commands.literal("profile")
+                                .executes(ctx -> profileShow(ctx.getSource(), null))
+                                .then(Commands.literal("all")
+                                        .executes(ctx -> profileAll(ctx.getSource())))
+                                // The only way to exercise the modifier stack until something
+                                // grows real jobs and traits: shift one aspect under a fixed id,
+                                // or drop it again. A hand on the machinery, not a game mechanic.
+                                .then(Commands.literal("debug")
+                                        .then(Commands.literal("clear")
+                                                .executes(ctx -> profileDebugClear(ctx.getSource())))
+                                        .then(Commands.argument("aspect", StringArgumentType.string())
+                                                .suggests(aspects)
+                                                .then(Commands.argument("amount",
+                                                                DoubleArgumentType.doubleArg())
+                                                        .executes(ctx -> profileDebug(ctx.getSource(),
+                                                                StringArgumentType.getString(ctx, "aspect"),
+                                                                DoubleArgumentType.getDouble(ctx, "amount"))))))
+                                .then(Commands.argument("aspect", StringArgumentType.string())
+                                        .suggests(aspects)
+                                        .executes(ctx -> profileShow(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "aspect"))));
+    }
+
+    /** The id every {@code profile debug} modifier carries, so one call undoes them all. */
+    private static final String DEBUG_MODIFIER = "debug";
+
+    /** Shifts one aspect on the resolved agent by a flat amount, under the debug id. */
+    private static int profileDebug(CommandSourceStack source, String aspectKey, double amount) {
+        AgentBody person = resolveBody(source);
+        if (person == null) return 0;
+        ProfileAspect aspect = ProfileAspect.byKey(aspectKey).orElse(null);
+        if (aspect == null) {
+            Replies.fail(source, Component.literal("No such aspect \"" + aspectKey + "\""));
+            return 0;
+        }
+        if (person.modifiers() == AgentModifiers.NONE) {
+            Replies.fail(source, Component.literal(person.entity().getName().getString()
+                    + " has no modifier set — this body's mod has not given it one, so it is "
+                    + "exactly its species and cannot be shifted"));
+            return 0;
+        }
+        person.modifiers().apply(AspectModifier.add(DEBUG_MODIFIER, aspect, amount));
+        for (String line : explain(person.profile(), aspect, true)) {
+            Replies.send(source, () -> Component.literal("  " + line)
+                    .withStyle(ChatFormatting.YELLOW), true);
+        }
+        return 1;
+    }
+
+    /** Drops every {@code profile debug} shift on the resolved agent. */
+    private static int profileDebugClear(CommandSourceStack source) {
+        AgentBody person = resolveBody(source);
+        if (person == null) return 0;
+        boolean removed = person.modifiers() != AgentModifiers.NONE
+                && person.modifiers().remove(DEBUG_MODIFIER);
+        Replies.send(source, () -> Component.literal(removed
+                        ? person.entity().getName().getString() + " is exactly a "
+                                + person.profile().species() + " again"
+                        : "nothing to clear").withStyle(ChatFormatting.GREEN), true);
+        return removed ? 1 : 0;
+    }
+
+    /** Bare: only what differs from the species. With an aspect: that one, in full. */
+    private static int profileShow(CommandSourceStack source, String aspectKey) {
+        AgentBody person = resolveBody(source);
+        if (person == null) return 0;
+        AgentProfile profile = person.profile();
+        String name = person.entity().getName().getString();
+
+        if (aspectKey != null) {
+            ProfileAspect aspect = ProfileAspect.byKey(aspectKey).orElse(null);
+            if (aspect == null) {
+                Replies.fail(source, Component.literal("No such aspect \"" + aspectKey
+                        + "\" — try tab-completion, or \"profile all\""));
+                return 0;
+            }
+            Replies.send(source, () -> Component.literal(name + " — " + profile.species())
+                    .withStyle(ChatFormatting.AQUA));
+            for (String line : explain(profile, aspect, true)) {
+                Replies.send(source, () -> Component.literal("  " + line));
+            }
+            return 1;
+        }
+
+        List<ProfileAspect> shifted = java.util.Arrays.stream(ProfileAspect.values())
+                .filter(aspect -> !profile.modifiers(aspect).isEmpty())
+                .toList();
+        Replies.send(source, () -> Component.literal(name + " is a " + profile.species()
+                + (shifted.isEmpty() ? ", exactly" : " with " + shifted.size() + " aspect(s) shifted"))
+                .withStyle(ChatFormatting.AQUA));
+        if (shifted.isEmpty()) {
+            // No root in the hint: this subcommand is mounted by every consumer as well as by
+            // /anima, so naming one would be wrong under all the others.
+            Replies.send(source, () -> Component.literal(
+                    "  nothing is modifying " + person.pronouns().object()
+                            + " — \"profile all\" shows every aspect")
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        for (ProfileAspect aspect : shifted) {
+            for (String line : explain(profile, aspect, true)) {
+                Replies.send(source, () -> Component.literal("  " + line));
+            }
+        }
+        return shifted.size();
+    }
+
+    /** Every aspect, grouped by section — "what is this agent running", in full. */
+    private static int profileAll(CommandSourceStack source) {
+        AgentBody person = resolveBody(source);
+        if (person == null) return 0;
+        AgentProfile profile = person.profile();
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString()
+                + " — " + profile.species()).withStyle(ChatFormatting.AQUA));
+        String section = null;
+        for (ProfileAspect aspect : ProfileAspect.values()) {
+            if (!aspect.section().equals(section)) {
+                section = aspect.section();
+                String heading = section;
+                Replies.send(source, () -> Component.literal("  " + heading)
+                        .withStyle(ChatFormatting.DARK_AQUA));
+            }
+            for (String line : explain(profile, aspect, false)) {
+                Replies.send(source, () -> Component.literal("    " + line)
+                        .withStyle(profile.modifiers(aspect).isEmpty()
+                                ? ChatFormatting.GRAY : ChatFormatting.YELLOW));
+            }
+        }
+        return ProfileAspect.values().length;
+    }
+
+    /**
+     * One aspect's derivation: species value, each contribution, effective. Only the aspects with
+     * something to derive get more than a line — an unmodified aspect is its species value, and
+     * printing "24 -> 24" thirty times would bury the two that matter.
+     */
+    private static List<String> explain(AgentProfile profile, ProfileAspect aspect,
+            boolean withKey) {
+        List<AspectModifier> applied = profile.modifiers(aspect);
+        String label = withKey ? aspect.key() : aspect.key().substring(aspect.key().indexOf('.') + 1);
+        String effective = format(aspect, profile.raw(aspect));
+        if (applied.isEmpty()) {
+            return List.of(label + " = " + effective);
+        }
+        List<String> lines = new ArrayList<>();
+        lines.add(label + " = " + effective + "  (species " + format(aspect, profile.base(aspect))
+                + ")");
+        for (AspectModifier modifier : applied) {
+            lines.add("    " + modifier.describe() + "  from " + modifier.id());
+        }
+        return lines;
+    }
+
+    private static String format(ProfileAspect aspect, double value) {
+        return switch (aspect.kind()) {
+            case BOOL -> value != 0.0 ? "true" : "false";
+            case INT -> Long.toString((long) value);
+            case DOUBLE -> String.format(Locale.ROOT, "%s", value);
+        };
     }
 
     /**

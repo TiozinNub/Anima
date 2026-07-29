@@ -36,6 +36,8 @@ public final class AnimaCommands {
                         .then(AgentCommands.log())
                         .then(AgentCommands.knowledge())
                         .then(AgentCommands.peers())
+                        // What this one is running: species -> modifiers -> effective.
+                        .then(AgentCommands.profile())
                         .then(AgentCommands.debug())
                         .then(AgentCommands.inv(registry))
                         .then(ConfigCommands.tree(Config.store(), configFile))));

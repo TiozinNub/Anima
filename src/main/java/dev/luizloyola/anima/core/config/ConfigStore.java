@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.config;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The live configuration for one {@link KnobSet} — an atomically-swapped {@link ConfigValues} that
@@ -22,6 +23,7 @@ public final class ConfigStore {
     private final KnobSet set;
     private volatile ConfigValues current;
     private final List<Runnable> onInstall = new CopyOnWriteArrayList<>();
+    private final AtomicLong version = new AtomicLong();
 
     public ConfigStore(KnobSet set) {
         this.set = set;
@@ -62,7 +64,16 @@ public final class ConfigStore {
         onInstall.add(listener);
     }
 
+    /**
+     * Bumped on every swap. Read-through is still the rule; this is for the few readers that FOLD
+     * these values into something derived and need to know when to fold again.
+     */
+    public long version() {
+        return version.get();
+    }
+
     private void notifyInstalled() {
+        version.incrementAndGet();
         for (Runnable listener : onInstall) {
             listener.run();
         }

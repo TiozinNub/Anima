@@ -106,6 +106,11 @@ public final class SpeciesKnobs {
             }
 
             @Override
+            public long version() {
+                return store.version(); // moves when the file is reloaded, and only then
+            }
+
+            @Override
             public String toString() {
                 return "AgentProfile(" + declared.species() + ", from " + store.set().id() + ")";
             }
