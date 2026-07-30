@@ -1121,9 +1121,11 @@ public final class AgentCommands {
                 ItemStacks.templateOf(input, source.registryAccess());
         dev.luizloyola.anima.core.inv.ItemStack remainder = person.inventory().add(template.withCount(count));
         int placed = count - remainder.count();
+        // LOGGED: the pack is persisted, nothing journals a change to it, and layer 3 reads it to
+        // decide whether a want is satisfied — a quiet hand-out silently completes an errand.
         Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " +" + placed + " "
                 + template.id() + (remainder.isEmpty() ? "" : "  (" + remainder.count() + " didn't fit)"))
-                .withStyle(ChatFormatting.AQUA));
+                .withStyle(ChatFormatting.AQUA), true);
         return placed;
     }
 
@@ -1159,7 +1161,8 @@ public final class AgentCommands {
         dev.luizloyola.anima.core.inv.ItemStack displaced = placeEquipment(inv, slot, piece);
         if (!displaced.isEmpty()) inv.add(displaced); // whatever was worn there goes back to storage
         Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " equipped "
-                + want.id() + " (" + slot.getName() + ")").withStyle(ChatFormatting.AQUA));
+                + want.id() + " (" + slot.getName() + ")")
+                .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted, unjournalled
         return 1;
     }
 
@@ -1168,7 +1171,7 @@ public final class AgentCommands {
         if (person == null) return 0;
         person.inventory().clear();
         Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " inventory cleared.")
-                .withStyle(ChatFormatting.AQUA));
+                .withStyle(ChatFormatting.AQUA), true); // LOGGED: destroys persisted state
         return 1;
     }
 
@@ -1464,8 +1467,10 @@ public final class AgentCommands {
         }
         ContactsSync.learned(server, self, other);
         ContactsSync.learned(server, other, self);
+        // LOGGED: the contact book is persisted SavedData and nothing journals a change to it —
+        // the journal is the agent's own, and an agent does not narrate what was done TO it.
         Replies.send(source, () -> Component.literal(label(server, self) + " and " + label(server, other)
-                + " have been introduced.").withStyle(ChatFormatting.AQUA));
+                + " have been introduced.").withStyle(ChatFormatting.AQUA), true);
         return 1;
     }
 
@@ -1483,7 +1488,7 @@ public final class AgentCommands {
         }
         resyncIfOnline(server, self);
         Replies.send(source, () -> Component.literal(label(server, other) + " is a stranger again.")
-                .withStyle(ChatFormatting.AQUA));
+                .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted, unjournalled
         return 1;
     }
 
@@ -1498,7 +1503,7 @@ public final class AgentCommands {
         }
         resyncIfOnline(server, self);
         Replies.send(source, () -> Component.literal("Every name forgotten — everyone is a stranger.")
-                .withStyle(ChatFormatting.AQUA));
+                .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted, unjournalled
         return 1;
     }
 
@@ -1559,9 +1564,11 @@ public final class AgentCommands {
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
+        // LOGGED: membership is persisted and it is what layer 3 scopes a board to — a party
+        // moved out from under someone silently is a board's worth of work changing hands.
         Replies.send(source, () -> Component.literal(label(server, self) + " joined "
                 + label(server, other) + "'s party (" + parties.members(theirs).size()
-                + " members).").withStyle(ChatFormatting.AQUA));
+                + " members).").withStyle(ChatFormatting.AQUA), true);
         return 1;
     }
 
@@ -1576,7 +1583,7 @@ public final class AgentCommands {
             return 0;
         }
         Replies.send(source, () -> Component.literal("You left the party — on your own again.")
-                .withStyle(ChatFormatting.AQUA));
+                .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted, scopes a board
         return 1;
     }
 

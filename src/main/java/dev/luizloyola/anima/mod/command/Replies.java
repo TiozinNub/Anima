@@ -41,9 +41,19 @@ public final class Replies {
         send(source, message, false);
     }
 
-    /** Sends a success line, stamped, with vanilla's "tell the other admins too" flag — set for a
-     *  command that CHANGED something (a config write), left off for a readout. The admin copy is
-     *  unstamped: it already arrives as "[John: …]", named by the source the command ran as. */
+    /**
+     * Sends a success line, stamped, with vanilla's "tell the other admins too" flag — set for a
+     * command that CHANGED something, off for a readout. The admin copy is unstamped: it already
+     * arrives as "[John: …]".
+     *
+     * <p>The test is not "did something change" but "would anything else say so": a drive toggled
+     * or a task installed writes its own journal line, while durable state <em>nothing</em>
+     * narrates — the contact book, party membership, a pack, needs, a posted project, a purged
+     * identity — needs the flag.
+     *
+     * <p>An unlogged mutation leaves no trace in the server log, so grepping and finding nothing
+     * looks exactly like proof the command never ran; that cost a false bug hunt (2026-07-30).
+     */
     public static void send(CommandSourceStack source, Supplier<Component> message, boolean logged) {
         source.sendSuccess(() -> stamped(source, message.get()), logged);
     }
