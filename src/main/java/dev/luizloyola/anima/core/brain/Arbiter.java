@@ -11,6 +11,7 @@ import dev.luizloyola.anima.core.log.Category;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 /**
  * Every tick, reads each {@link Instinct}'s pressure, picks the winner, and keeps its one
@@ -220,6 +221,17 @@ public final class Arbiter {
     /** The executor the arbiter drives — the mod driver's manual-mode entry point and status source. */
     public TaskExecutor executor() {
         return executor;
+    }
+
+    /**
+     * The instinct whose root is running, or empty — idle, or a claimed errand. Identity, not a
+     * name: a caller that HANDED an instinct in can ask whether that exact drive has the wheel.
+     *
+     * <p>Only as current as the last {@link #tick} — a task installed straight on the
+     * {@link #executor()} bypasses arbitration, so this keeps naming the drive granted before it.
+     */
+    public Optional<Instinct> activeDrive() {
+        return Optional.ofNullable(active);
     }
 
     /**

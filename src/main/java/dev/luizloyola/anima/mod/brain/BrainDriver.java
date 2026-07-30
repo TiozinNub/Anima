@@ -68,6 +68,20 @@ public final class BrainDriver {
     private boolean auto = true;
 
     /**
+     * The wander mute. ON (the default) the idle drive bids its ambient floor; OFF it bids nothing,
+     * so an unbothered body stands where you put it while the brain keeps thinking — fleeing,
+     * eating, taking errands. Narrower than {@link #auto}, which stops the arbiter entirely.
+     */
+    private boolean wander = true;
+
+    /**
+     * The wander drive as the arbiter sees it: the real {@link WanderInstinct} behind the
+     * {@link #wander} gate. Kept as a field so muting it can tell whether it is the drive
+     * currently running, and cut it short if so.
+     */
+    private final Instinct wanderDrive;
+
+    /**
      * This person's knowledge view, resolved lazily on first use and cached: the {@code AgentId}
      * and the running server are absent at construction but settled by the top of
      * {@code AgentBody.tick()}, before the brain runs.
@@ -220,12 +234,40 @@ public final class BrainDriver {
                 return board.stillMine(item, c);
             }
         };
+        // A gate rather than removal from the list: muting zeroes the bid, and zero pressure is
+        // not a bid (see Arbiter), so a muted wander never wins and everything else arbitrates
+        // unchanged. A wrapper, not a flag in WanderInstinct: a dev override is the mod's business.
+        WanderInstinct roaming = new WanderInstinct(random);
+        this.wanderDrive = new Instinct() {
+            @Override
+            public double pressure(BrainContext c) {
+                return wander ? roaming.pressure(c) : 0.0;
+            }
+
+            @Override
+            public Task root(BrainContext c) {
+                return roaming.root(c);
+            }
+
+            @Override
+            public String describe() {
+                // Tagged on the pressure line. That is where someone asks why wander
+                // reads 0.00 — a muted drive is otherwise indistinguishable from a profile that
+                // sets WANDER_IDLE_PRESSURE to zero.
+                return wander ? roaming.describe() : roaming.describe() + " (muted)";
+            }
+
+            @Override
+            public int failCooldown() {
+                return roaming.failCooldown();
+            }
+        };
         // Flee is first on purpose: the arbiter breaks pressure ties in list order, so an exact
         // flee/eat tie must resolve to fleeing. Descend sits between the needs and wander: a
         // stranded body gets down before it drifts, but never before it flees or eats urgently.
         this.arbiter = new Arbiter(List.of(
                 new FleeInstinct(random), new EatInstinct(), new DescendInstinct(),
-                new WanderInstinct(random)),
+                this.wanderDrive),
                 celebrating);
     }
 
@@ -285,6 +327,29 @@ public final class BrainDriver {
         this.auto = auto;
         // BRAIN log: the dev override is worth a line — it explains a gap where the arbiter went quiet.
         this.person.journal().record(Category.BRAIN, "auto", auto ? "on" : "off");
+    }
+
+    /** Whether the idle wander drive is bidding (ON) or muted (OFF) — see {@link #wander}. */
+    public boolean isWander() {
+        return this.wander;
+    }
+
+    /**
+     * Mutes or unmutes the idle wander drive — see {@link #wander}.
+     *
+     * <p>Takes effect NOW, cutting short a stroll already underway — but only a running WANDER,
+     * and only while the ARBITER is driving. Under a manual order the arbiter is not ticking, so
+     * its active drive is a stale reading (usually wander) and cancelling on it would kill the
+     * {@code brain goto} you are watching; {@code brain cancel} is the verb for that.
+     */
+    public void setWander(boolean wander) {
+        this.wander = wander;
+        // BRAIN log: same reason as `auto` — it explains a body that stopped drifting for no
+        // reason the world can account for.
+        this.person.journal().record(Category.BRAIN, "wander", wander ? "on" : "muted");
+        if (!wander && this.auto && this.arbiter.activeDrive().orElse(null) == this.wanderDrive) {
+            this.arbiter.executor().cancel(this.context);
+        }
     }
 
     /** The person's knowledge store, resolved once and cached — see {@link #knowledge}. */

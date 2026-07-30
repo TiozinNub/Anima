@@ -3,6 +3,7 @@ package dev.luizloyola.anima.core.brain.task;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.brain.Arbiter;
@@ -25,11 +26,10 @@ import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins the {@link Arbiter}'s arbitration semantics with scripted instincts (settable pressure, a
- * fresh scripted root per grant), every rule in isolation: {@link Arbiter#stickiness()}, the
- * {@link Arbiter#preempt()} floor, fresh-root re-grant after SUCCESS, and
- * {@link Instinct#failCooldown()} after a FAILED root. Two scenes wire the real instincts: a threat
- * preempting mid-chew, and Flee chaining fresh, re-aimed legs.
+ * Pins the {@link Arbiter}'s arbitration semantics — idle grant, {@link Arbiter#stickiness()},
+ * the {@link Arbiter#preempt()} floor, fresh-root re-grant, {@link Instinct#failCooldown()},
+ * manual tasks, cost tolerance, {@link Arbiter#activeDrive()}, the mute — against scripted
+ * instincts, plus two scenes wired from the real ones.
  */
 class ArbiterTest {
 
@@ -352,6 +352,65 @@ class ArbiterTest {
         arbiter.tick(ctx);
         assertEquals(1, manual.ticks, "the executor still ticks even with nothing to arbitrate");
         assertTrue(Double.isInfinite(arbiter.costTolerance()), "nothing active -> unbounded tolerance");
+    }
+
+    // --- who is driving, and a bid that goes silent -----------------------------------------------
+
+    @Test
+    void activeDriveNamesTheRunningInstinctAndClearsAtTheBoundary() {
+        FakeInstinct a = new FakeInstinct("a", 0.5, () -> new Step("aRoot", 1, TaskStatus.SUCCESS));
+        Arbiter arbiter = new Arbiter(List.of(a));
+        assertTrue(arbiter.activeDrive().isEmpty(), "before the first tick nobody is driving");
+        arbiter.tick(ctx);
+        assertSame(a, arbiter.activeDrive().orElseThrow(),
+                "the granted instinct itself — identity, which is what a caller holding one can compare");
+        arbiter.tick(ctx); // the root reaches SUCCESS: a boundary
+        assertTrue(arbiter.activeDrive().isEmpty(), "a finished root leaves nobody driving");
+    }
+
+    @Test
+    void aManualOrderNamesNoActiveDrive() {
+        // What keeps the wander mute from cancelling somebody else's work: an order nobody bid
+        // for is not a drive, so no drive can be mistaken for it.
+        Arbiter arbiter = new Arbiter(List.of());
+        arbiter.executor().run(new Step("manual", Integer.MAX_VALUE, TaskStatus.SUCCESS), ctx);
+        arbiter.tick(ctx);
+        assertTrue(arbiter.executor().isBusy(), "the manual order is running");
+        assertTrue(arbiter.activeDrive().isEmpty(), "...but it belongs to no instinct");
+    }
+
+    @Test
+    void anOrderInstalledOverARunningDriveLeavesTheStaleDriveNamed() {
+        // The trap: a manual order bypasses arbitration, so this still names the drive granted
+        // before it until the arbiter ticks again — the staleness pressureLines() has too, and
+        // why the wander mute cancels only while autonomy is on.
+        FakeInstinct wander = new FakeInstinct("wander", 0.15, forever("roam"));
+        Arbiter arbiter = new Arbiter(List.of(wander));
+        arbiter.tick(ctx);
+        assertSame(wander, arbiter.activeDrive().orElseThrow());
+
+        arbiter.executor().run(new Step("manual", Integer.MAX_VALUE, TaskStatus.SUCCESS), ctx);
+        assertSame(wander, arbiter.activeDrive().orElseThrow(),
+                "the arbiter never heard about the order, so it still names wander");
+    }
+
+    @Test
+    void aDriveThatGoesSilentIsNeverGrantedAgain() {
+        // The wander mute in core terms: the drive keeps its place in the list and its root
+        // factory, and only stops BIDDING — which is enough, because zero pressure is not a bid.
+        FakeInstinct wander = new FakeInstinct("wander", 0.15, succeedsImmediately("roam"));
+        Arbiter arbiter = new Arbiter(List.of(wander));
+        arbiter.tick(ctx);
+        arbiter.tick(ctx);
+        assertEquals(2, wander.grantedRoots.size(), "the idle default re-grants itself a fresh roam");
+
+        wander.pressure = 0.0; // muted
+        for (int i = 0; i < 20; i++) {
+            arbiter.tick(ctx);
+        }
+        assertEquals(2, wander.grantedRoots.size(), "a silent drive is never granted again");
+        assertFalse(arbiter.executor().isBusy(), "and with nothing else bidding, they simply stand there");
+        assertTrue(arbiter.activeDrive().isEmpty());
     }
 
     // --- cost tolerance ---------------------------------------------------------------------------

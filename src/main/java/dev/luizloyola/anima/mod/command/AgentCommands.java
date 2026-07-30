@@ -230,7 +230,15 @@ public final class AgentCommands {
                                         .then(Commands.literal("true")
                                                 .executes(ctx -> brainAuto(ctx.getSource(), true)))
                                         .then(Commands.literal("false")
-                                                .executes(ctx -> brainAuto(ctx.getSource(), false))));
+                                                .executes(ctx -> brainAuto(ctx.getSource(), false))))
+                                // The wander mute — one drive off, the brain otherwise whole.
+                                // Bare, it READS the switch, same as `auto`.
+                                .then(Commands.literal("wander")
+                                        .executes(ctx -> brainWanderShow(ctx.getSource()))
+                                        .then(Commands.literal("true")
+                                                .executes(ctx -> brainWander(ctx.getSource(), true)))
+                                        .then(Commands.literal("false")
+                                                .executes(ctx -> brainWander(ctx.getSource(), false))));
     }
 
     /**
@@ -748,6 +756,30 @@ public final class AgentCommands {
                                 : "manual; hand it back with /anima brain auto true."))
                 .withStyle(auto ? ChatFormatting.GREEN : ChatFormatting.GRAY));
         return auto ? 1 : 0;
+    }
+
+    /** Mutes or unmutes the resolved agent's idle wander drive and echoes the new brain readout —
+     *  the pressure line then reads {@code wander (muted) 0.00}. */
+    private static int brainWander(CommandSourceStack source, boolean wander) {
+        AgentBody person = resolveBody(source);
+        if (person == null) return 0;
+        person.brain().setWander(wander);
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
+                + person.brain().describe()).withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
+    /** {@code brain wander} with no {@code true|false}: reads the mute instead of flipping it. */
+    private static int brainWanderShow(CommandSourceStack source) {
+        AgentBody person = resolveBody(source);
+        if (person == null) return 0;
+        boolean wander = person.brain().isWander();
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + "'s brain wander is "
+                        + wander + " — " + (wander
+                                ? "they drift when nothing else is pressing."
+                                : "muted; they stand still when idle. /anima brain wander true to restore."))
+                .withStyle(wander ? ChatFormatting.GREEN : ChatFormatting.GRAY));
+        return wander ? 1 : 0;
     }
 
     /** The note appended to a manual {@code brain goto}/{@code brain eat} reply when that very
