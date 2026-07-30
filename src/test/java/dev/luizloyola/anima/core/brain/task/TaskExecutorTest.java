@@ -55,7 +55,8 @@ class TaskExecutorTest {
         mover.setState(MoveState.FAILED);
         executor.tick(ctx);
         assertFalse(executor.isBusy());
-        assertEquals("idle (last: goto (1, 2, 3) -> FAILED)", executor.describe());
+        assertEquals("idle (last: goto (1, 2, 3) -> FAILED — goto (1, 2, 3) failed)",
+                executor.describe(), "the outcome carries its reason");
     }
 
     @Test

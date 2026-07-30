@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
@@ -256,5 +257,66 @@ class AchieveTaskTest {
         assertTrue(executor.failureReason().orElseThrow().contains("priced out at tolerance 10"),
                 "priced-out failures say so, with the budget");
         assertEquals(0, one.runs);
+    }
+
+    /**
+     * First-writer-wins is right INSIDE one bubbling failure and wrong across rounds: a goal that
+     * stumbles early and dies much later must name what killed it. Live-caught as {@code obtain
+     * logs x10000 -> FAILED — gather logs failed} after 1554 logs, blaming a hiccup from the
+     * opening round.
+     */
+    @Test
+    void theReasonNamesTheRoundThatDiedNotTheFirstStumble() {
+        Method stumbles = new Method() {
+            @Override
+            public boolean applicable(BrainContext c) {
+                return stock == 0; // only ever in the opening round
+            }
+
+            @Override
+            public double estimateCost(BrainContext c) {
+                return 1; // cheapest, so it is tried first and fails first
+            }
+
+            @Override
+            public List<Task> decompose(BrainContext c) {
+                return List.of(new Fail());
+            }
+
+            @Override
+            public String describe() {
+                return "the early stumble";
+            }
+        };
+        Method produces = new Method() {
+            @Override
+            public boolean applicable(BrainContext c) {
+                return stock < 3; // runs dry well before the goal is met
+            }
+
+            @Override
+            public double estimateCost(BrainContext c) {
+                return 2;
+            }
+
+            @Override
+            public List<Task> decompose(BrainContext c) {
+                return List.of(new Produce(1));
+            }
+
+            @Override
+            public String describe() {
+                return "produces";
+            }
+        };
+
+        Optional<TaskStatus> status = drive(goal(5, stumbles, produces), 200);
+
+        assertEquals(Optional.of(TaskStatus.FAILED), status);
+        assertEquals(3, stock, "it really did work several rounds after the stumble");
+        String reason = executor.failureReason().orElseThrow();
+        assertTrue(reason.contains("no applicable way"), reason);
+        assertFalse(reason.contains("fail failed"),
+                "the opening stumble is long since irrelevant — it must not be the epitaph");
     }
 }

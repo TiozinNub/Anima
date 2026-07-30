@@ -93,7 +93,8 @@ class EatReadyFoodTest {
         executor.run(new SatisfyHunger(), ctx);
         executor.tick(ctx);
         assertEquals(0, ctx.consumer.beginCalls, "a refusal never reaches the consumer");
-        assertEquals("idle (last: satisfy hunger -> FAILED)", executor.describe());
+        assertEquals("idle (last: satisfy hunger -> FAILED — satisfy hunger: no applicable way)",
+                executor.describe(), "nothing to eat at all — not a price problem");
     }
 
     @Test

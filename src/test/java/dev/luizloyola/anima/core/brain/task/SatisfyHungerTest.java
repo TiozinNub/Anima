@@ -116,7 +116,8 @@ class SatisfyHungerTest {
         executor.tick(ctx); // EatFromInventory inapplicable -> no method -> root FAILED
         assertFalse(executor.isBusy());
         assertEquals(0, ctx.consumer.beginCalls, "no method expanded, so nothing ever acted");
-        assertEquals("idle (last: satisfy hunger -> FAILED)", executor.describe());
+        assertEquals("idle (last: satisfy hunger -> FAILED — satisfy hunger: no applicable way)",
+                executor.describe(), "nothing to eat at all — not a price problem");
     }
 
     /** Carrying things is not carrying food: stacks without a FoodValue don't make it applicable. */
@@ -127,7 +128,8 @@ class SatisfyHungerTest {
         executor.run(new SatisfyHunger(), ctx);
         executor.tick(ctx);
         assertEquals(0, ctx.consumer.beginCalls);
-        assertEquals("idle (last: satisfy hunger -> FAILED)", executor.describe());
+        assertEquals("idle (last: satisfy hunger -> FAILED — satisfy hunger: no applicable way)",
+                executor.describe(), "cobblestone is not food — nothing applied at all");
     }
 
     @Test

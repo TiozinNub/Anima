@@ -86,7 +86,11 @@ class EatLastResortTest {
         executor.tick(ctx);
         assertFalse(executor.isBusy());
         assertEquals(0, ctx.consumer.beginCalls, "priced out -> the consumer is never touched");
-        assertEquals("idle (last: satisfy hunger -> FAILED)", executor.describe(),
+        // The readout carries the why: it failed on PRICE with the food right there. "no
+        // applicable way" would mean the opposite bug and used to read the same.
+        assertEquals("idle (last: satisfy hunger -> FAILED"
+                        + " — satisfy hunger: no affordable way (1 priced out at tolerance 60))",
+                executor.describe(),
                 "'saving the potatoes for the fire' — now enforced by price, not band");
 
         ctx.costTolerance = Double.POSITIVE_INFINITY; // starving / manual -> pay any price
@@ -106,7 +110,9 @@ class EatLastResortTest {
         executor.run(new SatisfyHunger(), ctx);
         executor.tick(ctx);
         assertEquals(0, ctx.consumer.beginCalls);
-        assertEquals("idle (last: satisfy hunger -> FAILED)", executor.describe());
+        assertEquals("idle (last: satisfy hunger -> FAILED"
+                        + " — satisfy hunger: no affordable way (1 priced out at tolerance 60))",
+                executor.describe(), "priced out, not absent — the reason says which");
 
         ctx.costTolerance = Double.POSITIVE_INFINITY;
         assertEquals(0, chosenSlot());

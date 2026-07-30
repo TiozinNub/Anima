@@ -161,7 +161,11 @@ public final class TaskExecutor {
             if (lastStatus == null) {
                 return "idle";
             }
-            return "idle (last: " + lastDescription + " -> " + lastStatus + ")";
+            // The why travels with the outcome: without it a manual run reported only FAILED while
+            // the arbiter's path journalled the reason, and "no applicable way" and "no affordable
+            // way (3 priced out at tolerance 60)" looked identical.
+            return "idle (last: " + lastDescription + " -> " + lastStatus
+                    + failureReason().map(r -> " — " + r).orElse("") + ")";
         }
         StringBuilder path = new StringBuilder("running: ");
         for (Frame frame : stack) {
@@ -333,6 +337,11 @@ public final class TaskExecutor {
                     return;
                 }
                 java.util.Arrays.fill(top.tried, false); // fresh round: every method eligible again
+                // ...and a fresh round starts with a clean slate for why, too. First-writer-wins
+                // is the right rule INSIDE one bubbling failure and the wrong one across rounds:
+                // live-caught reporting "obtain logs x10000 -> FAILED — gather logs failed" after
+                // 1554 logs, naming a hiccup from its first round.
+                failureReason = null;
                 if (chooseRound(top, ctx)) {
                     return;
                 }
