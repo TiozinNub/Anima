@@ -45,6 +45,34 @@ public interface WorkSource {
     void failed(WorkItem item, BrainContext ctx);
 
     /**
+     * "I am still on this" — called every tick the claimed errand is actually running, so the board
+     * can keep the hold alive. <b>A claim is a heartbeat, not a lock</b>: a hold lives a fixed span
+     * past its last heartbeat, so death, despawn and a crash free the errand with no cleanup code.
+     *
+     * <p>Nobody heartbeats an errand a drive preempted, so a long enough suspension gives it back
+     * to the pool.
+     */
+    default void heartbeat(WorkItem item, BrainContext ctx) {
+    }
+
+    /**
+     * Asked before a <em>suspended</em> commitment is resumed: is this errand still theirs?
+     * {@code false} means the hold lapsed and somebody else took it, so the arbiter drops the
+     * commitment rather than putting two agents on one errand. True by default.
+     */
+    default boolean stillMine(WorkItem item, BrainContext ctx) {
+        return true;
+    }
+
+    /**
+     * Every live hold this source knows about, for the claims dump — all of them, not just the
+     * asking agent's. Empty by default.
+     */
+    default List<WorkLease> leases(BrainContext ctx) {
+        return List.of();
+    }
+
+    /**
      * The source's own slow thinking (posting, withdrawing, pacing retries) run once per brain
      * tick regardless of who is driving. Default no-op.
      */

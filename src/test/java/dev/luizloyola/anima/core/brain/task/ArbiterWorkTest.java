@@ -83,6 +83,9 @@ class ArbiterWorkTest {
         int claims;
         int completions;
         int failures;
+        int heartbeats;
+        /** Flipped by a test to play "the hold lapsed and somebody else took it". */
+        boolean stillMine = true;
 
         @Override
         public Optional<WorkItem> bestAvailable(BrainContext c) {
@@ -92,6 +95,16 @@ class ArbiterWorkTest {
         @Override
         public void claimed(WorkItem item, BrainContext c) {
             claims++;
+        }
+
+        @Override
+        public void heartbeat(WorkItem item, BrainContext c) {
+            heartbeats++;
+        }
+
+        @Override
+        public boolean stillMine(WorkItem item, BrainContext c) {
+            return stillMine;
         }
 
         @Override
@@ -185,6 +198,73 @@ class ArbiterWorkTest {
         assertEquals(2, item.rootsBuilt, "resume = a FRESH root, re-decomposed");
         assertEquals(1, board.claims, "claimed exactly once across the interruption");
         assertTrue(arbiter.describe().contains("(active)"));
+    }
+
+    /**
+     * The heartbeat keeps a hold alive, so it lands on every tick the errand is genuinely worked
+     * and on none where it is not: a suspended commitment that kept heartbeating would never
+     * lapse.
+     */
+    @Test
+    void theRunningErrandHeartbeatsAndTheSuspendedOneGoesQuiet() {
+        board.offered = new StubItem(0.35, 200);
+        ticks(5); // the granting tick runs the fresh root too, so it is worked like any other
+        assertEquals(5, board.heartbeats, "one per tick it was actually being worked");
+
+        eat.pressure = 0.65; // preempt: the errand is cut, the claim survives, the saying stops
+        int atSuspension = board.heartbeats;
+        ticks(5);
+        assertEquals(atSuspension, board.heartbeats, "nobody speaks for a suspended errand");
+    }
+
+    /**
+     * A hold that went quiet may not be theirs any more: resuming without asking is how two agents
+     * end up on one errand. The task layer's "re-diff intent against reality", applied to a claim.
+     */
+    @Test
+    void aCommitmentWhoseHoldLapsedIsDroppedInsteadOfResumed() {
+        StubItem item = new StubItem(0.35, 200);
+        board.offered = item;
+        ticks(2);
+        eat.pressure = 0.65;
+        ticks(1); // suspended, hold no longer heartbeated
+
+        board.stillMine = false; // it lapsed, and somebody else took it while they ate
+        board.offered = null;    // ...so the board has nothing to offer them any more
+        eat.pressure = 0.05;
+        ticks(8); // the eat root finishes; the suspended claim would otherwise re-bid here
+
+        assertEquals(1, item.rootsBuilt, "no fresh root: the errand was dropped, not resumed");
+        assertEquals(0, board.completions, "and not reported as anything it wasn't");
+        assertEquals(0, board.failures);
+        assertFalse(arbiter.describe().contains("acquire logs x16"), arbiter.describe());
+    }
+
+    /**
+     * A manual dev order takes the wheel straight through the executor, so the arbiter never ticks
+     * and its {@code workRunning} belief stays true — which let a demonstrably-lapsed hold be
+     * resumed in-world.
+     *
+     * <p>An idle executor is the fact; {@code workRunning} is an opinion.
+     */
+    @Test
+    void aLapsedHoldIsCaughtEvenWhenAManualOrderHadTheWheel() {
+        StubItem item = new StubItem(0.35, 200);
+        board.offered = item;
+        ticks(2); // claimed and running
+
+        // What BrainDriver.run does: install a root straight on the executor, arbiter untouched.
+        arbiter.executor().run(new StepsTask(2, TaskStatus.SUCCESS), ctx);
+        arbiter.executor().tick(ctx);
+        arbiter.executor().tick(ctx);
+        arbiter.executor().tick(ctx); // the manual task is done; the executor is idle again
+
+        board.stillMine = false; // meanwhile the hold lapsed and the errand went back to the pool
+        board.offered = null;
+        ticks(1);
+
+        assertEquals(1, item.rootsBuilt, "no fresh root: dropped, not resumed");
+        assertFalse(arbiter.describe().contains("acquire logs x16"), arbiter.describe());
     }
 
     @Test

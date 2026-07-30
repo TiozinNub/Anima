@@ -116,6 +116,16 @@ public final class Arbiter {
             }
         }
 
+        // 2a. An OWED commitment nothing is running has not been heartbeated: check it is still
+        //     theirs before re-bidding, or two agents end up on one errand. Gated on the EXECUTOR
+        //     being idle, not on the stale-able workRunning — a manual dev order takes the wheel
+        //     without the arbiter ticking, so the check would never fire (live-caught).
+        if (claimedItem != null && !executor.isBusy() && !work.stillMine(claimedItem, ctx)) {
+            ctx.journal().record(Category.PROJECT, claimedItem.describe(),
+                    "dropped — the claim lapsed while they were away");
+            claimedItem = null;
+        }
+
         // 2b. The commitment bid: the item already owed, else the board's best offer — one more
         //     bidder on the same 0..1 scale (fixed board priority, not body pressure).
         WorkItem candidate = claimedItem != null
@@ -153,6 +163,12 @@ public final class Arbiter {
         // Keep the tolerance source current for an incumbent that kept running (wasn't re-granted).
         if (active != null) {
             activePressure = lastPressures[indexOf(active)];
+        }
+
+        // 4b. The heartbeat is the only thing keeping the hold alive — stop long enough (a
+        //     suspension, a death) and the board takes the errand back.
+        if (workRunning && claimedItem != null) {
+            work.heartbeat(claimedItem, ctx);
         }
 
         // 5. Run one step; detect a task boundary crossed this tick and react to its outcome.

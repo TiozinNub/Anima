@@ -3,6 +3,7 @@ package dev.luizloyola.anima.mod.brain;
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.board.WorkItem;
+import dev.luizloyola.anima.core.brain.board.WorkLease;
 import dev.luizloyola.anima.core.brain.board.WorkSource;
 import dev.luizloyola.anima.core.brain.act.ActuatorAccess;
 import dev.luizloyola.anima.core.brain.act.BlockBreaker;
@@ -208,6 +209,16 @@ public final class BrainDriver {
             public void driveFailed(Instinct instinct, String detail, BrainContext c) {
                 board.driveFailed(instinct, detail, c); // nothing to celebrate; just don't swallow it
             }
+
+            @Override
+            public void heartbeat(WorkItem item, BrainContext c) {
+                board.heartbeat(item, c);
+            }
+
+            @Override
+            public boolean stillMine(WorkItem item, BrainContext c) {
+                return board.stillMine(item, c);
+            }
         };
         // Flee is first on purpose: the arbiter breaks pressure ties in list order, so an exact
         // flee/eat tie must resolve to fleeing. Descend sits between the needs and wander: a
@@ -301,6 +312,11 @@ public final class BrainDriver {
      */
     public List<String> describeBoard() {
         return this.board.describeLines(this.context);
+    }
+
+    /** Every hold this body's boards are keeping open — the claims dump's layer-3 half. */
+    public List<WorkLease> leases() {
+        return this.board.leases(this.context);
     }
 
     /**

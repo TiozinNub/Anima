@@ -36,6 +36,7 @@ public final class AnimaCommands {
                         .then(AgentCommands.think())
                         .then(AgentCommands.log())
                         .then(AgentCommands.knowledge())
+                        .then(AgentCommands.claims())
                         .then(AgentCommands.peers())
                         // What this one is running: species -> modifiers -> effective.
                         .then(AgentCommands.profile())

@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.board;
 
 import dev.luizloyola.anima.core.brain.knowledge.TestPois;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -55,6 +56,28 @@ class SiteClaimsTest {
         assertFalse(claims.availableTo(TestPois.TREE, anchor, bob, 1));
         claims.release(TestPois.TREE, anchor, alice);
         assertTrue(claims.availableTo(TestPois.TREE, anchor, bob, 1), "a clean exit frees it now");
+    }
+
+    /**
+     * The dump {@code /anima claims} prints: live holds only, soonest to die first. A lapsed entry
+     * is no claim at all, and showing it would invent a state nobody can act on.
+     */
+    @Test
+    void theDumpReportsLiveHoldsSoonestFirst() {
+        Pos far = new Pos(80, 64, 80);
+        claims.claim(TestPois.TREE, anchor, alice, 0);
+        claims.claim(TestPois.TREE, far, bob, 50);
+
+        var live = claims.held(60);
+        assertEquals(2, live.size());
+        assertEquals(alice, live.get(0).who(), "hers dies first, so hers is on top");
+        assertEquals(SiteClaims.ttlTicks() - 60, live.get(0).remaining());
+        assertEquals(bob, live.get(1).who());
+
+        var later = claims.held(SiteClaims.ttlTicks() + 10);
+        assertEquals(1, later.size(), "hers lapsed and is simply not listed");
+        assertEquals(bob, later.get(0).who());
+        assertTrue(claims.held(SiteClaims.ttlTicks() + 100).isEmpty());
     }
 
     @Test

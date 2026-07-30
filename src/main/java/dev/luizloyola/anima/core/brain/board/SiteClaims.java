@@ -87,4 +87,29 @@ public final class SiteClaims {
     public int size() {
         return claims.size();
     }
+
+    /**
+     * One live hold, flattened for the claims dump.
+     *
+     * @param remaining ticks left before it lapses if nobody re-claims it
+     */
+    public record Held(PoiKind kind, Pos anchor, AgentId who, long remaining) {
+    }
+
+    /**
+     * Every hold still live at {@code now}, nearest expiry first — what {@code /anima claims}
+     * prints. Lapsed entries are omitted, not swept: readers already ignore them, and a dump must
+     * not mutate the registry.
+     */
+    public java.util.List<Held> held(long now) {
+        java.util.List<Held> live = new java.util.ArrayList<>();
+        for (Map.Entry<Key, Claim> entry : claims.entrySet()) {
+            if (entry.getValue().untilTick() > now) {
+                live.add(new Held(entry.getKey().kind(), entry.getKey().anchor(),
+                        entry.getValue().who(), entry.getValue().untilTick() - now));
+            }
+        }
+        live.sort(java.util.Comparator.comparingLong(Held::remaining));
+        return live;
+    }
 }

@@ -42,6 +42,9 @@ import dev.luizloyola.anima.core.log.JournalService;
 import dev.luizloyola.anima.core.agent.Needs;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.mod.brain.KnowledgeViewer;
+import dev.luizloyola.anima.core.brain.board.SiteClaims;
+import dev.luizloyola.anima.core.brain.board.WorkLease;
+import dev.luizloyola.anima.mod.brain.Claims;
 import dev.luizloyola.anima.mod.brain.Knowledges;
 import dev.luizloyola.anima.mod.brain.BeingViewer;
 import dev.luizloyola.anima.mod.log.Journals;
@@ -295,6 +298,18 @@ public final class AgentCommands {
     }
 
     /** Who they can currently perceive. */
+    /**
+     * Who is holding what, both keyspaces at once: the server's work-SITE claims and the resolved
+     * agent's boards' ITEM leases.
+     *
+     * <p>Shown together because they are one semantics — a hold that lives a fixed span past its
+     * last heartbeat — and because for an anchor-keyed errand the two holds are on the same thing.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> claims() {
+        return Commands.literal("claims")
+                                .executes(ctx -> claimsShow(ctx.getSource()));
+    }
+
     public static LiteralArgumentBuilder<CommandSourceStack> peers() {
         return Commands.literal("peers")
                                 .executes(ctx -> peersList(ctx.getSource()))
@@ -866,6 +881,50 @@ public final class AgentCommands {
             line.append(" - ").append(entry.detail());
         }
         return line.toString();
+    }
+
+    /**
+     * Prints the server's live site claims, then the resolved agent's boards' item leases.
+     *
+     * <p>LIVE holds only: a lapsed hold is no claim — every reader of both registries already
+     * ignores it, and printing it would invent a state nobody can act on. Ordered by how soon each
+     * dies, so the thing about to change is at the top.
+     */
+    private static int claimsShow(CommandSourceStack source) {
+        MinecraftServer server = source.getServer();
+        long now = server.overworld().getGameTime();
+        List<SiteClaims.Held> sites = Claims.of(server).held(now);
+        if (sites.isEmpty()) {
+            Replies.send(source, () -> Component.literal("No site is claimed right now.")
+                    .withStyle(ChatFormatting.GRAY));
+        } else {
+            Replies.send(source, () -> Component.literal("Site claims — " + sites.size() + " live:")
+                    .withStyle(ChatFormatting.AQUA));
+            for (SiteClaims.Held held : sites) {
+                String line = "  " + held.kind().key().toUpperCase(java.util.Locale.ROOT)
+                        + " (" + held.anchor().x() + ", " + held.anchor().y() + ", "
+                        + held.anchor().z() + ")"
+                        + " — " + label(server, held.who()) + ", " + held.remaining() + "t left";
+                Replies.send(source, () -> Component.literal(line).withStyle(ChatFormatting.GRAY));
+            }
+        }
+        AgentBody person = resolveBody(source);
+        if (person == null) return 1; // the site half stands on its own; no agent, no lease half
+        String name = person.entity().getName().getString();
+        List<WorkLease> leases = person.brain().leases();
+        if (leases.isEmpty()) {
+            Replies.send(source, () -> Component.literal(name + "'s boards: nothing leased out.")
+                    .withStyle(ChatFormatting.GRAY));
+            return 1;
+        }
+        Replies.send(source, () -> Component.literal(name + "'s boards — " + leases.size()
+                + " item lease(s):").withStyle(ChatFormatting.AQUA));
+        for (WorkLease lease : leases) {
+            String line = "  " + lease.board() + " · " + lease.item()
+                    + " — " + label(server, lease.who()) + ", " + lease.remaining() + "t left";
+            Replies.send(source, () -> Component.literal(line).withStyle(ChatFormatting.GRAY));
+        }
+        return 1;
     }
 
     /**
