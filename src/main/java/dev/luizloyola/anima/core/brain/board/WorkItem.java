@@ -13,6 +13,19 @@ public interface WorkItem {
     /** The demand bid, on the instincts' 0..1 pressure scale — board policy, not body state. */
     double priority();
 
+    /**
+     * What taking this on is expected to cost <em>the asking agent</em>, on the same 0..1 scale as
+     * {@link #priority()} — the discriminator a board subtracts when several items are open. Zero
+     * by default.
+     *
+     * <p>This makes claim scoring per-asker: an item that knows a place overrides it with distance,
+     * so the nearest member wins without an auction. Not the task layer's {@code estimateCost},
+     * which prices methods against the arbiter's tolerance in blocks-and-staleness.
+     */
+    default double estimatedCost(BrainContext ctx) {
+        return 0.0;
+    }
+
     /** A FRESH task tree that pursues this item — called anew on every grant and resume. */
     Task root();
 

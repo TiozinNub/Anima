@@ -1,6 +1,8 @@
 package dev.luizloyola.anima.core.brain.board;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.instinct.Instinct;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -49,8 +51,28 @@ public interface WorkSource {
     default void tick(BrainContext ctx) {
     }
 
+    /**
+     * A DRIVE (not an errand) just failed terminally: the instinct's root came back FAILED and it
+     * is entering its fail cooldown. A hungry agent with no food in reach is a settlement that
+     * needs a food project, and layer 3 is the layer that can post one.
+     *
+     * <p><b>Dormant.</b> Every board ignores it: the useful response needs a food
+     * producer to exist first, and a project nobody can work is worse than no project. The seam
+     * lands now so the reporting side is written once, at the place that knows the moment.
+     */
+    default void driveFailed(Instinct instinct, String detail, BrainContext ctx) {
+    }
+
     /** One line for an operator, shown by the board command. Default says there is no board. */
     default String describe(BrainContext ctx) {
         return "no board";
+    }
+
+    /**
+     * The same readout as {@link #describe}, free to take as many lines as it has to say — a source
+     * composing several boards owes a row each. Defaults to the one line.
+     */
+    default List<String> describeLines(BrainContext ctx) {
+        return List.of(describe(ctx));
     }
 }

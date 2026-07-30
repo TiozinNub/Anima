@@ -13,6 +13,7 @@ import dev.luizloyola.anima.core.brain.act.Scaffolder;
 import dev.luizloyola.anima.core.brain.board.AgentClaims;
 import dev.luizloyola.anima.core.brain.instinct.DescendInstinct;
 import dev.luizloyola.anima.core.brain.instinct.EatInstinct;
+import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.instinct.FleeInstinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
@@ -202,6 +203,11 @@ public final class BrainDriver {
             public void failed(WorkItem item, BrainContext c) {
                 board.failed(item, c);
             }
+
+            @Override
+            public void driveFailed(Instinct instinct, String detail, BrainContext c) {
+                board.driveFailed(instinct, detail, c); // nothing to celebrate; just don't swallow it
+            }
         };
         // Flee is first on purpose: the arbiter breaks pressure ties in list order, so an exact
         // flee/eat tie must resolve to fleeing. Descend sits between the needs and wander: a
@@ -288,9 +294,13 @@ public final class BrainDriver {
         return this.claims;
     }
 
-    /** The work source's status line, whatever it turns out to be. */
-    public String describeBoard() {
-        return this.board.describe(this.context);
+    /**
+     * The work source's status, one line per row — a row per board, or the one line saying there
+     * is none. Not a plain string: layer 3 stopped being one line once an agent could reach two
+     * boards.
+     */
+    public List<String> describeBoard() {
+        return this.board.describeLines(this.context);
     }
 
     /**

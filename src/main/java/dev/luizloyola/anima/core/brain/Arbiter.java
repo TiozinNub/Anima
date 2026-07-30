@@ -176,9 +176,13 @@ public final class Arbiter {
             } else if (active != null && executor.lastStatus().orElse(null) == TaskStatus.FAILED) {
                 // BRAIN log: failures only — every wander SUCCESS would be noise, and the
                 // take-over lines already mark what they started.
+                String reason = executor.failureReason().orElse("");
                 ctx.journal().record(Category.BRAIN, active.describe(), "failed"
-                        + executor.failureReason().map(r -> " — " + r).orElse(""));
+                        + (reason.isEmpty() ? "" : " — " + reason));
                 cooldowns[indexOf(active)] = active.failCooldown();
+                // Reported from here, not the driver: the cooldown and the terminal status are both
+                // known only here. Dormant in every board today — see WorkSource#driveFailed.
+                work.driveFailed(active, reason, ctx);
             }
             active = null; // next tick's idle-grant re-arbitrates
         }
