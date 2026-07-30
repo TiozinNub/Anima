@@ -71,6 +71,9 @@ public final class BrainDriver {
      * The wander mute. ON (the default) the idle drive bids its ambient floor; OFF it bids nothing,
      * so an unbothered body stands where you put it while the brain keeps thinking — fleeing,
      * eating, taking errands. Narrower than {@link #auto}, which stops the arbiter entirely.
+     *
+     * <p>Transient like {@link #auto}: a restart or an entity reload builds a new driver and the
+     * mute is gone, with nothing in the world to say the body stopped. Re-apply it after a reload.
      */
     private boolean wander = true;
 
