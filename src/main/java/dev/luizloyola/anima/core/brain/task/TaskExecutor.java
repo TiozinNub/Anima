@@ -242,7 +242,7 @@ public final class TaskExecutor {
             }
             Frame frame = new Frame(compound);
             if (!chooseRound(frame, ctx)) {
-                noteFailure(noWay(frame, ctx));
+                noteExhausted(noWay(frame, ctx));
                 failCurrent(ctx); // no applicable method at all
                 continue;
             }
@@ -345,7 +345,7 @@ public final class TaskExecutor {
                 if (chooseRound(top, ctx)) {
                     return;
                 }
-                noteFailure(noWay(top, ctx));
+                noteExhausted(noWay(top, ctx));
                 stack.remove(stack.size() - 1);
                 failCurrent(ctx); // nothing applicable or affordable is left -> the goal is out of reach
                 return;
@@ -450,6 +450,17 @@ public final class TaskExecutor {
         if (failureReason == null) {
             failureReason = reason;
         }
+    }
+
+    /**
+     * The exception to first-writer-wins, for the one message that is strictly later and more
+     * decisive: a round that ran out of ways. An earlier method failure says what went wrong first;
+     * "no applicable way" says <em>and then nothing else worked either</em>. Without it,
+     * applicability or price never surfaces — {@code obtain logs x10000} died at 1554 and again at
+     * 1920 logs, both times naming a failed pickup.
+     */
+    private void noteExhausted(String reason) {
+        failureReason = reason;
     }
 
     /** The no-method message, split by cause: nothing applicable vs everything unaffordable. */
