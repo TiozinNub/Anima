@@ -71,10 +71,12 @@ public final class LevelProbe implements BlockProbe {
             boolean dying = state.getOptionalValue(BlockStateProperties.DISTANCE).orElse(1) > 6;
             return built || dying ? BlockKind.OTHER : BlockKind.LEAVES;
         }
-        // Open water only: a waterlogged fence is a fence to them, not something to drink from.
-        if (state.getFluidState().is(FluidTags.WATER)
-                && state.getCollisionShape(this.level, pos).isEmpty()) {
-            return BlockKind.WATER;
+        // Collision-free cells are not THINGS to a tree story. Open water is water, a waterlogged
+        // fence stays a fence; everything walk-through (vines, moss, grass, flowers) is AIR here,
+        // never OTHER, because grounded-ness reads OTHER as "real ground" and a vine under a branch
+        // log made the mid-air branch read as a grounded stump (split survey; Luiz, 2026-08-02).
+        if (state.getCollisionShape(this.level, pos).isEmpty()) {
+            return state.getFluidState().is(FluidTags.WATER) ? BlockKind.WATER : BlockKind.AIR;
         }
         return BlockKind.OTHER;
     }
