@@ -110,6 +110,18 @@ tasks.named<Test>("test") {
     useJUnitPlatform()
 }
 
+// A running dev game holds these jars OPEN and reads mod classes out of them lazily — Autarkia
+// carries Anima on its classpath as a jar, and a dev client keeps its own. Gradle rewrites an
+// archive in place, which leaves every class the live JVM has not loaded yet unreadable
+// ("ZipException: invalid LOC header"); the game then dies minutes later on the first unseen
+// class, with nothing in the crash pointing back at a build. It does not have to be your build:
+// a parallel session's compile crashed a dev client and a test server on 2026-08-02.
+// Unlinking first makes the rewrite land on a new inode, and an open file descriptor follows the
+// inode — so every already-running game keeps reading the bytes it booted with.
+tasks.withType<Jar>().configureEach {
+    doFirst { archiveFile.get().asFile.delete() }
+}
+
 loom {
     // The BRANCH's own source dir (`anima/src`) — `sc.branch.project` is the safe way to say
     // `project(":anima")` from inside a node.
