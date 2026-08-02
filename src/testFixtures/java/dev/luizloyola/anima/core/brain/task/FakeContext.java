@@ -11,6 +11,7 @@ import dev.luizloyola.anima.core.brain.board.SiteClaims;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.act.ItemConsumer;
 import dev.luizloyola.anima.core.brain.act.Mover;
+import dev.luizloyola.anima.core.brain.act.Riser;
 import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.brain.sense.TestDanger;
@@ -28,6 +29,7 @@ public final class FakeContext implements BrainContext {
     public final FakeConsumer consumer = new FakeConsumer();
     public final FakeBreaker breaker = new FakeBreaker();
     public final FakePlacer placer = new FakePlacer();
+    public final FakeRiser riser = new FakeRiser();
     public final FakePercepts percepts = new FakePercepts();
     /** A real knowledge store (pure and headless anyway) — task tests seed and inspect it. */
     public final AgentKnowledge knowledge = new AgentKnowledge();
@@ -74,6 +76,11 @@ public final class FakeContext implements BrainContext {
         @Override
         public BlockPlacer placer() {
             return placer;
+        }
+
+        @Override
+        public Riser riser() {
+            return riser;
         }
     };
 

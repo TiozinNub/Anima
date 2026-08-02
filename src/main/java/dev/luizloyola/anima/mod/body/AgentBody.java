@@ -10,6 +10,7 @@ import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.mod.brain.AgentBlockBreaker;
+import dev.luizloyola.anima.mod.brain.AgentRiser;
 import dev.luizloyola.anima.mod.brain.BrainDriver;
 import dev.luizloyola.anima.mod.brain.PoiSensor;
 import dev.luizloyola.anima.mod.brain.BeingSense;
@@ -112,6 +113,9 @@ public interface AgentBody {
 
     /** The body's block-breaking actuator, which it owns and ticks (crack, drops, exhaustion). */
     AgentBlockBreaker blockBreaker();
+
+    /** The body's rise-one actuator, which it owns and ticks (centring, jump, place). */
+    AgentRiser riser();
 
     /**
      * The mind mounted on this body — the arbiter, its running task tree, and the autonomy switch.

@@ -10,6 +10,7 @@ import dev.luizloyola.anima.core.brain.act.BlockBreaker;
 import dev.luizloyola.anima.core.brain.act.BlockPlacer;
 import dev.luizloyola.anima.core.brain.act.ItemConsumer;
 import dev.luizloyola.anima.core.brain.act.Mover;
+import dev.luizloyola.anima.core.brain.act.Riser;
 import dev.luizloyola.anima.core.brain.board.AgentClaims;
 import dev.luizloyola.anima.core.brain.instinct.EatInstinct;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
@@ -135,6 +136,11 @@ public final class BrainDriver {
             @Override
             public BlockPlacer placer() {
                 return placer; // one-shot port: stateless view, driver-owned like the consumer
+            }
+
+            @Override
+            public Riser riser() {
+                return person.riser(); // body-owned and body-ticked, like the breaker
             }
         };
         this.context = new BrainContext() {

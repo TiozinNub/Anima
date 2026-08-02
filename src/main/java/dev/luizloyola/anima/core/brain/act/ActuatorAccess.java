@@ -21,4 +21,7 @@ public interface ActuatorAccess {
 
     /** The working arm, placing — see {@link BlockPlacer}. */
     BlockPlacer placer();
+
+    /** The legs, gaining one block of height — see {@link Riser}. */
+    Riser riser();
 }
