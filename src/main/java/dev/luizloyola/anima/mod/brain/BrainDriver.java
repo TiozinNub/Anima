@@ -10,9 +10,7 @@ import dev.luizloyola.anima.core.brain.act.BlockBreaker;
 import dev.luizloyola.anima.core.brain.act.BlockPlacer;
 import dev.luizloyola.anima.core.brain.act.ItemConsumer;
 import dev.luizloyola.anima.core.brain.act.Mover;
-import dev.luizloyola.anima.core.brain.act.Scaffolder;
 import dev.luizloyola.anima.core.brain.board.AgentClaims;
-import dev.luizloyola.anima.core.brain.instinct.DescendInstinct;
 import dev.luizloyola.anima.core.brain.instinct.EatInstinct;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.instinct.FleeInstinct;
@@ -138,11 +136,6 @@ public final class BrainDriver {
             public BlockPlacer placer() {
                 return placer; // one-shot port: stateless view, driver-owned like the consumer
             }
-
-            @Override
-            public Scaffolder scaffolder() {
-                return person.scaffolder(); // body-owned and body-ticked, like the breaker
-            }
         };
         this.context = new BrainContext() {
             @Override
@@ -266,10 +259,9 @@ public final class BrainDriver {
             }
         };
         // Flee is first on purpose: the arbiter breaks pressure ties in list order, so an exact
-        // flee/eat tie must resolve to fleeing. Descend sits between the needs and wander: a
-        // stranded body gets down before it drifts, but never before it flees or eats urgently.
+        // flee/eat tie must resolve to fleeing.
         this.arbiter = new Arbiter(List.of(
-                new FleeInstinct(random), new EatInstinct(), new DescendInstinct(),
+                new FleeInstinct(random), new EatInstinct(),
                 this.wanderDrive),
                 celebrating);
     }

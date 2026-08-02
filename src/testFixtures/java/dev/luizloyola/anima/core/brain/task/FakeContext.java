@@ -6,7 +6,6 @@ import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.ActuatorAccess;
 import dev.luizloyola.anima.core.brain.act.BlockBreaker;
 import dev.luizloyola.anima.core.brain.act.BlockPlacer;
-import dev.luizloyola.anima.core.brain.act.Scaffolder;
 import dev.luizloyola.anima.core.brain.board.AgentClaims;
 import dev.luizloyola.anima.core.brain.board.SiteClaims;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
@@ -29,9 +28,8 @@ public final class FakeContext implements BrainContext {
     public final FakeConsumer consumer = new FakeConsumer();
     public final FakeBreaker breaker = new FakeBreaker();
     public final FakePlacer placer = new FakePlacer();
-    public final FakeScaffolder scaffolder = new FakeScaffolder();
     public final FakePercepts percepts = new FakePercepts();
-    /** A real knowledge store (pure and headless anyway) — chop tests seed and inspect it. */
+    /** A real knowledge store (pure and headless anyway) — task tests seed and inspect it. */
     public final AgentKnowledge knowledge = new AgentKnowledge();
     /** This fake person's identity — what its claims are held under. */
     public final AgentId self = AgentId.random();
@@ -76,11 +74,6 @@ public final class FakeContext implements BrainContext {
         @Override
         public BlockPlacer placer() {
             return placer;
-        }
-
-        @Override
-        public Scaffolder scaffolder() {
-            return scaffolder;
         }
     };
 

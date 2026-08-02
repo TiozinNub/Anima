@@ -13,9 +13,9 @@ import java.util.List;
  * the walk-over pickup vacuum the path, re-scan, repeat until nothing matching is in sight. The
  * sight radius is the work area — no bounds parameter; scope the spec instead.
  *
- * <p>Outcome is measured in the pack: SUCCESS only when {@code count(spec)} rose since the first
- * tick. Empty-handed (drops gone before arrival, or the lap guard tripped) is FAILED, which is
- * what lets an {@code ObtainItem} burn its pickup method and move on to producing.
+ * <p>SUCCESS only when {@code count(spec)} rose since the first tick. Empty-handed — drops gone, or
+ * the lap guard tripped on unreachable ones — is FAILED, which lets an {@code ObtainItem} burn its
+ * pickup method and move on to producing.
  */
 public final class GatherNearbyDrops implements PrimitiveTask {
     private final ItemSpec spec;

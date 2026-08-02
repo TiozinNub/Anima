@@ -9,7 +9,6 @@ import dev.luizloyola.anima.core.agent.SpeciesKnobs;
 import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.board.SiteClaims;
-import dev.luizloyola.anima.core.brain.instinct.DescendInstinct;
 import dev.luizloyola.anima.core.brain.instinct.FleeInstinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import dev.luizloyola.anima.core.brain.knowledge.CrescentSampler;
@@ -82,17 +81,6 @@ class DefaultsPreserveLegacyConstantsTest {
     }
 
     @Test
-    @DisplayName("the relationship the descend instinct's doc depends on holds for any species")
-    void descendStaysBelowThePreemptBar() {
-        // An invariant between two aspects: "a chop mid-climb is never interrupted" holds only
-        // while descend sits under the preempt bar. Each mod's own species test answers for its
-        // numbers; this one guards the fixture.
-        AgentProfile profile = TestSpecies.PROFILE;
-        assertTrue(DescendInstinct.strandedPressure(profile) < Arbiter.preempt(profile),
-                "descend_pressure must stay below mind.preempt or a mid-climb chop gets cut");
-    }
-
-    @Test
     @DisplayName("a body's own numbers reach the instincts that read them")
     void aspectsReachTheirCallSites() {
         AgentProfile profile = TestSpecies.PROFILE;
@@ -101,7 +89,6 @@ class DefaultsPreserveLegacyConstantsTest {
         assertEquals(0.6, Arbiter.preempt(profile));
         assertEquals(16.0, FleeInstinct.range(profile));
         assertEquals(12.0, FleeInstinct.ramp(profile));
-        assertEquals(0.45, DescendInstinct.strandedPressure(profile));
         assertEquals(0.15, WanderInstinct.idlePressure(profile));
         assertEquals(8, WanderInstinct.defaultRadius(profile));
         assertEquals(12, CrescentSampler.radius(profile));

@@ -17,7 +17,6 @@ public final class TestSpecies {
             .set(ProfileAspect.FLEE_RANGE, 16.0)
             .set(ProfileAspect.FLEE_RAMP, 12.0)
             .set(ProfileAspect.FLEE_APPROACH_BONUS, 1.3)
-            .set(ProfileAspect.DESCEND_PRESSURE, 0.45)
             .set(ProfileAspect.WANDER_IDLE_PRESSURE, 0.15)
             .set(ProfileAspect.WANDER_RADIUS, 8)
             .set(ProfileAspect.SENSES_RADIUS, 24)

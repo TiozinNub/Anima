@@ -48,8 +48,6 @@
   "anima.config.aspect.instincts.flee_ramp.desc": "Distância, em blocos, ao longo da qual o medo cresce do nada até o pânico total.",
   "anima.config.aspect.instincts.flee_approach_bonus": "Medo de quem se aproxima",
   "anima.config.aspect.instincts.flee_approach_bonus.desc": "Medo extra quando a ameaça está claramente se aproximando — o sinal observável de que \"ela está me caçando\".",
-  "anima.config.aspect.instincts.descend_pressure": "Vontade de descer",
-  "anima.config.aspect.instincts.descend_pressure.desc": "Vontade de descer de um pilar deixado para trás. Mantenha abaixo do limiar de interrupção para que uma derrubada legítima no meio da subida nunca seja cortada.",
   "anima.config.aspect.instincts.wander_idle_pressure": "Vontade de perambular",
   "anima.config.aspect.instincts.wander_idle_pressure.desc": "O piso do faça-alguma-coisa: todo impulso real precisa superá-lo. Em 0, uma Pessoa tranquila simplesmente fica parada.",
   "anima.config.aspect.instincts.wander_radius": "Raio de perambulação",

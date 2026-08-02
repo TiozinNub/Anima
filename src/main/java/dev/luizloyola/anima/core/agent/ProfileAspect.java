@@ -54,9 +54,6 @@ public enum ProfileAspect {
     FLEE_APPROACH_BONUS("instincts.flee_approach_bonus", Kind.DOUBLE, 1.0, 4.0,
             "Pressure multiplier when a threat is measurably closing in — how strongly this body "
                     + "reads being followed as being hunted."),
-    DESCEND_PRESSURE("instincts.descend_pressure", Kind.DOUBLE, 0.0, 1.0,
-            "Pressure to climb down off an orphaned pillar. Keep below mind.preempt so a "
-                    + "legitimate mid-climb job is never interrupted."),
     WANDER_IDLE_PRESSURE("instincts.wander_idle_pressure", Kind.DOUBLE, 0.0, 1.0,
             "This body's do-something floor. Every real drive must beat it; at 0 an unbothered "
                     + "body stands still, which is a perfectly good way for some things to be."),

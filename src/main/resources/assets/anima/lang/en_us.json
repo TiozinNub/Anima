@@ -48,8 +48,6 @@
   "anima.config.aspect.instincts.flee_ramp.desc": "Distance in blocks over which fear ramps from nothing to full panic.",
   "anima.config.aspect.instincts.flee_approach_bonus": "Closing-in fear boost",
   "anima.config.aspect.instincts.flee_approach_bonus.desc": "Extra fear when a threat is measurably closing in — the observable stand-in for \"it is hunting me\".",
-  "anima.config.aspect.instincts.descend_pressure": "Urge to get down",
-  "anima.config.aspect.instincts.descend_pressure.desc": "Urge to climb down off a leftover pillar. Keep it below the interrupt threshold so a legitimate mid-climb chop is never cut short.",
   "anima.config.aspect.instincts.wander_idle_pressure": "Urge to wander",
   "anima.config.aspect.instincts.wander_idle_pressure.desc": "The do-something floor: every real drive must beat this. At 0 an unbothered Person simply stands still.",
   "anima.config.aspect.instincts.wander_radius": "Wander radius",

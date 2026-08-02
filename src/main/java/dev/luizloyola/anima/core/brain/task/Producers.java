@@ -9,19 +9,15 @@ import java.util.function.Supplier;
 
 /**
  * Who knows how to <em>make more</em> of a thing — the registry {@link ObtainItem} consults when
- * picking one up off the floor is not enough.
+ * picking one up off the floor is not enough. Where items come from is the consuming mod's
+ * question, not the library's; a spec with no registered producer is legitimate, not an error,
+ * and {@code ObtainItem} degrades to scavenging.
  *
- * <p>Where items come from is a question about the world a consuming mod is modelling — logs from
- * chopping a tree, wool from shearing a sheep — not the library's to hardcode. The seam this
- * replaces had one entry, {@code LOGS → ChopKnownTree}, and that is how a tree-felling choreography
- * ended up living inside a general-purpose library.
+ * <p><b>Registered by identity, not by name:</b> the key is the {@link ItemSpec} instance the
+ * consumer declares, so two mods can want different things by the same name without colliding.
  *
- * <p><b>Registered by identity, not by name.</b> The key is the {@link ItemSpec} instance the
- * consumer declares, so the mod that says what logs ARE says where they come from, and two mods can
- * want different things by the same name without colliding.
- *
- * <p>Producers are factories because a {@link Method} is stateful once it starts — each
- * {@code ObtainItem} needs its own.
+ * <p>Producers are supplied as factories because a {@link Method} is stateful once it starts —
+ * each {@code ObtainItem} needs its own.
  */
 public final class Producers {
 

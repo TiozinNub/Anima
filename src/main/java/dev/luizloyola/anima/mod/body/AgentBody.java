@@ -12,7 +12,6 @@ import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.mod.brain.AgentBlockBreaker;
 import dev.luizloyola.anima.mod.brain.BrainDriver;
 import dev.luizloyola.anima.mod.brain.PoiSensor;
-import dev.luizloyola.anima.mod.brain.AgentScaffolder;
 import dev.luizloyola.anima.mod.brain.BeingSense;
 import dev.luizloyola.anima.mod.nav.Navigator;
 import net.minecraft.core.BlockPos;
@@ -113,9 +112,6 @@ public interface AgentBody {
 
     /** The body's block-breaking actuator, which it owns and ticks (crack, drops, exhaustion). */
     AgentBlockBreaker blockBreaker();
-
-    /** The body's scaffolding actuator — the pillar ledger lives with the body that built it. */
-    AgentScaffolder scaffolder();
 
     /**
      * The mind mounted on this body — the arbiter, its running task tree, and the autonomy switch.
