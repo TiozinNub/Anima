@@ -18,5 +18,7 @@ public final class AnimaClient implements ClientModInitializer {
         DebugGlowClient.install();
         DebugViewClient.install();
         DebugViewRenderer.install();
+        CellOverlayClient.install();
+        CellOverlayRenderer.install();
     }
 }
