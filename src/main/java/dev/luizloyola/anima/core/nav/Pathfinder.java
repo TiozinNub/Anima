@@ -117,10 +117,19 @@ public final class Pathfinder {
      */
     private final DangerField danger;
 
+    /**
+     * Where the body may stand at all — {@link PathRequest#domain()}. Enforced here at the one
+     * funnel every move generator feeds, on the FEET cell of the offered node: a fenced search
+     * cannot so much as consider a cell outside it. (A leap still arcs over cells it never
+     * stands in, exactly as a player clears a gap.)
+     */
+    private final NavDomain domain;
+
     private Pathfinder(NavGrid grid, PathRequest request) {
         this.grid = grid;
         this.profile = request.profile();
         this.danger = request.danger();
+        this.domain = request.domain();
         this.goalX = request.goalX();
         this.goalY = request.goalY();
         this.goalZ = request.goalZ();
@@ -430,6 +439,9 @@ public final class Pathfinder {
 
     /** Standard A* edge relaxation: record-or-improve the neighbour and (re)queue it. */
     private void relax(long current, Node from, long neighbor, MoveType move, double cost) {
+        if (!this.domain.contains(unpackX(neighbor), unpackY(neighbor), unpackZ(neighbor))) {
+            return; // outside the fence there is no world, not merely a worse one
+        }
         double g = from.g + cost + dread(neighbor);
         Node node = this.nodes.get(neighbor);
         if (node == null) {

@@ -11,7 +11,7 @@ import dev.luizloyola.anima.core.brain.sense.DangerField;
 public record PathRequest(
         int startX, int startY, int startZ,
         int goalX, int goalY, int goalZ,
-        MoveCapabilities profile, DangerField danger, int maxNodes) {
+        MoveCapabilities profile, DangerField danger, NavDomain domain, int maxNodes) {
 
     /**
      * Default search budget. At ~8 neighbour probes per expansion this bounds worst-case work per
@@ -25,12 +25,25 @@ public record PathRequest(
         if (danger == null) {
             danger = DangerField.NONE;
         }
+        if (domain == null) {
+            domain = NavDomain.EVERYWHERE;
+        }
     }
 
     /** A route for a body with nothing to be afraid of — every test, and most of the world. */
     public static PathRequest of(int startX, int startY, int startZ,
                                  int goalX, int goalY, int goalZ, MoveCapabilities profile) {
         return of(startX, startY, startZ, goalX, goalY, goalZ, profile, DangerField.NONE);
+    }
+
+    /**
+     * The same route, fenced: the search may only stand inside {@code domain} (see
+     * {@link NavDomain} — outside it there is no world, not merely a worse one). Snapshot
+     * semantics are the danger field's: built on the server thread, immutable for the worker.
+     */
+    public PathRequest within(NavDomain domain) {
+        return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
+                profile, danger, domain, maxNodes);
     }
 
     /**
@@ -43,6 +56,6 @@ public record PathRequest(
                                  int goalX, int goalY, int goalZ, MoveCapabilities profile,
                                  DangerField danger) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ, profile, danger,
-                DEFAULT_MAX_NODES);
+                NavDomain.EVERYWHERE, DEFAULT_MAX_NODES);
     }
 }

@@ -1,10 +1,12 @@
 package dev.luizloyola.anima.core.nav;
 
 import dev.luizloyola.anima.core.brain.sense.DangerField;
+import dev.luizloyola.anima.core.brain.sense.Pos;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -319,7 +321,8 @@ class PathfinderTest {
         for (int i = 0; i < 40; i++) row.append('1');
         AsciiWorld world = AsciiWorld.of(row.toString(), row.toString(), row.toString());
         Path path = Pathfinder.find(world,
-                new PathRequest(0, 1, 1, 39, 1, 1, TestBodies.BIPED, DangerField.NONE, 8));
+                new PathRequest(0, 1, 1, 39, 1, 1, TestBodies.BIPED, DangerField.NONE,
+                        NavDomain.EVERYWHERE, 8));
         assertFalse(path.reachedGoal());
         assertFalse(path.isEmpty());
         assertTrue(path.last().x() > 0, "partial path should head toward the goal");
@@ -390,5 +393,55 @@ class PathfinderTest {
             assertEquals(s[1], Pathfinder.unpackY(key));
             assertEquals(s[2], Pathfinder.unpackZ(key));
         }
+    }
+
+    /** The middle row of a 3-row world, fenced: x 0..width-1, feet y 1, z 1 only. */
+    private static NavDomain middleRow(int width) {
+        List<Pos> cells = new ArrayList<>();
+        for (int x = 0; x < width; x++) {
+            cells.add(new Pos(x, 1, 1));
+        }
+        return NavDomain.of(cells);
+    }
+
+    @Test
+    void theFenceTurnsADetourIntoNoPath() {
+        // Unfenced, the search detours through the next row over — the
+        // walk-across-the-neighbour's-canopy bug. Fenced, there is no world to detour through: no
+        // path, and that failure is a signal the task can reason about.
+        AsciiWorld world = AsciiWorld.of(
+                "1111111",
+                "111#111",
+                "1111111");
+        Path free = find(world, 0, 1, 1, 6, 1, 1);
+        assertTrue(free.reachedGoal(), "without the fence the detour is a fine route");
+
+        Path fenced = Pathfinder.find(world,
+                PathRequest.of(0, 1, 1, 6, 1, 1, TestBodies.BIPED).within(middleRow(7)));
+        assertFalse(fenced.reachedGoal(), "inside the fence the wall is the end of the world");
+    }
+
+    @Test
+    void aFencedRouteExistsAndStaysInside() {
+        AsciiWorld world = AsciiWorld.of(
+                "1111111",
+                "1111111",
+                "1111111");
+        Path path = Pathfinder.find(world,
+                PathRequest.of(0, 1, 1, 6, 1, 1, TestBodies.BIPED).within(middleRow(7)));
+        assertTrue(path.reachedGoal());
+        assertTrue(path.waypoints().stream().allMatch(w -> w.z() == 1),
+                "every stand is inside the domain");
+    }
+
+    @Test
+    void aGoalOutsideTheFenceNeverCompletes() {
+        AsciiWorld world = AsciiWorld.of(
+                "1111111",
+                "1111111",
+                "1111111");
+        Path path = Pathfinder.find(world,
+                PathRequest.of(0, 1, 1, 6, 1, 0, TestBodies.BIPED).within(middleRow(7)));
+        assertFalse(path.reachedGoal(), "the goal itself is outside the world the fence leaves");
     }
 }
