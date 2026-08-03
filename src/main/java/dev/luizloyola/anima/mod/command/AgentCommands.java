@@ -1415,10 +1415,26 @@ public final class AgentCommands {
         return null;
     }
 
-    /** Everyone the source can put a name to. */
+    /**
+     * Everyone the source can put a name to.
+     *
+     * <p>A creative or spectator player knows everyone, by the same
+     * {@link ContactsSync#seesEveryone} rule that decides what their client is sent, so the listing
+     * cannot disagree with the nameplates. A vantage point, not a book: stepping back into survival
+     * lists only what they earned.
+     */
     private static int contactsList(CommandSourceStack source) {
         AgentId self = sourceIdentity(source);
-        return self == null ? 0 : printContacts(source, self, "You know");
+        if (self == null) {
+            return 0;
+        }
+        MinecraftServer server = source.getServer();
+        if (source.getEntity() instanceof ServerPlayer player && ContactsSync.seesEveryone(player)) {
+            String vantage = player.isSpectator() ? "As a spectator" : "In creative";
+            return printNames(source, AgentDirectory.of(server).known().keySet(),
+                    vantage + ", you know");
+        }
+        return printNames(source, ContactData.get(server).contactsOf(self), "You know");
     }
 
     /** Everyone that Person can name — the omniscient view: a dev tool reads any book. */
@@ -1429,8 +1445,11 @@ public final class AgentCommands {
     }
 
     private static int printContacts(CommandSourceStack source, AgentId who, String heading) {
+        return printNames(source, ContactData.get(source.getServer()).contactsOf(who), heading);
+    }
+
+    private static int printNames(CommandSourceStack source, Set<AgentId> known, String heading) {
         MinecraftServer server = source.getServer();
-        Set<AgentId> known = ContactData.get(server).contactsOf(who);
         if (known.isEmpty()) {
             Replies.send(source, () -> Component.literal(heading + " nobody yet.")
                     .withStyle(ChatFormatting.GRAY));
