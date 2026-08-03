@@ -123,6 +123,13 @@ public enum ProfileAspect {
                     + "past any range at which it could inspect a thing. Costs no rays: distant "
                     + "shapes occlude each other by arithmetic. At or below the radius above it "
                     + "is off, which is the right answer for anything that lives by its nose."),
+    PLACES_SEE_THROUGH_RADIUS("places.see_through_radius", Kind.INT, 0, 64,
+            "How far (blocks) this body's eye resolves a see-through thing into its parts. "
+                    + "Inside it, a canopy is branches and gaps and the view carries past; beyond "
+                    + "it, the same canopy is a wall and the skyline stops there. What makes a "
+                    + "wood a blob at range instead of something to see through, and the reason a "
+                    + "body standing in one has no far sense at all. 0 is a body that never sees "
+                    + "into anything."),
     PLACES_REGION_MAX_SPREAD("places.region_max_spread", Kind.INT, 1, 128,
             "Chebyshev spread from a seed before this mind stops calling it one place — what "
                     + "decides whether a forest is one memory or twenty. A judgment about "

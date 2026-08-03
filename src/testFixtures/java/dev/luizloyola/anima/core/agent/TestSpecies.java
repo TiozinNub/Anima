@@ -41,6 +41,10 @@ public final class TestSpecies {
             // leftovers would silently rewrite every one of them. HorizonScannerTest declares
             // its own body with eyes.
             .set(ProfileAspect.PLACES_HORIZON_RADIUS, 0)
+            // A settler's 8, unlike the two above: HorizonScannerTest borrows this body and turns
+            // its skyline back on, and the thing that suite is a test OF is what a ray does when
+            // it meets a canopy. Neutering the reach here would make it assert nothing.
+            .set(ProfileAspect.PLACES_SEE_THROUGH_RADIUS, 8)
             .set(ProfileAspect.PLACES_REGION_MAX_SPREAD, 24)
             .set(ProfileAspect.PLACES_MAX_PER_KIND, 160)
             .set(ProfileAspect.DANGER_MELEE_MULT, 1.15)

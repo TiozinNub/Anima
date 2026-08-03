@@ -45,9 +45,35 @@ class HorizonScannerTest {
         return builder.build().fixed();
     }
 
+    /**
+     * A second kind of thing, so two can stand on the same ground: a dedup by where alone reads
+     * as correct until the first kind seen silences every other one forever.
+     */
+    private static final class FakePondRule implements GrowthRule {
+        static final PoiKind POND = PoiKind.register("test_pond", 4, "");
+        static final FakePondRule INSTANCE = new FakePondRule();
+
+        @Override
+        public PoiKind kind() {
+            return POND;
+        }
+
+        @Override
+        public boolean joins(Pos p, BlockKind kind, BlockProbe probe) {
+            return kind == BlockKind.WATER;
+        }
+
+        @Override
+        public List<Evaluation> evaluate(Map<Pos, BlockKind> blocks, Pos seed, BlockProbe probe) {
+            return blocks.isEmpty() ? List.of()
+                    : List.of(new Evaluation(seed, blocks.size(), blocks));
+        }
+    }
+
     @BeforeEach
     void registerWhatGrows() {
         FakeGrowthRule.register();
+        GrowthRules.register(BlockKind.WATER, FakePondRule.INSTANCE);
     }
 
     @AfterEach
@@ -282,6 +308,70 @@ class HorizonScannerTest {
         int before = probe.reads;
         fresh.step(HERE, AHEAD, 0, probe, 64, new ArrayList<>());
         assertEquals(before, probe.reads, "swept at time 0 must count as swept");
+    }
+
+    /**
+     * A one-block sheet of canopy at {@code z}: tall enough to cover every airborne ray, narrow
+     * enough that only bearings reaching a trunk at (0, 30) cross it.
+     */
+    private static void leafScreen(FakeProbe probe, int z) {
+        for (int x = -3; x <= 3; x++) {
+            for (int y = 64; y <= 70; y++) {
+                probe.set(x, y, z, BlockKind.LEAVES);
+            }
+        }
+    }
+
+    @Test
+    void aCanopyNearEnoughIsLookedBETWEEN() {
+        FakeProbe probe = new FakeProbe();
+        probe.placeOak(0, 30);
+        leafScreen(probe, 6); // inside the 8-block see-into reach
+
+        List<SenseEvent> seen = glimpses(sweep(probe, 90));
+
+        assertTrue(seen.stream().anyMatch(e -> e.anchor().z() >= 28),
+                "branches at arm's length have gaps in them, and this is looking through one of "
+                        + "them at the wood beyond: " + seen);
+    }
+
+    @Test
+    void theSameCanopyAtRangeIsAWall() {
+        FakeProbe probe = new FakeProbe();
+        probe.placeOak(0, 30);
+        leafScreen(probe, 20); // past the reach, so the eye no longer resolves its parts
+
+        List<SenseEvent> seen = glimpses(sweep(probe, 90));
+
+        assertFalse(seen.isEmpty(),
+                "the screen itself is still made out — stopping a ray is not being invisible to "
+                        + "it, or a wood could only ever be found by threading its trunks");
+        assertTrue(seen.stream().allMatch(e -> e.anchor().z() <= 20),
+                "and nothing behind it is: a body does not see through a wood: " + seen);
+    }
+
+    @Test
+    void aCellThatAnsweredForOneKindStillAnswersForAnother() {
+        FakeProbe probe = new FakeProbe();
+        probe.placeOak(0, 30);
+
+        List<SenseEvent> wood = glimpses(sweep(probe, 90));
+        assertEquals(1, wood.size(), "the thicket is made out: " + wood);
+        assertEquals(FakeGrowthRule.THICKET, wood.get(0).kind());
+
+        // Something else in the very cells the thicket stood in: the forest dedup must not
+        // silence a cell for another kind.
+        probe.removeOak(0, 30);
+        for (int y = 64; y <= 66; y++) {
+            probe.set(0, y, 30, BlockKind.WATER);
+        }
+        now += HorizonScanner.REFRESH_TICKS + 1;
+
+        List<SenseEvent> pond = glimpses(sweep(probe, 90));
+
+        assertFalse(pond.isEmpty(), "a cell answered for trees is not answered for water");
+        assertTrue(pond.stream().allMatch(e -> e.kind() == FakePondRule.POND),
+                "and what it answers with is the thing that is actually there: " + pond);
     }
 
     @Test

@@ -8,43 +8,37 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The far sense: what a body makes out past the range at which it could inspect anything — the
- * gist, not the thing. Where the near field individuates a tree and counts its logs, this says only
- * <em>there is forest over there</em>.
+ * The far sense: the gist of what a body makes out past inspection range — <em>there is forest
+ * over there</em>, not a tree with its logs counted.
  *
- * <p><b>It is rays.</b> Each bearing is looked along by a FAN spread in pitch from
- * {@value #PITCH_DOWN_DEGREES}° below the eye to {@value #PITCH_UP_DEGREES}° above, each ray
- * marching cell by cell until something solid stops it — no heightmap arithmetic, no inference.
- * Grass and flowers are nothing to it, solids stop it dead, and a canopy or water surface is
- * {@link BlockProbe.Sight#VEILED}: made out, while the ray carries on to whatever stands behind.
- * Without that third case a wood is invisible — leaves stop nothing, a trunk is one block, and at
- * fifty blocks the bearings are three blocks apart.
+ * <p><b>It is rays.</b> Each bearing is looked along by a FAN of them, spread in pitch from
+ * {@value #PITCH_DOWN_DEGREES}° below the eye to {@value #PITCH_UP_DEGREES}° above and marching
+ * cell by cell until something solid stops them — no heightmap arithmetic, no inference. A canopy
+ * or a water surface is the third case, {@link BlockProbe.Sight#VEILED}: seen, seen through, and
+ * registering as something made out. Without it a wood is invisible — leaves stop nothing, and at
+ * fifty blocks the bearings are three apart, so only a one-block trunk could be threaded.
  *
- * <p>Rays start <em>at the eye</em>, so a barn ten blocks off hides the wood behind it; a hit
- * nearer than {@code places.radius} is dropped, because the near field owns that ground.
+ * <p><b>How far it is seen through depends on how far off it is</b> ({@link #seeThroughRadius}):
+ * gaps to carry on between near at hand, a wall past that reach. So a wood arrives as one glimpse
+ * at its near edge, and a body inside one has almost no far sense until it climbs out. Rays start
+ * <em>at the eye</em>, and a hit nearer than {@code places.radius} is dropped — that ground is the
+ * near field's.
  *
- * <p><b>Passive tier.</b> Unbidden, forward-only, and lossy on purpose in four ways:
+ * <p><b>Passive tier</b>, lossy on purpose:
  * <ul>
- *   <li><b>It never looks behind.</b> Only bearings inside the head cone are walked; the active
- *       survey exists for the rest.</li>
- *   <li><b>The fan has gaps.</b> Rays are {@value #MAX_RAY_SPREAD} blocks apart at full reach
- *       ({@link #rays} is sized for that), so anything narrower slips between two of them at range
- *       — saplings and lone logs are invisible from far off, a canopy is not.</li>
- *   <li><b>It stops climbing once the sky is empty.</b> The fan is fired bottom-up and ends the
- *       bearing after {@value #CLEAR_RUN_TO_STOP} rays in a row reach full range meeting nothing:
- *       for grounded things a clear line means every line above it is clear, so open country costs
- *       a handful of rays instead of a full fan. What it gives up is the overhang.</li>
- *   <li><b>Nothing grows.</b> A sighting never triggers the region scan.</li>
+ *   <li>only bearings inside the head cone are walked;</li>
+ *   <li>rays are {@value #MAX_RAY_SPREAD} blocks apart at full reach ({@link #rays} is sized for
+ *       that), so saplings and lone logs slip between two of them and a canopy does not;</li>
+ *   <li>the fan is fired bottom-up and ends the bearing after {@value #CLEAR_RUN_TO_STOP} rays in
+ *       a row reach full range meeting nothing, since for grounded things a clear line means every
+ *       line above it is clear — which loses the overhang;</li>
+ *   <li>a sighting never triggers the region scan.</li>
  * </ul>
  *
- * <p><b>What it costs.</b> One block read per ray step, charged to the wallet as spent, plus one
- * classifying read per novel coarse cell a ray lands on. No confirm-ray and no separate visibility
- * charge — a ray that arrived has already proved the line. Downward rays die within a few blocks,
- * so a bearing's cost is carried by the handful near level.
- *
- * <p>Resumable like {@link RegionGrowth}: {@link #step} spends at most a budget of reads and picks
- * up mid-RAY next tick, fed the wallet the near field did not use — so a body crossing new ground
- * head-down scans no horizon and a standing body scans with its whole budget.
+ * <p>Costs one block read per ray step, charged as spent, plus one classifying read per novel
+ * coarse cell landed on; no confirm-ray, a ray that arrived having proved its line. Resumable like
+ * {@link RegionGrowth} — {@link #step} spends at most a budget and picks up mid-RAY next tick, fed
+ * the wallet the near field did not use.
  */
 public final class HorizonScanner {
 
@@ -124,6 +118,19 @@ public final class HorizonScanner {
     }
 
     /**
+     * How far this body's eye resolves a {@link BlockProbe.Sight#VEILED} thing into its parts —
+     * past which the ray stops on it rather than carrying through.
+     *
+     * <p>Not shared with the near field's confirm ray, which fires up to
+     * {@link CrescentSampler#radius} through the canopy of the very tree it is hypothesizing: that
+     * one asks <em>could I make out that particular cell</em>, this one <em>does the view carry
+     * past here</em>.
+     */
+    public static int seeThroughRadius(AgentProfile profile) {
+        return profile.i(ProfileAspect.PLACES_SEE_THROUGH_RADIUS);
+    }
+
+    /**
      * How many rays make up one bearing's fan at this reach — enough that neighbours are never
      * more than {@link #MAX_RAY_SPREAD} apart at the far end, where they are widest. A
      * shorter-sighted body gets fewer.
@@ -181,16 +188,25 @@ public final class HorizonScanner {
     /** Any ray of this fan ran out of loaded world. */
     private boolean cutShort;
 
+    /** One coarse cell, as reported for one kind of thing — see {@link #answered}. */
+    private record Reported(PoiKind kind, long cell) {
+    }
+
     /**
      * Coarse cells already reported, newest-used last — what keeps a wood from being announced
      * again on every pass.
      *
-     * <p>SIGHTINGS only: with the confirm-ray gone, remembering an absence would be a body
-     * deciding, permanently, that nothing will ever appear on ground it has already looked at.
+     * <p><b>Keyed by kind as well as cell</b>: a cell-only memory lets whichever kind was seen
+     * First mask every other one there forever. The cost is that the classifying read happens
+     * Before the lookup (nothing can say which kind a landing is until it has read the block), so
+     * an already-answered cell costs one read where it used to cost none.
+     *
+     * <p>SIGHTINGS only: remembering an absence is a body deciding, permanently, that nothing will
+     * ever appear on ground it has already looked at.
      */
-    private final Map<Long, Boolean> answered = new LinkedHashMap<>(64, 0.75f, true) {
+    private final Map<Reported, Boolean> answered = new LinkedHashMap<>(64, 0.75f, true) {
         @Override
-        protected boolean removeEldestEntry(Map.Entry<Long, Boolean> eldest) {
+        protected boolean removeEldestEntry(Map.Entry<Reported, Boolean> eldest) {
             return size() > GLIMPSE_MEMORY;
         }
     };
@@ -220,6 +236,7 @@ public final class HorizonScanner {
         if (this.buffer.anchor() == null || moved(this.buffer.anchor(), here)) {
             this.buffer.reanchor(here);
         }
+        int seeThrough = seeThroughRadius(this.profile);
         int reads = 0;
         while (reads < budget) {
             if (this.bin < 0) {
@@ -229,7 +246,7 @@ public final class HorizonScanner {
                 }
                 begin(next, feet, radius);
             }
-            reads += march(probe, radius, near, now, events);
+            reads += march(probe, radius, near, seeThrough, now, events);
         }
         return reads;
     }
@@ -240,7 +257,8 @@ public final class HorizonScanner {
      * lifts the ray at most 0.58 blocks, so it cannot skip a cell vertically. It can still squeeze
      * diagonally past a corner — this gates <em>noticing</em>, not physics.
      */
-    private int march(BlockProbe probe, int radius, int near, long now, List<SenseEvent> events) {
+    private int march(BlockProbe probe, int radius, int near, int seeThrough, long now,
+            List<SenseEvent> events) {
         int d = this.distance;
         int x = (int) Math.round(this.originX + this.dirX * d);
         int z = (int) Math.round(this.originZ + this.dirZ * d);
@@ -263,16 +281,21 @@ public final class HorizonScanner {
                 endRay(now);
             }
             case VEILED -> {
-                // Seen, and seen through: the canopy registers and the ray carries on — a ray
-                // that only stopped on solids would march through a forest and report the
-                // hillside beyond it.
+                // Seen, and seen through only while near enough to have parts: close up a canopy
+                // is branches and gaps, at forty blocks a green wall. Past the threshold this is
+                // the BLOCKED case — the thing still registers (a wood is made of leaves;
+                // refusing to stop on them would find only trunks) and the ray dies on it.
                 this.clearRun = 0;
                 if (d > near) {
                     reads += land(probe, x, y, z, d, events);
                 }
-                this.distance++;
-                if (this.distance > radius) {
+                if (d > seeThrough) {
                     endRay(now);
+                } else {
+                    this.distance++;
+                    if (this.distance > radius) {
+                        endRay(now);
+                    }
                 }
             }
             case CLEAR -> {
@@ -304,10 +327,6 @@ public final class HorizonScanner {
             this.crestY = y;
             this.crestZ = z;
         }
-        long cell = cellOf(x, z);
-        if (this.answered.containsKey(cell)) {
-            return 0;
-        }
         BlockKind kind = probe.at(x, y, z);
         GrowthRule rule = GrowthRules.forSeed(kind).orElse(null);
         if (rule == null) {
@@ -316,8 +335,9 @@ public final class HorizonScanner {
             // remembered, never an absence, at one classifying read per landing.
             return 1;
         }
-        this.answered.put(cell, true);
-        events.add(SenseEvent.glimpsed(rule.kind(), new Pos(x, y, z)));
+        if (this.answered.putIfAbsent(new Reported(rule.kind(), cellOf(x, z)), true) == null) {
+            events.add(SenseEvent.glimpsed(rule.kind(), new Pos(x, y, z)));
+        }
         return 1;
     }
 
