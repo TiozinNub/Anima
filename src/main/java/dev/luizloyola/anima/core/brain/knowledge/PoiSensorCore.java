@@ -136,9 +136,28 @@ public final class PoiSensorCore {
         // policy, and needs no knob: a body crossing new ground has a full queue and scans no
         // skyline, one standing still scans with its entire wallet.
         if (reads < wallet) {
+            int firstFar = events.size();
             reads += horizon.step(feet, yawDegrees, now, probe, wallet - reads, events);
+            recordGlimpses(events, firstFar, feet, now);
         }
         return events;
+    }
+
+    /**
+     * What the far sense made out becomes the gist tier of the store. Written here rather than
+     * inside the scanner so the scanner stays a sensor and nothing else — the near field's
+     * discoveries reach the store the same way, through {@link #finish}.
+     */
+    private void recordGlimpses(List<SenseEvent> events, int from, Pos feet, long now) {
+        for (int i = from; i < events.size(); i++) {
+            SenseEvent event = events.get(i);
+            if (event.type() == SenseEvent.Type.GLIMPSED) {
+                knowledge.glimpse(
+                        new Sighting(event.kind(), event.anchor(), feet, now,
+                                Sighting.Provenance.PASSIVE),
+                        AgentKnowledge.maxPerKind(profile));
+            }
+        }
     }
 
     /** The person's transient claims — exposed for the debug command's "how full" line. */
@@ -183,6 +202,10 @@ public final class PoiSensorCore {
         reads++;
         GrowthRule rule = ruleFor(kind);
         if (rule == null) {
+            // Looked at properly, and it is nothing: settles any rumour standing on this cell.
+            // Free — the column was probed anyway, and being inside the near field is the
+            // "she actually went and looked" the gist tier is waiting for.
+            knowledge.disprove(column.x(), column.z());
             return reads;
         }
         reads += RAY_COST;
@@ -205,6 +228,11 @@ public final class PoiSensorCore {
     private void finish(GrownRegion region, long now, List<SenseEvent> events) {
         if (!region.accepted()) {
             claims.claimNegative(region.kind(), region.blocks());
+            // A rumour about this mass has been examined and found wanting — the glimpse this
+            // exists to settle is something that reads as a tree from the skyline and is not one.
+            for (Pos cell : region.blocks().keySet()) {
+                knowledge.disprove(cell.x(), cell.z());
+            }
             events.add(SenseEvent.dismissed(region.kind(), activeSeed));
             return;
         }
@@ -214,6 +242,7 @@ public final class PoiSensorCore {
                     AgentKnowledge.maxPerKind(profile));
             claims.claimRegion(region.kind(), memory.anchor(), part.blocks());
             spoken.addAll(part.blocks().keySet());
+            knowledge.supersede(region.kind(), memory.anchor()); // the gist was right; keep the belief
             events.add(SenseEvent.noted(memory));
         }
         if (spoken.size() < region.blocks().size()) {

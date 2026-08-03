@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.brain.knowledge.KnowledgeRegistry;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
+import dev.luizloyola.anima.core.brain.knowledge.Sighting;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.knowledge.SenseEvent;
 import dev.luizloyola.anima.core.brain.sense.Pos;
@@ -116,6 +117,9 @@ public final class KnowledgeViewer {
                 for (PoiMemory memory : knowledge.all(kind)) {
                     emit(level, memory);
                 }
+                for (Sighting sighting : knowledge.glimpses(kind)) {
+                    emitGlimpse(level, sighting);
+                }
             }
         }
     }
@@ -153,5 +157,17 @@ public final class KnowledgeViewer {
                 }
             }
         }
+    }
+
+    /**
+     * One rumour: a single high, drifting mote, and no bounds — a glimpse has none, and it must
+     * read as less than a belief or the viewer shows a body confident about places it has never
+     * been.
+     */
+    private static void emitGlimpse(ServerLevel level, Sighting sighting) {
+        SimpleParticleType particle = PARTICLES.getOrDefault(sighting.kind(), DEFAULT_PARTICLE);
+        Pos at = sighting.at();
+        level.sendParticles(particle, at.x() + 0.5, at.y() + 1.5, at.z() + 0.5,
+                1, 0.2, 0.2, 0.2, 0.01);
     }
 }

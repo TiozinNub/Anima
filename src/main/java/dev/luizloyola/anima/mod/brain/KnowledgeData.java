@@ -10,6 +10,7 @@ import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
+import dev.luizloyola.anima.core.brain.knowledge.Sighting;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.agent.AgentId;
 import java.util.ArrayList;
@@ -67,14 +68,37 @@ public final class KnowledgeData extends SavedData {
             new PoiMemory(kind, detail, individual.orElse(null), anchor, new Region(min, max),
                     units, partial, seen)));
 
-    /** One person's remembered POIs, flattened across kinds ({@code kind} rides in each memory). */
-    private record PersonEntry(AgentId id, List<PoiMemory> pois) {
+    /**
+     * How a sighting came to be believed. Lenient on the way in — an unrecognised label costs less
+     * than dropping the sighting, unlike an unknown {@link PoiKind}, which rightly errors.
+     */
+    private static final Codec<Sighting.Provenance> PROVENANCE_CODEC = Codec.STRING.xmap(
+            name -> Sighting.Provenance.byName(name).orElse(Sighting.Provenance.PASSIVE),
+            Sighting.Provenance::name);
+
+    private static final Codec<Sighting> SIGHTING_CODEC = RecordCodecBuilder.create(s -> s.group(
+            KIND_CODEC.fieldOf("kind").forGetter(Sighting::kind),
+            POS_CODEC.fieldOf("at").forGetter(Sighting::at),
+            POS_CODEC.fieldOf("from").forGetter(Sighting::seenFrom),
+            Codec.LONG.fieldOf("when").forGetter(Sighting::whenTick),
+            PROVENANCE_CODEC.optionalFieldOf("via", Sighting.Provenance.PASSIVE)
+                    .forGetter(Sighting::provenance)
+    ).apply(s, Sighting::new));
+
+    /**
+     * One person's knowledge, flattened across kinds ({@code kind} rides in each entry). The two
+     * tiers are stored apart because they ARE apart — see {@link Sighting}.
+     */
+    private record PersonEntry(AgentId id, List<PoiMemory> pois, List<Sighting> sightings) {
     }
 
     private static final Codec<PersonEntry> ENTRY_CODEC = RecordCodecBuilder.create(e -> e.group(
             UUIDUtil.CODEC.fieldOf("id").forGetter(entry -> entry.id().value()),
-            MEMORY_CODEC.listOf().fieldOf("pois").forGetter(PersonEntry::pois)
-    ).apply(e, (uuid, pois) -> new PersonEntry(AgentId.of(uuid), pois)));
+            MEMORY_CODEC.listOf().fieldOf("pois").forGetter(PersonEntry::pois),
+            // Absent in every save written before the far sense existed.
+            SIGHTING_CODEC.listOf().optionalFieldOf("sightings", List.of())
+                    .forGetter(PersonEntry::sightings)
+    ).apply(e, (uuid, pois, sightings) -> new PersonEntry(AgentId.of(uuid), pois, sightings)));
 
     private static final Codec<KnowledgeData> CODEC = RecordCodecBuilder.create(d -> d.group(
             ENTRY_CODEC.listOf().fieldOf("persons").forGetter(KnowledgeData::entries)
@@ -109,11 +133,13 @@ public final class KnowledgeData extends SavedData {
         for (AgentId id : registry.persons()) {
             AgentKnowledge knowledge = registry.forPerson(id);
             List<PoiMemory> pois = new ArrayList<>();
+            List<Sighting> sightings = new ArrayList<>();
             for (PoiKind kind : PoiKind.all()) {
                 pois.addAll(knowledge.all(kind));
+                sightings.addAll(knowledge.glimpses(kind));
             }
-            if (!pois.isEmpty()) {
-                entries.add(new PersonEntry(id, pois));
+            if (!pois.isEmpty() || !sightings.isEmpty()) {
+                entries.add(new PersonEntry(id, pois, sightings));
             }
         }
         return entries;
@@ -125,6 +151,9 @@ public final class KnowledgeData extends SavedData {
             AgentKnowledge knowledge = registry.forPerson(entry.id());
             for (PoiMemory memory : entry.pois()) {
                 knowledge.restore(memory);
+            }
+            for (Sighting sighting : entry.sightings()) {
+                knowledge.restoreGlimpse(sighting);
             }
         }
         return new KnowledgeData(registry);

@@ -58,9 +58,13 @@ class PoiSensorHorizonTest {
     private long now = 1;
 
     private List<SenseEvent> tick(FakeProbe probe, int ticks) {
+        return tickAt(probe, HERE, ticks);
+    }
+
+    private List<SenseEvent> tickAt(FakeProbe probe, Pos feet, int ticks) {
         List<SenseEvent> events = new ArrayList<>();
         for (int i = 0; i < ticks; i++) {
-            events.addAll(sensor.tick(HERE, AHEAD, now++, probe));
+            events.addAll(sensor.tick(feet, AHEAD, now++, probe));
         }
         return events;
     }
@@ -106,6 +110,40 @@ class PoiSensorHorizonTest {
 
         assertTrue(ofType(early, SenseEvent.Type.GLIMPSED).isEmpty(),
                 "head-down in new ground, she scans no skyline");
+    }
+
+    @Test
+    void walkingUpToAGlimpseTurnsItIntoABelief() {
+        FakeProbe probe = new FakeProbe();
+        probe.placeOak(0, 30);
+
+        tick(probe, 60);
+        assertEquals(1, knowledge.glimpseCount(), "made out from afar");
+        assertEquals(0, knowledge.size(), "but not yet known");
+
+        // Close enough that the near field reaches it.
+        tickAt(probe, new Pos(0, 64, 22), 120);
+
+        assertEquals(0, knowledge.glimpseCount(), "the rumour is spent");
+        assertEquals(1, knowledge.size(), "and she knows the tree instead");
+        assertTrue(knowledge.all(FakeGrowthRule.THICKET).iterator().next().units() > 0,
+                "with something actually counted in it");
+    }
+
+    @Test
+    void walkingUpToNothingDisprovesTheGlimpse() {
+        FakeProbe probe = new FakeProbe();
+        probe.placeOak(0, 30);
+        tick(probe, 60);
+        assertEquals(1, knowledge.glimpseCount());
+
+        // It was there when she looked, and is gone by the time she arrives.
+        probe.removeOak(0, 30);
+        tickAt(probe, new Pos(0, 64, 22), 120);
+
+        assertEquals(0, knowledge.glimpseCount(),
+                "she went to look and there was nothing — the gist does not outlive that");
+        assertEquals(0, knowledge.size(), "and nothing was invented to replace it");
     }
 
     @Test

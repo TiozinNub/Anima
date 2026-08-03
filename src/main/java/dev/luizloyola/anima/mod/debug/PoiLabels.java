@@ -61,6 +61,14 @@ public final class PoiLabels {
         return seconds < 2 ? "now" : brief(seconds * 20);
     }
 
+    /**
+     * Ticks as the shortest thing worth reading: {@code "32s"}, {@code "2m"}. Public for the gist
+     * tier, which ages the same way but has no {@link PoiMemory} to be asked about.
+     */
+    public static String ticks(long ticks) {
+        return brief(ticks);
+    }
+
     /** Ticks as the shortest thing worth reading: {@code "32s"}, {@code "2m"}. */
     private static String brief(long ticks) {
         long seconds = ticks / 20;

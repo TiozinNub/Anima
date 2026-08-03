@@ -25,6 +25,7 @@ import dev.luizloyola.anima.compat.inv.ItemStacks;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
+import dev.luizloyola.anima.core.brain.knowledge.Sighting;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.task.BreakBlock;
 import dev.luizloyola.anima.core.brain.task.GoTo;
@@ -974,14 +975,15 @@ public final class AgentCommands {
         }
         AgentKnowledge knowledge = Knowledges.of(source.getServer()).forPerson(id);
         String name = person.entity().getName().getString();
-        if (knowledge.size() == 0) {
+        if (knowledge.size() == 0 && knowledge.glimpseCount() == 0) {
             Replies.send(source, () -> Component.literal(name + " remembers no POIs yet.")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         long now = source.getServer().overworld().getGameTime();
         Replies.send(source, () -> Component.literal(name + " — " + knowledge.size()
-                        + " remembered POI(s), " + person.poiSensor().claimCount() + " claimed blocks")
+                        + " remembered POI(s), " + knowledge.glimpseCount() + " glimpsed, "
+                        + person.poiSensor().claimCount() + " claimed blocks")
                 .withStyle(ChatFormatting.AQUA));
         for (PoiKind kind : PoiKind.all()) {
             for (PoiMemory memory : knowledge.all(kind)) {
@@ -990,7 +992,28 @@ public final class AgentCommands {
                         .withStyle(ChatFormatting.GREEN));
             }
         }
-        return knowledge.size();
+        // The gist tier last and dimmer: these are not things she knows, they are places worth
+        // going to look at.
+        for (PoiKind kind : PoiKind.all()) {
+            for (Sighting sighting : knowledge.glimpses(kind)) {
+                String line = formatGlimpse(person, sighting, now);
+                Replies.send(source, () -> Component.literal(line)
+                        .withStyle(ChatFormatting.AQUA));
+            }
+        }
+        return knowledge.size() + knowledge.glimpseCount();
+    }
+
+    /** One rumour line: {@code ~TREE (0, 68, 30) - 30 blocks away, made out from 42 off, 12s ago}. */
+    private static String formatGlimpse(AgentBody person, Sighting sighting, long now) {
+        double distance = Math.sqrt(person.entity().distanceToSqr(
+                sighting.at().x() + 0.5, sighting.at().y() + 0.5, sighting.at().z() + 0.5));
+        return "~" + sighting.kind().key().toUpperCase(java.util.Locale.ROOT)
+                + " (" + sighting.at().x() + ", " + sighting.at().y() + ", " + sighting.at().z()
+                + ") - " + Math.round(distance) + " blocks away, made out from "
+                + sighting.range() + " off, " + PoiLabels.ticks(sighting.age(now)) + " ago"
+                + (sighting.provenance() == Sighting.Provenance.PASSIVE
+                        ? "" : ", " + sighting.provenance().name().toLowerCase(java.util.Locale.ROOT));
     }
 
     /** One belief line: {@code TREE (10, 64, 8) - 14 blocks away, 4 logs, seen 32s ago, partial}. */

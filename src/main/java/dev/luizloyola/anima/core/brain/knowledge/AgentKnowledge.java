@@ -137,6 +137,176 @@ public final class AgentKnowledge {
         return until != null && until > now;
     }
 
+    // --- the gist tier: what was made out but never examined ---------------------------------
+
+    /**
+     * How near two glimpses must be to be one glimpse — Chebyshev, <b>horizontal only</b>, since a
+     * sighting names a place, not a height. Far coarser than any belief's
+     * {@link PoiKind#mergeRadius()}: a wood arrives as one impression, not two hundred trunks, and
+     * the tier does not drown the store beside it. Matches the far sense's emission grid, which
+     * likewise spends no second confirm-ray inside one cell.
+     */
+    public static final int GLIMPSE_MERGE_RADIUS = 8;
+
+    /**
+     * Keyed by COLUMN, not by cell: a sighting is a claim about a place rather than a block, and
+     * the column makes {@link #disprove} a hash lookup instead of a scan. Disprove fires tens of
+     * times a tick per agent, so a linear pass would cost more than the sense that produced it.
+     */
+    private final Map<PoiKind, Map<Column, Sighting>> glimpsedByKind = new LinkedHashMap<>();
+
+    /**
+     * Records a sighting, unless this agent already <em>knows</em> something of that kind there —
+     * a belief outranks a rumour about the same place. Otherwise merges coarsely (the newer
+     * sighting wins) and evicts the stalest of its kind at capacity. Returns what was stored, or
+     * null when the sighting was declined.
+     */
+    public Sighting glimpse(Sighting sighting, int maxPerKind) {
+        Objects.requireNonNull(sighting, "sighting");
+        if (knows(sighting.kind(), sighting.at())) {
+            return null;
+        }
+        Map<Column, Sighting> entries = glimpsesFor(sighting.kind());
+        Column merged = findGlimpseWithin(entries, sighting.at());
+        if (merged != null) {
+            entries.remove(merged);
+        } else if (entries.size() >= maxPerKind) {
+            evictStalestGlimpse(entries);
+        }
+        entries.put(columnOf(sighting.at()), sighting);
+        return sighting;
+    }
+
+    /** Puts back a sighting that was already this agent's — uncapped, for the same reason
+     *  {@link #restore} is. */
+    public Sighting restoreGlimpse(Sighting sighting) {
+        Objects.requireNonNull(sighting, "sighting");
+        glimpsesFor(sighting.kind()).put(columnOf(sighting.at()), sighting);
+        return sighting;
+    }
+
+    /**
+     * The real thing turned out to be here: drops every sighting of that kind near the anchor.
+     * Keeping both would leave the body walking to a place it already stands in.
+     *
+     * @return how many were superseded
+     */
+    public int supersede(PoiKind kind, Pos anchor) {
+        Map<Column, Sighting> entries = glimpsedByKind.get(kind);
+        if (entries == null) {
+            return 0;
+        }
+        int before = entries.size();
+        entries.keySet().removeIf(
+                at -> horizontalChebyshev(at.x(), at.z(), anchor) <= GLIMPSE_MERGE_RADIUS);
+        return before - entries.size();
+    }
+
+    /**
+     * This column was looked at properly and holds nothing of the sort: drops any sighting standing
+     * exactly on it, of any kind. Exact rather than coarse — one empty column is not evidence about
+     * its neighbours.
+     *
+     * @return how many were disproved
+     */
+    public int disprove(int x, int z) {
+        if (glimpsedByKind.isEmpty()) {
+            return 0; // the overwhelmingly common case: nothing has been made out at all
+        }
+        Column column = new Column(x, z);
+        int dropped = 0;
+        for (Map<Column, Sighting> entries : glimpsedByKind.values()) {
+            if (entries.remove(column) != null) {
+                dropped++;
+            }
+        }
+        return dropped;
+    }
+
+    /** All sightings of a kind, insertion-ordered, unmodifiable. */
+    public Collection<Sighting> glimpses(PoiKind kind) {
+        Map<Column, Sighting> entries = glimpsedByKind.get(kind);
+        return entries == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableCollection(entries.values());
+    }
+
+    /** The sighting of this kind nearest {@code from}, by the same distance-only rule as
+     *  {@link #nearest}. */
+    public Optional<Sighting> nearestGlimpse(PoiKind kind, Pos from) {
+        Map<Column, Sighting> entries = glimpsedByKind.get(kind);
+        if (entries == null || entries.isEmpty()) {
+            return Optional.empty();
+        }
+        Sighting best = null;
+        long bestDist = Long.MAX_VALUE;
+        for (Sighting sighting : entries.values()) {
+            long dist = distanceSq(sighting.at(), from);
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = sighting;
+            }
+        }
+        return Optional.of(best);
+    }
+
+    /** Total sightings across kinds. */
+    public int glimpseCount() {
+        int size = 0;
+        for (Map<Column, Sighting> entries : glimpsedByKind.values()) {
+            size += entries.size();
+        }
+        return size;
+    }
+
+    /** Whether a BELIEF of this kind already stands within glimpse range of a place. */
+    private boolean knows(PoiKind kind, Pos at) {
+        Map<Pos, PoiMemory> entries = byKind.get(kind);
+        if (entries == null) {
+            return false;
+        }
+        for (Pos anchor : entries.keySet()) {
+            if (horizontalChebyshev(anchor.x(), anchor.z(), at) <= GLIMPSE_MERGE_RADIUS) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Map<Column, Sighting> glimpsesFor(PoiKind kind) {
+        return glimpsedByKind.computeIfAbsent(kind, k -> new LinkedHashMap<>());
+    }
+
+    private static Column columnOf(Pos at) {
+        return new Column(at.x(), at.z());
+    }
+
+    private static Column findGlimpseWithin(Map<Column, Sighting> entries, Pos at) {
+        for (Column existing : entries.keySet()) {
+            if (horizontalChebyshev(existing.x(), existing.z(), at) <= GLIMPSE_MERGE_RADIUS) {
+                return existing;
+            }
+        }
+        return null;
+    }
+
+    private static void evictStalestGlimpse(Map<Column, Sighting> entries) {
+        Column stalest = null;
+        long oldest = Long.MAX_VALUE;
+        for (Map.Entry<Column, Sighting> entry : entries.entrySet()) {
+            if (entry.getValue().whenTick() < oldest) {
+                oldest = entry.getValue().whenTick();
+                stalest = entry.getKey();
+            }
+        }
+        entries.remove(stalest);
+    }
+
+    /** Chebyshev in the horizontal plane only — a glimpse names a place, not a height. */
+    private static int horizontalChebyshev(int x, int z, Pos b) {
+        return Math.max(Math.abs(x - b.x()), Math.abs(z - b.z()));
+    }
+
     /** Total remembered entries across kinds. */
     public int size() {
         int size = 0;
