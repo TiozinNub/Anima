@@ -39,7 +39,10 @@ class DefaultsPreserveLegacyConstantsTest {
     void animaLimitsMatchTheirDefaults() {
         Config.reset();
 
-        assertEquals(64, PoiSensorCore.readsPerTick(), "PoiSensorCore.READS_PER_TICK");
+        // No longer the legacy 64: the ray-fan far sense doubled its reach to 128, so one sweep of
+        // the skyline is ~25,000 reads. At 64 a body never finished looking round before its
+        // bearings went stale, so it never settled.
+        assertEquals(256, PoiSensorCore.readsPerTick(), "PoiSensorCore.READS_PER_TICK");
         assertEquals(1024, PoiSensorCore.queueCap(), "PoiSensorCore.QUEUE_CAP");
         // No longer the legacy 512: at that cap a Person standing INSIDE a stand of four touching
         // mega spruces remembered two of them — a scan cut short loses crowns, and a crownless

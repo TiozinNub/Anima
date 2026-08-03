@@ -39,9 +39,13 @@ public enum Knob implements KnobSpec {
     // --- limits: what no species may spend more of than this ---------------------------------
 
     /** @see dev.luizloyola.anima.core.brain.knowledge.PoiSensorCore#readsPerTick() */
-    READS_PER_TICK("limits.reads_per_tick", Kind.INT, 64, 1, 4096,
+    READS_PER_TICK("limits.reads_per_tick", Kind.INT, 256, 1, 4096,
             "Block-read budget per agent per tick — the main throughput/TPS dial. At the cap, "
-                    + "columns wait in the queue below and places are noticed later, never missed."),
+                    + "columns wait in the queue below and places are noticed later, never missed. "
+                    + "The far sense is what sets the floor: one sweep of the skyline costs about "
+                    + "25,000 reads at a 128-block reach, and it has to finish inside "
+                    + "places.horizon_radius's refresh interval or a body never stops looking and "
+                    + "never settles. Raise this with the reach, not after it."),
     /** @see dev.luizloyola.anima.core.brain.knowledge.PoiSensorCore#queueCap() */
     QUEUE_CAP("limits.queue_cap", Kind.INT, 1024, 16, 65_536,
             "How many un-probed columns may back up per agent before new sightings are dropped. "
