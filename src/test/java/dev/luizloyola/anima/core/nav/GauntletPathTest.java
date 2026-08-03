@@ -69,7 +69,7 @@ class GauntletPathTest {
             out.add(new Station(f[0],
                     Integer.parseInt(f[1]), Integer.parseInt(f[2]), Integer.parseInt(f[3]),
                     Integer.parseInt(f[4]), Integer.parseInt(f[5]), Integer.parseInt(f[6]),
-                    f[7], f.length > 8 ? f[8] : ""));
+                    f[7], f.length > 9 ? f[9] : ""));
         }
         return out;
     }
