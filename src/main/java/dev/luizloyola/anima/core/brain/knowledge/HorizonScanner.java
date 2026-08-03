@@ -35,9 +35,13 @@ public final class HorizonScanner {
 
     /**
      * Bins walked per pass. The buffer's 256 bearings are sized for a full-reach survey; the
-     * passive tier works at a shorter range where that is heavy oversampling (1.2 blocks of arc
-     * at 48), so it takes every second bearing and still leaves 2.4 blocks between samples —
-     * inside the narrowest canopy.
+     * passive tier works at a shorter range where that is oversampling (1.6 blocks of arc at 64),
+     * so it takes every second bearing and still leaves 3.1 blocks between samples — inside the
+     * narrowest full-grown canopy, which is the bound that matters.
+     *
+     * <p>That bound is what caps the passive radius rather than any cost: at a 64-block reach
+     * every second bearing is still dense enough to catch a tree, and beyond about 80 it would
+     * not be. Widening the reach further means walking more bearings, not merely longer ones.
      */
     private static final int BIN_STRIDE = 2;
 
