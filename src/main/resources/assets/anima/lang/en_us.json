@@ -81,7 +81,7 @@
   "anima.config.aspect.places.near_radius": "Underfoot halo",
   "anima.config.aspect.places.near_radius.desc": "Radius in blocks within which places are noticed whichever way a Person faces — what you are standing next to, rather than what you are looking at.",
   "anima.config.aspect.places.horizon_radius": "Skyline radius",
-  "anima.config.aspect.places.horizon_radius.desc": "How far a Person makes out the gist of what is out there — a forest, not a tree. Costs no sight rays: distant shapes occlude one another by arithmetic, and the work is paid for out of whatever the near field left unspent. Set at or below the sense radius to switch it off.",
+  "anima.config.aspect.places.horizon_radius.desc": "How far a Person makes out the gist of what is out there — a forest, not a tree. Sight rays are marched out to it, and it sets both how long they are and how many make up a fan, so raising it costs more than proportionally; the work is paid for out of whatever the near field left unspent, so what a longer reach really buys is how often the whole view is fresh. Set at or below the sense radius to switch it off.",
   "anima.config.aspect.places.see_through_radius": "See-into radius",
   "anima.config.aspect.places.see_through_radius.desc": "How far a Person's eye resolves a see-through thing — a canopy, a water surface — into its parts. Nearer than this they look between the branches; further off the same canopy is a wall the skyline stops at, which is why a Person standing in a wood can barely see out of it. 0 means they never see into anything.",
   "anima.config.aspect.places.region_max_spread": "Scan spread cap",

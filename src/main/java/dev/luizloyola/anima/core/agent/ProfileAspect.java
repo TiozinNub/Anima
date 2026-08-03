@@ -120,9 +120,12 @@ public enum ProfileAspect {
                     + "a legitimate thing for a body with eyes on stalks to be."),
     PLACES_HORIZON_RADIUS("places.horizon_radius", Kind.INT, 0, 256,
             "How far (blocks) this body makes out a skyline — the gist of what is out there, "
-                    + "past any range at which it could inspect a thing. Costs no rays: distant "
-                    + "shapes occlude each other by arithmetic. At or below the radius above it "
-                    + "is off, which is the right answer for anything that lives by its nose."),
+                    + "past any range at which it could inspect a thing. Rays are marched to it, "
+                    + "and it sets both how long they are and how many make up a fan, so a longer "
+                    + "reach costs more than proportionally; what it does not do is raise the "
+                    + "per-tick bill, which the server's read budget caps. At or below the radius "
+                    + "above it is off, which is the right answer for anything that lives by its "
+                    + "nose."),
     PLACES_SEE_THROUGH_RADIUS("places.see_through_radius", Kind.INT, 0, 64,
             "How far (blocks) this body's eye resolves a see-through thing into its parts. "
                     + "Inside it, a canopy is branches and gaps and the view carries past; beyond "
