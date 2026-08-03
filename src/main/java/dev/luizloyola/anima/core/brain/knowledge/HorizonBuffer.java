@@ -6,19 +6,16 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
  * What a body can make out on the skyline, one entry per bearing: the <em>steepest thing seen in
  * that direction</em>, and where it stands.
  *
- * <p>Long sight costs no rays. Walking outward and keeping a running maximum of
- * {@code tan(elevation)} registers a column only if it rises above everything nearer on the same
- * line, so hills occlude — arithmetic over a heightmap the near field already reads. (The old
- * voxel-terrain horizon walk; terrain LOD calls the quantity the horizon angle.)
+ * <p>A deliberate flattening. {@link HorizonScanner} fires a whole fan along each bearing and
+ * offers every landing to the growth rules, but only the steepest is KEPT — the horizon angle a
+ * vantage-seeker wants; the other landings are events, not state.
  *
- * <p><b>Bearings are absolute, not head-relative.</b> Bin 0 is 0° (+Z, Minecraft's convention) and
- * the head cone selects a slice, so a body turns without discarding what it made out, and the
- * passive sweep and the full-circle survey share one structure.
+ * <p><b>Bearings are absolute, not head-relative.</b> Bin 0 is bearing 0° (+Z, Minecraft's
+ * convention) and the head cone selects a slice, so a body turns without discarding what it made
+ * out and both tiers (passive sweep, full-circle survey) write into one structure.
  *
- * <p>Occlusion accumulates only from {@code places.radius} outward, so a wall at arm's length does
- * not darken a bearing; sightings are gated by a confirm-ray instead (see
- * {@link HorizonScanner}). Nor is it a memory — a live readout, and everything worth keeping leaves
- * it as an event.
+ * <p>Not a memory but a live readout from roughly where the body stands; what is worth keeping
+ * leaves as an event, and every entry was arrived at by a ray.
  */
 public final class HorizonBuffer {
 
@@ -95,13 +92,22 @@ public final class HorizonBuffer {
         java.util.Arrays.fill(this.swept, false);
     }
 
-    /** A bearing's steepest sighting rose above everything nearer on the line. */
+    /** The steepest thing a bearing's fan landed on. */
     public void record(int bin, double elevationTan, int x, int y, int z) {
         this.tan[bin] = (float) elevationTan;
         this.topX[bin] = x;
         this.topY[bin] = y;
         this.topZ[bin] = z;
         this.filled[bin] = true;
+    }
+
+    /**
+     * A bearing was looked along and came back empty — nothing but sky. Forgetting the old crest
+     * matters: a bearing commonly empties because what topped it was felled, and a readout still
+     * showing it would have a body deciding about a tree that is gone.
+     */
+    public void blank(int bin) {
+        this.filled[bin] = false;
     }
 
     /**

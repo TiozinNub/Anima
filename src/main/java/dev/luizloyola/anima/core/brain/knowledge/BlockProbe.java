@@ -19,6 +19,39 @@ public interface BlockProbe {
     BlockKind at(int x, int y, int z);
 
     /**
+     * What a ray meets at this cell, answered in one read.
+     *
+     * <p>Separate from {@link #at} because the vocabularies differ: {@link BlockKind} is a botany
+     * and minds whether a leaf grew or was placed; an eye does not, and does mind the flowers and
+     * grass {@code at} flattens into air. Deriving one from the other got hedges and dying canopy
+     * rims wrong in opposite directions.
+     */
+    Sight sightAt(int x, int y, int z);
+
+    /** What a ray finds in a cell. */
+    enum Sight {
+        /** It passes and there was nothing to see: air, grass, flowers. */
+        CLEAR,
+        /**
+         * It passes, but there is something here to notice — a canopy, a water surface.
+         *
+         * <p>The distinction {@link #CLEAR} cannot make, and the far sense is useless without it:
+         * leaves are see-through, so a ray at a wood does not stop, and one treating a canopy as
+         * air could find a tree only by threading its trunk — at fifty blocks the bearings are
+         * three apart, so it almost never would.
+         */
+        VEILED,
+        /** It stops here. Something solid enough to hide what is behind it. */
+        BLOCKED,
+        /**
+         * There is no world here to look at — an unloaded chunk. A ray ends, but the bearing it
+         * belongs to reports "I could see no further", which is a different claim from "there was
+         * nothing there" and must never be collapsed into it.
+         */
+        OUTSIDE;
+    }
+
+    /**
      * The confirm-ray: can the person currently see this cell from their eyes? One voxel walk,
      * air/leaves/water transparent — fired once per <em>discovery</em> (before an expansion is
      * spent on a hypothesis), never per column, so the proof costs almost nothing.

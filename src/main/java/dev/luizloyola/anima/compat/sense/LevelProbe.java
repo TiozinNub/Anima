@@ -82,6 +82,28 @@ public final class LevelProbe implements BlockProbe {
     }
 
     /**
+     * One cell of a marching ray, using the same transparency the sampled sight march below uses —
+     * so the horizon sweep and the confirm-ray agree about what can be seen through. Reads exactly
+     * one blockstate. That is what lets the sweep charge itself correctly.
+     */
+    @Override
+    public Sight sightAt(int x, int y, int z) {
+        BlockPos pos = new BlockPos(x, y, z);
+        if (!this.level.isLoaded(pos)) {
+            return Sight.OUTSIDE;
+        }
+        BlockState state = this.level.getBlockState(pos);
+        if (!transparent(this.level, pos, state)) {
+            return Sight.BLOCKED;
+        }
+        // The two see-through things that are nonetheless THINGS: a ray that called a canopy or a
+        // water surface empty air would march straight through a forest reporting nothing.
+        return state.is(BlockTags.LEAVES) || state.getFluidState().is(FluidTags.WATER)
+                ? Sight.VEILED
+                : Sight.CLEAR;
+    }
+
+    /**
      * Whether the ARM has a clear path from {@code from} to the target — stricter than seeing:
      * anything with a collision shape blocks a swing, INCLUDING leaves (eyes see through a canopy;
      * arms do not — caught live: a log broken through the leaves above it). Plants and water do not
@@ -166,18 +188,25 @@ public final class LevelProbe implements BlockProbe {
             if (cell.equals(targetCell) || !level.isLoaded(cell)) {
                 continue;
             }
-            // The ray needs FINER transparency than the BlockKind vocabulary: anything without a
-            // collision shape is see-through (a meadow must not blind them), as are leaves and
-            // water.
-            BlockState state = level.getBlockState(cell);
-            boolean transparent = state.isAir()
-                    || state.is(BlockTags.LEAVES)
-                    || state.getFluidState().is(FluidTags.WATER)
-                    || state.getCollisionShape(level, cell).isEmpty();
-            if (!transparent) {
+            if (!transparent(level, cell, level.getBlockState(cell))) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * What an eye sees through — one definition for both the sampled march and the horizon sweep's
+     * rays, so the two tiers cannot disagree.
+     *
+     * <p>FINER than {@link BlockKind}: anything without a collision shape is see-through (a meadow
+     * must not blind them; caught live on real worldgen), as are leaves and water — grown or
+     * placed, since that distinction is a tree story.
+     */
+    private static boolean transparent(Level level, BlockPos cell, BlockState state) {
+        return state.isAir()
+                || state.is(BlockTags.LEAVES)
+                || state.getFluidState().is(FluidTags.WATER)
+                || state.getCollisionShape(level, cell).isEmpty();
     }
 }

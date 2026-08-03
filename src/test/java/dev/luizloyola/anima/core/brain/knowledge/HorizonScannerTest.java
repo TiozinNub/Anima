@@ -118,7 +118,42 @@ class HorizonScannerTest {
         }
 
         assertTrue(glimpses(sweep(probe, 60)).isEmpty(),
-                "the running skyline occludes it — and no ray was spent finding that out");
+                "every ray that way stops on the wall");
+    }
+
+    @Test
+    void aGapInTheRidgeIsEnoughToSeeThrough() {
+        FakeProbe probe = new FakeProbe();
+        probe.placeOak(0, 30);
+        // The same wall, two courses left out on the eye-to-tree line. The old skyline walk
+        // occluded everything behind it by arithmetic; a ray goes through the hole.
+        for (int x = -12; x <= 12; x++) {
+            for (int y = 64; y <= 78; y++) {
+                if (y == 66 || y == 67) {
+                    continue;
+                }
+                probe.set(x, y, 20, BlockKind.OTHER);
+            }
+        }
+
+        assertFalse(glimpses(sweep(probe, 80)).isEmpty(),
+                "a body can see through a gap it is level with");
+    }
+
+    @Test
+    void aWallAtArmsLengthHidesEverything() {
+        FakeProbe probe = new FakeProbe();
+        probe.placeOak(0, 30);
+        // Four blocks off: the old walk never looked inside inspection range, so a barn in the
+        // way cost a wasted confirm-ray.
+        for (int x = -12; x <= 12; x++) {
+            for (int y = 64; y <= 78; y++) {
+                probe.set(x, y, 4, BlockKind.OTHER);
+            }
+        }
+
+        assertTrue(glimpses(sweep(probe, 60)).isEmpty(),
+                "rays start at the eye, so what is near enough to block really does block");
     }
 
     @Test
@@ -157,7 +192,9 @@ class HorizonScannerTest {
     void theSweepGoesQuietOnceTheSkylineIsFreshAndWakesWhenItStales() {
         FakeProbe probe = new FakeProbe();
         probe.placeOak(0, 30);
-        sweep(probe, 60);
+        // Long enough to finish every bearing in the cone: a fan of marching rays costs several
+        // times the old heightmap walk, so a bearing then rests for REFRESH_TICKS.
+        sweep(probe, 90);
 
         int before = probe.reads;
         scanner.step(HERE, AHEAD, now, probe, 64, new ArrayList<>());
@@ -172,8 +209,8 @@ class HorizonScannerTest {
     void theSweepNeverOutspendsItsWalletByMoreThanOneSample() {
         FakeProbe probe = new FakeProbe();
         probe.placeOak(0, 30);
-        // One sample may overrun by its confirm-ray: surfaceY + at + HORIZON_RAY_COST.
-        int slack = 2 + HorizonScanner.HORIZON_RAY_COST;
+        // One step may overrun by the read that classifies what the ray landed on.
+        int slack = 2;
         for (int i = 0; i < 60; i++) {
             int before = probe.reads;
             int claimed = scanner.step(HERE, AHEAD, now++, probe, 24, new ArrayList<>());
@@ -184,12 +221,36 @@ class HorizonScannerTest {
     }
 
     @Test
+    void fellingWhatToppedABearingDropsItBackToTheGround() {
+        FakeProbe probe = new FakeProbe();
+        // A pillar on an otherwise empty bearing, tall enough that it is what the fan lands on.
+        for (int y = 64; y <= 78; y++) {
+            probe.set(0, y, 30, BlockKind.OTHER);
+        }
+        sweep(probe, 90);
+        int bin = HorizonBuffer.binOf(0.0);
+        assertTrue(scanner.buffer().tan(bin) > 0, "it stands above their eye, so the bearing does");
+
+        for (int y = 64; y <= 78; y++) {
+            probe.clear(0, y, 30);
+        }
+        now += HorizonScanner.REFRESH_TICKS + 1;
+        sweep(probe, 90);
+
+        // Not empty: the open ground out there is the horizon now — only the pillar must go.
+        assertTrue(scanner.buffer().tan(bin) < 0,
+                "once it is felled nothing that way rises to their eye any more");
+        assertTrue(scanner.buffer().top(bin).y() <= FakeProbe.GROUND_Y,
+                "and what tops the bearing is the ground, not a memory of the pillar");
+    }
+
+    @Test
     void aFreshWorldStartsAtTimeZero() {
         // Game time 0 is a real value, not a "never swept" sentinel — a body spawned into a new
         // world must still be able to finish a bearing and let it rest.
         FakeProbe probe = new FakeProbe();
         HorizonScanner fresh = new HorizonScanner(EYED);
-        for (int tick = 0; tick < 60; tick++) {
+        for (int tick = 0; tick < 90; tick++) {
             fresh.step(HERE, AHEAD, tick, probe, 64, new ArrayList<>());
         }
 

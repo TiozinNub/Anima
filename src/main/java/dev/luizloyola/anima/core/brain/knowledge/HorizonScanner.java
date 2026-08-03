@@ -12,57 +12,83 @@ import java.util.Map;
  * gist, not the thing. Where the near field individuates a tree and counts its logs, this says only
  * <em>there is forest over there</em>.
  *
- * <p><b>Passive tier.</b> Unbidden, forward-only, and lossy on purpose in three ways:
+ * <p><b>It is rays.</b> Each bearing is looked along by a FAN spread in pitch from
+ * {@value #PITCH_DOWN_DEGREES}° below the eye to {@value #PITCH_UP_DEGREES}° above, each ray
+ * marching cell by cell until something solid stops it — no heightmap arithmetic, no inference.
+ * Grass and flowers are nothing to it, solids stop it dead, and a canopy or water surface is
+ * {@link BlockProbe.Sight#VEILED}: made out, while the ray carries on to whatever stands behind.
+ * Without that third case a wood is invisible — leaves stop nothing, a trunk is one block, and at
+ * fifty blocks the bearings are three blocks apart.
+ *
+ * <p>Rays start <em>at the eye</em>, so a barn ten blocks off hides the wood behind it; a hit
+ * nearer than {@code places.radius} is dropped, because the near field owns that ground.
+ *
+ * <p><b>Passive tier.</b> Unbidden, forward-only, and lossy on purpose in four ways:
  * <ul>
  *   <li><b>It never looks behind.</b> Only bearings inside the head cone are walked; the active
- *       tier exists for the rest.</li>
- *   <li><b>Sample spacing grows with distance</b> ({@link #stride}), holding roughly constant
- *       angular resolution the way an eye does. Below about four blocks of feature width nothing
- *       registers, so saplings and lone logs are invisible at range.</li>
+ *       survey exists for the rest.</li>
+ *   <li><b>The fan has gaps.</b> Rays are {@value #MAX_RAY_SPREAD} blocks apart at full reach
+ *       ({@link #rays} is sized for that), so anything narrower slips between two of them at range
+ *       — saplings and lone logs are invisible from far off, a canopy is not.</li>
+ *   <li><b>It stops climbing once a ray flies clear.</b> The fan is fired bottom-up and the first
+ *       ray to reach full range meeting nothing ends the bearing: a line that clears everything has
+ *       every line above it clear too, so open country costs the handful of rays that die on the
+ *       floor plus one that flies. What it gives up is the overhang — a floating island above an
+ *       unobstructed line is not made out.</li>
  *   <li><b>Nothing grows.</b> A sighting never triggers the region scan.</li>
  * </ul>
  *
- * <p><b>It costs no rays to see terrain.</b> Occlusion comes out of the running maximum described
- * on {@link HorizonBuffer}. Rays are spent only on a <em>candidate sighting</em> — cheap
- * hypothesis, one confirming ray, the near field's own shape — at {@value #HORIZON_RAY_COST}
- * rather than 8, because the walk is twice as long.
+ * <p><b>What it costs.</b> One block read per ray step, charged to the wallet as spent, plus one
+ * classifying read per novel coarse cell a ray lands on. No confirm-ray and no separate visibility
+ * charge — a ray that arrived has already proved the line. Downward rays die within a few blocks,
+ * so a bearing's cost is carried by the handful near level.
  *
  * <p>Resumable like {@link RegionGrowth}: {@link #step} spends at most a budget of reads and picks
- * up mid-bearing next tick, fed the wallet the near field did not use — so a body crossing new
- * ground head-down scans no horizon and a standing body scans with its whole budget.
+ * up mid-RAY next tick, fed the wallet the near field did not use — so a body crossing new ground
+ * head-down scans no horizon and a standing body scans with its whole budget.
  */
 public final class HorizonScanner {
 
     /**
-     * Bins walked per pass. The buffer's 256 bearings are sized for a full-reach survey; the
-     * passive tier works at a shorter range where that is oversampling (1.6 blocks of arc at 64),
-     * so it takes every second bearing and still leaves 3.1 blocks between samples — inside the
-     * narrowest full-grown canopy, which is the bound that matters.
+     * Bins walked per pass. The buffer's 256 bearings suit a full-reach survey and oversample the
+     * passive tier's shorter range (1.6 blocks of arc at 64), so every second bearing still leaves
+     * only 3.1 blocks between samples — inside the narrowest full-grown canopy. That bound, not
+     * cost, caps the passive radius: past about 80 blocks every second bearing would miss a tree,
+     * and widening the reach means more bearings, not merely longer ones.
      *
-     * <p>That bound is what caps the passive radius rather than any cost: at a 64-block reach
-     * every second bearing is still dense enough to catch a tree, and beyond about 80 it would
-     * not be. Widening the reach further means walking more bearings, not merely longer ones.
+     * <p>Public because two buffer samples are neighbours at this spacing and no closer, so the
+     * debug view can join them without inventing ground nobody walked.
      */
-    private static final int BIN_STRIDE = 2;
-
-    /** Sample spacing is {@code distance / this}, so angular resolution stays constant. */
-    private static final int STRIDE_DIVISOR = 12;
+    public static final int BIN_STRIDE = 2;
 
     /**
-     * Spacing never exceeds this. The narrowest full-grown canopy is 5 wide, so a stride of 4
-     * cannot step over a real tree — which is the line between "misses saplings", which
-     * is acceptable, and "misses forests", which is the bug this whole sense exists to fix.
+     * How far below level the fan reaches. Nearly free: a downward ray meets the ground within a
+     * handful of blocks, so the lower half costs less than one ray near level — and it is the
+     * whole view of a body standing on a cliff or a roof.
      */
-    private static final int MAX_STRIDE = 4;
-
-    /** Wallet charge for one far confirm-ray — twice the near field's, for twice the walk. */
-    public static final int HORIZON_RAY_COST = 16;
+    private static final double PITCH_DOWN_DEGREES = 30.0;
 
     /**
-     * A bearing walked this recently is left alone. Without it a body with spare budget re-walks
-     * the same skyline every tick forever, learning nothing and spending everything.
+     * How far above level it reaches — the expensive half, an upward ray over open ground paying
+     * full reach for nothing. {@value}° is a 23-block rise at 64 blocks: any tree, the shoulder of
+     * a hill, and steeper is close enough for the near field.
      */
-    public static final int REFRESH_TICKS = 100;
+    private static final double PITCH_UP_DEGREES = 20.0;
+
+    /**
+     * The widest the fan may spread at full reach. The narrowest full-grown canopy is 5 blocks, so
+     * rays 4 apart cannot pass either side of a real tree — the same line the bin stride draws
+     * horizontally, drawn again vertically, and for the same reason.
+     */
+    private static final int MAX_RAY_SPREAD = 4;
+
+    /**
+     * A bearing walked this recently is left alone. Half a minute, where the heightmap walk this
+     * replaced could afford five seconds: a fan of marching rays costs an order of magnitude more,
+     * and re-walking would spend a standing body's whole leftover wallet to learn nothing. MOVING
+     * is what invalidates a skyline, and {@link #REANCHOR_DISTANCE} already catches that.
+     */
+    public static final int REFRESH_TICKS = 600;
 
     /** Moving this far from where the readout was taken marks every bearing stale. */
     private static final int REANCHOR_DISTANCE = 16;
@@ -81,28 +107,65 @@ public final class HorizonScanner {
         return profile.i(ProfileAspect.PLACES_HORIZON_RADIUS);
     }
 
+    /**
+     * How many rays make up one bearing's fan at this reach — enough that neighbours are never
+     * more than {@link #MAX_RAY_SPREAD} apart at the far end, where they are widest. A
+     * shorter-sighted body gets fewer.
+     */
+    public static int rays(int radius) {
+        if (radius <= 0) {
+            return 0;
+        }
+        double perRay = Math.toDegrees(Math.atan((double) MAX_RAY_SPREAD / radius));
+        return 1 + (int) Math.ceil((PITCH_DOWN_DEGREES + PITCH_UP_DEGREES) / perRay);
+    }
+
+    /** The pitch of one ray of a fan of {@code rays}, in degrees, negative downward. */
+    public static double pitchOf(int ray, int rays) {
+        if (rays <= 1) {
+            return 0.0;
+        }
+        double span = PITCH_DOWN_DEGREES + PITCH_UP_DEGREES;
+        return -PITCH_DOWN_DEGREES + span * ray / (rays - 1);
+    }
+
     private final AgentProfile profile;
     private final HorizonBuffer buffer = new HorizonBuffer();
 
-    /** Bearing being walked, or −1 between bearings. */
+    /** Bearing being looked along, or −1 between bearings. */
     private int bin = -1;
-    /** How far along that bearing the walk has got. */
+    /** Which ray of that bearing's fan is in flight. */
+    private int ray;
+    /** How many there are — fixed for the bearing, since the reach is. */
+    private int rayCount;
+    /** How far out that ray has got, measured flat, in whole blocks. */
     private int distance;
-    /** Running steepest-so-far for the bearing in progress — the occlusion. */
-    private double running;
+    /** Its rise per block of flat travel. */
+    private double pitchTan;
     /**
-     * Where the walk started, snapshotted per bearing. A bearing finishes inside a tick or two,
-     * so the body has moved a fraction of a block by the end; sampling one bearing from one place
-     * keeps its occlusion coherent, which sampling from wherever the feet happen to be would not.
+     * Where the fan was fired from, snapshotted per bearing: a bearing finishes inside a tick or
+     * two, and firing one fan from one place keeps its occlusion coherent.
      */
     private int originX;
     private int originZ;
     private double originEyeY;
+    /** The flat direction of the bearing in flight. */
+    private double dirX;
+    private double dirZ;
+
+    /** The steepest thing any ray of this fan has stopped on, and where. */
+    private boolean anyCrest;
+    private double crestTan;
+    private int crestX;
+    private int crestY;
+    private int crestZ;
+    /** Any ray of this fan ran out of loaded world. */
+    private boolean cutShort;
 
     /**
-     * Coarse cells already answered for, newest-used last. Holds refusals as well as sightings:
-     * a candidate whose confirm-ray failed is not worth re-raying at {@value #HORIZON_RAY_COST}
-     * every sweep, and the near field will meet it properly soon enough if the body goes that way.
+     * Coarse cells already answered for, newest-used last. Holds refusals as well as sightings: a
+     * cell that turned out to be plain stone is not worth classifying again every sweep, and the
+     * near field will meet it properly soon enough if the body goes that way.
      */
     private final Map<Long, Boolean> answered = new LinkedHashMap<>(64, 0.75f, true) {
         @Override
@@ -121,11 +184,9 @@ public final class HorizonScanner {
     }
 
     /**
-     * Walks the skyline for at most {@code budget} reads and returns what was actually spent.
-     *
-     * <p>One sample may overrun the budget by its confirm-ray, the same way a region scan may
-     * overrun by a neighbour — the wallet is a per-tick target, not a hard gate, and the caller's
-     * ceiling carries the slack.
+     * Looks along the skyline for at most {@code budget} reads and returns what was actually
+     * spent. One step may overrun by the read that classifies what it landed on: the wallet is a
+     * per-tick target, not a hard gate.
      */
     public int step(Pos feet, double yawDegrees, long now, BlockProbe probe, int budget,
             List<SenseEvent> events) {
@@ -145,69 +206,87 @@ public final class HorizonScanner {
                 if (next < 0) {
                     break; // everything in front is fresh; the sense costs nothing
                 }
-                begin(next, feet, near);
+                begin(next, feet, radius);
             }
-            reads += sample(probe, radius, now, events);
-        }
-        return reads;
-    }
-
-    /** One column along the bearing in progress. */
-    private int sample(BlockProbe probe, int radius, long now, List<SenseEvent> events) {
-        double radians = Math.toRadians(HorizonBuffer.bearingOf(this.bin));
-        // Minecraft's convention, shared with the being sense's cone: yaw 0° faces +Z.
-        double dirX = -Math.sin(radians);
-        double dirZ = Math.cos(radians);
-        int x = (int) Math.round(this.originX + dirX * this.distance);
-        int z = (int) Math.round(this.originZ + dirZ * this.distance);
-        int reads = 1;
-        int y = probe.surfaceY(x, z);
-        if (y == Integer.MIN_VALUE) {
-            // The world stops being loaded here. The bearing ends there rather than
-            // pretending the rest of it is empty — see the survey's completeness record.
-            end(now, true);
-            return reads;
-        }
-        double elevation = (y - this.originEyeY) / this.distance;
-        if (elevation > this.running) {
-            this.running = elevation;
-            this.buffer.record(this.bin, elevation, x, y, z);
-            reads += consider(probe, x, y, z, events);
-        }
-        this.distance += stride(this.distance);
-        if (this.distance > radius) {
-            end(now, false);
+            reads += march(probe, radius, near, now, events);
         }
         return reads;
     }
 
     /**
-     * A column that cleared the skyline — is it something, and can it actually be seen?
-     *
-     * <p>Mostly redundant beside the running maximum; it earns its cost on the two things the walk
-     * cannot see: occluders nearer than {@code places.radius} (a barn ten blocks off hides a wood
-     * forty blocks off) and anything narrower than the sample stride at range. Charged at the same
-     * fiction-to-truth ratio the near field's 8 uses.
+     * One cell of the ray in flight. Stepping by whole blocks of FLAT distance keeps the
+     * arithmetic to one multiply and one read per step, and within the fan's pitch range a step
+     * lifts the ray at most 0.58 blocks, so it cannot skip a cell vertically. It can still squeeze
+     * diagonally past a corner — this gates <em>noticing</em>, not physics.
      */
-    private int consider(BlockProbe probe, int x, int y, int z, List<SenseEvent> events) {
-        BlockKind kind = probe.at(x, y, z);
+    private int march(BlockProbe probe, int radius, int near, long now, List<SenseEvent> events) {
+        int d = this.distance;
+        int x = (int) Math.round(this.originX + this.dirX * d);
+        int z = (int) Math.round(this.originZ + this.dirZ * d);
+        int y = (int) Math.floor(this.originEyeY + this.pitchTan * d);
         int reads = 1;
-        GrowthRule rule = GrowthRules.forSeed(kind).orElse(null);
-        if (rule == null) {
-            return reads;
+        switch (probe.sightAt(x, y, z)) {
+            case OUTSIDE -> {
+                // Every remaining ray walks the same columns and would stop at the same edge, so
+                // the whole bearing ends here.
+                this.cutShort = true;
+                endBearing(now);
+            }
+            case BLOCKED -> {
+                // Nearer than inspection range is the near field's ground: being stopped by it is
+                // the point (it is what hides the distance), but reporting it is not.
+                if (d > near) {
+                    reads += land(probe, x, y, z, d, events);
+                }
+                endRay(now);
+            }
+            case VEILED -> {
+                // Seen, and seen through: the canopy registers and the ray carries on — a ray
+                // that only stopped on solids would march through a forest and report the
+                // hillside beyond it.
+                if (d > near) {
+                    reads += land(probe, x, y, z, d, events);
+                }
+                this.distance++;
+                if (this.distance > radius) {
+                    endBearing(now);
+                }
+            }
+            case CLEAR -> {
+                this.distance++;
+                if (this.distance > radius) {
+                    endBearing(now); // it flew clear — and so will everything above it
+                }
+            }
+        }
+        return reads;
+    }
+
+    /**
+     * A ray stopped on something out in the world: the steepest such stop tops the bearing, and
+     * anything the growth rules recognise becomes a glimpse. No confirm-ray — the ray arrived, so
+     * its line is clear by construction. That is what makes the fan affordable.
+     */
+    private int land(BlockProbe probe, int x, int y, int z, int distance, List<SenseEvent> events) {
+        double tan = (y - this.originEyeY) / distance;
+        if (!this.anyCrest || tan > this.crestTan) {
+            this.anyCrest = true;
+            this.crestTan = tan;
+            this.crestX = x;
+            this.crestY = y;
+            this.crestZ = z;
         }
         long cell = cellOf(x, z);
         if (this.answered.containsKey(cell)) {
-            return reads;
+            return 0;
         }
-        Pos at = new Pos(x, y, z);
-        reads += HORIZON_RAY_COST;
-        boolean seen = probe.visibleFromEyes(at);
-        this.answered.put(cell, seen);
-        if (seen) {
-            events.add(SenseEvent.glimpsed(rule.kind(), at));
+        BlockKind kind = probe.at(x, y, z);
+        GrowthRule rule = GrowthRules.forSeed(kind).orElse(null);
+        this.answered.put(cell, rule != null);
+        if (rule != null) {
+            events.add(SenseEvent.glimpsed(rule.kind(), new Pos(x, y, z)));
         }
-        return reads;
+        return 1;
     }
 
     /**
@@ -238,23 +317,51 @@ public final class HorizonScanner {
         return best;
     }
 
-    private void begin(int bearing, Pos feet, int near) {
+    private void begin(int bearing, Pos feet, int radius) {
         this.bin = bearing;
         this.originX = feet.x();
         this.originZ = feet.z();
         this.originEyeY = feet.y() + this.profile.i(ProfileAspect.BODY_HEIGHT) * EYE_FRACTION;
-        this.distance = near;
-        this.running = Double.NEGATIVE_INFINITY;
+        // Minecraft's convention, shared with the being sense's cone: yaw 0° faces +Z.
+        double radians = Math.toRadians(HorizonBuffer.bearingOf(bearing));
+        this.dirX = -Math.sin(radians);
+        this.dirZ = Math.cos(radians);
+        this.rayCount = rays(radius);
+        this.ray = 0;
+        this.anyCrest = false;
+        this.crestTan = 0.0;
+        this.cutShort = false;
+        aim();
     }
 
-    private void end(long now, boolean cutShort) {
-        this.buffer.markSwept(this.bin, now, cutShort);
+    /** Points the next ray of the fan and puts it back at the eye. */
+    private void aim() {
+        this.distance = 1;
+        this.pitchTan = Math.tan(Math.toRadians(pitchOf(this.ray, this.rayCount)));
+    }
+
+    private void endRay(long now) {
+        this.ray++;
+        if (this.ray < this.rayCount) {
+            aim();
+        } else {
+            endBearing(now);
+        }
+    }
+
+    /**
+     * The whole fan has been fired. The steepest thing it found tops the bearing; a fan that found
+     * nothing BLANKS it rather than leaving the last sweep's crest standing — the usual way to
+     * produce an empty bearing is to fell what was on it.
+     */
+    private void endBearing(long now) {
+        if (this.anyCrest) {
+            this.buffer.record(this.bin, this.crestTan, this.crestX, this.crestY, this.crestZ);
+        } else {
+            this.buffer.blank(this.bin);
+        }
+        this.buffer.markSwept(this.bin, now, this.cutShort);
         this.bin = -1;
-    }
-
-    /** Sample spacing at a distance: constant angular resolution, capped at a canopy's width. */
-    private static int stride(int distance) {
-        return Math.max(1, Math.min(MAX_STRIDE, distance / STRIDE_DIVISOR));
     }
 
     private static boolean moved(Column anchor, Column here) {

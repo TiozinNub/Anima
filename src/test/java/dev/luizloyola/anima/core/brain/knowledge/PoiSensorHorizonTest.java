@@ -151,8 +151,9 @@ class PoiSensorHorizonTest {
         FakeProbe probe = new FakeProbe();
         probe.placeOak(0, 30);
         probe.placeOak(-5, 4);
-        // Near field slack for a growth's neighbour burst plus the far sense's confirm-ray.
-        int ceiling = PoiSensorCore.readsPerTick() + 40 + HorizonScanner.HORIZON_RAY_COST;
+        // Near field slack for a growth's neighbour burst, plus the one read a landed ray spends
+        // classifying what it hit.
+        int ceiling = PoiSensorCore.readsPerTick() + 40 + 2;
 
         for (int i = 0; i < 120; i++) {
             int before = probe.reads;

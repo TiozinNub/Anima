@@ -96,6 +96,28 @@ public final class FakeProbe implements BlockProbe {
         return y <= GROUND_Y ? BlockKind.OTHER : BlockKind.AIR;
     }
 
+    /**
+     * A ray's view of a cell, derived from the same sparse map: solids stop it, and everything an
+     * eye sees through (air, leaves, water) lets it past. Ground level and below is solid, which
+     * is what makes a downward ray die on the floor here exactly as it would in a world.
+     */
+    @Override
+    public Sight sightAt(int x, int y, int z) {
+        reads++;
+        if (unloaded.contains(new Column(x, z))) {
+            return Sight.OUTSIDE;
+        }
+        BlockKind kind = blocks.get(new Pos(x, y, z));
+        if (kind == null) {
+            return y <= GROUND_Y ? Sight.BLOCKED : Sight.CLEAR;
+        }
+        return switch (kind) {
+            case LOG, OTHER -> Sight.BLOCKED;
+            case LEAVES, WATER -> Sight.VEILED;
+            case AIR, UNKNOWN -> Sight.CLEAR;
+        };
+    }
+
     @Override
     public boolean visibleFromEyes(Pos target) {
         return !hidden.contains(target);
