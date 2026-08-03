@@ -203,7 +203,8 @@ public final class AgentCommands {
                                 .then(Commands.literal("stop")
                                         .executes(ctx -> navStop(ctx.getSource())))
                                 .then(Commands.literal("status")
-                                        .executes(ctx -> navStatus(ctx.getSource())));
+                                        .executes(ctx -> navStatus(ctx.getSource())))
+                                .then(NavDump.node());
     }
 
     /**
