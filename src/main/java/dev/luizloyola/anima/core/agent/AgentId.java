@@ -25,6 +25,16 @@ public record AgentId(UUID value) {
         return new AgentId(UUID.randomUUID());
     }
 
+    /**
+     * The first 8 characters — enough to eyeball, and a valid handle wherever ids are matched by
+     * prefix. Here rather than at each display site so a handle read off a log line is the one a
+     * command will accept.
+     */
+    public String shortText() {
+        String text = toString();
+        return text.substring(0, Math.min(8, text.length()));
+    }
+
     @Override
     public String toString() {
         return value.toString();

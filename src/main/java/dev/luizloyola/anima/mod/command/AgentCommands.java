@@ -1708,8 +1708,7 @@ public final class AgentCommands {
     /** The first 8 characters of an id — enough to eyeball and to prefix-match in {@code select}. */
     /** Public: consumers print the same short handles in their own listings. */
     public static String shortId(AgentId id) {
-        String text = id.toString();
-        return text.substring(0, Math.min(8, text.length()));
+        return id.shortText();
     }
 
     /** Places {@code stack} in the core inventory slot for {@code slot}, returning what was there. */

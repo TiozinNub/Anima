@@ -82,17 +82,18 @@ public final class PathfinderService {
      * Asynchronous pathfinding: snapshot on this (the server) thread, search on a worker. The
      * future completes on the worker — consume it by polling from a tick, never with a callback
      * that touches the world.
+     *
+     * @param who short handle of the agent this search is for, purely for the trace below — see
+     *     {@link #trace}. Resolve it on the calling thread: the lambda must not reach back into a
+     *     body to ask who it is.
      */
-    public static Dispatched request(ServerLevel level, BlockPos start, BlockPos goal,
+    public static Dispatched request(ServerLevel level, String who, BlockPos start, BlockPos goal,
             MoveCapabilities body, DangerField danger) {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
         PathRequest pathRequest = buildRequest(snapshot, start, goal, body, danger);
         CompletableFuture<Path> result = CompletableFuture.supplyAsync(() -> {
             Path path = Pathfinder.find(snapshot, pathRequest);
-            // Dev-phase trace; doubles as proof the search left the server thread (log prefix).
-            AnimaMod.LOGGER.info("path {} -> {}: {} waypoints{}",
-                    start.toShortString(), goal.toShortString(),
-                    path.waypoints().size(), path.reachedGoal() ? "" : " (partial)");
+            trace(who, start, goal, path);
             return path;
         }, executor());
         return new Dispatched(result, snapshot);
@@ -104,6 +105,19 @@ public final class PathfinderService {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
         Path path = Pathfinder.find(snapshot, buildRequest(snapshot, start, goal, body, danger));
         return new Dispatched(CompletableFuture.completedFuture(path), snapshot);
+    }
+
+    /**
+     * Dev-phase trace; the log prefix doubles as proof the search left the server thread.
+     *
+     * <p>Stamped with {@code who} to tell one agent re-asking a doomed question from many asking
+     * once. The handle is the 8-character short id the commands print <em>and accept</em>, so a
+     * hot line pastes straight into {@code select}.
+     */
+    private static void trace(String who, BlockPos start, BlockPos goal, Path path) {
+        AnimaMod.LOGGER.info("path [{}] {} -> {}: {} waypoints{}",
+                who, start.toShortString(), goal.toShortString(),
+                path.waypoints().size(), path.reachedGoal() ? "" : " (partial)");
     }
 
     private static PathRequest buildRequest(WorldSnapshot snapshot, BlockPos start, BlockPos goal,

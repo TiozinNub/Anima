@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.mod.nav;
 
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
+import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.mod.brain.DangerFields;
@@ -269,12 +270,24 @@ public final class Navigator {
         this.lastLeapPressIndex = -1;
         this.state = State.PATHING;
         PathfinderService.Dispatched dispatched = OFF_THREAD
-                ? PathfinderService.request(level(), this.person.blockPosition(), this.goal,
+                ? PathfinderService.request(level(), traceId(), this.person.blockPosition(), this.goal,
                         capabilities(), DangerFields.of(this.person))
                 : PathfinderService.computeNow(level(), this.person.blockPosition(), this.goal,
                         capabilities(), DangerFields.of(this.person));
         this.grid = dispatched.snapshot();
         this.pending = dispatched.result();
+    }
+
+    /**
+     * Who to stamp on the pathfinder's trace line. Resolved here, on the server thread, because
+     * the search logs from a worker and must not reach back into a body to ask.
+     *
+     * <p>{@code ?} covers the window before identity resolves — {@link AgentBody#agentId()} is
+     * null until roughly the body's first tick, and a path can be requested inside it.
+     */
+    private String traceId() {
+        AgentId id = this.person.agentId();
+        return id == null ? "?" : id.shortText();
     }
 
     /** Polls the in-flight request; the future completes on a worker, so only ever read it here. */
