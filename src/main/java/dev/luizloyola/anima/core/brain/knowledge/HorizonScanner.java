@@ -131,6 +131,49 @@ public final class HorizonScanner {
     }
 
     /**
+     * Whether the view still carries from an eye to one particular cell — the sweep's own
+     * question, asked about a single target instead of along a bearing.
+     *
+     * <p>Here because the rule belongs to the sweep: anything asking "can they still see that" of
+     * a far-sense report must apply the same see-through reach. The near field's confirm-ray says
+     * yes through any amount of canopy at any distance, and once drew a debug sight line clean
+     * through forty blocks of wood. Marched with the same whole-block flat steps and the same
+     * {@link BlockProbe#sightAt} the sweep uses, so a line it allows is a line a ray could fly.
+     */
+    public static boolean viewCarriesTo(BlockProbe probe, double eyeX, double eyeY, double eyeZ,
+            Pos target, int seeThroughRadius) {
+        double dx = target.x() + 0.5 - eyeX;
+        double dz = target.z() + 0.5 - eyeZ;
+        double flat = Math.sqrt(dx * dx + dz * dz);
+        if (flat < 1.0) {
+            return true; // they are standing in it
+        }
+        double stepX = dx / flat;
+        double stepZ = dz / flat;
+        double rise = (target.y() + 0.5 - eyeY) / flat;
+        for (int d = 1; d <= (int) flat; d++) {
+            int x = (int) Math.round(eyeX + stepX * d);
+            int z = (int) Math.round(eyeZ + stepZ * d);
+            int y = (int) Math.floor(eyeY + rise * d);
+            if (x == target.x() && y == target.y() && z == target.z()) {
+                return true; // arrived: the target itself never blocks the look at it
+            }
+            switch (probe.sightAt(x, y, z)) {
+                case BLOCKED, OUTSIDE -> {
+                    return false;
+                }
+                case VEILED -> {
+                    if (d > seeThroughRadius) {
+                        return false;
+                    }
+                }
+                case CLEAR -> { }
+            }
+        }
+        return true;
+    }
+
+    /**
      * How many rays make up one bearing's fan at this reach — enough that neighbours are never
      * more than {@link #MAX_RAY_SPREAD} apart at the far end, where they are widest. A
      * shorter-sighted body gets fewer.

@@ -39,6 +39,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -239,24 +240,30 @@ public final class DebugView {
             skyline.add(new DebugViewPayload.Bearing(
                     bin, new BlockPos(top.x(), top.y(), top.z()), buffer.truncated(bin)));
         }
-        return new DebugViewPayload.Sight(cone, near, far, skyline, glimpses(server, person));
+        return new DebugViewPayload.Sight(cone, near, far, skyline, glimpses(server, person, profile));
     }
 
     /**
      * The gist tier: what they have made out at range and never been near enough to examine.
      *
      * <p>Each is asked whether it can still be SEEN from where the body stands now: a glimpse
-     * outlives the look that produced it, and a line drawn from the eye is a claim about sight.
+     * outlives the look that produced it, and a line from the eye claims sight.
+     *
+     * <p>Through {@link HorizonScanner#viewCarriesTo}, the FAR sense's question with its
+     * see-through reach. The near field's {@code visibleFromEyes} sees through any depth of canopy
+     * at any distance, so using it here drew sight lines clean through a wood the sweep could not
+     * see into.
      */
-    private static List<DebugViewPayload.Glimpse> glimpses(MinecraftServer server, AgentBody person) {
+    private static List<DebugViewPayload.Glimpse> glimpses(
+            MinecraftServer server, AgentBody person, AgentProfile profile) {
         AgentId id = person.agentId();
         if (id == null) {
             return List.of();
         }
         AgentKnowledge knowledge = Knowledges.of(server).forPerson(id);
-        // One probe for the whole frame: it is the body's own eyes, and the ray it fires is the
-        // same one the near field's confirm-ray uses, so "visible" here means what it means there.
         BlockProbe eyes = new LevelProbe(person.entity());
+        int seeThrough = HorizonScanner.seeThroughRadius(profile);
+        Vec3 eye = person.entity().getEyePosition();
         List<DebugViewPayload.Glimpse> out = new ArrayList<>();
         for (PoiKind kind : PoiKind.all()) {
             for (Sighting sighting : knowledge.glimpses(kind)) {
@@ -265,7 +272,7 @@ public final class DebugView {
                 // about a thing, and it must not read like the labels the memory layer draws.
                 out.add(new DebugViewPayload.Glimpse(
                         "~" + kind.key() + " " + sighting.range() + "m", cell(at),
-                        eyes.visibleFromEyes(at)));
+                        HorizonScanner.viewCarriesTo(eyes, eye.x, eye.y, eye.z, at, seeThrough)));
             }
         }
         return out;

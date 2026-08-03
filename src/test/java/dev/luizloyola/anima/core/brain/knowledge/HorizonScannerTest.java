@@ -207,6 +207,36 @@ class HorizonScannerTest {
                 "rays start at the eye, so what is near enough to block really does block");
     }
 
+    /**
+     * The sweep's own question about one cell: anything reasoning about what the far sense
+     * reported must ask this one, not the near field's confirm-ray — that one sees through any
+     * depth of canopy at any range, so a trunk is never hidden by its own branches.
+     */
+    @Test
+    void theViewCarriesThroughNearCanopyAndDiesOnFarCanopy() {
+        FakeProbe probe = new FakeProbe();
+        int seeThrough = 8;
+        // Eye height matches the sweep's own: feet + BODY_HEIGHT * 0.85.
+        double eyeY = HERE.y() + 2.0 * 0.85;
+        Pos beyond = new Pos(0, FakeProbe.GROUND_Y + 1, 30);
+
+        // Leaves INSIDE the see-through reach, several courses so the ray's height on the way
+        // past does not matter.
+        for (int y = FakeProbe.GROUND_Y + 1; y <= FakeProbe.GROUND_Y + 6; y++) {
+            probe.set(0, y, 5, BlockKind.LEAVES);
+        }
+        assertTrue(HorizonScanner.viewCarriesTo(probe, HERE.x(), eyeY, HERE.z(), beyond, seeThrough),
+                "a canopy at five blocks is something you look between");
+
+        // The same curtain, moved out past that reach: now a green wall.
+        for (int y = FakeProbe.GROUND_Y + 1; y <= FakeProbe.GROUND_Y + 6; y++) {
+            probe.clear(0, y, 5);
+            probe.set(0, y, 20, BlockKind.LEAVES);
+        }
+        assertFalse(HorizonScanner.viewCarriesTo(probe, HERE.x(), eyeY, HERE.z(), beyond, seeThrough),
+                "and at twenty it is a green wall — the same leaves, a different question");
+    }
+
     @Test
     void aBearingStopsHonestlyWhereTheWorldStops() {
         FakeProbe probe = new FakeProbe();
