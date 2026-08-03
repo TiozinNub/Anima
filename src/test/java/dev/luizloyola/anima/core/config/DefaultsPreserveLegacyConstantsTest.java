@@ -41,7 +41,10 @@ class DefaultsPreserveLegacyConstantsTest {
 
         assertEquals(64, PoiSensorCore.readsPerTick(), "PoiSensorCore.READS_PER_TICK");
         assertEquals(1024, PoiSensorCore.queueCap(), "PoiSensorCore.QUEUE_CAP");
-        assertEquals(512, RegionGrowth.maxBlocks(), "RegionGrowth.MAX_BLOCKS");
+        // No longer the legacy 512: at that cap a Person standing INSIDE a stand of four touching
+        // mega spruces remembered two of them — a scan cut short loses crowns, and a crownless
+        // trunk is not a tree.
+        assertEquals(4096, RegionGrowth.maxBlocks(), "RegionGrowth.MAX_BLOCKS");
         assertEquals(600, SiteClaims.ttlTicks(), "SiteClaims.TTL_TICKS");
         assertEquals(256, JournalService.defaultMaxEntriesPerPerson(),
                 "JournalService.DEFAULT_MAX_ENTRIES_PER_PERSON");

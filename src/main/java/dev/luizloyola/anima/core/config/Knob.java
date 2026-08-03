@@ -48,9 +48,16 @@ public enum Knob implements KnobSpec {
                     + "At the cap an agent genuinely stops noticing things until it catches up, so "
                     + "raise this before raising reads_per_tick."),
     /** @see dev.luizloyola.anima.core.brain.knowledge.RegionGrowth#maxBlocks() */
-    REGION_MAX_BLOCKS("limits.region_max_blocks", Kind.INT, 512, 16, 16_384,
-            "Block cap on one structure scan. Hitting it marks the region partial — the memory is "
-                    + "kept and marked incomplete rather than abandoned."),
+    REGION_MAX_BLOCKS("limits.region_max_blocks", Kind.INT, 4096, 16, 16_384,
+            "Block cap on one structure scan — a bound on the MEMORY one in-flight scan holds, "
+                    + "not on throughput (reads_per_tick is the throughput dial; a bigger cap "
+                    + "lets a scan run for more ticks, not for more work per tick). Hitting it "
+                    + "marks the region partial, and partial is worse than it sounds: a tree "
+                    + "whose crown fell outside the cut fails the crown test and is not "
+                    + "remembered AT ALL. Set it above the biggest fused mass worth knowing — "
+                    + "canopies weld 26-way, so one conifer stand is several trees' worth "
+                    + "(a mega spruce alone is ~430 blocks). At the old 512 a Person standing "
+                    + "INSIDE four touching mega spruces remembered two of them."),
     /**
      * The aggregate ceiling — the one that actually protects a server, because it is the only one
      * that knows how many agents there are.
