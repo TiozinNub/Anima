@@ -89,6 +89,31 @@ class HorizonScannerTest {
     }
 
     @Test
+    void aTreeStandingInTheOpenIsFoundByItsCROWN() {
+        // Broke live: a bearing passing BESIDE the one-block trunk flies clear under the crown,
+        // so stopping on the first clear ray never looked at the canopy one ray higher.
+        FakeProbe probe = new FakeProbe();
+        probe.placeOak(0, 34);
+
+        assertFalse(glimpses(sweep(probe, 90)).isEmpty(),
+                "an oak in plain view at 34 blocks is exactly what this sense is for");
+    }
+
+    @Test
+    void aTreeThatGrowsOnGroundTheyHaveAlreadyLookedAtIsStillNoticed() {
+        // Having seen this ground before must not make a tree grown on it invisible — which is
+        // what remembering "there was nothing in that cell" would do.
+        FakeProbe probe = new FakeProbe();
+        assertTrue(glimpses(sweep(probe, 140)).isEmpty(), "empty ground is empty");
+
+        probe.placeOak(0, 30);
+        now += HorizonScanner.REFRESH_TICKS + 1;
+
+        assertFalse(glimpses(sweep(probe, 140)).isEmpty(),
+                "and a tree grown in plain view is a tree they can see");
+    }
+
+    @Test
     void nothingBehindThemIsEverMadeOut() {
         FakeProbe probe = new FakeProbe();
         probe.placeOak(0, -30); // squarely at their back
@@ -194,7 +219,7 @@ class HorizonScannerTest {
         probe.placeOak(0, 30);
         // Long enough to finish every bearing in the cone: a fan of marching rays costs several
         // times the old heightmap walk, so a bearing then rests for REFRESH_TICKS.
-        sweep(probe, 90);
+        sweep(probe, 140);
 
         int before = probe.reads;
         scanner.step(HERE, AHEAD, now, probe, 64, new ArrayList<>());
@@ -250,7 +275,7 @@ class HorizonScannerTest {
         // world must still be able to finish a bearing and let it rest.
         FakeProbe probe = new FakeProbe();
         HorizonScanner fresh = new HorizonScanner(EYED);
-        for (int tick = 0; tick < 90; tick++) {
+        for (int tick = 0; tick < 140; tick++) {
             fresh.step(HERE, AHEAD, tick, probe, 64, new ArrayList<>());
         }
 

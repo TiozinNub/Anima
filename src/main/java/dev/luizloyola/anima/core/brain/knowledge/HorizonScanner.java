@@ -30,11 +30,10 @@ import java.util.Map;
  *   <li><b>The fan has gaps.</b> Rays are {@value #MAX_RAY_SPREAD} blocks apart at full reach
  *       ({@link #rays} is sized for that), so anything narrower slips between two of them at range
  *       — saplings and lone logs are invisible from far off, a canopy is not.</li>
- *   <li><b>It stops climbing once a ray flies clear.</b> The fan is fired bottom-up and the first
- *       ray to reach full range meeting nothing ends the bearing: a line that clears everything has
- *       every line above it clear too, so open country costs the handful of rays that die on the
- *       floor plus one that flies. What it gives up is the overhang — a floating island above an
- *       unobstructed line is not made out.</li>
+ *   <li><b>It stops climbing once the sky is empty.</b> The fan is fired bottom-up and ends the
+ *       bearing after {@value #CLEAR_RUN_TO_STOP} rays in a row reach full range meeting nothing:
+ *       for grounded things a clear line means every line above it is clear, so open country costs
+ *       a handful of rays instead of a full fan. What it gives up is the overhang.</li>
  *   <li><b>Nothing grows.</b> A sighting never triggers the region scan.</li>
  * </ul>
  *
@@ -83,12 +82,29 @@ public final class HorizonScanner {
     private static final int MAX_RAY_SPREAD = 4;
 
     /**
-     * A bearing walked this recently is left alone. Half a minute, where the heightmap walk this
-     * replaced could afford five seconds: a fan of marching rays costs an order of magnitude more,
-     * and re-walking would spend a standing body's whole leftover wallet to learn nothing. MOVING
-     * is what invalidates a skyline, and {@link #REANCHOR_DISTANCE} already catches that.
+     * How many consecutive rays must fly clear before the fan gives up on climbing.
+     *
+     * <p>Fired bottom-up, a ray that reaches full range meeting nothing is strong evidence that
+     * everything above it will too — for GROUNDED things. A tree is not: a one-block trunk holds a
+     * five-block crown, so a bearing beside the trunk goes clear under the canopy where the ray
+     * one step higher would have gone through it. Stopping on the first clear ray missed an oak 48
+     * blocks out in plain view; two crosses that gap, at one extra ray into empty sky per bearing.
      */
-    public static final int REFRESH_TICKS = 600;
+    private static final int CLEAR_RUN_TO_STOP = 2;
+
+    /**
+     * A bearing looked along this recently is left alone.
+     *
+     * <p>Ten seconds, set against a MEASURED sweep: one full pass of the cone at a Person's reach
+     * costs about 10,200 reads against a 64-a-tick wallet — roughly 160 ticks even when the near
+     * field hands over all of it. Anything shorter is no shorter at all: bearings go stale faster
+     * than the sweep reaches them, so it never finishes and never stops spending. Thirty seconds
+     * went the other way, a body unable to notice a tree grown in front of it.
+     *
+     * <p>The dials are {@code limits.reads_per_tick} and {@code places.horizon_radius} (the reach,
+     * which sets both ray length and fan size).
+     */
+    public static final int REFRESH_TICKS = 200;
 
     /** Moving this far from where the readout was taken marks every bearing stale. */
     private static final int REANCHOR_DISTANCE = 16;
@@ -153,6 +169,9 @@ public final class HorizonScanner {
     private double dirX;
     private double dirZ;
 
+    /** How many rays in a row have flown clear — see {@link #CLEAR_RUN_TO_STOP}. */
+    private int clearRun;
+
     /** The steepest thing any ray of this fan has stopped on, and where. */
     private boolean anyCrest;
     private double crestTan;
@@ -163,9 +182,11 @@ public final class HorizonScanner {
     private boolean cutShort;
 
     /**
-     * Coarse cells already answered for, newest-used last. Holds refusals as well as sightings: a
-     * cell that turned out to be plain stone is not worth classifying again every sweep, and the
-     * near field will meet it properly soon enough if the body goes that way.
+     * Coarse cells already reported, newest-used last — what keeps a wood from being announced
+     * again on every pass.
+     *
+     * <p>SIGHTINGS only: with the confirm-ray gone, remembering an absence would be a body
+     * deciding, permanently, that nothing will ever appear on ground it has already looked at.
      */
     private final Map<Long, Boolean> answered = new LinkedHashMap<>(64, 0.75f, true) {
         @Override
@@ -235,6 +256,7 @@ public final class HorizonScanner {
             case BLOCKED -> {
                 // Nearer than inspection range is the near field's ground: being stopped by it is
                 // the point (it is what hides the distance), but reporting it is not.
+                this.clearRun = 0;
                 if (d > near) {
                     reads += land(probe, x, y, z, d, events);
                 }
@@ -244,18 +266,24 @@ public final class HorizonScanner {
                 // Seen, and seen through: the canopy registers and the ray carries on — a ray
                 // that only stopped on solids would march through a forest and report the
                 // hillside beyond it.
+                this.clearRun = 0;
                 if (d > near) {
                     reads += land(probe, x, y, z, d, events);
                 }
                 this.distance++;
                 if (this.distance > radius) {
-                    endBearing(now);
+                    endRay(now);
                 }
             }
             case CLEAR -> {
                 this.distance++;
                 if (this.distance > radius) {
-                    endBearing(now); // it flew clear — and so will everything above it
+                    this.clearRun++;
+                    if (this.clearRun >= CLEAR_RUN_TO_STOP) {
+                        endBearing(now);
+                    } else {
+                        endRay(now);
+                    }
                 }
             }
         }
@@ -282,10 +310,14 @@ public final class HorizonScanner {
         }
         BlockKind kind = probe.at(x, y, z);
         GrowthRule rule = GrowthRules.forSeed(kind).orElse(null);
-        this.answered.put(cell, rule != null);
-        if (rule != null) {
-            events.add(SenseEvent.glimpsed(rule.kind(), new Pos(x, y, z)));
+        if (rule == null) {
+            // Not remembered: marking plain ground answered would mean a body that
+            // once looked at a hillside can never notice a sapling grow on it. Only a thing is
+            // remembered, never an absence, at one classifying read per landing.
+            return 1;
         }
+        this.answered.put(cell, true);
+        events.add(SenseEvent.glimpsed(rule.kind(), new Pos(x, y, z)));
         return 1;
     }
 
@@ -328,6 +360,7 @@ public final class HorizonScanner {
         this.dirZ = Math.cos(radians);
         this.rayCount = rays(radius);
         this.ray = 0;
+        this.clearRun = 0;
         this.anyCrest = false;
         this.crestTan = 0.0;
         this.cutShort = false;
