@@ -445,18 +445,26 @@ public final class DebugViewRenderer {
     }
 
     /**
-     * The gist tier, drawn as a peer is: a line from the eye, a box round the cell, and what they
-     * took it for — labelled with the range it was taken at, and magenta like a bearing that ran
-     * out of world.
+     * The gist tier: a box round the cell, what they took it for, and — only while they can
+     * actually see it — a line from the eye. A glimpse is right about the where and vague about the
+     * what, so it is labelled with the range it was taken at, in the same magenta as a bearing that
+     * ran out of world: both mark where the sense's limit is.
+     *
+     * <p><b>The line is the claim, the box is the memory.</b> A glimpse outlives the look that
+     * produced it, so most of the time there is no line of sight to draw — drawing one anyway put
+     * magenta straight through the ridge doing the hiding (decision: Luiz). What is left is the
+     * box, dimmed.
      */
     private static void drawGlimpses(Vec3 eye, List<DebugViewPayload.Glimpse> glimpses) {
         for (DebugViewPayload.Glimpse glimpse : glimpses) {
             Vec3 crest = crest(glimpse.at());
-            Gizmos.line(eye, crest, GLIMPSE_COLOR, PATH_WIDTH).setAlwaysOnTop();
-            Gizmos.cuboid(glimpse.at(), GizmoStyle.stroke(GLIMPSE_COLOR, THIN)).setAlwaysOnTop();
+            int color = fade(GLIMPSE_COLOR, !glimpse.visible());
+            if (glimpse.visible()) {
+                Gizmos.line(eye, crest, color, PATH_WIDTH).setAlwaysOnTop();
+            }
+            Gizmos.cuboid(glimpse.at(), GizmoStyle.stroke(color, THIN)).setAlwaysOnTop();
             Gizmos.billboardText(glimpse.label(), crest.add(0.0, GLIMPSE_LABEL_CLEARANCE, 0.0),
-                            TextGizmo.Style.forColorAndCentered(GLIMPSE_COLOR)
-                                    .withScale(DETAIL_SCALE))
+                            TextGizmo.Style.forColorAndCentered(color).withScale(DETAIL_SCALE))
                     .setAlwaysOnTop();
         }
     }

@@ -1,8 +1,10 @@
 package dev.luizloyola.anima.mod.debug;
 
+import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
+import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.knowledge.HorizonBuffer;
 import dev.luizloyola.anima.core.brain.knowledge.HorizonScanner;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
@@ -240,13 +242,21 @@ public final class DebugView {
         return new DebugViewPayload.Sight(cone, near, far, skyline, glimpses(server, person));
     }
 
-    /** The gist tier: what they have made out at range and never been near enough to examine. */
+    /**
+     * The gist tier: what they have made out at range and never been near enough to examine.
+     *
+     * <p>Each is asked whether it can still be SEEN from where the body stands now: a glimpse
+     * outlives the look that produced it, and a line drawn from the eye is a claim about sight.
+     */
     private static List<DebugViewPayload.Glimpse> glimpses(MinecraftServer server, AgentBody person) {
         AgentId id = person.agentId();
         if (id == null) {
             return List.of();
         }
         AgentKnowledge knowledge = Knowledges.of(server).forPerson(id);
+        // One probe for the whole frame: it is the body's own eyes, and the ray it fires is the
+        // same one the near field's confirm-ray uses, so "visible" here means what it means there.
+        BlockProbe eyes = new LevelProbe(person.entity());
         List<DebugViewPayload.Glimpse> out = new ArrayList<>();
         for (PoiKind kind : PoiKind.all()) {
             for (Sighting sighting : knowledge.glimpses(kind)) {
@@ -254,7 +264,8 @@ public final class DebugView {
                 // The leading tilde is the tier: this is a rumour about a place, not a belief
                 // about a thing, and it must not read like the labels the memory layer draws.
                 out.add(new DebugViewPayload.Glimpse(
-                        "~" + kind.key() + " " + sighting.range() + "m", cell(at)));
+                        "~" + kind.key() + " " + sighting.range() + "m", cell(at),
+                        eyes.visibleFromEyes(at)));
             }
         }
         return out;

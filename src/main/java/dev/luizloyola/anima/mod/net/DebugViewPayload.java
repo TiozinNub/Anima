@@ -138,14 +138,21 @@ public record DebugViewPayload(
      * One thing made out on the skyline and never examined — the gist tier, drawn beside the
      * skyline that produced it.
      *
-     * <p>{@link #label} carries the remembered RANGE, not the current distance: how far off the
-     * sighting was is the measure of how much salt to take it with.
+     * <p>{@link #label} carries the remembered RANGE, not the current distance: the sighting was
+     * taken from wherever they stood at the time, which is the measure of how much salt to take it
+     * with.
+     *
+     * @param visible whether a clear line reaches it from where they are standing NOW — usually
+     *     false, because a glimpse outlives the look that produced it. Tested server-side because
+     *     at horizon range the client may not have the chunks, and a line that vanished with
+     *     somebody's render distance would read as an occlusion that isn't there.
      */
-    public record Glimpse(String label, BlockPos at) {
+    public record Glimpse(String label, BlockPos at, boolean visible) {
         public static final StreamCodec<RegistryFriendlyByteBuf, Glimpse> CODEC =
                 StreamCodec.composite(
                         ByteBufCodecs.STRING_UTF8, Glimpse::label,
                         BlockPos.STREAM_CODEC, Glimpse::at,
+                        ByteBufCodecs.BOOL, Glimpse::visible,
                         Glimpse::new);
     }
 
