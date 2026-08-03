@@ -68,6 +68,7 @@ public final class PoiSensorCore {
     private final AgentProfile profile;
     private final ClaimIndex claims = new ClaimIndex();
     private final CrescentSampler sampler;
+    private final HorizonScanner horizon;
     private final Deque<Column> pending = new ArrayDeque<>();
     private RegionGrowth active;
     /** The surface cell that seeded {@link #active} — reported on a DISMISSED outcome. */
@@ -79,6 +80,12 @@ public final class PoiSensorCore {
         this.knowledge = knowledge;
         this.profile = profile;
         this.sampler = new CrescentSampler(profile);
+        this.horizon = new HorizonScanner(profile);
+    }
+
+    /** The far sense's readout — for the debug view, and for reasoning about vantages. */
+    public HorizonBuffer horizon() {
+        return this.horizon.buffer();
     }
 
     /**
@@ -124,6 +131,12 @@ public final class PoiSensorCore {
                 break;
             }
             reads += probeColumn(pending.pollFirst(), now, probe, events);
+        }
+        // Whatever the near field did not want — the order of these lines is the scheduling
+        // policy, and needs no knob: a body crossing new ground has a full queue and scans no
+        // skyline, one standing still scans with its entire wallet.
+        if (reads < wallet) {
+            reads += horizon.step(feet, yawDegrees, now, probe, wallet - reads, events);
         }
         return events;
     }

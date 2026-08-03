@@ -68,6 +68,7 @@ public final class PoiSensor {
             case FORGOT -> "forgot";
             case OVERLOOKED -> "overlooked";
             case DISMISSED -> "dismissed";
+            case GLIMPSED -> "glimpsed";
         };
     }
 

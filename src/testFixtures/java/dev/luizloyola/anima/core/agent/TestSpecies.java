@@ -36,6 +36,11 @@ public final class TestSpecies {
             .set(ProfileAspect.PLACES_RADIUS, 12)
             .set(ProfileAspect.PLACES_CONE_DEGREES, 360)
             .set(ProfileAspect.PLACES_NEAR_RADIUS, 0)
+            // Off, for the same reason the cone is 360: the pipeline suites assert exact event
+            // counts and read budgets for the NEAR field, and a skyline sweep spending the
+            // leftovers would silently rewrite every one of them. HorizonScannerTest declares
+            // its own body with eyes.
+            .set(ProfileAspect.PLACES_HORIZON_RADIUS, 0)
             .set(ProfileAspect.PLACES_REGION_MAX_SPREAD, 24)
             .set(ProfileAspect.PLACES_MAX_PER_KIND, 160)
             .set(ProfileAspect.DANGER_MELEE_MULT, 1.15)

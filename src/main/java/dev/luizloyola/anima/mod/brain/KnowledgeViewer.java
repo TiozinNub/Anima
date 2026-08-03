@@ -82,26 +82,22 @@ public final class KnowledgeViewer {
         if (player == null) {
             return;
         }
-        String verb;
-        ChatFormatting color;
-        switch (event.type()) {
-            case NOTED -> {
-                verb = "noticed ";
-                color = ChatFormatting.GREEN;
-            }
-            case FORGOT -> {
-                verb = "forgot ";
-                color = ChatFormatting.RED;
-            }
-            case OVERLOOKED -> {
-                verb = "overlooked (ray blocked) ";
-                color = ChatFormatting.GRAY;
-            }
-            default -> {
-                verb = "dismissed (not the thing) ";
-                color = ChatFormatting.GRAY;
-            }
-        }
+        // Switch EXPRESSIONS with no default arm: a `default` here swallowed GLIMPSED when it was
+        // added and announced every far sighting as a dismissal. An expression over an enum must
+        // be exhaustive, so the next outcome fails the build instead.
+        String verb = switch (event.type()) {
+            case NOTED -> "noticed ";
+            case FORGOT -> "forgot ";
+            case OVERLOOKED -> "overlooked (ray blocked) ";
+            case DISMISSED -> "dismissed (not the thing) ";
+            case GLIMPSED -> "made out, far off ";
+        };
+        ChatFormatting color = switch (event.type()) {
+            case NOTED -> ChatFormatting.GREEN;
+            case FORGOT -> ChatFormatting.RED;
+            case OVERLOOKED, DISMISSED -> ChatFormatting.GRAY;
+            case GLIMPSED -> ChatFormatting.AQUA;
+        };
         player.sendSystemMessage(Component.literal(
                         "[" + personName + "] " + verb + PoiSensor.describe(event))
                 .withStyle(color));

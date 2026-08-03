@@ -118,6 +118,11 @@ public enum ProfileAspect {
                     + "peripheral vision and the sole of a boot rather than eyesight. Clamped to "
                     + "the radius above. 0 means nothing is noticed off-bearing at all, which is "
                     + "a legitimate thing for a body with eyes on stalks to be."),
+    PLACES_HORIZON_RADIUS("places.horizon_radius", Kind.INT, 0, 256,
+            "How far (blocks) this body makes out a skyline — the gist of what is out there, "
+                    + "past any range at which it could inspect a thing. Costs no rays: distant "
+                    + "shapes occlude each other by arithmetic. At or below the radius above it "
+                    + "is off, which is the right answer for anything that lives by its nose."),
     PLACES_REGION_MAX_SPREAD("places.region_max_spread", Kind.INT, 1, 128,
             "Chebyshev spread from a seed before this mind stops calling it one place — what "
                     + "decides whether a forest is one memory or twenty. A judgment about "

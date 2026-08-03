@@ -80,6 +80,8 @@
   "anima.config.aspect.places.cone_degrees.desc": "Field of view in degrees for noticing places beyond the halo below. Narrowing it is what pays for the radius above, and is why a Person no longer notices a tree squarely behind them. 360 notices in every direction at every distance.",
   "anima.config.aspect.places.near_radius": "Underfoot halo",
   "anima.config.aspect.places.near_radius.desc": "Radius in blocks within which places are noticed whichever way a Person faces — what you are standing next to, rather than what you are looking at.",
+  "anima.config.aspect.places.horizon_radius": "Skyline radius",
+  "anima.config.aspect.places.horizon_radius.desc": "How far a Person makes out the gist of what is out there — a forest, not a tree. Costs no sight rays: distant shapes occlude one another by arithmetic, and the work is paid for out of whatever the near field left unspent. Set at or below the sense radius to switch it off.",
   "anima.config.aspect.places.region_max_spread": "Scan spread cap",
   "anima.config.aspect.places.region_max_spread.desc": "How far a scan may spread from where it began — what splits one fused mega-forest into separate groves.",
   "anima.config.aspect.places.max_per_kind": "Memories kept per kind",

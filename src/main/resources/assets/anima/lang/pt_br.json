@@ -80,6 +80,8 @@
   "anima.config.aspect.places.cone_degrees.desc": "Campo de visão, em graus, para notar lugares além do halo abaixo. Estreitá-lo é o que paga o raio acima, e é por isso que uma Pessoa não nota mais uma árvore exatamente atrás dela. 360 nota em todas as direções, a qualquer distância.",
   "anima.config.aspect.places.near_radius": "Halo aos pés",
   "anima.config.aspect.places.near_radius.desc": "Raio, em blocos, dentro do qual lugares são notados para qualquer lado que a Pessoa esteja virada — o que está ao lado dela, e não o que ela está olhando.",
+  "anima.config.aspect.places.horizon_radius": "Raio do horizonte",
+  "anima.config.aspect.places.horizon_radius.desc": "Até onde uma Pessoa percebe o panorama do que existe por aí — uma floresta, não uma árvore. Não custa raios de visão: formas distantes se ocultam uma à outra por aritmética, e o trabalho é pago com o que o campo próximo deixou de gastar. Iguale ou reduza ao raio de percepção para desligar.",
   "anima.config.aspect.places.region_max_spread": "Limite de dispersão da varredura",
   "anima.config.aspect.places.region_max_spread.desc": "Até onde uma varredura pode se espalhar a partir de onde começou — é o que separa uma megafloresta contínua em bosques distintos.",
   "anima.config.aspect.places.max_per_kind": "Memórias guardadas por tipo",

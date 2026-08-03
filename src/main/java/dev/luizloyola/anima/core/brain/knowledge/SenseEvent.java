@@ -22,7 +22,13 @@ public record SenseEvent(Type type, PoiKind kind, Pos anchor, PoiMemory memory) 
         /** A hypothesis died at the confirm-ray: something interesting, but it can't be seen. */
         OVERLOOKED,
         /** A growth completed and was rejected by its rule (a woodpile, a roofed tree). */
-        DISMISSED
+        DISMISSED,
+        /**
+         * Something was made out on the skyline, past the range at which anything could be
+         * inspected — a gist, not a belief. Not a NOTED: there is no anchor worth
+         * the name, no count, and it may yet turn out to be a mossy boulder.
+         */
+        GLIMPSED
     }
 
     static SenseEvent noted(PoiMemory memory) {
@@ -39,5 +45,9 @@ public record SenseEvent(Type type, PoiKind kind, Pos anchor, PoiMemory memory) 
 
     static SenseEvent dismissed(PoiKind kind, Pos seed) {
         return new SenseEvent(Type.DISMISSED, kind, seed, null);
+    }
+
+    static SenseEvent glimpsed(PoiKind kind, Pos at) {
+        return new SenseEvent(Type.GLIMPSED, kind, at, null);
     }
 }
