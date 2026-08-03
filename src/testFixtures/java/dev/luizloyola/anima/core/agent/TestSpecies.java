@@ -30,7 +30,12 @@ public final class TestSpecies {
             .set(ProfileAspect.SENSES_FAR_INTERVAL, 20)
             .set(ProfileAspect.SENSES_ATTACK_DECAY_TICKS, 600)
             .set(ProfileAspect.SENSES_HERD_LINK_RADIUS, 12)
+            // Omnidirectional: the pipeline suites place things all around a fixed
+            // body and test noticing, not aperture, and a 360° cone is the old disc. Cone
+            // geometry belongs to CrescentSamplerTest.
             .set(ProfileAspect.PLACES_RADIUS, 12)
+            .set(ProfileAspect.PLACES_CONE_DEGREES, 360)
+            .set(ProfileAspect.PLACES_NEAR_RADIUS, 0)
             .set(ProfileAspect.PLACES_REGION_MAX_SPREAD, 24)
             .set(ProfileAspect.PLACES_MAX_PER_KIND, 160)
             .set(ProfileAspect.DANGER_MELEE_MULT, 1.15)

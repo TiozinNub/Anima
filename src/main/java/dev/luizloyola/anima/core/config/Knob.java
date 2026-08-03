@@ -43,7 +43,7 @@ public enum Knob implements KnobSpec {
             "Block-read budget per agent per tick — the main throughput/TPS dial. At the cap, "
                     + "columns wait in the queue below and places are noticed later, never missed."),
     /** @see dev.luizloyola.anima.core.brain.knowledge.PoiSensorCore#queueCap() */
-    QUEUE_CAP("limits.queue_cap", Kind.INT, 512, 16, 65_536,
+    QUEUE_CAP("limits.queue_cap", Kind.INT, 1024, 16, 65_536,
             "How many un-probed columns may back up per agent before new sightings are dropped. "
                     + "At the cap an agent genuinely stops noticing things until it catches up, so "
                     + "raise this before raising reads_per_tick."),

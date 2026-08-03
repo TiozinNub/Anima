@@ -40,10 +40,13 @@ public final class PoiSensorCore {
     }
 
     /**
-     * Pending-column capacity, sized to hold a FULL disc (~450 columns at R=12), not just a
-     * crescent: dropping columns after a spawn/teleport glance biases the initial sweep toward
-     * whichever side enumerates last. Overflow drops the oldest. Raise it with
-     * {@code perception.sense_radius} — at or above the disc area, roughly {@code 3.2 * R * R}.
+     * Pending-column capacity. Sized to hold a FULL view (~870 columns for a Person), not just a
+     * crescent: a spawn/teleport glance that drops columns biases the initial sweep toward
+     * whichever side enumerates last. Overflow drops the oldest. Tuning knob.
+     *
+     * <p>Raise it with {@code places.radius} or that bias returns: the view's area is
+     * {@code π·r₀² + (cone/360)·π·(R² − r₀²)} — 871 for a Person's 24-block reach, 8-block halo
+     * and 150° aperture.
      */
     public static int queueCap() {
         return Config.get().i(Knob.QUEUE_CAP);
@@ -78,9 +81,15 @@ public final class PoiSensorCore {
         this.sampler = new CrescentSampler(profile);
     }
 
-    /** One perception tick — the beliefs noted or forgotten, empty on the common quiet tick. */
-    public List<SenseEvent> tick(Pos feet, long now, BlockProbe probe) {
-        for (Column column : sampler.advance(feet)) {
+    /**
+     * One perception tick. Returns what was learned (noted/forgotten beliefs) — empty on the
+     * common quiet tick. Queued columns are probed even if the head has turned away, or a body
+     * that keeps turning would starve its own queue.
+     *
+     * @param yawDegrees head bearing — see {@link CrescentSampler#advance}
+     */
+    public List<SenseEvent> tick(Pos feet, double yawDegrees, long now, BlockProbe probe) {
+        for (Column column : sampler.advance(feet, yawDegrees)) {
             rayRetries.remove(column); // freshly re-entered range: a fresh retry cycle
             if (pending.size() >= queueCap()) {
                 pending.pollFirst();

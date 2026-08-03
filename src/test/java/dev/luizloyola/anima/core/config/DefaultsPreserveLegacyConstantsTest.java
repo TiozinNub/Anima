@@ -40,7 +40,7 @@ class DefaultsPreserveLegacyConstantsTest {
         Config.reset();
 
         assertEquals(64, PoiSensorCore.readsPerTick(), "PoiSensorCore.READS_PER_TICK");
-        assertEquals(512, PoiSensorCore.queueCap(), "PoiSensorCore.QUEUE_CAP");
+        assertEquals(1024, PoiSensorCore.queueCap(), "PoiSensorCore.QUEUE_CAP");
         assertEquals(512, RegionGrowth.maxBlocks(), "RegionGrowth.MAX_BLOCKS");
         assertEquals(600, SiteClaims.ttlTicks(), "SiteClaims.TTL_TICKS");
         assertEquals(256, JournalService.defaultMaxEntriesPerPerson(),

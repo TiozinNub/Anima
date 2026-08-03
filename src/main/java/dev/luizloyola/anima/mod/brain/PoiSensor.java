@@ -46,8 +46,11 @@ public final class PoiSensor {
             this.probe = new LevelProbe(this.person.entity());
         }
         BlockPos feet = this.person.blockPosition();
+        // Head rotation, not body rotation — the same bearing the being sense takes its cone
+        // from, so what a body notices about places and about bodies agrees about where it looks.
         List<SenseEvent> events = this.core.tick(
-                new Pos(feet.getX(), feet.getY(), feet.getZ()), level.getGameTime(), this.probe);
+                new Pos(feet.getX(), feet.getY(), feet.getZ()),
+                this.person.entity().getYHeadRot(), level.getGameTime(), this.probe);
         // Unconditional: setDirty is a boolean flag, and knowledge mutates silently (refreshes
         // don't surface as events) — cheaper to always flag than to track what changed.
         this.data.setDirty();

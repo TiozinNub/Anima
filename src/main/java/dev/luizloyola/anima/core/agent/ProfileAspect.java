@@ -104,10 +104,20 @@ public enum ProfileAspect {
 
     // --- places: what this body notices about the world as it goes ----------------------------
 
-    PLACES_RADIUS("places.radius", Kind.INT, 1, 32,
-            "Horizontal radius (blocks) this body notices places within. Cost scales with the "
-                    + "square, but the work is bounded by the server's read budget rather than "
-                    + "by this, so a keen nose is safe."),
+    PLACES_RADIUS("places.radius", Kind.INT, 1, 64,
+            "Horizontal radius (blocks) this body notices places within, where it is looking. "
+                    + "Cost scales with the square, but the work is bounded by the server's read "
+                    + "budget rather than by this, so a keen nose is safe."),
+    PLACES_CONE_DEGREES("places.cone_degrees", Kind.INT, 30, 360,
+            "Horizontal field (degrees) within which this body notices places past the halo "
+                    + "below. Narrowing it is what pays for range — a 150° cone samples 42% of "
+                    + "its disc — and is why a body no longer notices what stands squarely "
+                    + "behind it. 360 makes noticing omnidirectional at every distance."),
+    PLACES_NEAR_RADIUS("places.near_radius", Kind.INT, 0, 32,
+            "Radius (blocks) within which places are noticed whichever way this body faces — "
+                    + "peripheral vision and the sole of a boot rather than eyesight. Clamped to "
+                    + "the radius above. 0 means nothing is noticed off-bearing at all, which is "
+                    + "a legitimate thing for a body with eyes on stalks to be."),
     PLACES_REGION_MAX_SPREAD("places.region_max_spread", Kind.INT, 1, 128,
             "Chebyshev spread from a seed before this mind stops calling it one place — what "
                     + "decides whether a forest is one memory or twenty. A judgment about "
