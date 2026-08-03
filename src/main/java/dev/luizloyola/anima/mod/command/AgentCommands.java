@@ -319,7 +319,7 @@ public final class AgentCommands {
      * last heartbeat — and because for an anchor-keyed errand the two holds are on the same thing.
      */
     /**
-     * The far sense: what she is currently making out on the skyline, in text or painted over
+     * The far sense: what the agent is currently making out on the skyline, in text or painted over
      * the world.
      *
      * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
@@ -404,7 +404,7 @@ public final class AgentCommands {
         HorizonViewer.watch(source.getServer(), player, id);
         Replies.send(source, () -> Component.literal("Drawing " + name
                         + "'s skyline — one cell per bearing, coloured by how high it stands from "
-                        + "her eye; gold marks the edges of what she can look at, magenta the "
+                        + "their eye; gold marks the edges of what they can look at, magenta the "
                         + "glimpses and any bearing that ran out of world.")
                 .withStyle(ChatFormatting.GREEN));
         return 1;
@@ -1088,7 +1088,7 @@ public final class AgentCommands {
                         .withStyle(ChatFormatting.GREEN));
             }
         }
-        // The gist tier last and dimmer: these are not things she knows, they are places worth
+        // The gist tier last and dimmer: these are not things they know, they are places worth
         // going to look at.
         for (PoiKind kind : PoiKind.all()) {
             for (Sighting sighting : knowledge.glimpses(kind)) {

@@ -56,7 +56,7 @@ class SightingTierTest {
     }
 
     @Test
-    void whatSheAlreadyKnowsIsNotGlimpsedAgain() {
+    void whatTheyAlreadyKnowIsNotGlimpsedAgain() {
         belief(0, 64, 30, 1);
 
         assertNull(glimpse(1, 68, 31, 2), "a belief outranks a rumour about the same place");

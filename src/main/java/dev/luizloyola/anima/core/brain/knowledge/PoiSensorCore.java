@@ -202,9 +202,9 @@ public final class PoiSensorCore {
         reads++;
         GrowthRule rule = ruleFor(kind);
         if (rule == null) {
-            // Looked at properly, and it is nothing: settles any rumour standing on this cell.
-            // Free — the column was probed anyway, and being inside the near field is the
-            // "she actually went and looked" the gist tier is waiting for.
+            // Looked at properly, and it is nothing: settles any rumour on this cell. Free — the
+            // column was probed anyway, and the near field is the deliberate look the gist tier
+            // waits for.
             knowledge.disprove(column.x(), column.z());
             return reads;
         }

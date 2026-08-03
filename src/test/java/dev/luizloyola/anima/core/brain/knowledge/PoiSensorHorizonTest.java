@@ -109,7 +109,7 @@ class PoiSensorHorizonTest {
         List<SenseEvent> early = tick(probe, 3);
 
         assertTrue(ofType(early, SenseEvent.Type.GLIMPSED).isEmpty(),
-                "head-down in new ground, she scans no skyline");
+                "head-down in new ground, they scan no skyline");
     }
 
     @Test
@@ -125,7 +125,7 @@ class PoiSensorHorizonTest {
         tickAt(probe, new Pos(0, 64, 22), 120);
 
         assertEquals(0, knowledge.glimpseCount(), "the rumour is spent");
-        assertEquals(1, knowledge.size(), "and she knows the tree instead");
+        assertEquals(1, knowledge.size(), "and they know the tree instead");
         assertTrue(knowledge.all(FakeGrowthRule.THICKET).iterator().next().units() > 0,
                 "with something actually counted in it");
     }
@@ -137,12 +137,12 @@ class PoiSensorHorizonTest {
         tick(probe, 60);
         assertEquals(1, knowledge.glimpseCount());
 
-        // It was there when she looked, and is gone by the time she arrives.
+        // It was there when they looked, and is gone by the time they arrive.
         probe.removeOak(0, 30);
         tickAt(probe, new Pos(0, 64, 22), 120);
 
         assertEquals(0, knowledge.glimpseCount(),
-                "she went to look and there was nothing — the gist does not outlive that");
+                "they went to look and there was nothing — the gist does not outlive that");
         assertEquals(0, knowledge.size(), "and nothing was invented to replace it");
     }
 

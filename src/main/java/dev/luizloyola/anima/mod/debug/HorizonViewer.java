@@ -28,29 +28,30 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 
 /**
- * The far sense's monocle: an agent's whole skyline painted over the live world, so <em>what it is
- * making out, and where it stopped</em> can be answered by looking.
+ * The far sense's monocle: an agent's whole skyline painted over the live world — what it is
+ * currently making out, and where it stopped.
  *
  * <ul>
- *   <li>Every swept bearing paints the cell that <em>topped</em> it: if a tree is not painted, the
- *       thing in front of it is.</li>
- *   <li>The cone edges are drawn in gold along the ground and the skyline stops between them — the
+ *   <li>Every swept bearing paints the cell that <em>topped</em> it: if the tree is not painted,
+ *       the thing standing in front of it is.</li>
+ *   <li>The two cone edges are gold along the ground and the skyline stops between them — the
  *       passive sense never looks behind.</li>
  *   <li>A bearing that ended at an unloaded chunk rather than at its range wears a magenta rim:
  *       "I could see no further" is not "there was nothing there".</li>
  * </ul>
  *
- * <p>Skyline colour is elevation angle from her eye (blue below, green level, red above), and the
- * gist tier rides along in magenta with its range labelled.
+ * <p>The skyline's colour is its elevation angle from their eye: blue below, green about level,
+ * red above. The gist tier rides along in magenta, range labelled.
  *
- * <p>Reads live sensor state, so it draws only a LOADED agent, unlike {@code KnowledgeViewer}.
+ * <p>Reads live sensor state, so it draws only a LOADED agent — unlike {@code KnowledgeViewer},
+ * whose store is world-scoped and answers for the absent.
  */
 public final class HorizonViewer {
     private HorizonViewer() {}
 
     private static final String SOURCE = "anima:horizon";
 
-    /** Brisk: the skyline is relative to where she stands, and she moves. */
+    /** Brisk: the skyline is relative to where the body stands, and bodies move. */
     private static final int RESCAN_INTERVAL_TICKS = 10;
     private static final int TTL_TICKS = RESCAN_INTERVAL_TICKS * 3;
 
@@ -136,7 +137,7 @@ public final class HorizonViewer {
     }
 
     /**
-     * One cell per swept bearing: what topped it, coloured by how high it stands from her eye.
+     * One cell per swept bearing: what topped it, coloured by how high it stands from their eye.
      * Bucketed by hue so the frame carries a handful of groups rather than one per bearing.
      */
     private static int paintSkyline(HorizonBuffer buffer, List<CellOverlayPayload.Group> groups) {
@@ -227,7 +228,7 @@ public final class HorizonViewer {
         return cells.size();
     }
 
-    /** The one-line state of the sense, floating over her head. */
+    /** The one-line state of the sense, floating over their head. */
     private static void summarise(AgentBody agent, AgentProfile profile, HorizonBuffer buffer,
             int drawn, int glimpses, List<CellOverlayPayload.Label> labels) {
         int swept = 0;

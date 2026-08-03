@@ -17,11 +17,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * The far sense: a forest on the skyline is made out, what is behind a hill or behind HER is
- * not, and a whole forest arrives as a handful of glimpses rather than one per trunk.
+ * The far sense: a forest on the skyline is made out, what is behind a hill or behind THEM is
+ * not, and a forest arrives as a handful of glimpses.
  *
- * <p>Anima ships no botany, so the suite registers a rule of its own — the seam working as
- * intended, exactly as the near field's suite does with Autarkia's.
+ * <p>Anima ships no botany, so the suite registers a growth rule of its own.
  */
 class HorizonScannerTest {
 
@@ -90,9 +89,9 @@ class HorizonScannerTest {
     }
 
     @Test
-    void nothingBehindHerIsEverMadeOut() {
+    void nothingBehindThemIsEverMadeOut() {
         FakeProbe probe = new FakeProbe();
-        probe.placeOak(0, -30); // squarely at her back
+        probe.placeOak(0, -30); // squarely at their back
 
         assertTrue(glimpses(sweep(probe, 60)).isEmpty(),
                 "the passive sense never looks behind — that is what the survey is for");
@@ -104,7 +103,7 @@ class HorizonScannerTest {
         probe.placeOak(0, -30);
 
         assertTrue(glimpses(sweep(probe, 40)).isEmpty(), "not while facing away");
-        assertFalse(glimpses(sweep(probe, 60, 180.0)).isEmpty(), "but she can turn and look");
+        assertFalse(glimpses(sweep(probe, 60, 180.0)).isEmpty(), "but they can turn and look");
     }
 
     @Test
