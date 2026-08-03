@@ -84,4 +84,16 @@ public final class Flocks {
         int n = flock.size();
         return new Pos(Math.round((float) x / n), Math.round((float) y / n), Math.round((float) z / n));
     }
+
+    /**
+     * Whether a drop can actually be walked over: one perched ON the CANOPY cannot — the body
+     * stands beneath the leaves waiting for a fall that only decay delivers, and a crowd of
+     * gatherers flocks to the same untakeable bait (Luiz's fifty-lumberjack forest,
+     * 2026-08-02). A drop is gatherable unless the block holding it up is leaves.
+     */
+    public static boolean gatherable(dev.luizloyola.anima.core.brain.sense.Pos drop,
+            dev.luizloyola.anima.core.brain.BrainContext ctx) {
+        return ctx.percepts().blocks().at(drop.x(), drop.y() - 1, drop.z())
+                != dev.luizloyola.anima.core.brain.knowledge.BlockKind.LEAVES;
+    }
 }
