@@ -38,10 +38,8 @@ public final class AnimaMod implements ModInitializer {
         AgentBodies.install();
         RayPools.install();
         AnimaItems.init();
-        // Anima's own overlay wire and the sense that rides it: registered here so a bare
-        // install (or a consumer that paints nothing itself) still has both.
+        // Registered here so a bare install, or a consumer that paints nothing, still has it.
         dev.luizloyola.anima.mod.debug.CellOverlays.init();
-        dev.luizloyola.anima.mod.debug.HorizonViewer.init();
         AnimaCommands.register(CONFIG);
         LOGGER.info("Anima loaded — the machinery is ready for whoever wants a mind.");
     }

@@ -1,10 +1,14 @@
 package dev.luizloyola.anima.mod.debug;
 
+import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
+import dev.luizloyola.anima.core.brain.knowledge.HorizonBuffer;
+import dev.luizloyola.anima.core.brain.knowledge.HorizonScanner;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
+import dev.luizloyola.anima.core.brain.knowledge.Sighting;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.Path;
@@ -199,10 +203,61 @@ public final class DebugView {
                 layers.contains(DebugLayer.BRAIN) ? person.brain().describeLines() : List.of(),
                 layers.contains(DebugLayer.MEMORY) ? beliefs(server, person) : List.of(),
                 layers.contains(DebugLayer.PEERS) ? peers(person) : List.of(),
-                // The ring and the wedge are drawn from the body's own dimensions, not from
-                // Anima's config: a debug view that draws somebody else's eyesight is wrong.
-                person.profile().i(ProfileAspect.SENSES_CONE_DEGREES),
-                person.profile().i(ProfileAspect.SENSES_RADIUS));
+                sight(server, person, layers.contains(DebugLayer.HORIZON)));
+    }
+
+    /**
+     * Their eyes: the dimensions both sense tiers are drawn from, plus the far sweep's readout when
+     * that layer is up.
+     *
+     * <p>The sizes travel unconditionally (the peers layer draws the near cone from them), and
+     * come from the body's own profile, not Anima's config.
+     *
+     * <p>The skyline is read straight off the live sensor, so this only answers for a LOADED agent;
+     * re-walking the sweep would be a different sweep from the one being debugged.
+     */
+    private static DebugViewPayload.Sight sight(
+            MinecraftServer server, AgentBody person, boolean wantsHorizon) {
+        AgentProfile profile = person.profile();
+        int cone = profile.i(ProfileAspect.SENSES_CONE_DEGREES);
+        int near = profile.i(ProfileAspect.SENSES_RADIUS);
+        int far = HorizonScanner.radius(profile);
+        HorizonBuffer buffer = person.poiSensor() == null ? null : person.poiSensor().horizon();
+        if (!wantsHorizon || buffer == null) {
+            return new DebugViewPayload.Sight(cone, near, far, List.of(), List.of());
+        }
+        List<DebugViewPayload.Bearing> skyline = new ArrayList<>();
+        for (int bin = 0; bin < HorizonBuffer.BINS; bin++) {
+            // Swept but empty: the bearing was walked and nothing rose above the running maximum —
+            // open sky. The hole it leaves in the ribbon is the correct picture.
+            if (!buffer.wasSwept(bin) || !buffer.filled(bin)) {
+                continue;
+            }
+            Pos top = buffer.top(bin);
+            skyline.add(new DebugViewPayload.Bearing(
+                    bin, new BlockPos(top.x(), top.y(), top.z()), buffer.truncated(bin)));
+        }
+        return new DebugViewPayload.Sight(cone, near, far, skyline, glimpses(server, person));
+    }
+
+    /** The gist tier: what they have made out at range and never been near enough to examine. */
+    private static List<DebugViewPayload.Glimpse> glimpses(MinecraftServer server, AgentBody person) {
+        AgentId id = person.agentId();
+        if (id == null) {
+            return List.of();
+        }
+        AgentKnowledge knowledge = Knowledges.of(server).forPerson(id);
+        List<DebugViewPayload.Glimpse> out = new ArrayList<>();
+        for (PoiKind kind : PoiKind.all()) {
+            for (Sighting sighting : knowledge.glimpses(kind)) {
+                Pos at = sighting.at();
+                // The leading tilde is the tier: this is a rumour about a place, not a belief
+                // about a thing, and it must not read like the labels the memory layer draws.
+                out.add(new DebugViewPayload.Glimpse(
+                        "~" + kind.key() + " " + sighting.range() + "m", cell(at)));
+            }
+        }
+        return out;
     }
 
     /** Everything they remember, of every kind, flattened with staleness resolved server-side. */

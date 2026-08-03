@@ -37,8 +37,7 @@ public record DebugViewPayload(
         List<String> brain,
         List<Belief> beliefs,
         List<PeerMark> peers,
-        int coneDegrees,
-        int senseRadius) implements CustomPacketPayload {
+        Sight sight) implements CustomPacketPayload {
 
     public static final Type<DebugViewPayload> TYPE =
             new Type<>(Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "debug_view"));
@@ -112,6 +111,70 @@ public record DebugViewPayload(
                         PeerMark::new);
     }
 
+    /**
+     * One swept bearing of the far sense: which bearing it was, and the cell that TOPPED it.
+     *
+     * <p>{@link #bin} travels because the sweep takes every second bearing and skips any still
+     * fresh, so the next entry is not the next bearing round, and the client needs the angle to
+     * tell joinable neighbours from two sides of a hole.
+     *
+     * <p>The elevation is not sent, though the buffer holds it: {@code (top − eye) / distance},
+     * and the client has both ends live, so deriving it there recolours the skyline as the body
+     * climbs or crouches instead of freezing at the snapshot's eye height.
+     *
+     * @param truncated the bearing ended at unloaded world rather than at its range — "I could see
+     *     no further", a different claim from "there was nothing there"
+     */
+    public record Bearing(int bin, BlockPos top, boolean truncated) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, Bearing> CODEC =
+                StreamCodec.composite(
+                        ByteBufCodecs.VAR_INT, Bearing::bin,
+                        BlockPos.STREAM_CODEC, Bearing::top,
+                        ByteBufCodecs.BOOL, Bearing::truncated,
+                        Bearing::new);
+    }
+
+    /**
+     * One thing made out on the skyline and never examined — the gist tier, drawn beside the
+     * skyline that produced it.
+     *
+     * <p>{@link #label} carries the remembered RANGE, not the current distance: how far off the
+     * sighting was is the measure of how much salt to take it with.
+     */
+    public record Glimpse(String label, BlockPos at) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, Glimpse> CODEC =
+                StreamCodec.composite(
+                        ByteBufCodecs.STRING_UTF8, Glimpse::label,
+                        BlockPos.STREAM_CODEC, Glimpse::at,
+                        Glimpse::new);
+    }
+
+    /**
+     * Everything about their eyes, in one section: the two ranges, the cone both tiers share, and
+     * (when the horizon layer is on) the far sweep's readout.
+     *
+     * <p>The dimensions come off the BODY's own profile rather than out of Anima's config, because
+     * a debug view that draws somebody else's eyesight is wrong; they travel even when the horizon
+     * layer is off, since the peers layer draws the near cone out of the same numbers.
+     *
+     * @param skyline one entry per swept, non-empty bearing, ascending by bin — whatever is drawn
+     *     is what stopped the bearing, so occlusion becomes a block you can walk over and look at
+     */
+    public record Sight(int coneDegrees, int senseRadius, int horizonRadius,
+                        List<Bearing> skyline, List<Glimpse> glimpses) {
+        /** No eyes to draw — what the clear snapshot carries. */
+        public static final Sight NONE = new Sight(0, 0, 0, List.of(), List.of());
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, Sight> CODEC =
+                StreamCodec.composite(
+                        ByteBufCodecs.VAR_INT, Sight::coneDegrees,
+                        ByteBufCodecs.VAR_INT, Sight::senseRadius,
+                        ByteBufCodecs.VAR_INT, Sight::horizonRadius,
+                        Bearing.CODEC.apply(ByteBufCodecs.list()), Sight::skyline,
+                        Glimpse.CODEC.apply(ByteBufCodecs.list()), Sight::glimpses,
+                        Sight::new);
+    }
+
     public static final StreamCodec<RegistryFriendlyByteBuf, DebugViewPayload> CODEC =
             StreamCodec.composite(
                     ByteBufCodecs.VAR_INT, DebugViewPayload::entityId,
@@ -123,14 +186,13 @@ public record DebugViewPayload(
                     ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list()), DebugViewPayload::brain,
                     Belief.CODEC.apply(ByteBufCodecs.list()), DebugViewPayload::beliefs,
                     PeerMark.CODEC.apply(ByteBufCodecs.list()), DebugViewPayload::peers,
-                    ByteBufCodecs.VAR_INT, DebugViewPayload::coneDegrees,
-                    ByteBufCodecs.VAR_INT, DebugViewPayload::senseRadius,
+                    Sight.CODEC, DebugViewPayload::sight,
                     DebugViewPayload::new);
 
     /** The "draw nothing" snapshot — every layer off, no entity to anchor to. */
     public static DebugViewPayload clear() {
         return new DebugViewPayload(-1, 0, List.of(), 0, Optional.empty(), "", List.of(),
-                List.of(), List.of(), 0, 0);
+                List.of(), List.of(), Sight.NONE);
     }
 
     /** Whether this snapshot carries anything to draw at all. */

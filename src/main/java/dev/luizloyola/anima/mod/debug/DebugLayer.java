@@ -6,13 +6,13 @@ import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The independently switchable halves of the in-world debug view ({@link DebugView}), drawn over the
- * selected Person as gizmo lines, boxes and floating text. No layer implies another: chasing a
- * pathfinding bug with the peer lines on is noise.
+ * The independently switchable halves of the in-world debug view ({@link DebugView}), drawn over
+ * the selected Person as gizmo lines, boxes and text: {@link #PATH} where and how, {@link #BRAIN}
+ * why, {@link #MEMORY} what they think is out there, {@link #PEERS} who they know about,
+ * {@link #HORIZON} how far they see and what stopped them.
  *
- * <p>Declaration order is load-bearing twice — it is the debug wand's cycle order ({@link #next})
- * and the wire bit order ({@link #bit}), so a client and server that disagree about it disagree
- * about everything. Add a layer at the END.
+ * <p>Declaration order is load-bearing twice — the wand's cycle ({@link #next}) and the wire bit
+ * order ({@link #bit}) — so a layer is added at the END.
  */
 public enum DebugLayer {
     /** Waypoint polyline coloured by move type, the current leg highlighted, and the goal cell. */
@@ -22,7 +22,15 @@ public enum DebugLayer {
     /** Remembered points of interest: an anchor marker and the bounds box they believe in. */
     MEMORY,
     /** The view cone, and a line to everyone currently perceived, coloured by channel. */
-    PEERS;
+    PEERS,
+    /**
+     * The far sense: the skyline as a ribbon through what tops each swept bearing, the far cone
+     * bounding the sweep, and a line to every glimpse.
+     *
+     * <p>Same idiom as {@link #PEERS} one ring further out, so raising both draws the near sense
+     * inside the far one.
+     */
+    HORIZON;
 
     /** The command literal and config-facing name — lower case, no underscores in v1. */
     public String key() {

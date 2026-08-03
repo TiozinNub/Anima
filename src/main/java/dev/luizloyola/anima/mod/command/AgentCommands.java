@@ -29,7 +29,6 @@ import dev.luizloyola.anima.core.brain.knowledge.HorizonBuffer;
 import dev.luizloyola.anima.core.brain.knowledge.HorizonScanner;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.knowledge.Sighting;
-import dev.luizloyola.anima.mod.debug.HorizonViewer;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.task.BreakBlock;
 import dev.luizloyola.anima.core.brain.task.GoTo;
@@ -320,20 +319,18 @@ public final class AgentCommands {
      * last heartbeat — and because for an anchor-keyed errand the two holds are on the same thing.
      */
     /**
-     * The far sense: what the agent is currently making out on the skyline, in text or painted over
-     * the world.
+     * The far sense as a line of text: how much of the skyline is swept, and what it is topped by.
+     *
+     * <p><b>No {@code view} here.</b> Drawing it is {@code debug horizon}, beside the other four
+     * layers, so there is no second notion of "who am I looking at" to fall out of step with the
+     * selection. This half works with no client at all. That is what the headless harness has.
      *
      * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
      * so a shared subcommand must be built once per root that mounts it.
      */
     public static LiteralArgumentBuilder<CommandSourceStack> horizon() {
         return Commands.literal("horizon")
-                                .executes(ctx -> horizonShow(ctx.getSource()))
-                                .then(Commands.literal("view")
-                                        .then(Commands.literal("true")
-                                                .executes(ctx -> horizonView(ctx.getSource(), true)))
-                                        .then(Commands.literal("false")
-                                                .executes(ctx -> horizonView(ctx.getSource(), false))));
+                                .executes(ctx -> horizonShow(ctx.getSource()));
     }
 
     /** The skyline as a line of text — how much of it is swept, and what it is topped by. */
@@ -377,38 +374,6 @@ public final class AgentCommands {
                                 : ""))
                 .withStyle(ChatFormatting.AQUA));
         return swept;
-    }
-
-    /** Paints that skyline over the world for the asking player. */
-    private static int horizonView(CommandSourceStack source, boolean on) {
-        ServerPlayer player = source.getPlayer();
-        if (player == null) {
-            Replies.fail(source, Component.literal("horizon view needs a player to draw for."));
-            return 0;
-        }
-        if (!on) {
-            boolean was = HorizonViewer.unwatch(source.getServer(), player);
-            Replies.send(source, () -> Component.literal(was
-                            ? "Stopped drawing the skyline."
-                            : "You weren't watching a skyline.")
-                    .withStyle(ChatFormatting.GRAY));
-            return 1;
-        }
-        AgentBody person = resolveBody(source);
-        if (person == null) return 0;
-        AgentId id = person.agentId();
-        if (id == null) {
-            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
-            return 0;
-        }
-        String name = person.entity().getName().getString();
-        HorizonViewer.watch(source.getServer(), player, id);
-        Replies.send(source, () -> Component.literal("Drawing " + name
-                        + "'s skyline — one cell per bearing, coloured by how high it stands from "
-                        + "their eye; gold marks the edges of what they can look at, magenta the "
-                        + "glimpses and any bearing that ran out of world.")
-                .withStyle(ChatFormatting.GREEN));
-        return 1;
     }
 
     public static LiteralArgumentBuilder<CommandSourceStack> claims() {
@@ -1808,8 +1773,7 @@ public final class AgentCommands {
     }
 
     /**
-     * The in-world gizmo view over the selected agent — path, brain, memory and peers, each
-     * layer a different question about the same mind.
+     * The in-world gizmo view over the selected agent — path, brain, memory, peers and horizon.
      *
      * <p>A factory, not a cached node: Brigadier parents a builder when it is registered.
      */

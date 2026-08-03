@@ -1,6 +1,8 @@
 package dev.luizloyola.anima.mod.client;
 
 import dev.luizloyola.anima.compat.client.debug.GizmoFrame;
+import dev.luizloyola.anima.core.brain.knowledge.HorizonBuffer;
+import dev.luizloyola.anima.core.brain.knowledge.HorizonScanner;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.nav.MoveType;
@@ -61,8 +63,14 @@ public final class DebugViewRenderer {
     private static final int REMEMBERED_COLOR = 0xFF8A8A8A;
     private static final int CONE_COLOR = 0x66FFFFFF;
 
+    /** Gold for the far aperture, magenta for both ways the far sense admits it is guessing. */
+    private static final int HORIZON_CONE_COLOR = 0xB4FFD700;
+    private static final int TRUNCATED_COLOR = 0xFFFF3FD4;
+    private static final int GLIMPSE_COLOR = 0xFFFF3FD4;
+
     private static final int NAV_TEXT_COLOR = 0xFFB0C4FF;
     private static final int BRAIN_TEXT_COLOR = 0xFFFFFFFF;
+    private static final int HORIZON_TEXT_COLOR = 0xFFFFD700;
 
     /** Line widths: the leg being walked now is drawn heavier than the rest of the plan. */
     private static final float PATH_WIDTH = 2.5F;
@@ -91,6 +99,31 @@ public final class DebugViewRenderer {
 
     /** Segments in the drawn cone arc — enough to read as a curve at any sane radius. */
     private static final int CONE_SEGMENTS = 24;
+
+    /** The skyline ribbon: heavy enough to read at sixty blocks, with a dot on every sample. */
+    private static final float SKYLINE_WIDTH = 3.0F;
+    private static final float SKYLINE_POINT = 0.14F;
+    private static final int SKYLINE_ALPHA = 0xC8;
+
+    /**
+     * One sight line back to the eye every this many bearings. A ray per sample would be a solid
+     * wall of lines; a sparse fan is what makes the ribbon read as something being LOOKED at.
+     */
+    private static final int RAY_EVERY_BINS = 8;
+
+    /**
+     * Elevation tangents at the ends of the colour ramp — 17° down and 17° up, so level ground
+     * lands in the middle of it and comes out green.
+     *
+     * <p>Narrow on purpose: out at horizon range a five-block ridge subtends 8° and a twelve-block
+     * tower 10°, so a ramp with real headroom paints every one of them the same cyan. Saturating
+     * on genuine cliffs is the cheaper mistake.
+     */
+    private static final double COLDEST_TAN = -0.30;
+    private static final double HOTTEST_TAN = 0.30;
+
+    /** Clearance between a glimpsed cell and its label. */
+    private static final double GLIMPSE_LABEL_CLEARANCE = 0.6;
 
     public static void install() {
         GizmoFrame.onFrame(DebugViewRenderer::draw);
@@ -127,6 +160,9 @@ public final class DebugViewRenderer {
         }
         if (DebugLayer.PEERS.in(view.layers())) {
             drawPeers(view, person, level, partialTick);
+        }
+        if (DebugLayer.HORIZON.in(view.layers()) && person != null) {
+            drawHorizon(view.sight(), person, partialTick, line);
         }
     }
 
@@ -281,7 +317,8 @@ public final class DebugViewRenderer {
             return;
         }
         Vec3 eye = person.getEyePosition(partialTick);
-        drawCone(eye, person.getYHeadRot(), view.coneDegrees(), view.senseRadius());
+        drawCone(eye, person.getYHeadRot(), view.sight().coneDegrees(),
+                0, view.sight().senseRadius(), CONE_COLOR);
         for (DebugViewPayload.PeerMark peer : view.peers()) {
             int color = awarenessColor(peer.awareness());
             // The live body when the server sent one (a SEEN peer, whose cell is a live sample and
@@ -303,23 +340,31 @@ public final class DebugViewRenderer {
         }
     }
 
-    /** The horizontal view cone: its two edges, and an arc closing them at sense range. */
-    private static void drawCone(Vec3 eye, float headYaw, int coneDegrees, int radius) {
-        if (coneDegrees <= 0 || radius <= 0) {
+    /**
+     * The horizontal view cone: its two edges, and an arc closing them at the outer range.
+     *
+     * <p>Takes an INNER radius because the two sense tiers are different wedges of one aperture:
+     * the near field runs from the body to its range, the far sweep from there to the horizon, and
+     * far edges drawn from the eye would claim it sees what it never walks. Only the outer arc is
+     * drawn — with both layers up, the near cone's own arc is the inner one.
+     */
+    private static void drawCone(Vec3 eye, float headYaw, int coneDegrees,
+                                 int from, int to, int color) {
+        if (coneDegrees <= 0 || to <= from) {
             return;
         }
         double half = Math.toRadians(coneDegrees / 2.0);
         // Minecraft yaw is degrees clockwise from south with -Z as north, so the facing vector is
         // (-sin, cos) — the same convention the sensor's own cone test uses.
         double facing = Math.toRadians(headYaw);
-        Vec3 left = rim(eye, facing - half, radius);
-        Vec3 right = rim(eye, facing + half, radius);
-        Gizmos.line(eye, left, CONE_COLOR, THIN);
-        Gizmos.line(eye, right, CONE_COLOR, THIN);
+        Vec3 left = rim(eye, facing - half, to);
+        Vec3 right = rim(eye, facing + half, to);
+        Gizmos.line(rim(eye, facing - half, from), left, color, THIN);
+        Gizmos.line(rim(eye, facing + half, from), right, color, THIN);
         Vec3 previous = left;
         for (int i = 1; i <= CONE_SEGMENTS; i++) {
-            Vec3 next = rim(eye, facing - half + (2 * half * i / CONE_SEGMENTS), radius);
-            Gizmos.line(previous, next, CONE_COLOR, THIN);
+            Vec3 next = rim(eye, facing - half + (2 * half * i / CONE_SEGMENTS), to);
+            Gizmos.line(previous, next, color, THIN);
             previous = next;
         }
     }
@@ -327,6 +372,128 @@ public final class DebugViewRenderer {
     /** A point on the cone's rim: flat, at eye height, {@code radius} out along {@code angle}. */
     private static Vec3 rim(Vec3 eye, double angle, int radius) {
         return eye.add(-Math.sin(angle) * radius, 0.0, Math.cos(angle) * radius);
+    }
+
+    /**
+     * How far they can see, and what stopped them — the far sense drawn as the peers layer draws
+     * the near one: a cone, and a line to every reading.
+     *
+     * <ul>
+     *   <li><b>"Why didn't they see that tree?"</b> The ribbon runs through whatever TOPPED each
+     *       swept bearing; if the tree is not on it, the thing in front of it is.</li>
+     *   <li><b>"Is it behind them?"</b> The cone is gold and the ribbon stops at its edges — the
+     *       passive sweep never looks backwards.</li>
+     *   <li><b>"Did they run out of world?"</b> A bearing that ended at an unloaded chunk goes
+     *       magenta: "I could see no further" is not "there was nothing there".</li>
+     * </ul>
+     *
+     * <p>The ribbon's colour is elevation from their eye — blue below, green level, red above —
+     * recomputed every frame rather than sent, so a ridge stays a warm band as they walk up to it.
+     */
+    private static void drawHorizon(DebugViewPayload.Sight sight, Entity person,
+                                    float partialTick, int[] line) {
+        Vec3 eye = person.getEyePosition(partialTick);
+        drawCone(eye, person.getYHeadRot(), sight.coneDegrees(),
+                sight.senseRadius(), sight.horizonRadius(), HORIZON_CONE_COLOR);
+        drawSkyline(eye, sight.skyline());
+        drawGlimpses(eye, sight.glimpses());
+        overhead(person, partialTick, line[0]++, skylineSummary(sight),
+                HORIZON_TEXT_COLOR, DETAIL_SCALE);
+    }
+
+    /**
+     * The skyline itself: a crest point per swept bearing joined into a ribbon, with a sparse fan
+     * of sight lines back to the eye.
+     *
+     * <p>Neighbours are joined; holes are not. Two samples are neighbours only within the sweep's
+     * own bin stride — a wider gap is a bearing that came back empty or one not yet reached, and
+     * bridging it would draw a skyline across ground nobody looked at. The list is ascending by bin
+     * and closes into a ring, so a cone straddling bearing zero joins across the seam.
+     */
+    private static void drawSkyline(Vec3 eye, List<DebugViewPayload.Bearing> skyline) {
+        int count = skyline.size();
+        for (int i = 0; i < count; i++) {
+            DebugViewPayload.Bearing bearing = skyline.get(i);
+            Vec3 crest = crest(bearing.top());
+            int color = bearing.truncated() ? TRUNCATED_COLOR : elevationColor(eye, crest);
+            Gizmos.point(crest, color, SKYLINE_POINT);
+            if (bearing.bin() % RAY_EVERY_BINS == 0) {
+                Gizmos.line(eye, crest, fade(color, true), THIN);
+            }
+            // Closing the ring costs one extra pair and is what carries the seam; with only two
+            // samples that pair is the segment already drawn, so it stops at three.
+            if (count < 2 || (i == count - 1 && count < 3)) {
+                continue;
+            }
+            DebugViewPayload.Bearing next = skyline.get((i + 1) % count);
+            if (!neighbours(bearing.bin(), next.bin())) {
+                continue;
+            }
+            // A segment either side of a truncation wears the truncation's colour: the break is
+            // the fact, and it belongs to the join as much as to the sample.
+            int segment = bearing.truncated() || next.truncated()
+                    ? TRUNCATED_COLOR
+                    : elevationColor(eye, crest);
+            Gizmos.line(crest, crest(next.top()), segment, SKYLINE_WIDTH);
+        }
+    }
+
+    /** Whether two bearings are adjacent samples of the same sweep rather than sides of a hole. */
+    private static boolean neighbours(int bin, int other) {
+        int gap = Math.abs(bin - other);
+        return Math.min(gap, HorizonBuffer.BINS - gap) <= HorizonScanner.BIN_STRIDE;
+    }
+
+    /**
+     * The gist tier, drawn as a peer is: a line from the eye, a box round the cell, and what they
+     * took it for — labelled with the range it was taken at, and magenta like a bearing that ran
+     * out of world.
+     */
+    private static void drawGlimpses(Vec3 eye, List<DebugViewPayload.Glimpse> glimpses) {
+        for (DebugViewPayload.Glimpse glimpse : glimpses) {
+            Vec3 crest = crest(glimpse.at());
+            Gizmos.line(eye, crest, GLIMPSE_COLOR, PATH_WIDTH).setAlwaysOnTop();
+            Gizmos.cuboid(glimpse.at(), GizmoStyle.stroke(GLIMPSE_COLOR, THIN)).setAlwaysOnTop();
+            Gizmos.billboardText(glimpse.label(), crest.add(0.0, GLIMPSE_LABEL_CLEARANCE, 0.0),
+                            TextGizmo.Style.forColorAndCentered(GLIMPSE_COLOR)
+                                    .withScale(DETAIL_SCALE))
+                    .setAlwaysOnTop();
+        }
+    }
+
+    /** The state of the far sense in one line — the numbers the drawing cannot show by itself. */
+    private static String skylineSummary(DebugViewPayload.Sight sight) {
+        int cutShort = 0;
+        for (DebugViewPayload.Bearing bearing : sight.skyline()) {
+            if (bearing.truncated()) {
+                cutShort++;
+            }
+        }
+        return String.format(Locale.ROOT, "skyline r%d %d° · %d bearings · %d glimpsed%s",
+                sight.horizonRadius(), sight.coneDegrees(), sight.skyline().size(),
+                sight.glimpses().size(),
+                cutShort > 0 ? " · " + cutShort + " ran out of world" : "");
+    }
+
+    /**
+     * A crest's drawing point: the middle of the TOP FACE of the cell that topped the bearing.
+     * The block's own top is the line the eye actually stops at, and it is the one place a ribbon
+     * segment can sit without disappearing into the terrain it is describing.
+     */
+    private static Vec3 crest(BlockPos pos) {
+        return new Vec3(pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5);
+    }
+
+    /**
+     * How high this crest stands from their eye, as a colour — cold below, green about level, warm
+     * above. Computed from the LIVE eye rather than from the snapshot's, so the ramp answers "how
+     * does this look from where they are standing now".
+     */
+    private static int elevationColor(Vec3 eye, Vec3 crest) {
+        double flat = Math.hypot(crest.x - eye.x, crest.z - eye.z);
+        double tan = flat < 1.0 ? HOTTEST_TAN : (crest.y - eye.y) / flat;
+        double ramp = Mth.clamp((tan - COLDEST_TAN) / (HOTTEST_TAN - COLDEST_TAN), 0.0, 1.0);
+        return Mth.hsvToArgb(0.6F * (1.0F - (float) ramp), 0.85F, 1.0F, SKYLINE_ALPHA);
     }
 
     /** A centred, always-visible line of peer text. */
