@@ -18,8 +18,20 @@ import net.minecraft.server.level.ServerPlayer;
 public final class CellOverlays {
     private CellOverlays() {}
 
-    /** Call once from common mod init — the payload type must be registered on both sides. */
+    private static boolean registered;
+
+    /**
+     * Call from common mod init — the payload type must be registered on both sides.
+     *
+     * <p>Idempotent on purpose: Anima registers its own wire so a bare install works, and a
+     * consumer that also calls this is harmless rather than a duplicate-registration crash. First
+     * caller wins; init order does not matter.
+     */
     public static void init() {
+        if (registered) {
+            return;
+        }
+        registered = true;
         PayloadTypeRegistry.clientboundPlay().register(
                 CellOverlayPayload.TYPE, CellOverlayPayload.CODEC);
     }

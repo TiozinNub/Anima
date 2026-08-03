@@ -24,8 +24,12 @@ import com.mojang.brigadier.suggestion.SuggestionProvider;
 import dev.luizloyola.anima.compat.inv.ItemStacks;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
+import dev.luizloyola.anima.core.brain.knowledge.CrescentSampler;
+import dev.luizloyola.anima.core.brain.knowledge.HorizonBuffer;
+import dev.luizloyola.anima.core.brain.knowledge.HorizonScanner;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.knowledge.Sighting;
+import dev.luizloyola.anima.mod.debug.HorizonViewer;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.task.BreakBlock;
 import dev.luizloyola.anima.core.brain.task.GoTo;
@@ -314,6 +318,98 @@ public final class AgentCommands {
      * <p>Shown together because they are one semantics — a hold that lives a fixed span past its
      * last heartbeat — and because for an anchor-keyed errand the two holds are on the same thing.
      */
+    /**
+     * The far sense: what she is currently making out on the skyline, in text or painted over
+     * the world.
+     *
+     * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
+     * so a shared subcommand must be built once per root that mounts it.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> horizon() {
+        return Commands.literal("horizon")
+                                .executes(ctx -> horizonShow(ctx.getSource()))
+                                .then(Commands.literal("view")
+                                        .then(Commands.literal("true")
+                                                .executes(ctx -> horizonView(ctx.getSource(), true)))
+                                        .then(Commands.literal("false")
+                                                .executes(ctx -> horizonView(ctx.getSource(), false))));
+    }
+
+    /** The skyline as a line of text — how much of it is swept, and what it is topped by. */
+    private static int horizonShow(CommandSourceStack source) {
+        AgentBody person = resolveBody(source);
+        if (person == null) return 0;
+        String name = person.entity().getName().getString();
+        int radius = HorizonScanner.radius(person.profile());
+        if (radius <= CrescentSampler.radius(person.profile())) {
+            Replies.send(source, () -> Component.literal(name
+                            + " has no skyline — places.horizon_radius is inside the sense radius.")
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        HorizonBuffer buffer = person.poiSensor() == null ? null : person.poiSensor().horizon();
+        if (buffer == null) {
+            Replies.fail(source, Component.literal(name + " hasn't perceived anything yet."));
+            return 0;
+        }
+        int swept = 0;
+        int cutShort = 0;
+        double highest = Double.NEGATIVE_INFINITY;
+        for (int bin = 0; bin < HorizonBuffer.BINS; bin++) {
+            if (!buffer.wasSwept(bin)) continue;
+            swept++;
+            if (buffer.truncated(bin)) cutShort++;
+            if (buffer.filled(bin)) highest = Math.max(highest, buffer.tan(bin));
+        }
+        AgentKnowledge knowledge = Knowledges.of(source.getServer()).forPerson(person.agentId());
+        int finalSwept = swept;
+        int finalCutShort = cutShort;
+        double finalHighest = highest;
+        Replies.send(source, () -> Component.literal(name + " — skyline to " + radius
+                        + " blocks across a " + CrescentSampler.coneDegrees(person.profile())
+                        + "° cone: " + finalSwept + " of " + HorizonBuffer.BINS
+                        + " bearings walked, " + knowledge.glimpseCount() + " glimpsed"
+                        + (finalCutShort > 0 ? ", " + finalCutShort + " ran out of loaded world" : "")
+                        + (finalHighest > Double.NEGATIVE_INFINITY
+                                ? ", steepest " + Math.round(Math.toDegrees(Math.atan(finalHighest)))
+                                        + "° up"
+                                : ""))
+                .withStyle(ChatFormatting.AQUA));
+        return swept;
+    }
+
+    /** Paints that skyline over the world for the asking player. */
+    private static int horizonView(CommandSourceStack source, boolean on) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            Replies.fail(source, Component.literal("horizon view needs a player to draw for."));
+            return 0;
+        }
+        if (!on) {
+            boolean was = HorizonViewer.unwatch(source.getServer(), player);
+            Replies.send(source, () -> Component.literal(was
+                            ? "Stopped drawing the skyline."
+                            : "You weren't watching a skyline.")
+                    .withStyle(ChatFormatting.GRAY));
+            return 1;
+        }
+        AgentBody person = resolveBody(source);
+        if (person == null) return 0;
+        AgentId id = person.agentId();
+        if (id == null) {
+            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
+            return 0;
+        }
+        String name = person.entity().getName().getString();
+        HorizonViewer.watch(source.getServer(), player, id);
+        Replies.send(source, () -> Component.literal("Drawing " + name
+                        + "'s skyline — one cell per bearing, coloured by how high it stands from "
+                        + "her eye; gold marks the edges of what she can look at, magenta the "
+                        + "glimpses and any bearing that ran out of world.")
+                .withStyle(ChatFormatting.GREEN));
+        return 1;
+    }
+
     public static LiteralArgumentBuilder<CommandSourceStack> claims() {
         return Commands.literal("claims")
                                 .executes(ctx -> claimsShow(ctx.getSource()));

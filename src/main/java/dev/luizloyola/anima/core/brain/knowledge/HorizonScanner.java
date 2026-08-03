@@ -161,7 +161,7 @@ public final class HorizonScanner {
         if (y == Integer.MIN_VALUE) {
             // The world stops being loaded here. The bearing ends there rather than
             // pretending the rest of it is empty — see the survey's completeness record.
-            end(now);
+            end(now, true);
             return reads;
         }
         double elevation = (y - this.originEyeY) / this.distance;
@@ -172,7 +172,7 @@ public final class HorizonScanner {
         }
         this.distance += stride(this.distance);
         if (this.distance > radius) {
-            end(now);
+            end(now, false);
         }
         return reads;
     }
@@ -243,8 +243,8 @@ public final class HorizonScanner {
         this.running = Double.NEGATIVE_INFINITY;
     }
 
-    private void end(long now) {
-        this.buffer.markSwept(this.bin, now);
+    private void end(long now, boolean cutShort) {
+        this.buffer.markSwept(this.bin, now, cutShort);
         this.bin = -1;
     }
 

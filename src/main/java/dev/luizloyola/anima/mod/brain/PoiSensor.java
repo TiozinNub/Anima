@@ -72,6 +72,11 @@ public final class PoiSensor {
         };
     }
 
+    /** The far sense's skyline readout, or null before the first tick built one. */
+    public dev.luizloyola.anima.core.brain.knowledge.HorizonBuffer horizon() {
+        return this.core == null ? null : this.core.horizon();
+    }
+
     /** Transient claim count — the debug command's "how full is the dismissal index" line. */
     public int claimCount() {
         return this.core == null ? 0 : this.core.claimCount();

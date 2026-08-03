@@ -45,6 +45,12 @@ public final class HorizonBuffer {
      * the first bearings of a body's life looking permanently unswept.
      */
     private final boolean[] swept = new boolean[BINS];
+    /**
+     * Whether the walk along each bearing ended early — it ran out of loaded world rather than
+     * reaching its range. "I could see no further" is a different claim from "there was nothing
+     * there", and only the bearing itself knows which one it is making.
+     */
+    private final boolean[] truncated = new boolean[BINS];
     /** Whether a bearing holds anything at all. */
     private final boolean[] filled = new boolean[BINS];
 
@@ -98,10 +104,20 @@ public final class HorizonBuffer {
         this.filled[bin] = true;
     }
 
-    /** A bearing was walked to its end (or to the edge of what is loaded). */
-    public void markSwept(int bin, long now) {
+    /**
+     * A bearing was walked to its end.
+     *
+     * @param cutShort true when it stopped at the edge of the loaded world rather than at range
+     */
+    public void markSwept(int bin, long now, boolean cutShort) {
         this.sweptAt[bin] = now;
         this.swept[bin] = true;
+        this.truncated[bin] = cutShort;
+    }
+
+    /** Whether this bearing ran out of world before it ran out of range. */
+    public boolean truncated(int bin) {
+        return this.truncated[bin];
     }
 
     /** Whether this bearing has been walked since the last re-anchor. */
