@@ -62,6 +62,28 @@ public final class AgentBlockBreaker implements BlockBreaker {
         return true;
     }
 
+    @Override
+    public @Nullable Pos obstruction(Pos target) {
+        Level level = person.level();
+        Vec3 from = person.entity().getEyePosition();
+        BlockPos targetPos = new BlockPos(target.x(), target.y(), target.z());
+        Vec3 to = Vec3.atCenterOf(targetPos);
+        // The same march armPathClear refuses by — half-block strides from the real eyes —
+        // returning the first striking cell instead of a verdict, so a caller can cure the
+        // refusal instead of guessing at it.
+        int steps = (int) Math.ceil(from.distanceTo(to) * 2.0);
+        for (int i = 1; i < steps; i++) {
+            BlockPos cell = BlockPos.containing(from.lerp(to, i / (double) steps));
+            if (cell.equals(targetPos) || !level.isLoaded(cell)) {
+                continue;
+            }
+            if (!level.getBlockState(cell).getCollisionShape(level, cell).isEmpty()) {
+                return new Pos(cell.getX(), cell.getY(), cell.getZ());
+            }
+        }
+        return null;
+    }
+
     /** One tick of arm work, from {@link AgentBody#serverAiStep()}; a no-op unless mid-break. */
     public void tick() {
         if (state != BreakState.BREAKING) {

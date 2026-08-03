@@ -22,6 +22,14 @@ public interface BlockBreaker {
     boolean begin(Pos target);
 
     /**
+     * The first cell the arm would strike on its way to {@code target}, {@code null} when the swing
+     * path is clear (or the obstruction is the target itself). The ARM'S own answer, measured with
+     * the geometry {@link #begin} refuses by: a caller sampling the line itself measures from
+     * somewhere the eyes are not (the fancy-oak grind's leftover crop).
+     */
+    Pos obstruction(Pos target);
+
+    /**
      * Progress of the most recent {@link #begin}; {@link BreakState#IDLE} when there is none.
      * {@link BreakState#FINISHED} means the block broke and its drops are real in-world items —
      * the port owns the whole transaction, the task only observes it.

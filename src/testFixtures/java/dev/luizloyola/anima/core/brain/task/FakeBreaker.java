@@ -32,6 +32,14 @@ public final class FakeBreaker implements BlockBreaker {
         return true;
     }
 
+    /** Scripted arm-path answers: cell -> the obstruction the fake arm reports for it. */
+    public final java.util.Map<Pos, Pos> obstructions = new java.util.HashMap<>();
+
+    @Override
+    public @Nullable Pos obstruction(Pos target) {
+        return obstructions.get(target);
+    }
+
     @Override
     public BreakState state() {
         return state;
