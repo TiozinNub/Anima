@@ -4,6 +4,7 @@ import dev.luizloyola.anima.compat.inv.CookedForms;
 import dev.luizloyola.anima.compat.inv.FoodValues;
 import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
+import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.Drop;
 import dev.luizloyola.anima.core.brain.sense.FoodLookup;
@@ -20,7 +21,9 @@ import java.util.function.Supplier;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.phys.AABB;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -125,11 +128,26 @@ public final class AgentPercepts implements Percepts {
             }
             BlockPos at = item.blockPosition();
             drops.add(new Drop(new Pos(at.getX(), at.getY(), at.getZ()),
-                    BuiltInRegistries.ITEM.getKey(item.getItem().getItem()).toString()));
+                    BuiltInRegistries.ITEM.getKey(item.getItem().getItem()).toString(),
+                    cellsTouchedBy(item.getBoundingBox())));
         }
         this.dropsQueriedAt = now;
         this.dropsCache = List.copyOf(drops);
         return this.dropsCache;
+    }
+
+    /**
+     * The inclusive span of whole cells an entity box touches — the boundary's one chance to record
+     * a drop's footprint, since {@code blockPosition()} throws it away.
+     *
+     * <p>Floor on both ends, so a box that merely grazes the next cell still counts it: the wider
+     * footprint is the safe direction, a cell holding nothing costing one wasted read where a missed
+     * one costs a gatherer walking at an unreachable item.
+     */
+    private static Region cellsTouchedBy(AABB box) {
+        return new Region(
+                new Pos(Mth.floor(box.minX), Mth.floor(box.minY), Mth.floor(box.minZ)),
+                new Pos(Mth.floor(box.maxX), Mth.floor(box.maxY), Mth.floor(box.maxZ)));
     }
 
     /**

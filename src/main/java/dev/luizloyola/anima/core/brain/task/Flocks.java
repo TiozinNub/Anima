@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.brain.knowledge.Region;
+import dev.luizloyola.anima.core.brain.sense.Drop;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -87,13 +89,37 @@ public final class Flocks {
 
     /**
      * Whether a drop can actually be walked over: one perched ON the CANOPY cannot — the body
-     * stands beneath the leaves waiting for a fall that only decay delivers, and a crowd of
-     * gatherers flocks to the same untakeable bait (Luiz's fifty-lumberjack forest,
-     * 2026-08-02). A drop is gatherable unless the block holding it up is leaves.
+     * stands beneath the leaves waiting for a fall only decay delivers, and a crowd of gatherers
+     * flocks to the same untakeable bait (2026-08-02). Gatherable unless the only thing holding it
+     * up is leaves.
+     *
+     * <p>Asked of the drop's whole {@linkplain Drop#box footprint}: an item is a quarter of a block
+     * wide, so one settling near an edge overhangs into a neighbouring column and the cell its
+     * centre rounds to is often the empty one — a log on the lip of a leaf drew twenty-nine
+     * gatherers that never got it (2026-08-03).
+     *
+     * <p>Across cells the rule is what physically holds the item: leaves strand it, solid does not,
+     * air holds nothing. Leaves and ground is fine; leaves alone is the canopy case.
+     * {@code UNKNOWN} neither strands nor supports, so an unseen footprint still reads gatherable.
+     *
+     * <p>One budgeted block read per cell, so ordinarily one: a footprint only widens when the item
+     * straddles, and a solid cell returns before the rest are read.
      */
-    public static boolean gatherable(dev.luizloyola.anima.core.brain.sense.Pos drop,
-            dev.luizloyola.anima.core.brain.BrainContext ctx) {
-        return ctx.percepts().blocks().at(drop.x(), drop.y() - 1, drop.z())
-                != dev.luizloyola.anima.core.brain.knowledge.BlockKind.LEAVES;
+    public static boolean gatherable(Drop drop, dev.luizloyola.anima.core.brain.BrainContext ctx) {
+        Region box = drop.box();
+        int floor = box.min().y() - 1;
+        boolean leafUnderneath = false;
+        for (int x = box.min().x(); x <= box.max().x(); x++) {
+            for (int z = box.min().z(); z <= box.max().z(); z++) {
+                switch (ctx.percepts().blocks().at(x, floor, z)) {
+                    case LEAVES -> leafUnderneath = true;
+                    case LOG, OTHER -> {
+                        return true; // resting on something solid: reachable by the usual walk
+                    }
+                    default -> { } // AIR, WATER, UNKNOWN hold nothing up and settle nothing
+                }
+            }
+        }
+        return !leafUnderneath;
     }
 }

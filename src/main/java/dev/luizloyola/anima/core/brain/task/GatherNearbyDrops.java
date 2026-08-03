@@ -36,7 +36,7 @@ public final class GatherNearbyDrops implements PrimitiveTask {
         }
         List<Pos> matching = new ArrayList<>();
         for (Drop drop : ctx.percepts().drops()) {
-            if (spec.matches(drop.itemId()) && Flocks.gatherable(drop.pos(), ctx)) {
+            if (spec.matches(drop.itemId()) && Flocks.gatherable(drop, ctx)) {
                 matching.add(drop.pos());
             }
         }

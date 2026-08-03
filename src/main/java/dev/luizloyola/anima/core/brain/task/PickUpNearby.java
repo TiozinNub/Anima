@@ -44,7 +44,7 @@ public final class PickUpNearby implements Method {
         Pos here = ctx.percepts().position();
         double best = -1;
         for (Drop drop : ctx.percepts().drops()) {
-            if (!spec.matches(drop.itemId()) || !Flocks.gatherable(drop.pos(), ctx)) {
+            if (!spec.matches(drop.itemId()) || !Flocks.gatherable(drop, ctx)) {
                 continue;
             }
             double dx = drop.pos().x() - here.x();
