@@ -134,7 +134,11 @@ public enum Knob implements KnobSpec {
             "How often the journal store evicts aged-out entries."),
     /** Read by the mod-side journal file sink when a world loads. */
     JOURNAL_FILE_SINK("journal.file_sink", Kind.BOOL, 0, 0, 1,
-            "Mirror each agent's journal to logs/anima/agent-<id>.log on disk.");
+            "Mirror each agent's journal to logs/anima/<run>/agent-<id>.log on disk."),
+    /** Read by the mod-side journal file sink at boot. */
+    JOURNAL_KEEP_RUNS("journal.keep_runs", Kind.INT, 10, 1, 1000,
+            "How many past runs of per-agent journal files to keep. Older run folders are "
+                    + "deleted at boot; a dead agent's file is moved to graveyard/ first.");
 
     private final String key;
     private final Kind kind;

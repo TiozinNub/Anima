@@ -49,7 +49,8 @@ class ProfileAspectTest {
             Knob.JOURNAL_MAX_ENTRIES,
             Knob.JOURNAL_MAX_AGE_TICKS,
             Knob.JOURNAL_SWEEP_INTERVAL,
-            Knob.JOURNAL_FILE_SINK);
+            Knob.JOURNAL_FILE_SINK,
+            Knob.JOURNAL_KEEP_RUNS);
 
     @Test
     @DisplayName("anima.json holds only what no species may answer for itself")
