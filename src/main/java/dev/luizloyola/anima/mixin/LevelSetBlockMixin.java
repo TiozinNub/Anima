@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mixin;
 
+import dev.luizloyola.anima.mod.brain.PlaceIndexes;
 import dev.luizloyola.anima.mod.brain.RegionCaches;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -29,5 +30,6 @@ abstract class LevelSetBlockMixin {
     private void anima$forgetShapeHere(BlockPos pos, BlockState state, int flags, int recursion,
                                        CallbackInfoReturnable<Boolean> cir) {
         RegionCaches.onBlockChanged((Level) (Object) this, pos);
+        PlaceIndexes.onBlockChanged((Level) (Object) this, pos);
     }
 }

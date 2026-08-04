@@ -21,19 +21,41 @@ public interface GrowthRule {
 
     /**
      * Judges the fully-grown collection and <b>individuates</b> it: one evaluation per distinct
-     * thing in the mass — a fused canopy is several trees, a lake one body. Growth answers "what is
-     * connected"; this answers "how many things is that". An empty list means nothing recognized.
+     * thing the mass contains — a fused canopy is several trees, a lake is one body. Growth answers
+     * "what is connected", this "how many things is that", so felling one tree of a grove does not
+     * cost the memory of the others. An empty list means nothing this rule recognizes is there.
      *
-     * <p>Evaluation may read the probe; those reads are bounded by the region's size and
-     * not wallet-budgeted — a one-time cost per completed growth.
+     * <p>Says nothing about who is looking, so the answer is worked out once and lent to everybody
+     * ({@link PlaceIndex}) instead of re-derived per observer; say where a body may walk with
+     * {@link Evaluation#approach} and let the caller pick the near end.
+     *
+     * <p>May read the probe (surface checks): bounded by the region's size and not
+     * wallet-budgeted, a one-time cost per completed growth.
      */
-    List<Evaluation> evaluate(Map<Pos, BlockKind> blocks, Pos seed, BlockProbe probe);
+    List<Evaluation> evaluate(Map<Pos, BlockKind> blocks, BlockProbe probe);
 
     /**
-     * One accepted structure: {@code anchor} to walk to, {@code units} of it, and the
-     * {@code blocks} it owns — its share of the mass, claimed under its anchor. Shares are
-     * disjoint; cells no evaluation claims are declared not-a-thing.
+     * One accepted structure: where a body may walk to reach it ({@code approach}), how much is
+     * there ({@code units}), and the cells it owns ({@code blocks}) — its share of the mass,
+     * claimed under its anchor. Shares are disjoint; cells no evaluation claims are, by that
+     * omission, declared not-a-thing.
+     *
+     * <p>{@code approach} is a set of candidates, not a choice: {@link Anchors#choose} picks per
+     * observer, so one structure hands two bodies different anchors without being evaluated twice.
+     * Never empty for an accepted structure, and every cell in it should be one of
+     * {@code blocks}.
      */
-    record Evaluation(Pos anchor, int units, Map<Pos, BlockKind> blocks) {
+    record Evaluation(List<Pos> approach, int units, Map<Pos, BlockKind> blocks) {
+        public Evaluation {
+            if (approach.isEmpty()) {
+                throw new IllegalArgumentException("an accepted structure with nowhere to walk");
+            }
+            approach = List.copyOf(approach);
+        }
+
+        /** The single-cell shape — a rule with exactly one sensible way in. */
+        public Evaluation(Pos approach, int units, Map<Pos, BlockKind> blocks) {
+            this(List.of(approach), units, blocks);
+        }
     }
 }

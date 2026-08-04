@@ -74,6 +74,13 @@ public final class RegionGrowth {
     private final Map<Pos, BlockKind> blocks = new LinkedHashMap<>();
     private final Set<Pos> seen = new HashSet<>();
     private final Deque<Pos> frontier = new ArrayDeque<>();
+    /**
+     * The cells standing against a truncation — a cap or an unloaded border, not the rule saying
+     * "not mine". Anything not touching it was seen whole. That is what makes a shape worth
+     * lending: three quarters of re-grown scans at fifty walkers were a mass someone already had
+     * but could not share for one clipped edge (measured 2026-08-03).
+     */
+    private final Set<Pos> cutEdge = new HashSet<>();
     private boolean partial;
     private GrownRegion result;
 
@@ -123,17 +130,23 @@ public final class RegionGrowth {
                 reads++;
                 if (kind == BlockKind.UNKNOWN) {
                     partial = true;
+                    cutEdge.add(p); // the world ran out here, not the structure
                     continue;
                 }
                 if (!rule.joins(n, kind, probe)) {
-                    continue;
+                    continue; // a real boundary: the structure really does end here
                 }
                 if (chebyshev(n, seed) > spreadCap) {
                     partial = true;
+                    cutEdge.add(p);
                     continue;
                 }
                 if (blocks.size() >= blockCap) {
                     partial = true;
+                    // Everything still queued had neighbours it never got to look at, so the
+                    // whole remaining frontier is cut edge — not just the cell we were on.
+                    cutEdge.add(p);
+                    cutEdge.addAll(frontier);
                     frontier.clear();
                     break;
                 }
@@ -160,24 +173,42 @@ public final class RegionGrowth {
     }
 
     private void finish(BlockProbe probe) {
-        this.result = judge(rule, blocks, seed, partial, probe);
+        this.result = judge(rule, blocks, cutEdge, partial, probe);
     }
 
     /**
-     * Asks the rule what a collected mass amounts to, from one particular seed. Split out of
-     * {@link #finish} because a mass somebody else already walked ({@link RegionCache#covering})
-     * arrives with the expensive half done — individuation is about the wood, an anchor about the
-     * walker. Bounded by the mass's size and not wallet-budgeted.
+     * Asks the rule what a collected mass amounts to. Split out of {@link #finish} because a mass
+     * somebody else walked arrives read but unjudged, and because nothing here takes an observer's
+     * position — which lets {@link PlaceIndex} keep the result. Bounded by the mass's size, not
+     * wallet-budgeted.
+     *
+     * <p>{@code cutEdge} is where the walk was truncated (empty when the mass is whole); a part is
+     * complete when it does not touch that edge, and that is how a capped scan still yields entire
+     * trees rather than one unusable "partial grove".
      */
-    public static GrownRegion judge(GrowthRule rule, Map<Pos, BlockKind> blocks, Pos seed,
-            boolean partial, BlockProbe probe) {
+    public static GrownRegion judge(GrowthRule rule, Map<Pos, BlockKind> blocks,
+            Set<Pos> cutEdge, boolean partial, BlockProbe probe) {
         List<GrownRegion.Part> parts = new ArrayList<>();
-        for (GrowthRule.Evaluation eval : rule.evaluate(blocks, seed, probe)) {
-            parts.add(new GrownRegion.Part(eval.anchor(), boundsOf(eval.blocks().keySet()),
-                    eval.units(), Collections.unmodifiableMap(eval.blocks())));
+        for (GrowthRule.Evaluation eval : rule.evaluate(blocks, probe)) {
+            parts.add(new GrownRegion.Part(eval.approach(), boundsOf(eval.blocks().keySet()),
+                    eval.units(), Collections.unmodifiableMap(eval.blocks()),
+                    whole(eval.blocks().keySet(), cutEdge)));
         }
         return new GrownRegion(rule.kind(), partial, Collections.unmodifiableMap(blocks),
                 List.copyOf(parts));
+    }
+
+    /** Whether none of a part's cells stands against the edge where the walk was cut short. */
+    private static boolean whole(Iterable<Pos> cells, Set<Pos> cutEdge) {
+        if (cutEdge.isEmpty()) {
+            return true;
+        }
+        for (Pos cell : cells) {
+            if (cutEdge.contains(cell)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** The smallest box holding every cell — a part's "where", folded once at the end. */

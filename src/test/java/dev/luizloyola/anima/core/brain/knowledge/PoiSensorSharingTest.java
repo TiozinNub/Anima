@@ -91,14 +91,15 @@ class PoiSensorSharingTest {
         assertTrue(measuring > 0, "the fixture has to make measuring cost something");
 
         RegionCache shapes = new RegionCache();
+        PlaceIndex places = new PlaceIndex();
         FakeProbe probe = wood();
         AgentKnowledge firstMind = new AgentKnowledge();
-        int first = walk(new PoiSensorCore(firstMind, EYED, shapes), probe);
+        int first = walk(new PoiSensorCore(firstMind, EYED, shapes, places), probe);
         AgentKnowledge secondMind = new AgentKnowledge();
-        int second = walk(new PoiSensorCore(secondMind, EYED, shapes), probe);
+        int second = walk(new PoiSensorCore(secondMind, EYED, shapes, places), probe);
 
         assertEquals(alone, first, "the first body through pays the full price, as it must");
-        assertTrue(shapes.hits() > 0, "and leaves something behind for the next one");
+        assertTrue(places.hits() > 0, "and leaves something behind for the next one");
         int stillPaid = second - bare;
         assertTrue(stillPaid * 5 < measuring,
                 "the second body should pay a fraction of the measuring — paid " + stillPaid
@@ -111,12 +112,13 @@ class PoiSensorSharingTest {
     @DisplayName("a shared shape is still two separate beliefs")
     void nobodyBecomesTelepathic() {
         RegionCache shapes = new RegionCache();
+        PlaceIndex places = new PlaceIndex();
         FakeProbe probe = wood();
 
         AgentKnowledge firstMind = new AgentKnowledge();
-        walk(new PoiSensorCore(firstMind, EYED, shapes), probe);
+        walk(new PoiSensorCore(firstMind, EYED, shapes, places), probe);
         AgentKnowledge secondMind = new AgentKnowledge();
-        walk(new PoiSensorCore(secondMind, EYED, shapes), probe);
+        walk(new PoiSensorCore(secondMind, EYED, shapes, places), probe);
 
         int known = firstMind.size();
         assertTrue(known > 0, "both of them know the wood");
@@ -142,16 +144,20 @@ class PoiSensorSharingTest {
     @DisplayName("a felled tree is re-measured, not remembered wrong")
     void theWorldMovingCostsTheSavingBack() {
         RegionCache shapes = new RegionCache();
+        PlaceIndex places = new PlaceIndex();
         FakeProbe probe = wood();
-        walk(new PoiSensorCore(new AgentKnowledge(), EYED, shapes), probe);
+        walk(new PoiSensorCore(new AgentKnowledge(), EYED, shapes, places), probe);
         assertTrue(shapes.size() > 0);
+        assertTrue(places.size() > 0);
 
-        // One block goes, and with it every remembered shape that block could have belonged to.
+        // One block goes, and with it every remembered shape that block could have belonged to,
+        // and every recognised thing whose boundary that block had a say in.
         probe.clear(0, 65, 0);
         shapes.invalidate(0, 0);
+        places.invalidate(0, 0);
 
         AgentKnowledge after = new AgentKnowledge();
-        int cost = walk(new PoiSensorCore(after, EYED, shapes), probe);
+        int cost = walk(new PoiSensorCore(after, EYED, shapes, places), probe);
         int alone = walkAlone(wood(), new AgentKnowledge());
         assertTrue(cost > alone / 2,
                 "with the shape forgotten, the next body measures it again — cost " + cost);

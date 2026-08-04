@@ -64,9 +64,9 @@ class HorizonScannerTest {
         }
 
         @Override
-        public List<Evaluation> evaluate(Map<Pos, BlockKind> blocks, Pos seed, BlockProbe probe) {
+        public List<Evaluation> evaluate(Map<Pos, BlockKind> blocks, BlockProbe probe) {
             return blocks.isEmpty() ? List.of()
-                    : List.of(new Evaluation(seed, blocks.size(), blocks));
+                    : List.of(new Evaluation(List.copyOf(blocks.keySet()), blocks.size(), blocks));
         }
     }
 

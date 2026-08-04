@@ -74,6 +74,7 @@ public final class PoiSensorCore {
     private final CrescentSampler sampler;
     private final HorizonScanner horizon;
     private final RegionCache regions;
+    private final PlaceIndex places;
     private final Deque<Column> pending = new ArrayDeque<>();
     private RegionGrowth active;
     /** The surface cell that seeded {@link #active} — reported on a DISMISSED outcome. */
@@ -85,18 +86,20 @@ public final class PoiSensorCore {
 
     /** A sensor that shares nothing — its own scans, its own shapes. Tests, and any lone body. */
     public PoiSensorCore(AgentKnowledge knowledge, AgentProfile profile) {
-        this(knowledge, profile, new RegionCache());
+        this(knowledge, profile, new RegionCache(), new PlaceIndex());
     }
 
     /**
-     * A sensor that reads the world's shape from, and returns it to, the pool its level keeps —
-     * so a mass one body walked is a mass none of the others has to. What it makes of that shape
-     * is still entirely its own: see {@link RegionCache}.
+     * A sensor that reads the world's shape from, and returns it to, the pools its level keeps —
+     * so a thing one body walked up to is a thing none of the others has to walk. What it makes
+     * of that shape is still entirely its own: see {@link PlaceIndex}.
      */
-    public PoiSensorCore(AgentKnowledge knowledge, AgentProfile profile, RegionCache regions) {
+    public PoiSensorCore(AgentKnowledge knowledge, AgentProfile profile, RegionCache regions,
+            PlaceIndex places) {
         this.knowledge = knowledge;
         this.profile = profile;
         this.regions = regions;
+        this.places = places;
         this.sampler = new CrescentSampler(profile);
         this.horizon = new HorizonScanner(profile);
     }
@@ -143,7 +146,10 @@ public final class PoiSensorCore {
                 }
                 GrownRegion grown = active.result();
                 regions.put(activeKey, grown); // what it cost to learn, the next body inherits
-                finish(grown, now, events);
+                // And what it AMOUNTS to: every thing in there seen whole is now a fact the
+                // level holds for everybody.
+                places.putAll(grown);
+                finish(grown, activeSeed, now, events);
                 active = null;
                 activeKey = null;
                 continue;
@@ -242,6 +248,14 @@ public final class PoiSensorCore {
         }
         rayRetries.remove(column);
         activeSeed = surface;
+        // One hash lookup: if the level already knows what this cell belongs to, believe it — no
+        // walking, no flood fill, no re-individuating a canopy somebody has already taken apart.
+        // This is the path that carries a crowd; see PlaceIndex.
+        PlaceIndex.Place standing = places.at(rule.kind(), surface);
+        if (standing != null) {
+            notePlace(standing, surface, now, events);
+            return reads;
+        }
         int spread = RegionGrowth.maxSpread(profile);
         RegionCache.Key key = new RegionCache.Key(rule.kind(), surface, spread);
         // Somebody already walked this mass and nothing in it has moved: recognising it reads
@@ -254,12 +268,15 @@ public final class PoiSensorCore {
             // judgment is made again, from where this body is looking.
             Map<Pos, BlockKind> mass = regions.covering(rule.kind(), surface, spread);
             if (mass != null) {
-                known = RegionGrowth.judge(rule, mass, surface, false, probe);
+                // A complete mass by construction (covering serves no other kind), so nothing in
+                // it stands against a cut, and every thing it holds is worth filing.
+                known = RegionGrowth.judge(rule, mass, java.util.Set.of(), false, probe);
                 regions.tookCovering();
+                places.putAll(known);
             }
         }
         if (known != null) {
-            finish(known, now, events);
+            finish(known, activeSeed, now, events);
             return reads;
         }
         active = new RegionGrowth(rule, surface, kind, profile);
@@ -267,7 +284,20 @@ public final class PoiSensorCore {
         return reads;
     }
 
-    private void finish(GrownRegion region, long now, List<SenseEvent> events) {
+    /**
+     * One thing the level already knew about, believed afresh by this body — the whole of what a
+     * {@link PlaceIndex} hit costs. The anchor is chosen for where THEY stand, so two bodies
+     * meeting one tree from opposite sides walk to opposite feet of it.
+     */
+    private void notePlace(PlaceIndex.Place place, Pos from, long now, List<SenseEvent> events) {
+        PoiMemory memory = knowledge.note(place.toMemory(from, now),
+                AgentKnowledge.maxPerKind(profile));
+        claims.claimRegion(place.kind(), memory.anchor(), place.blocks());
+        knowledge.supersede(place.kind(), memory.anchor()); // the gist was right; keep the belief
+        events.add(SenseEvent.noted(memory));
+    }
+
+    private void finish(GrownRegion region, Pos from, long now, List<SenseEvent> events) {
         if (!region.accepted()) {
             claims.claimNegative(region.kind(), region.blocks());
             // A rumour about this mass has been examined and found wanting — the glimpse this
@@ -280,7 +310,7 @@ public final class PoiSensorCore {
         }
         java.util.Set<Pos> spoken = new java.util.HashSet<>();
         for (GrownRegion.Part part : region.parts()) {
-            PoiMemory memory = knowledge.note(region.toMemory(part, now),
+            PoiMemory memory = knowledge.note(region.toMemory(part, from, now),
                     AgentKnowledge.maxPerKind(profile));
             claims.claimRegion(region.kind(), memory.anchor(), part.blocks());
             spoken.addAll(part.blocks().keySet());

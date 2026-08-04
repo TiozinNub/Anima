@@ -23,6 +23,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import dev.luizloyola.anima.compat.inv.ItemStacks;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
+import dev.luizloyola.anima.core.brain.knowledge.PlaceIndex;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.CrescentSampler;
 import dev.luizloyola.anima.core.brain.knowledge.HorizonBuffer;
@@ -51,6 +52,7 @@ import dev.luizloyola.anima.core.brain.board.SiteClaims;
 import dev.luizloyola.anima.core.brain.board.WorkLease;
 import dev.luizloyola.anima.mod.brain.Claims;
 import dev.luizloyola.anima.mod.brain.Knowledges;
+import dev.luizloyola.anima.mod.brain.PlaceIndexes;
 import dev.luizloyola.anima.mod.brain.RegionCaches;
 import dev.luizloyola.anima.mod.brain.BeingViewer;
 import dev.luizloyola.anima.mod.log.Journals;
@@ -1075,6 +1077,17 @@ public final class AgentCommands {
                         + shapes.unknownGround() + " new ground, "
                         + shapes.refusedPartial() + " mass cut short, "
                         + shapes.refusedOutOfReach() + " out of reach")
+                .withStyle(ChatFormatting.DARK_GRAY));
+        // The line that should make the two above shrink: things the level knows, answered
+        // without walking anything at all.
+        PlaceIndex places = PlaceIndexes.of((ServerLevel) person.level());
+        long asked = places.hits() + places.misses();
+        Replies.send(source, () -> Component.literal("  things: " + places.size()
+                        + " known, " + places.cells() + "/" + PlaceIndex.maxCells() + " cells, "
+                        + places.hits() + " of " + asked + " recognised on sight, "
+                        + places.drops() + " forgotten (ground moved), "
+                        + places.replaced() + " re-read, "
+                        + places.evictions() + " (no room)")
                 .withStyle(ChatFormatting.DARK_GRAY));
         for (PoiKind kind : PoiKind.all()) {
             for (PoiMemory memory : knowledge.all(kind)) {

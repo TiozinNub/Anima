@@ -37,7 +37,8 @@ class RegionCacheTest {
             blocks.put(cell, BlockKind.LOG);
         }
         return new GrownRegion(FakeGrowthRule.THICKET, partial, blocks,
-                List.of(new GrownRegion.Part(cells[0], Region.of(cells[0]), cells.length, blocks)));
+                List.of(new GrownRegion.Part(List.of(cells[0]), Region.of(cells[0]),
+                        cells.length, blocks, !partial)));
     }
 
     private static RegionCache.Key keyAt(Pos seed) {

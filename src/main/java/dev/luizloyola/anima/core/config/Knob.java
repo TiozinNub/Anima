@@ -73,6 +73,17 @@ public enum Knob implements KnobSpec {
                     + "own trees, it just no longer pays to re-measure one. Counted in cells "
                     + "rather than structures because a pumpkin is one and a fused spruce stand "
                     + "is thousands; the least recently visited go first. 0 turns it off."),
+    /** @see dev.luizloyola.anima.core.brain.knowledge.PlaceIndex#maxCells() */
+    PLACE_INDEX_CELLS("limits.place_index_cells", Kind.INT, 65_536, 0, 1_048_576,
+            "How many cells of RECOGNISED THINGS one level remembers for everybody — the index "
+                    + "that answers \"whose tree is this leaf?\" in one lookup, so a body that "
+                    + "walks up to a wood somebody has already been through pays nothing to know "
+                    + "what stands in it. Sized independently of region_cache_cells because it "
+                    + "holds each cell ONCE, keyed by the thing that owns it, where the scan cache "
+                    + "holds a whole mass per seed anybody happened to start from: a 147-oak wood "
+                    + "measured 8,767 cells here against 62,615 there. Only things seen WHOLE are "
+                    + "kept — a tree straddling the edge of a cut-short scan is provisional and is "
+                    + "re-looked-at rather than lent. 0 turns it off."),
     /**
      * The aggregate ceiling — the one that actually protects a server, because it is the only one
      * that knows how many agents there are.

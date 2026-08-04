@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.mod.command.AnimaCommands;
 import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.brain.RayPools;
+import dev.luizloyola.anima.mod.brain.PlaceIndexes;
 import dev.luizloyola.anima.mod.brain.RegionCaches;
 import dev.luizloyola.anima.mod.config.ConfigFile;
 import dev.luizloyola.anima.mod.item.AnimaItems;
@@ -39,6 +40,7 @@ public final class AnimaMod implements ModInitializer {
         AgentBodies.install();
         RayPools.install();
         RegionCaches.install();
+        PlaceIndexes.install();
         AnimaItems.init();
         // Registered here so a bare install, or a consumer that paints nothing, still has it.
         dev.luizloyola.anima.mod.debug.CellOverlays.init();

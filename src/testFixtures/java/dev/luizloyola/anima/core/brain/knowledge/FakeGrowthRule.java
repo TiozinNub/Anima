@@ -38,19 +38,12 @@ public final class FakeGrowthRule implements GrowthRule {
     }
 
     @Override
-    public List<Evaluation> evaluate(Map<Pos, BlockKind> blocks, Pos seed, BlockProbe probe) {
+    public List<Evaluation> evaluate(Map<Pos, BlockKind> blocks, BlockProbe probe) {
         if (blocks.isEmpty()) {
             return List.of();
         }
-        Pos anchor = null;
-        for (Pos p : blocks.keySet()) {
-            // Lowest cell, nearest the seed on a tie — the same shape a real rule's anchor takes.
-            if (anchor == null || p.y() < anchor.y()
-                    || (p.y() == anchor.y() && distSq(p, seed) < distSq(anchor, seed))) {
-                anchor = p;
-            }
-        }
-        return List.of(new Evaluation(anchor, blocks.size(), blocks));
+        // Every cell is a candidate; Anchors applies the lowest-then-nearest rule per asker.
+        return List.of(new Evaluation(List.copyOf(blocks.keySet()), blocks.size(), blocks));
     }
 
     private static long distSq(Pos a, Pos b) {

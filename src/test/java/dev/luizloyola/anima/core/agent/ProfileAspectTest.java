@@ -35,6 +35,9 @@ class ProfileAspectTest {
             // Memory the WORLD spends on everybody's behalf: the shapes in it are the ground's,
             // not one kind of mind's.
             Knob.REGION_CACHE_CELLS,
+            // Likewise, and for a stronger reason: which THINGS stand in a wood is a fact about
+            // the wood.
+            Knob.PLACE_INDEX_CELLS,
             Knob.RAYS_PER_TICK,
             // The contract of a registry two agents share — it belongs to the board, not to
             // either of them.
