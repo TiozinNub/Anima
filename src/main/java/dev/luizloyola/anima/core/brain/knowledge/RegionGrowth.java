@@ -160,12 +160,23 @@ public final class RegionGrowth {
     }
 
     private void finish(BlockProbe probe) {
+        this.result = judge(rule, blocks, seed, partial, probe);
+    }
+
+    /**
+     * Asks the rule what a collected mass amounts to, from one particular seed. Split out of
+     * {@link #finish} because a mass somebody else already walked ({@link RegionCache#covering})
+     * arrives with the expensive half done — individuation is about the wood, an anchor about the
+     * walker. Bounded by the mass's size and not wallet-budgeted.
+     */
+    public static GrownRegion judge(GrowthRule rule, Map<Pos, BlockKind> blocks, Pos seed,
+            boolean partial, BlockProbe probe) {
         List<GrownRegion.Part> parts = new ArrayList<>();
         for (GrowthRule.Evaluation eval : rule.evaluate(blocks, seed, probe)) {
             parts.add(new GrownRegion.Part(eval.anchor(), boundsOf(eval.blocks().keySet()),
                     eval.units(), Collections.unmodifiableMap(eval.blocks())));
         }
-        this.result = new GrownRegion(rule.kind(), partial, Collections.unmodifiableMap(blocks),
+        return new GrownRegion(rule.kind(), partial, Collections.unmodifiableMap(blocks),
                 List.copyOf(parts));
     }
 

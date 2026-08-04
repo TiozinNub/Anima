@@ -24,6 +24,8 @@
   "anima.config.option.limits.queue_cap.desc": "Quantas colunas avistadas mas ainda não examinadas podem se acumular antes que novos avistamentos sejam descartados.",
   "anima.config.option.limits.region_max_blocks": "Limite de blocos por varredura",
   "anima.config.option.limits.region_max_blocks.desc": "Orçamento de blocos para varrer uma estrutura; ao atingi-lo, a região fica marcada como conhecida apenas em parte.",
+  "anima.config.option.limits.region_cache_cells": "Formas memorizadas",
+  "anima.config.option.limits.region_cache_cells.desc": "Quanto da forma do mundo cada mundo memoriza em nome de todos, para que cinquenta colonos numa mata não vasculhem cada um as mesmas árvores. Cada um continua notando e lembrando das suas próprias árvores — só deixa de remedi-las. Contado em blocos; 0 desliga.",
   "anima.config.option.limits.rays_per_tick": "Testes de visão do servidor",
   "anima.config.option.limits.rays_per_tick.desc": "Total de verificações de linha de visão que todos os agentes do servidor podem gastar juntos a cada tique. No limite, eles notam as coisas um pouco mais tarde, e não deixam de notar — as verificações recusadas são adiadas, nunca descartadas.",
   "anima.config.option.limits.ray_budget": "Testes de visão por tique",

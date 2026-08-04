@@ -28,6 +28,7 @@ import dev.luizloyola.anima.core.brain.knowledge.CrescentSampler;
 import dev.luizloyola.anima.core.brain.knowledge.HorizonBuffer;
 import dev.luizloyola.anima.core.brain.knowledge.HorizonScanner;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
+import dev.luizloyola.anima.core.brain.knowledge.RegionCache;
 import dev.luizloyola.anima.core.brain.knowledge.Sighting;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.task.BreakBlock;
@@ -50,6 +51,7 @@ import dev.luizloyola.anima.core.brain.board.SiteClaims;
 import dev.luizloyola.anima.core.brain.board.WorkLease;
 import dev.luizloyola.anima.mod.brain.Claims;
 import dev.luizloyola.anima.mod.brain.Knowledges;
+import dev.luizloyola.anima.mod.brain.RegionCaches;
 import dev.luizloyola.anima.mod.brain.BeingViewer;
 import dev.luizloyola.anima.mod.log.Journals;
 import dev.luizloyola.anima.mod.log.ThoughtBroadcast;
@@ -1047,6 +1049,16 @@ public final class AgentCommands {
                         + " remembered POI(s), " + knowledge.glimpseCount() + " glimpsed, "
                         + person.poiSensor().claimCount() + " claimed blocks")
                 .withStyle(ChatFormatting.AQUA));
+        // The world's line, not theirs — but this is the command somebody reads when they are
+        // asking why perception costs what it does, and the hit rate is that answer.
+        RegionCache shapes = RegionCaches.of((ServerLevel) person.level());
+        long looks = shapes.hits() + shapes.misses();
+        Replies.send(source, () -> Component.literal("  world: " + shapes.size()
+                        + " shape(s) remembered, " + shapes.cells() + "/" + RegionCache.maxCells()
+                        + " cells, " + shapes.hits() + " of " + looks + " scans saved, "
+                        + shapes.drops() + " forgotten (ground moved), "
+                        + shapes.evictions() + " (no room)")
+                .withStyle(ChatFormatting.DARK_GRAY));
         for (PoiKind kind : PoiKind.all()) {
             for (PoiMemory memory : knowledge.all(kind)) {
                 String line = formatPoi(person, memory, now);

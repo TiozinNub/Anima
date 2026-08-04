@@ -20,6 +20,9 @@
       "dev.luizloyola.anima.mod.config.AnimaModMenu"
     ]
   },
+  "mixins": [
+    "anima.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.17",
     "minecraft": "${minecraft}",

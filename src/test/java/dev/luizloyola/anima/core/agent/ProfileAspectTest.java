@@ -32,6 +32,9 @@ class ProfileAspectTest {
             Knob.QUEUE_CAP,
             Knob.REGION_MAX_BLOCKS,
             Knob.RAY_BUDGET,
+            // Memory the WORLD spends on everybody's behalf: the shapes in it are the ground's,
+            // not one kind of mind's.
+            Knob.REGION_CACHE_CELLS,
             Knob.RAYS_PER_TICK,
             // The contract of a registry two agents share — it belongs to the board, not to
             // either of them.

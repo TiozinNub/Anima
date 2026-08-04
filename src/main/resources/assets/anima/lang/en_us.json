@@ -17,6 +17,8 @@
   "anima.config.option.limits.queue_cap.desc": "How many spotted-but-unexamined columns may back up before new sightings are dropped.",
   "anima.config.option.limits.region_max_blocks": "Scan block cap",
   "anima.config.option.limits.region_max_blocks.desc": "Block budget for scanning one structure; hitting it leaves the region marked as only partly known.",
+  "anima.config.option.limits.region_cache_cells": "Remembered shapes",
+  "anima.config.option.limits.region_cache_cells.desc": "How much of the world's shape one world remembers on everyone's behalf, so that fifty settlers in one wood don't each scan the same trees. They still notice and remember their own trees — they just stop re-measuring them. Counted in blocks; 0 turns it off.",
   "anima.config.option.limits.rays_per_tick": "Sight checks, server-wide",
   "anima.config.option.limits.rays_per_tick.desc": "Total line-of-sight checks every agent on the server may spend between them each tick. At the ceiling they notice things a little later rather than not at all — refused checks are deferred, never dropped.",
   "anima.config.option.limits.ray_budget": "Sight checks per tick",

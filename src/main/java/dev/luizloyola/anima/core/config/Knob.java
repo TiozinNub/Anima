@@ -62,6 +62,17 @@ public enum Knob implements KnobSpec {
                     + "canopies weld 26-way, so one conifer stand is several trees' worth "
                     + "(a mega spruce alone is ~430 blocks). At the old 512 a Person standing "
                     + "INSIDE four touching mega spruces remembered two of them."),
+    /** @see dev.luizloyola.anima.core.brain.knowledge.RegionCache#maxCells() */
+    REGION_CACHE_CELLS("limits.region_cache_cells", Kind.INT, 65_536, 0, 1_048_576,
+            "How much of the world's SHAPE one level remembers on every agent's behalf. Growing a "
+                    + "structure is the most expensive thing perception does, and its answer is a "
+                    + "fact about the world rather than anybody's opinion of it — so it is worked "
+                    + "out once and lent to whoever comes past next, which is what stops fifty "
+                    + "settlers in one wood running fifty identical scans of the same trees. "
+                    + "Nobody becomes telepathic: a body still notices, remembers and forgets its "
+                    + "own trees, it just no longer pays to re-measure one. Counted in cells "
+                    + "rather than structures because a pumpkin is one and a fused spruce stand "
+                    + "is thousands; the least recently visited go first. 0 turns it off."),
     /**
      * The aggregate ceiling — the one that actually protects a server, because it is the only one
      * that knows how many agents there are.

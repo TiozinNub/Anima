@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "dev.luizloyola.anima.mixin",
+  "compatibilityLevel": "${java}",
+  "mixins": [
+    "LevelSetBlockMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

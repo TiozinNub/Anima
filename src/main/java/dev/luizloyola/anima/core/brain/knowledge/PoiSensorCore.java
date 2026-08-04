@@ -8,26 +8,30 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The whole "notice as you go" pipeline, assembled — one per person, pure core; the mod-layer
  * {@code PoiSensor} owns one and hands it the person's feet, the game time and a live
- * {@link BlockProbe} each tick. Crescent → pending queue → probe → (confirm-ray → growth) → store
- * + claims, all inside one per-tick read wallet, so the cost ceiling is a constant.
+ * {@link BlockProbe} each tick. Crescent → pending queue → probe → (confirm-ray → growth) →
+ * store + claims, inside one per-tick read wallet, so the cost ceiling is constant.
  *
  * <p>Per probed column the claims answer first (the O(1) fast path):
  * <ul>
  *   <li>a claim <em>above</em> the surface — that block is gone, which the heightmap cannot say
- *       otherwise: the region's belief is invalidated, the remains re-discovered on later
- *       crescents;
- *   <li>the surface cell claimed and matching — refreshed; mismatching — invalidated, or cleared
- *       for a negative claim;
- *   <li>claims only <em>below</em> the surface — something new on an investigated footprint, so a
- *       fresh hypothesis. A live region's interior always sits under a claimed surface; skipping
- *       this arm made any taller rebuild invisible forever (live-caught);
- *   <li>no claims — hypothesis: a seen block grows whatever rule a consumer registered (see
- *       {@link GrowthRules}), gated by the confirm-ray. One growth at a time.
+ *       any other way: the region's belief is invalidated;</li>
+ *   <li>the surface cell claimed and matching — refreshed; mismatching — invalidated (a negative
+ *       claim just cleared);</li>
+ *   <li>claims only <em>below</em> — something new stands on an investigated footprint, so a fresh
+ *       hypothesis. A live region's interior sits under a claimed surface, so this never fires for
+ *       interiors; skipping it made any taller rebuild invisible forever;</li>
+ *   <li>no claims — hypothesis: the seen block grows whatever rule a consumer registered
+ *       ({@link GrowthRules}), gated by the confirm-ray. One growth runs at a time.</li>
  * </ul>
+ *
+ * <p>That last arm asks the level's {@link RegionCache} first: a mass somebody else already walked
+ * is handed over whole and the scan — the most expensive thing here by an order of magnitude —
+ * never runs. The shape is shared; the belief is not.
  */
 public final class PoiSensorCore {
     /**
@@ -69,16 +73,30 @@ public final class PoiSensorCore {
     private final ClaimIndex claims = new ClaimIndex();
     private final CrescentSampler sampler;
     private final HorizonScanner horizon;
+    private final RegionCache regions;
     private final Deque<Column> pending = new ArrayDeque<>();
     private RegionGrowth active;
     /** The surface cell that seeded {@link #active} — reported on a DISMISSED outcome. */
     private Pos activeSeed;
+    /** What {@link #active} will be filed under once it finishes. */
+    private RegionCache.Key activeKey;
     /** Ray-blocked columns awaiting another look: when each is due, and its attempt count. */
     private final java.util.Map<Column, long[]> rayRetries = new java.util.HashMap<>();
 
+    /** A sensor that shares nothing — its own scans, its own shapes. Tests, and any lone body. */
     public PoiSensorCore(AgentKnowledge knowledge, AgentProfile profile) {
+        this(knowledge, profile, new RegionCache());
+    }
+
+    /**
+     * A sensor that reads the world's shape from, and returns it to, the pool its level keeps —
+     * so a mass one body walked is a mass none of the others has to. What it makes of that shape
+     * is still entirely its own: see {@link RegionCache}.
+     */
+    public PoiSensorCore(AgentKnowledge knowledge, AgentProfile profile, RegionCache regions) {
         this.knowledge = knowledge;
         this.profile = profile;
+        this.regions = regions;
         this.sampler = new CrescentSampler(profile);
         this.horizon = new HorizonScanner(profile);
     }
@@ -123,8 +141,11 @@ public final class PoiSensorCore {
                 if (!active.isDone()) {
                     break;
                 }
-                finish(active.result(), now, events);
+                GrownRegion grown = active.result();
+                regions.put(activeKey, grown); // what it cost to learn, the next body inherits
+                finish(grown, now, events);
                 active = null;
+                activeKey = null;
                 continue;
             }
             if (pending.isEmpty()) {
@@ -220,8 +241,29 @@ public final class PoiSensorCore {
             return reads;
         }
         rayRetries.remove(column);
-        active = new RegionGrowth(rule, surface, kind, profile);
         activeSeed = surface;
+        int spread = RegionGrowth.maxSpread(profile);
+        RegionCache.Key key = new RegionCache.Key(rule.kind(), surface, spread);
+        // Somebody already walked this mass and nothing in it has moved: recognising it reads
+        // nothing. What follows is the ordinary reckoning — this body's own memory, claims and
+        // journal line.
+        GrownRegion known = regions.get(key);
+        if (known == null) {
+            // Nobody stood exactly here — but they may have walked this same mass from its other
+            // side, which is the common case in a wood a crowd is crossing. The cells keep; the
+            // judgment is made again, from where this body is looking.
+            Map<Pos, BlockKind> mass = regions.covering(rule.kind(), surface, spread);
+            if (mass != null) {
+                known = RegionGrowth.judge(rule, mass, surface, false, probe);
+                regions.tookCovering();
+            }
+        }
+        if (known != null) {
+            finish(known, now, events);
+            return reads;
+        }
+        active = new RegionGrowth(rule, surface, kind, profile);
+        activeKey = key;
         return reads;
     }
 
