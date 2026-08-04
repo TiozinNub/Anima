@@ -102,4 +102,26 @@ class ContactBookTest {
         book.forget(alice, bob);
         assertTrue(book.knowers().isEmpty()); // an emptied book leaves no ghost row behind
     }
+
+    @Test
+    void eraseTakesThemOutOfEverybodysBookAndTheirOwn() {
+        book.introduce(alice, bob);
+        book.introduce(charlie, bob);
+        book.introduce(alice, charlie);
+
+        assertTrue(book.erase(bob));
+        assertFalse(book.knows(alice, bob), "the entry naming them is gone from everyone else's");
+        assertFalse(book.knows(charlie, bob));
+        assertTrue(book.contactsOf(bob).isEmpty(), "and their own book with it");
+        assertFalse(book.knowers().contains(bob));
+        assertTrue(book.knows(alice, charlie), "nobody else's other contacts were disturbed");
+        assertTrue(book.knows(charlie, alice));
+    }
+
+    @Test
+    void erasingAStrangerChangesNothing() {
+        book.learn(alice, charlie);
+        assertFalse(book.erase(bob));
+        assertTrue(book.knows(alice, charlie), "an untouched book stays untouched");
+    }
 }

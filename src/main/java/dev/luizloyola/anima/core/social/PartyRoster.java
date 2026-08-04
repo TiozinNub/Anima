@@ -101,6 +101,25 @@ public final class PartyRoster {
         return members(party).size();
     }
 
+    /**
+     * Takes {@code who} out of the roster entirely, deleting their party if they were the last of
+     * it. For an agent who is gone (dead or unmade) not for one choosing to walk away.
+     *
+     * <p><b>not {@link #leave}</b>, which refuses for an agent alone in their own
+     * party. A party of one is the shape almost every agent has, so an eviction routed through
+     * {@code leave} left the dev world holding 722 parties whose members no directory could
+     * resolve.
+     *
+     * @return whether they were in any party at all
+     */
+    public boolean evict(AgentId who) {
+        if (!byMember.containsKey(who)) {
+            return false;
+        }
+        remove(who);
+        return true;
+    }
+
     private void remove(AgentId who) {
         PartyId current = byMember.remove(who);
         if (current == null) {

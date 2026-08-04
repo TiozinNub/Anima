@@ -96,4 +96,37 @@ class PartyRosterTest {
         assertFalse(roster.leave(charlie), "last one standing is a party of one again");
         assertTrue(roster.parties().contains(alices), "and their party persists");
     }
+
+    /**
+     * A party of one is the shape almost every agent has and {@code leave} refuses for it, so an
+     * eviction routed through {@code leave} strands most rows — the dev world held 722 parties
+     * naming members no directory could resolve.
+     */
+    @Test
+    void evictTakesAPartyOfOneWhereLeaveWillNot() {
+        PartyId alices = roster.partyOf(alice);
+        assertFalse(roster.leave(alice), "leave refuses a loner — that is its contract");
+        assertTrue(roster.parties().contains(alices));
+
+        assertTrue(roster.evict(alice), "evict does not");
+        assertTrue(roster.currentPartyOf(alice).isEmpty(), "they are in no party at all");
+        assertFalse(roster.parties().contains(alices), "and the emptied party is gone with them");
+    }
+
+    @Test
+    void evictLeavesTheCompanyBehindIntact() {
+        PartyId alices = roster.partyOf(alice);
+        roster.join(bob, alices);
+        roster.join(charlie, alices);
+
+        assertTrue(roster.evict(bob));
+        assertEquals(List.of(alice, charlie), roster.members(alices), "the party outlives them");
+        assertTrue(roster.currentPartyOf(bob).isEmpty());
+    }
+
+    @Test
+    void evictingAStrangerChangesNothing() {
+        assertFalse(roster.evict(alice), "never in a party, so nothing to take them out of");
+        assertTrue(roster.parties().isEmpty(), "and asking must not have minted one");
+    }
 }

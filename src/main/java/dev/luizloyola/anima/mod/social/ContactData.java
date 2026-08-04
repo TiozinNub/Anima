@@ -93,6 +93,11 @@ public final class ContactData extends SavedData {
     }
 
     /** @see ContactBook#clear */
+    /** @see ContactBook#erase — both directions; a burial must not call this. */
+    public boolean erase(AgentId who) {
+        return dirtyIf(book.erase(who));
+    }
+
     public boolean clear(AgentId knower) {
         return dirtyIf(book.clear(knower));
     }

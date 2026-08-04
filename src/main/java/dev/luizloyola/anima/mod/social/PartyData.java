@@ -84,6 +84,11 @@ public final class PartyData extends SavedData {
         return dirtyIf(roster.leave(who));
     }
 
+    /** @see PartyRoster#evict — for an agent who is gone, party of one included. */
+    public boolean evict(AgentId who) {
+        return dirtyIf(roster.evict(who));
+    }
+
     /** @see PartyRoster#members */
     public List<AgentId> members(PartyId party) {
         return roster.members(party);

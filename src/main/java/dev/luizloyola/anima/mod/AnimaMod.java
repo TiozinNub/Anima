@@ -8,6 +8,7 @@ import dev.luizloyola.anima.mod.brain.ReadPools;
 import dev.luizloyola.anima.mod.brain.PlaceIndexes;
 import dev.luizloyola.anima.mod.brain.RegionCaches;
 import dev.luizloyola.anima.mod.config.ConfigFile;
+import dev.luizloyola.anima.mod.identity.AnimaRecords;
 import dev.luizloyola.anima.mod.item.AnimaItems;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
@@ -44,6 +45,7 @@ public final class AnimaMod implements ModInitializer {
         RegionCaches.install();
         PlaceIndexes.install();
         AnimaItems.init();
+        AnimaRecords.install();
         // Registered here so a bare install, or a consumer that paints nothing, still has it.
         dev.luizloyola.anima.mod.debug.CellOverlays.init();
         AnimaCommands.register(CONFIG);

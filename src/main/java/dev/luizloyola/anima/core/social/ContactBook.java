@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.agent.AgentId;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -73,6 +74,23 @@ public final class ContactBook {
     /** Returns whether they knew anyone at all. */
     public boolean clear(AgentId knower) {
         return books.remove(knower) != null;
+    }
+
+    /**
+     * Takes {@code who} out of the books in both directions — their own, and the entry naming them
+     * in everybody else's. For an agent being unmade, who should leave no trace that they existed.
+     *
+     * <p><b>A burial must not call this:</b> "I knew Alice" stays true after Alice dies, so the
+     * dead are filtered out of a listing at read time instead.
+     *
+     * @return whether they appeared anywhere
+     */
+    public boolean erase(AgentId who) {
+        boolean any = clear(who);
+        for (AgentId knower : List.copyOf(books.keySet())) {
+            any |= forget(knower, who);
+        }
+        return any;
     }
 
     /** Everyone {@code knower} can name, in the order they were met. Never includes themselves. */

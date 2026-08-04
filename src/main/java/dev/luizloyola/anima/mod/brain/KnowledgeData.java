@@ -128,6 +128,19 @@ public final class KnowledgeData extends SavedData {
         return registry;
     }
 
+    /**
+     * Drops one agent's whole map of the world, marking dirty if there was anything to drop — the
+     * wipe a burial performs, reached through {@code AgentRecords}. Safe because every
+     * {@code forPerson} call passes the asking agent's own id: nobody else reads this.
+     */
+    public boolean forget(AgentId who) {
+        boolean had = registry.remove(who);
+        if (had) {
+            setDirty();
+        }
+        return had;
+    }
+
     private List<PersonEntry> entries() {
         List<PersonEntry> entries = new ArrayList<>();
         for (AgentId id : registry.persons()) {

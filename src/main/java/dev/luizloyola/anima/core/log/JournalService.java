@@ -145,8 +145,8 @@ public final class JournalService {
      * for erasure (a Person unmade by command, who never died). A burial does not
      * call this: the death is the most interesting line the ring holds.
      */
-    public void drop(AgentId who) {
-        byPerson.remove(who);
+    public boolean drop(AgentId who) {
+        return byPerson.remove(who) != null;
     }
 
     public void sweep() {
