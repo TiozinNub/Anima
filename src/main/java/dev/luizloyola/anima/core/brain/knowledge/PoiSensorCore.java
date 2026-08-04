@@ -74,6 +74,7 @@ public final class PoiSensorCore {
     private final CrescentSampler sampler;
     private final HorizonScanner horizon;
     private final RegionCache regions;
+    private final ReadBudget reads;
     private final PlaceIndex places;
     private final Deque<Column> pending = new ArrayDeque<>();
     private RegionGrowth active;
@@ -96,10 +97,20 @@ public final class PoiSensorCore {
      */
     public PoiSensorCore(AgentKnowledge knowledge, AgentProfile profile, RegionCache regions,
             PlaceIndex places) {
+        this(knowledge, profile, regions, places, ReadBudget.UNMETERED);
+    }
+
+    /**
+     * The full wiring, with the server's read allowance as well. A test or a lone body passes
+     * {@link ReadBudget#UNMETERED} — with one body there is nothing to arbitrate.
+     */
+    public PoiSensorCore(AgentKnowledge knowledge, AgentProfile profile, RegionCache regions,
+            PlaceIndex places, ReadBudget reads) {
         this.knowledge = knowledge;
         this.profile = profile;
         this.regions = regions;
         this.places = places;
+        this.reads = reads;
         this.sampler = new CrescentSampler(profile);
         this.horizon = new HorizonScanner(profile);
     }
@@ -135,8 +146,9 @@ public final class PoiSensorCore {
         }
         List<SenseEvent> events = new ArrayList<>();
         // One wallet for the whole tick, read once — a reload mid-tick must not let a Person
-        // spend twice.
-        int wallet = readsPerTick();
+        // spend twice. What it gets is its share of the server's ceiling, not its own. Being cut
+        // short costs nothing but time: the queue keeps its columns and a growth resumes.
+        int wallet = this.reads.grant(this, readsPerTick(), now);
         int reads = 0;
         while (reads < wallet) {
             if (active != null) {
@@ -167,6 +179,10 @@ public final class PoiSensorCore {
             reads += horizon.step(feet, yawDegrees, now, probe, wallet - reads, events);
             recordGlimpses(events, firstFar, feet, now);
         }
+        // Pay for what was actually read, not for what was asked: a body in ground it knows asks
+        // for its whole wallet and reads almost none of it, and counting that would let incurious
+        // agents hold a busy one out of a budget nobody was using.
+        this.reads.refund(this, wallet - reads, now);
         return events;
     }
 

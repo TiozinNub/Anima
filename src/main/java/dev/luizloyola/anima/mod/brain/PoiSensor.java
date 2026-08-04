@@ -43,7 +43,8 @@ public final class PoiSensor {
             this.core = new PoiSensorCore(
                     this.data.registry().forPerson(this.person.agentId()),
                     this.person.profile(),
-                    RegionCaches.of(level), PlaceIndexes.of(level));
+                    RegionCaches.of(level), PlaceIndexes.of(level),
+                    ReadPools.of(level.getServer()));
             this.probe = new LevelProbe(this.person.entity());
         }
         BlockPos feet = this.person.blockPosition();

@@ -21,6 +21,8 @@
   "anima.config.option.limits.region_cache_cells.desc": "How much of the world's shape one world remembers on everyone's behalf, so that fifty settlers in one wood don't each scan the same trees. They still notice and remember their own trees — they just stop re-measuring them. Counted in blocks; 0 turns it off.",
   "anima.config.option.limits.place_index_cells": "Recognised things",
   "anima.config.option.limits.place_index_cells.desc": "How many blocks' worth of recognised things — trees, ponds, patches — one world remembers for everybody, so walking up to a wood someone has already been through costs nothing to understand. Held once per thing rather than once per look, so it goes much further than the remembered shapes above. 0 turns it off.",
+  "anima.config.option.limits.reads_per_tick_total": "Block reads, server-wide",
+  "anima.config.option.limits.reads_per_tick_total.desc": "Total blocks every agent on the server may read between them each tick. The per-agent budget above caps one mind; this caps the whole server, which is the only cap a growing population can outgrow. At the ceiling they notice things a little later rather than not at all, and they still see what is right beside them first. 0 turns it off.",
   "anima.config.option.limits.rays_per_tick": "Sight checks, server-wide",
   "anima.config.option.limits.rays_per_tick.desc": "Total line-of-sight checks every agent on the server may spend between them each tick. At the ceiling they notice things a little later rather than not at all — refused checks are deferred, never dropped.",
   "anima.config.option.limits.ray_budget": "Sight checks per tick",

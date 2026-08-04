@@ -84,6 +84,18 @@ public enum Knob implements KnobSpec {
                     + "measured 8,767 cells here against 62,615 there. Only things seen WHOLE are "
                     + "kept — a tree straddling the edge of a cut-short scan is provisional and is "
                     + "re-looked-at rather than lent. 0 turns it off."),
+    /** @see dev.luizloyola.anima.core.brain.knowledge.ReadPool#totalPerTick() */
+    READS_PER_TICK_TOTAL("limits.reads_per_tick_total", Kind.INT, 0, 0, 1_048_576,
+            "Total block reads EVERY agent on the server may spend between them each tick, shared "
+                    + "out fairly. The per-agent wallet above caps one mind; this caps the server, "
+                    + "which is the only cap a population can outgrow — 300 agents at the default "
+                    + "wallet is 76,800 reads a tick and nothing above stops it. Measured on a "
+                    + "real wood, looking at places was very nearly the whole server thread at 150 "
+                    + "walkers, and about nine reads in ten were the skyline sweep. At the ceiling "
+                    + "agents notice things later rather than not at all, and they degrade in the "
+                    + "right order for free: the near field is served first, so a squeezed body "
+                    + "still sees the tree beside it and merely takes longer to make out the "
+                    + "ridge. 0 turns the ceiling off, which is the old per-agent-only behaviour."),
     /**
      * The aggregate ceiling — the one that actually protects a server, because it is the only one
      * that knows how many agents there are.

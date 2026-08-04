@@ -106,12 +106,19 @@ public final class RegionGrowth {
         int spreadCap = maxSpread(this.profile);
         int blockCap = maxBlocks();
         int reads = 0;
-        while (result == null && reads < maxReads) {
+        // Frontier cells visited this step, bounded alongside the reads: a cell whose neighbours
+        // are all seen costs no READS, only twenty-six set lookups, so a dense mass could drain
+        // the whole frontier for free — 3.9 ms sensor ticks at 150 walkers once an aggregate
+        // ceiling cut wallets to a handful, against 0.6 ms unbounded. Paced, not skipped: what
+        // this step misses stays at the front of the frontier.
+        int visits = 0;
+        while (result == null && reads < maxReads && visits < maxReads) {
             if (frontier.isEmpty()) {
                 finish(probe);
                 break;
             }
             Pos p = frontier.pollFirst();
+            visits++;
             boolean outOfBudget = false;
             for (int[] d : NEIGHBORS) {
                 Pos n = new Pos(p.x() + d[0], p.y() + d[1], p.z() + d[2]);

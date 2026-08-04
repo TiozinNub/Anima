@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.mod.command.AnimaCommands;
 import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.brain.RayPools;
+import dev.luizloyola.anima.mod.brain.ReadPools;
 import dev.luizloyola.anima.mod.brain.PlaceIndexes;
 import dev.luizloyola.anima.mod.brain.RegionCaches;
 import dev.luizloyola.anima.mod.config.ConfigFile;
@@ -39,6 +40,7 @@ public final class AnimaMod implements ModInitializer {
         }
         AgentBodies.install();
         RayPools.install();
+        ReadPools.install();
         RegionCaches.install();
         PlaceIndexes.install();
         AnimaItems.init();

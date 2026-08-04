@@ -29,6 +29,9 @@ class ProfileAspectTest {
     private static final Set<Knob> SERVER_WIDE = EnumSet.of(
             // A species that could raise its own would be a species that can take a server down.
             Knob.READS_PER_TICK,
+            // And its aggregate twin, which is even less a species' business: it is about how many
+            // bodies there are, which no single body can see.
+            Knob.READS_PER_TICK_TOTAL,
             Knob.QUEUE_CAP,
             Knob.REGION_MAX_BLOCKS,
             Knob.RAY_BUDGET,

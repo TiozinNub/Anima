@@ -28,6 +28,8 @@
   "anima.config.option.limits.region_cache_cells.desc": "Quanto da forma do mundo cada mundo memoriza em nome de todos, para que cinquenta colonos numa mata não vasculhem cada um as mesmas árvores. Cada um continua notando e lembrando das suas próprias árvores — só deixa de remedi-las. Contado em blocos; 0 desliga.",
   "anima.config.option.limits.place_index_cells": "Coisas reconhecidas",
   "anima.config.option.limits.place_index_cells.desc": "Quantos blocos de coisas já reconhecidas — árvores, lagos, plantações — um mundo guarda para todos, de modo que chegar a um bosque por onde alguém já passou não custe nada para entender. Guardado uma vez por coisa, e não uma vez por olhada, então rende muito mais que as formas lembradas acima. 0 desliga.",
+  "anima.config.option.limits.reads_per_tick_total": "Leitura de blocos do servidor",
+  "anima.config.option.limits.reads_per_tick_total.desc": "Total de blocos que todos os agentes do servidor podem ler juntos a cada tique. O limite acima vale para uma mente; este vale para o servidor inteiro, e é o único que uma população crescente não consegue estourar. No limite, eles notam as coisas um pouco mais tarde, e não deixam de notar — e continuam vendo primeiro o que está bem ao lado. 0 desliga.",
   "anima.config.option.limits.rays_per_tick": "Testes de visão do servidor",
   "anima.config.option.limits.rays_per_tick.desc": "Total de verificações de linha de visão que todos os agentes do servidor podem gastar juntos a cada tique. No limite, eles notam as coisas um pouco mais tarde, e não deixam de notar — as verificações recusadas são adiadas, nunca descartadas.",
   "anima.config.option.limits.ray_budget": "Testes de visão por tique",
