@@ -1,6 +1,6 @@
 package dev.luizloyola.anima.core.brain.knowledge;
 
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -18,7 +18,8 @@ import java.util.Optional;
  */
 public final class GrowthRules {
 
-    private static final Map<BlockKind, GrowthRule> REGISTERED = new EnumMap<>(BlockKind.class);
+    /** Keyed on the canonical instances, so a plain map is an identity map in practice. */
+    private static final Map<BlockKind, GrowthRule> REGISTERED = new LinkedHashMap<>();
 
     private GrowthRules() {
     }

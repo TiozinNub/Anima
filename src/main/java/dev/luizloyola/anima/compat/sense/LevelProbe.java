@@ -3,6 +3,7 @@ package dev.luizloyola.anima.compat.sense;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
@@ -46,6 +47,13 @@ public final class LevelProbe implements BlockProbe {
         return top;
     }
 
+    /**
+     * What stands at a cell, in the one vocabulary a mind has for blocks. The band order is the
+     * contract (see {@link BlockKinds}): out of reach and nothing there first, then a consuming
+     * mod's claim, then Anima's own floor — last because its collision-free rung swallows every
+     * walk-through block into {@link BlockKind#AIR}, so a classifier after it could never recognise
+     * a plant.
+     */
     @Override
     public BlockKind at(int x, int y, int z) {
         BlockPos pos = new BlockPos(x, y, z);
@@ -54,7 +62,13 @@ public final class LevelProbe implements BlockProbe {
         }
         BlockState state = this.level.getBlockState(pos);
         if (state.isAir()) {
+            // Settled here rather than through the registry: air is the commonest read there is,
+            // and walking a list to confirm it would be the sense's largest single cost.
             return BlockKind.AIR;
+        }
+        Optional<BlockKind> claimed = BlockKinds.of(this.level, pos, state);
+        if (claimed.isPresent()) {
+            return claimed.get();
         }
         if (state.is(BlockTags.LOGS)) {
             return BlockKind.LOG;

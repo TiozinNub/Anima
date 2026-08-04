@@ -111,11 +111,13 @@ public final class FakeProbe implements BlockProbe {
         if (kind == null) {
             return y <= GROUND_Y ? Sight.BLOCKED : Sight.CLEAR;
         }
-        return switch (kind) {
-            case LOG, OTHER -> Sight.BLOCKED;
-            case LEAVES, WATER -> Sight.VEILED;
-            case AIR, UNKNOWN -> Sight.CLEAR;
-        };
+        if (kind == BlockKind.AIR || kind == BlockKind.UNKNOWN) {
+            return Sight.CLEAR;
+        }
+        // Named by what the eye gets past rather than by what stops it, because the vocabulary is
+        // open: a kind a suite registers for itself is a THING, and a thing stops a ray until its
+        // own test says otherwise. The other way round, a new kind would silently be air.
+        return kind == BlockKind.LEAVES || kind == BlockKind.WATER ? Sight.VEILED : Sight.BLOCKED;
     }
 
     @Override
