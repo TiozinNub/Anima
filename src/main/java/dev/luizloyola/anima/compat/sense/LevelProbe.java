@@ -272,9 +272,13 @@ public final class LevelProbe implements BlockProbe {
         }
         // The two see-through things that are nonetheless THINGS: a ray that called a canopy or a
         // water surface empty air would march straight through a forest reporting nothing.
-        return state.is(BlockTags.LEAVES) || state.getFluidState().is(FluidTags.WATER)
-                ? Sight.VEILED
-                : Sight.CLEAR;
+        if (state.is(BlockTags.LEAVES) || state.getFluidState().is(FluidTags.WATER)) {
+            return Sight.VEILED;
+        }
+        // Everything left is see-through and not a canopy: literal air, or something too slight to
+        // stop a ray — grass, a flower, a cane stalk. Telling those apart costs one cached boolean;
+        // the passive fan ignores the answer.
+        return state.isAir() ? Sight.CLEAR : Sight.THIN;
     }
 
     /**

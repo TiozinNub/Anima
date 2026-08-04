@@ -30,7 +30,11 @@ import dev.luizloyola.anima.core.brain.knowledge.HorizonBuffer;
 import dev.luizloyola.anima.core.brain.knowledge.HorizonScanner;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.knowledge.RegionCache;
+import dev.luizloyola.anima.compat.sense.LevelProbe;
+import dev.luizloyola.anima.core.brain.knowledge.SenseEvent;
 import dev.luizloyola.anima.core.brain.knowledge.Sighting;
+import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.brain.knowledge.Survey;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.task.BreakBlock;
 import dev.luizloyola.anima.core.brain.task.GoTo;
@@ -345,6 +349,67 @@ public final class AgentCommands {
     public static LiteralArgumentBuilder<CommandSourceStack> horizon() {
         return Commands.literal("horizon")
                                 .executes(ctx -> horizonShow(ctx.getSource()));
+    }
+
+    /**
+     * Stop and look all the way round — the active tier, driven by hand before anything decides
+     * to do it on its own.
+     *
+     * <p>Runs to completion inside the call rather than trickling on the sense's wallet: roughly
+     * fifty thousand block reads for a Person, a real pause on the server thread, acceptable only
+     * because an operator asked for it and is waiting. A body doing this by itself will have to
+     * spread the work.
+     *
+     * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
+     * so a shared subcommand must be built once per root that mounts it.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> survey() {
+        return Commands.literal("survey")
+                .executes(ctx -> surveyNow(ctx.getSource()));
+    }
+
+    /** How many reads one hand-driven survey may spend before it gives up and says so. */
+    private static final int SURVEY_READ_CAP = 400_000;
+
+    private static int surveyNow(CommandSourceStack source) {
+        AgentBody person = resolveBody(source);
+        if (person == null) return 0;
+        String name = person.entity().getName().getString();
+        Pos feet = new Pos(person.entity().blockPosition().getX(),
+                person.entity().blockPosition().getY(), person.entity().blockPosition().getZ());
+        Survey survey = new Survey(person.profile(), feet);
+        if (!survey.possible()) {
+            Replies.send(source, () -> Component.literal(name
+                            + " has nothing to survey — places.horizon_radius is inside the "
+                            + "sense radius, so there is no range the near field does not own.")
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        LevelProbe probe = new LevelProbe(person.entity());
+        List<SenseEvent> events = new ArrayList<>();
+        int reads = 0;
+        while (!survey.done() && reads < SURVEY_READ_CAP) {
+            reads += survey.step(probe, 4096, events);
+        }
+        AgentKnowledge knowledge = Knowledges.of(source.getServer()).forPerson(person.agentId());
+        long now = person.entity().level().getGameTime();
+        int kept = 0;
+        for (SenseEvent event : events) {
+            if (event.type() != SenseEvent.Type.GLIMPSED) continue;
+            knowledge.glimpse(new Sighting(event.kind(), event.anchor(), feet, now,
+                    Sighting.Provenance.SURVEY), AgentKnowledge.maxPerKind(person.profile()));
+            kept++;
+        }
+        int finalReads = reads;
+        int finalKept = kept;
+        boolean finished = survey.done();
+        Replies.send(source, () -> Component.literal(name + " looked all the way round from "
+                        + feet.x() + ", " + feet.y() + ", " + feet.z() + ": "
+                        + finalKept + " made out in " + finalReads + " reads"
+                        + (finished ? "." : " — gave up at " + survey.progress()
+                                + "% of the turn, which is a bug or a very strange world."))
+                .withStyle(finished ? ChatFormatting.AQUA : ChatFormatting.YELLOW));
+        return kept;
     }
 
     /** The skyline as a line of text — how much of it is swept, and what it is topped by. */

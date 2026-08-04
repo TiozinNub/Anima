@@ -137,6 +137,9 @@ public final class FakeProbe implements BlockProbe {
         if (kind == BlockKind.AIR || kind == BlockKind.UNKNOWN) {
             return Sight.CLEAR;
         }
+        if (thin.contains(kind)) {
+            return Sight.THIN; // there, and far too slight to stop anything
+        }
         // Named by what the eye gets past rather than by what stops it, because the vocabulary is
         // open: a kind a suite registers for itself is a THING, and a thing stops a ray until its
         // own test says otherwise. The other way round, a new kind would silently be air.

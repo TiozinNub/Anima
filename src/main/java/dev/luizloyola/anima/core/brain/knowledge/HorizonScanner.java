@@ -84,7 +84,7 @@ public final class HorizonScanner {
      * one step higher would have gone through it. Stopping on the first clear ray missed an oak 48
      * blocks out in plain view; two crosses that gap, at one extra ray into empty sky per bearing.
      */
-    private static final int CLEAR_RUN_TO_STOP = 2;
+    static final int CLEAR_RUN_TO_STOP = 2;
 
     /**
      * A bearing looked along this recently is left alone.
@@ -167,7 +167,7 @@ public final class HorizonScanner {
                         return false;
                     }
                 }
-                case CLEAR -> { }
+                case CLEAR, THIN -> { } // a stalk of cane hides nothing from anybody
             }
         }
         return true;
@@ -341,7 +341,10 @@ public final class HorizonScanner {
                     }
                 }
             }
-            case CLEAR -> {
+            case CLEAR, THIN -> {
+                // THIN is CLEAR to this tier, and free: no landing, no classifying read. Only a
+                // deliberate look can afford to ask what a ray passed through rather than only
+                // what stopped it.
                 this.distance++;
                 if (this.distance > radius) {
                     this.clearRun++;

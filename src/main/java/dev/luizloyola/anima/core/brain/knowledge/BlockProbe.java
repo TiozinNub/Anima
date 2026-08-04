@@ -65,7 +65,22 @@ public interface BlockProbe {
          * belongs to reports "I could see no further", which is a different claim from "there was
          * nothing there" and must never be collapsed into it.
          */
-        OUTSIDE;
+        OUTSIDE,
+        /**
+         * It passes, there is something here, and it is too slight for a passing glance — grass, a
+         * flower, a cane stalk, a berry bush. {@link #CLEAR}'s twin, split off it.
+         *
+         * <p>The passive fan treats it exactly as {@code CLEAR}, at no extra read; the distinction
+         * buys a <em>deliberate</em> look that can ask what it passed through rather than only what
+         * stopped it. Hence the survey tier is not the same fan with more rays: sugar cane stops
+         * nothing, so no ray density would find it — the mechanism had to change, not the budget.
+         *
+         * <p><b>Declared last.</b> {@code LevelProbe} memoises this enum by ORDINAL into
+         * a table a hot swap leaves standing — a redefinition never re-runs the initialiser that
+         * built it — so inserting a constant anywhere but the end would silently re-interpret every
+         * verdict already in that table on a running server.
+         */
+        THIN;
     }
 
     /**
