@@ -203,9 +203,15 @@ public final class AgentKnowledge {
     }
 
     /**
-     * This column was looked at properly and holds nothing of the sort: drops any sighting standing
-     * exactly on it, of any kind. Exact rather than coarse — one empty column is not evidence about
-     * its neighbours.
+     * The near field's verdict, and only about what it can see: this column's surface was read
+     * properly and holds nothing of the sort, so a sighting standing exactly on it is dropped —
+     * for every kind that {@linkplain PoiKind.Settling#SURFACE stands at a surface} and no other,
+     * and exactly on it, since one empty column is no evidence about its neighbours.
+     *
+     * <p>That exclusion is why {@link PoiKind.Settling} exists. A column probe reads one cell, the
+     * topmost motion-blocking one; for sugar cane (no collision, so not in the heightmap) it
+     * reads the sand underneath and reports "nothing here", deleting a true belief that the far
+     * sense would re-make and it would kill again, sweep after sweep.
      *
      * @return how many were disproved
      */
@@ -215,8 +221,11 @@ public final class AgentKnowledge {
         }
         Column column = new Column(x, z);
         int dropped = 0;
-        for (Map<Column, Sighting> entries : glimpsedByKind.values()) {
-            if (entries.remove(column) != null) {
+        for (Map.Entry<PoiKind, Map<Column, Sighting>> entry : glimpsedByKind.entrySet()) {
+            if (entry.getKey().settling() != PoiKind.Settling.SURFACE) {
+                continue; // not this sense's to settle: it never looked where the thing lives
+            }
+            if (entry.getValue().remove(column) != null) {
                 dropped++;
             }
         }

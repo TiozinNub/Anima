@@ -5,18 +5,23 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Something made out but never examined — the gist tier, below {@link PoiMemory}. A belief says "a
- * tree here, four logs, anchored on that cell"; a sighting says only "something of that sort about
- * there".
+ * Something made out but never examined — the gist tier, below {@link PoiMemory}. A
+ * belief says "a tree here, four logs, anchored on that cell"; a sighting only "something of that
+ * sort about there".
  *
- * <p><b>Not a PoiMemory with a flag</b>: everything that reads knowledge asks questions a glimpse
- * cannot answer (how much, where exactly to stand, is it still that shape), so a flag would
- * compile and be wrong at runtime. The tiers also want opposite policies: beliefs merge tightly and
- * are individuated, glimpses merge coarsely so a forest is <em>one</em> of these.
+ * <p><b>Not a PoiMemory with a flag:</b> a flag would let questions a glimpse cannot answer — how
+ * much, where to stand, still that shape — compile and be wrong at runtime. The tiers merge
+ * oppositely too: beliefs tight and individuated, glimpses coarse, so a forest is <em>one</em> of
+ * these.
  *
- * <p><b>It resolves by being visited</b>, never on its own: walking into inspection range either
- * grows it into a belief ({@linkplain AgentKnowledge#supersede superseded}) or turns up nothing of
- * the sort ({@linkplain AgentKnowledge#disprove disproved}).
+ * <p><b>It resolves by being visited</b>, never on its own: inspection range either grows a real
+ * belief, {@linkplain AgentKnowledge#supersede superseding} this, or finds nothing of the sort
+ * and {@linkplain AgentKnowledge#disprove disproves} it.
+ *
+ * <p><b>Only a sense that looked where the thing would BE may settle a rumour</b>, and the near
+ * field looks at one cell per column. A kind that does not stand at a column's surface says so
+ * ({@link PoiKind.Settling#DELIBERATE}) and its rumours outlive being walked past, or the far
+ * sense would keep making them and the near field keep deleting them.
  *
  * @param kind       what it looked like from there
  * @param at         where it looked to be — the cell that topped the skyline, so a canopy rather

@@ -87,6 +87,28 @@ class SightingTierTest {
     }
 
     @Test
+    void aRumourTheNEARFIELDCannotSettleSurvivesBeingWalkedPast() {
+        // The near field reads one cell per column (the topmost motion-blocking one), and
+        // announces "nothing of the sort here" for each. For a kind that does not STAND there
+        // (sugar cane has no collision, so the probe reads the sand under it) that is about the
+        // wrong cell, and would delete a true belief again every crossing, forever.
+        knowledge.glimpse(new Sighting(HIDDEN, new Pos(0, 65, 30), new Pos(0, 64, 0), 1,
+                Sighting.Provenance.SURVEY), CAP);
+        glimpse(0, 68, 30, 1); // an ordinary surface kind standing on the very same column
+
+        assertEquals(2, knowledge.glimpseCount(), "two rumours, one column");
+        assertEquals(1, knowledge.disprove(0, 30),
+                "a glance settles the one that stands where a glance looks");
+        assertEquals(1, knowledge.glimpseCount(),
+                "and leaves the one it never looked at — being walked past told nobody anything");
+        assertEquals(HIDDEN, knowledge.glimpses(HIDDEN).iterator().next().kind());
+    }
+
+    /** A kind that does not stand at a column's surface, so no glance can speak for it. */
+    private static final PoiKind HIDDEN =
+            PoiKind.register("test_hidden", 4, "", PoiKind.Settling.DELIBERATE);
+
+    @Test
     void theStalestGoesWhenFull() {
         // Spaced past the merge radius so each is genuinely its own sighting.
         for (int i = 0; i < CAP; i++) {
