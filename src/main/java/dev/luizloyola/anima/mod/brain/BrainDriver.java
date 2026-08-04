@@ -67,12 +67,13 @@ public final class BrainDriver {
     private boolean auto = true;
 
     /**
-     * The wander mute. ON (the default) the idle drive bids its ambient floor; OFF it bids nothing,
-     * so an unbothered body stands where you put it while the brain keeps thinking — fleeing,
-     * eating, taking errands. Narrower than {@link #auto}, which stops the arbiter entirely.
+     * The wander mute. ON (the default): the idle drive bids its ambient floor. OFF: the brain
+     * keeps thinking but nothing bids to roam, so an unbothered body stands where you put it —
+     * narrower than autonomy off, which stops the arbiter entirely.
      *
-     * <p>Transient like {@link #auto}: a restart or an entity reload builds a new driver and the
-     * mute is gone, with nothing in the world to say the body stopped. Re-apply it after a reload.
+     * <p>Durable since 2026-08-04, with {@link #auto}: the switches are a decision made ABOUT this
+     * body, where the rest of the driver is re-derivable. The body saves them and hands them back
+     * through {@link #restoreSwitches}.
      */
     private boolean wander = true;
 
@@ -328,6 +329,16 @@ public final class BrainDriver {
         this.auto = auto;
         // BRAIN log: the dev override is worth a line — it explains a gap where the arbiter went quiet.
         this.person.journal().record(Category.BRAIN, "auto", auto ? "on" : "off");
+    }
+
+    /**
+     * Puts both switches back as a body saved them, on load. Not the two setters:
+     * those journal the change, and a reload is nobody's decision. It also runs while the entity
+     * is still being read from NBT, where the journal is not reachable.
+     */
+    public void restoreSwitches(boolean auto, boolean wander) {
+        this.auto = auto;
+        this.wander = wander;
     }
 
     /** Whether the idle wander drive is bidding (ON) or muted (OFF) — see {@link #wander}. */
