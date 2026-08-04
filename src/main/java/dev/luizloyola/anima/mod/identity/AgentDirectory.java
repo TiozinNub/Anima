@@ -41,18 +41,40 @@ public interface AgentDirectory {
     }
 
     /**
-     * Every agent this directory knows — <b>loaded or not</b>. A listing built from a body scan
-     * omits everyone asleep in an unloaded chunk, which reads as "gone" rather than "elsewhere".
+     * Every agent this directory knows — <b>loaded or not</b>, and <b>living or dead</b>.
+     * Implementors answer for everything they hold; the filtering happens one level up, in
+     * {@link #of}.
      *
-     * <p>Id-keyed so a caller can label each row, and named {@code known} rather than {@code all}
-     * because an implementor's own {@code all()} returns its concrete type, which invariant
-     * generics will not let satisfy this.
+     * <p>Enumerated rather than scanned: a listing built from a body scan omits everyone in an
+     * unloaded chunk, which reads as "they are gone" rather than "they are elsewhere".
+     *
+     * <p>Id-keyed so a caller can label each row without asking again. Named {@code known} rather
+     * than {@code all} for the reason {@link #identity} is not {@code find}: generics are
+     * invariant.
      */
     Map<AgentId, PrivateIdentity> known();
 
     /** How many agents this directory knows. */
     default int size() {
         return known().size();
+    }
+
+    /**
+     * The living. That is what a listing means unless it says otherwise.
+     *
+     * <p>Identity outlives the body by decision, so {@link #known} answers for the dead forever.
+     * Unfiltered, {@code list} shows them as merely "unloaded", and the creative-view contact sync
+     * pushes every agent who has ever existed to every joining client, for good.
+     */
+    default Map<AgentId, PrivateIdentity> living(MinecraftServer server) {
+        Graves graves = Graves.get(server);
+        Map<AgentId, PrivateIdentity> alive = new LinkedHashMap<>();
+        known().forEach((id, identity) -> {
+            if (!graves.isDead(id)) {
+                alive.put(id, identity);
+            }
+        });
+        return Collections.unmodifiableMap(alive);
     }
 
     /**

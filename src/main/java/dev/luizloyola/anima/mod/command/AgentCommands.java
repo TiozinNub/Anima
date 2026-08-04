@@ -11,6 +11,7 @@ import dev.luizloyola.anima.mod.debug.PoiLabels;
 import net.minecraft.commands.CommandBuildContext;
 import java.util.Map;
 import dev.luizloyola.anima.mod.identity.AgentDirectory;
+import dev.luizloyola.anima.mod.identity.Graves;
 import dev.luizloyola.anima.core.agent.PrivateIdentity;
 import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.body.AgentBody;
@@ -103,6 +104,7 @@ import java.util.stream.Stream;
 import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.identity.AgentDirectory;
+import dev.luizloyola.anima.mod.identity.Graves;
 import dev.luizloyola.anima.core.agent.PrivateIdentity;
 
 /**
@@ -1623,10 +1625,14 @@ public final class AgentCommands {
         MinecraftServer server = source.getServer();
         if (source.getEntity() instanceof ServerPlayer player && ContactsSync.seesEveryone(player)) {
             String vantage = player.isSpectator() ? "As a spectator" : "In creative";
-            return printNames(source, AgentDirectory.of(server).known().keySet(),
+            return printNames(source, AgentDirectory.of(server).living(server).keySet(),
                     vantage + ", you know");
         }
-        return printNames(source, ContactData.get(server).contactsOf(self), "You know");
+        // The living, by default: the entry is not deleted — "I knew Alice" stays true after Alice
+        // dies — but the dead are not people to deal with. `contacts of <name>` shows the book as
+        // it is.
+        return printNames(source, Set.copyOf(Graves.get(server)
+                .living(ContactData.get(server).contactsOf(self))), "You know");
     }
 
     /** Everyone that Person can name — the omniscient view: a dev tool reads any book. */
@@ -1850,21 +1856,31 @@ public final class AgentCommands {
      * <p>Directory-backed, so an agent whose chunk is unloaded still appears.
      */
     public static LiteralArgumentBuilder<CommandSourceStack> list() {
-        return Commands.literal("list").executes(ctx -> listAgents(ctx.getSource()));
+        return Commands.literal("list")
+                .executes(ctx -> listAgents(ctx.getSource(), false))
+                // Explicit, because a listing that quietly mixed the dead in would be the
+                // `purge graveyard` confusion again, wearing a readout instead of a command.
+                .then(Commands.literal("all").executes(ctx -> listAgents(ctx.getSource(), true)));
     }
 
-    private static int listAgents(CommandSourceStack source) {
+    private static int listAgents(CommandSourceStack source, boolean includeDead) {
         MinecraftServer server = source.getServer();
-        Map<AgentId, PrivateIdentity> known = AgentDirectory.of(server).known();
+        AgentDirectory directory = AgentDirectory.of(server);
+        Graves graves = Graves.get(server);
+        Map<AgentId, PrivateIdentity> known =
+                includeDead ? directory.known() : directory.living(server);
         if (known.isEmpty()) {
-            Replies.send(source, () -> Component.literal("Nobody has a mind yet.")
-                    .withStyle(ChatFormatting.GRAY));
+            Replies.send(source, () -> Component.literal(includeDead
+                    ? "Nobody has ever had a mind here."
+                    : "Nobody living has a mind yet.").withStyle(ChatFormatting.GRAY));
             return 0;
         }
         Vec3 origin = source.getPosition();
         known.forEach((id, identity) -> {
             AgentBody body = AgentBodies.findLoaded(server, id);
-            String kind = body == null ? "unloaded"
+            // "dead" before "unloaded" — those two used to be the same word here.
+            String kind = graves.isDead(id) ? "dead"
+                    : body == null ? "unloaded"
                     : body.entity().getType().getDescription().getString();
             String where = body == null ? ""
                     : String.format(Locale.ROOT, "  %s  %.1fm",
@@ -1873,7 +1889,10 @@ public final class AgentCommands {
             Replies.send(source, () -> Component.literal(String.format(Locale.ROOT,
                     "  %s: %s (%s)%s", kind, identity.name(), shortId(id), where)));
         });
-        Replies.send(source, () -> Component.literal("  " + known.size() + " known")
+        int buried = graves.size();
+        Replies.send(source, () -> Component.literal("  " + known.size()
+                + (includeDead ? " known" : " living")
+                + (!includeDead && buried > 0 ? ", " + buried + " buried (list all)" : ""))
                 .withStyle(ChatFormatting.GRAY));
         return known.size();
     }

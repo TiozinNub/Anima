@@ -37,11 +37,16 @@ public final class AnimaRecords {
                 (server, who) -> ContactData.get(server).erase(who));
         AgentRecords.register("journal", true,
                 (server, who) -> Journals.of(server).drop(who));
+        // A grave is not erased by a burial — it is the burial. Only an erasure takes it, which is
+        // what `survivesDeath = true` says here.
+        AgentRecords.register("grave", true,
+                (server, who) -> Graves.get(server).forget(who));
 
         // The other half of "a store declares itself": the persistent ones are also checked at
         // boot for a load that vanilla swallowed. The journal ring has no file to guard.
         StoreGuard.guard("knowledge", KnowledgeData.ID, KnowledgeData::get);
         StoreGuard.guard("parties", PartyData.ID, PartyData::get);
         StoreGuard.guard("contacts", ContactData.ID, ContactData::get);
+        StoreGuard.guard("graves", Graves.ID, Graves::get);
     }
 }

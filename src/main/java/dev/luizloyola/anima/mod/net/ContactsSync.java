@@ -2,6 +2,7 @@ package dev.luizloyola.anima.mod.net;
 
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.mod.identity.AgentDirectory;
+import dev.luizloyola.anima.mod.identity.Graves;
 import dev.luizloyola.anima.mod.social.ContactData;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -147,10 +148,16 @@ public final class ContactsSync {
         }
     }
 
-    /** Every agent every directory knows, loaded or not — the creative/spectator view. */
+    /**
+     * Every LIVING agent every directory knows, loaded or not — the creative/spectator view.
+     *
+     * <p>Living, not known: identity outlives the body by decision, so the raw map keeps every
+     * settler that has ever existed, and pushing that would grow the payload without bound with
+     * names nobody can meet.
+     */
     private static List<ContactsPayload.Known> allNames(MinecraftServer server) {
         List<ContactsPayload.Known> known = new ArrayList<>();
-        AgentDirectory.of(server).known().forEach((id, identity) ->
+        AgentDirectory.of(server).living(server).forEach((id, identity) ->
                 known.add(ContactsPayload.Known.of(id, identity.name())));
         return known;
     }
@@ -159,7 +166,10 @@ public final class ContactsSync {
     private static List<ContactsPayload.Known> bookOf(MinecraftServer server, ServerPlayer player) {
         AgentDirectory directory = AgentDirectory.of(server);
         List<ContactsPayload.Known> known = new ArrayList<>();
-        for (AgentId contact : ContactData.get(server).contactsOf(idOf(player))) {
+        // The dead are filtered rather than forgotten: the book still names them (deleting the
+        // entry would edit the living's memory of the dead), but a client-side "who do I know"
+        // list is about people to deal with.
+        for (AgentId contact : Graves.get(server).living(ContactData.get(server).contactsOf(idOf(player)))) {
             directory.nameOf(contact)
                     .ifPresent(name -> known.add(ContactsPayload.Known.of(contact, name)));
         }
