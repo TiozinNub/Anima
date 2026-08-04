@@ -2,27 +2,59 @@ package dev.luizloyola.anima.compat.nav;
 
 import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.NavGrid;
+import java.util.Arrays;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.LevelChunkSection;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.material.FluidState;
 
 /**
  * An immutable box of {@link CellType} classifications baked from real blockstates, and the
- * thread-safety seam: {@link #capture} reads the live {@link Level} and <b>must run on the server
- * thread</b>, but its {@code byte[]} never changes, so a worker thread can search it while the
- * world ticks on.
+ * thread-safety seam the design hangs on: {@link #capture} reads the live {@link Level} and <b>must
+ * run on the server thread</b>, but the result is a plain {@code byte[]} that never changes, so a
+ * worker thread can search it while the world ticks on.
  *
- * <p>Block changes after capture are invisible to it: paths are short-lived and re-requested on
- * stuck.
+ * <p>A snapshot, not a live view: block changes after capture are invisible. Paths are short-lived
+ * and re-requested on stuck.
+ *
+ * <p>Baking one is the most expensive thing navigation does, the only part that scales with a
+ * trip's <em>volume</em>: a goal at the service's reach limit is a box a quarter of a million cells
+ * wide. {@link #bake} resolves a chunk and a section as loop invariants and {@link #verdicts}
+ * memoises a blockstate's class, neither changing a verdict.
  */
 public final class WorldSnapshot implements NavGrid {
     private static final CellType[] TYPES = CellType.values();
+
+    /** Values in {@link #verdicts} below {@link #VERDICT_BASE}; the rest are {@code ordinal + BASE}. */
+    private static final byte UNASKED = 0;
+    private static final byte POSITIONAL = 1;
+    private static final int VERDICT_BASE = 2;
+
+    /**
+     * What each blockstate classifies as, indexed by {@link Block#BLOCK_STATE_REGISTRY} id.
+     *
+     * <p>Sound because {@code BlockStateBase.initCache} builds the cache {@code getCollisionShape}
+     * and {@code isFaceSturdy} read unconditionally, without a level, precisely when
+     * {@code !hasDynamicShape()}: every question {@link #classifyLive} asks is then a pure function
+     * of the state, and a cell costs one array read instead of five hashed tag lookups. The six
+     * dynamic-shape blocks (moving piston, scaffolding, bamboo and its sapling, pointed dripstone,
+     * powder snow) are marked {@link #POSITIONAL} and keep asking the world cell by cell.
+     *
+     * <p>Never invalidated — blockstates are interned once, so this is a table about the
+     * <em>vocabulary</em>, not the world. Unsynchronised on purpose: an id always computes the same
+     * byte and byte array elements never tear, so a race costs only a recomputation.
+     */
+    private static byte[] verdicts = new byte[0];
 
     private final int minX;
     private final int minY;
@@ -45,7 +77,7 @@ public final class WorldSnapshot implements NavGrid {
     /**
      * Bakes the inclusive box {@code [min, max]} of {@code level} into a snapshot. Server thread
      * only (live chunk reads). The y range is clamped to the level's build height; unloaded chunks
-     * classify as {@link CellType#OBSTACLE} (checked per column, so no chunk loads are triggered).
+     * classify as {@link CellType#OBSTACLE} (checked per chunk, so no chunk loads are triggered).
      */
     public static WorldSnapshot capture(Level level, BlockPos min, BlockPos max) {
         int minY = Math.max(min.getY(), level.getMinY());
@@ -53,20 +85,83 @@ public final class WorldSnapshot implements NavGrid {
         int sizeX = max.getX() - min.getX() + 1;
         int sizeY = Math.max(maxY - minY + 1, 1);
         int sizeZ = max.getZ() - min.getZ() + 1;
+
         byte[] cells = new byte[sizeX * sizeY * sizeZ];
+        // OBSTACLE is the floor for every cell the walk below never reaches — an unloaded chunk, a
+        // section off the end of the level. It has to be painted: OBSTACLE is not ordinal 0, so a
+        // fresh array would read PASSABLE, the one thing unknown space must never be.
+        Arrays.fill(cells, (byte) CellType.OBSTACLE.ordinal());
+
+        WorldSnapshot snapshot =
+                new WorldSnapshot(min.getX(), minY, min.getZ(), sizeX, sizeY, sizeZ, cells);
+        snapshot.bake(level, min, max);
+        return snapshot;
+    }
+
+    /**
+     * Fills {@link #cells} from the live world. Called once, from {@link #capture}, before the
+     * snapshot is handed to anybody.
+     *
+     * <p>Chunk-major, not cell-major: {@code level.getBlockState} resolves a chunk on <em>every</em>
+     * call and a nav box is hundreds of thousands of calls, so asking once per 16×16 column and once
+     * per section makes that a loop invariant. A section that
+     * {@linkplain LevelChunkSection#hasOnlyAir() holds only air} is filled a row at a time without
+     * reading a block — most of the sky over most nav boxes.
+     */
+    private void bake(Level level, BlockPos min, BlockPos max) {
+        int maxY = this.minY + this.sizeY - 1;
+        int firstSection = level.getSectionIndex(this.minY);
+        int lastSection = level.getSectionIndex(maxY);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        for (int x = 0; x < sizeX; x++) {
-            for (int z = 0; z < sizeZ; z++) {
-                pos.set(min.getX() + x, minY, min.getZ() + z);
-                boolean loaded = level.isLoaded(pos);
-                for (int y = 0; y < sizeY; y++) {
-                    pos.setY(minY + y);
-                    CellType type = loaded ? classify(level, pos) : CellType.OBSTACLE;
-                    cells[(y * sizeZ + z) * sizeX + x] = (byte) type.ordinal();
+
+        for (int chunkX = min.getX() >> 4; chunkX <= max.getX() >> 4; chunkX++) {
+            for (int chunkZ = min.getZ() >> 4; chunkZ <= max.getZ() >> 4; chunkZ++) {
+                // Never force a load: an absent chunk keeps the OBSTACLE already painted over it.
+                ChunkAccess chunk = level.getChunk(chunkX, chunkZ, ChunkStatus.FULL, false);
+                if (chunk == null) {
+                    continue;
+                }
+                int x0 = Math.max(min.getX(), chunkX << 4);
+                int x1 = Math.min(max.getX(), (chunkX << 4) + 15);
+                int z0 = Math.max(min.getZ(), chunkZ << 4);
+                int z1 = Math.min(max.getZ(), (chunkZ << 4) + 15);
+
+                LevelChunkSection[] sections = chunk.getSections();
+                for (int index = firstSection; index <= lastSection; index++) {
+                    if (index < 0 || index >= sections.length) {
+                        continue; // off the end of the level: the painted OBSTACLE stands
+                    }
+                    int bottom = level.getSectionYFromSectionIndex(index) << 4;
+                    bakeSection(level, sections[index], pos, x0, x1, z0, z1,
+                            Math.max(this.minY, bottom), Math.min(maxY, bottom + 15));
                 }
             }
         }
-        return new WorldSnapshot(min.getX(), minY, min.getZ(), sizeX, sizeY, sizeZ, cells);
+    }
+
+    /**
+     * Bakes one section's share of one chunk's share of the box. {@code x} is the innermost loop
+     * because consecutive x are consecutive cells — the writes run straight down the array.
+     */
+    private void bakeSection(Level level, LevelChunkSection section, BlockPos.MutableBlockPos pos,
+            int x0, int x1, int z0, int z1, int y0, int y1) {
+        boolean onlyAir = section.hasOnlyAir();
+        for (int y = y0; y <= y1; y++) {
+            for (int z = z0; z <= z1; z++) {
+                // Index of x = 0 in this row, so a cell is row + x with no per-cell arithmetic.
+                int row = ((y - this.minY) * this.sizeZ + (z - this.minZ)) * this.sizeX - this.minX;
+                if (onlyAir) {
+                    Arrays.fill(this.cells, row + x0, row + x1 + 1,
+                            (byte) CellType.PASSABLE.ordinal());
+                    continue;
+                }
+                for (int x = x0; x <= x1; x++) {
+                    BlockState state = section.getBlockState(x & 15, y & 15, z & 15);
+                    pos.set(x, y, z);
+                    this.cells[row + x] = (byte) classify(state, level, pos).ordinal();
+                }
+            }
+        }
     }
 
     /**
@@ -76,12 +171,49 @@ public final class WorldSnapshot implements NavGrid {
      * unchecked call into an unloaded chunk would misread.
      */
     public static CellType classifyAt(Level level, BlockPos pos) {
-        return classify(level, pos);
+        return classify(level.getBlockState(pos), level, pos);
+    }
+
+    /**
+     * The memo in front of {@link #classifyLive} — see {@link #verdicts} for why it is sound. A
+     * state the table has no room for (registered after it was sized) goes the long way
+     * round; it is answered correctly, just not cheaply.
+     */
+    private static CellType classify(BlockState state, BlockGetter level, BlockPos pos) {
+        byte[] table = verdicts();
+        int id = Block.BLOCK_STATE_REGISTRY.getId(state);
+        if (id < 0 || id >= table.length) {
+            return classifyLive(state, level, pos);
+        }
+        byte memo = table[id];
+        if (memo == UNASKED) {
+            // A dynamic shape is the one thing that makes this a question about the cell rather
+            // than about the block; every other input classifyLive reads lives on the state.
+            memo = state.getBlock().hasDynamicShape()
+                    ? POSITIONAL
+                    : (byte) (classifyLive(state, level, pos).ordinal() + VERDICT_BASE);
+            table[id] = memo;
+        }
+        return memo == POSITIONAL ? classifyLive(state, level, pos) : TYPES[memo - VERDICT_BASE];
+    }
+
+    /**
+     * The verdict table, sized on first use — blocks are all registered long before a capture.
+     *
+     * <p>The null check is not paranoia: a hot swap never re-runs a static initialiser, so a field
+     * this class did not have before the swap arrives null on the running server.
+     */
+    private static byte[] verdicts() {
+        byte[] table = verdicts;
+        if (table == null || table.length == 0) {
+            table = new byte[Math.max(Block.BLOCK_STATE_REGISTRY.size(), 1)];
+            verdicts = table;
+        }
+        return table;
     }
 
     /** Collapses one blockstate to the navigation vocabulary. The order matters — see comments. */
-    private static CellType classify(Level level, BlockPos pos) {
-        BlockState state = level.getBlockState(pos);
+    private static CellType classifyLive(BlockState state, BlockGetter level, BlockPos pos) {
         if (state.isAir()) {
             return CellType.PASSABLE;
         }
