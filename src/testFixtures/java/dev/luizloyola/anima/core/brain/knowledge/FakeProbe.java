@@ -68,15 +68,38 @@ public final class FakeProbe implements BlockProbe {
         hidden.remove(target);
     }
 
+    /**
+     * Kinds that stand in a cell without holding anything up — a collision-free plant. Absent from
+     * {@link #surfaceY} as sugar cane is from the motion-blocking heightmap, present in
+     * {@link #topY}.
+     */
+    private final Set<BlockKind> thin = new HashSet<>();
+
+    /** Declares a kind to be see-through-and-not-solid, the way a cane stalk is. */
+    public void thin(BlockKind kind) {
+        thin.add(kind);
+    }
+
     @Override
     public int surfaceY(int x, int z) {
+        return highest(x, z, false);
+    }
+
+    @Override
+    public int topY(int x, int z) {
+        return highest(x, z, true);
+    }
+
+    private int highest(int x, int z, boolean countingThin) {
         reads++;
         if (unloaded.contains(new Column(x, z))) {
             return Integer.MIN_VALUE;
         }
         int top = GROUND_Y;
-        for (Pos p : blocks.keySet()) {
-            if (p.x() == x && p.z() == z && p.y() > top) {
+        for (Map.Entry<Pos, BlockKind> entry : blocks.entrySet()) {
+            Pos p = entry.getKey();
+            if (p.x() == x && p.z() == z && p.y() > top
+                    && (countingThin || !thin.contains(entry.getValue()))) {
                 top = p.y();
             }
         }

@@ -12,8 +12,25 @@ public interface BlockProbe {
     /**
      * The y of the topmost surface block at this column (motion-blocking heightmap), or
      * {@link Integer#MIN_VALUE} when the column is out of reach (unloaded chunk).
+     *
+     * <p>What would hold a body up — <b>not</b> what stands on this column. See {@link #topY}.
      */
     int surfaceY(int x, int z);
+
+    /**
+     * The y of the topmost cell here holding anything at all, or {@link Integer#MIN_VALUE} when the
+     * column is out of reach.
+     *
+     * <p><b>What a glance lands on</b>, where {@link #surfaceY} is what a boot lands on — usually
+     * the same cell. They part over anything that grows without being solid: sugar cane and sweet
+     * berry bushes have no collision, so they are absent from the motion-blocking heightmap and
+     * {@code surfaceY} answers with the sand <em>underneath</em>, which made them invisible to the
+     * near field. One heightmap lookup instead of the other, not as well as, so it costs nothing.
+     *
+     * <p>Grass and flowers land here too: they classify as {@link BlockKind#AIR}, no rule claims
+     * them, and the column settles as before.
+     */
+    int topY(int x, int z);
 
     /** What stands at the cell. Out-of-reach cells return {@link BlockKind#UNKNOWN}. */
     BlockKind at(int x, int y, int z);

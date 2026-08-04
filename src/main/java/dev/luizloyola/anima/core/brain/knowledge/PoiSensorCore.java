@@ -213,7 +213,10 @@ public final class PoiSensorCore {
 
     private int probeColumn(Column column, long now, BlockProbe probe, List<SenseEvent> events) {
         Pos highestClaim = claims.highestIn(column);
-        int top = probe.surfaceY(column.x(), column.z());
+        // What STANDS here, not what would hold a boot up: sugar cane and berry bushes are absent
+        // from the motion-blocking heightmap, so asking for the surface answered with the sand
+        // under a cane brake and a body could walk through one seeing nothing. Same single lookup.
+        int top = probe.topY(column.x(), column.z());
         int reads = 1;
         if (top == Integer.MIN_VALUE) {
             return reads;

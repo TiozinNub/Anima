@@ -120,6 +120,18 @@ public final class LevelProbe implements BlockProbe {
 
     @Override
     public int surfaceY(int x, int z) {
+        return highest(Heightmap.Types.MOTION_BLOCKING, x, z);
+    }
+
+    @Override
+    public int topY(int x, int z) {
+        // WORLD_SURFACE is "anything that is not air", so it catches everything MOTION_BLOCKING
+        // does plus the collision-free things standing on top of it — a cane brake, a berry bush,
+        // grass. Same one lookup, a taller answer.
+        return highest(Heightmap.Types.WORLD_SURFACE, x, z);
+    }
+
+    private int highest(Heightmap.Types heightmap, int x, int z) {
         ChunkAccess loaded = chunkFor(x, z);
         if (loaded == null) {
             return Integer.MIN_VALUE;
@@ -127,9 +139,9 @@ public final class LevelProbe implements BlockProbe {
         // Level.getHeight masks to chunk-local coordinates and adds one to what the chunk answers,
         // and the caller then took one off again — so asking the chunk directly is the same number,
         // provided the masking that Level was doing happens here.
-        int top = loaded.getHeight(Heightmap.Types.MOTION_BLOCKING, x & 15, z & 15);
-        // Snow layers ride the heightmap and mask whatever carries them — a snow-capped canopy
-        // would read OTHER and its tree never be hypothesized.
+        int top = loaded.getHeight(heightmap, x & 15, z & 15);
+        // Snow layers ride both heightmaps and mask whatever carries them — a snow-capped canopy
+        // reads OTHER and its tree is never hypothesized.
         int floor = this.level.getMinY();
         this.scratch.set(x, top, z);
         while (top > floor && loaded.getBlockState(this.scratch).is(Blocks.SNOW)) {
