@@ -1069,6 +1069,13 @@ public final class AgentCommands {
                         + shapes.drops() + " forgotten (ground moved), "
                         + shapes.evictions() + " (no room)")
                 .withStyle(ChatFormatting.DARK_GRAY));
+        // why the rest were not saved: a bare miss count says the cache is not earning its keep;
+        // these three say which rule refused.
+        Replies.send(source, () -> Component.literal("  re-grown: "
+                        + shapes.unknownGround() + " new ground, "
+                        + shapes.refusedPartial() + " mass cut short, "
+                        + shapes.refusedOutOfReach() + " out of reach")
+                .withStyle(ChatFormatting.DARK_GRAY));
         for (PoiKind kind : PoiKind.all()) {
             for (PoiMemory memory : knowledge.all(kind)) {
                 String line = formatPoi(person, memory, now);

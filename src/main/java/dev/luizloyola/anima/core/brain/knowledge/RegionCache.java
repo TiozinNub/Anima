@@ -123,6 +123,10 @@ public final class RegionCache {
     private long misses;
     private long drops;
     private long evictions;
+    /** Why {@link #covering} declined — see {@link #attributeRefusal}. Cumulative, like the rest. */
+    private long refusedPartial;
+    private long refusedOutOfReach;
+    private long unknownGround;
 
     /** What was grown from this seed last time, or null. */
     public synchronized GrownRegion get(Key key) {
@@ -144,6 +148,7 @@ public final class RegionCache {
     public synchronized Map<Pos, BlockKind> covering(PoiKind kind, Pos seed, int spread) {
         Set<Entry> candidates = byChunk.get(chunkKey(seed.x() >> 4, seed.z() >> 4));
         if (candidates == null) {
+            unknownGround++;
             return null;
         }
         for (Entry entry : candidates) {
@@ -153,7 +158,36 @@ public final class RegionCache {
                 return entry.region.blocks();
             }
         }
+        attributeRefusal(kind, seed, spread, candidates);
         return null;
+    }
+
+    /**
+     * Why a mass we hold could not be lent out — asked only after {@link #covering} failed, where
+     * a growth about to cost thousands of reads makes a second pass over a few candidates noise.
+     * A third of hypotheses re-grew on already-walked ground (measured 2026-08-03, fifty walkers,
+     * a cache big enough never to evict), a symptom with three different cures.
+     */
+    private void attributeRefusal(PoiKind kind, Pos seed, int spread, Set<Entry> candidates) {
+        boolean sawPartial = false;
+        boolean sawOutOfReach = false;
+        for (Entry entry : candidates) {
+            if (!entry.key.kind().equals(kind) || !entry.region.blocks().containsKey(seed)) {
+                continue; 
+            }
+            if (entry.region.partial()) {
+                sawPartial = true;
+            } else if (!entry.reachableFrom(seed, spread)) {
+                sawOutOfReach = true;
+            }
+        }
+        if (sawOutOfReach) {
+            refusedOutOfReach++;
+        } else if (sawPartial) {
+            refusedPartial++;
+        } else {
+            unknownGround++;
+        }
     }
 
     /** Books a {@link #covering} that the caller went on to use, so the hit rate stays right. */
@@ -284,6 +318,27 @@ public final class RegionCache {
     /** Shapes forgotten to stay inside {@link #maxCells()} — the "too small" reading. */
     public synchronized long evictions() {
         return evictions;
+    }
+
+    /**
+     * A scan re-run because the mass we hold for it was cut short. High here means the growth
+     * caps, not the cache size, are what everybody is paying for.
+     */
+    public synchronized long refusedPartial() {
+        return refusedPartial;
+    }
+
+    /**
+     * A scan re-run because the whole mass we hold does not fit this seed's reach. High here
+     * means the sharing rule is the limit, not the room.
+     */
+    public synchronized long refusedOutOfReach() {
+        return refusedOutOfReach;
+    }
+
+    /** A scan re-run because nothing cached covered that cell at all — genuine first sightings. */
+    public synchronized long unknownGround() {
+        return unknownGround;
     }
 
     private void drop(Entry entry) {
