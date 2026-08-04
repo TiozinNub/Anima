@@ -6,6 +6,7 @@ import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.luizloyola.anima.compat.SavedDatas;
 import dev.luizloyola.anima.core.brain.knowledge.KnowledgeRegistry;
+import dev.luizloyola.anima.mod.store.StoreGuard;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
@@ -33,8 +34,9 @@ import net.minecraft.world.level.saveddata.SavedDataType;
  * post-merge and insertion-ordered, so the replay reproduces the store exactly. Only the durable
  * tier is saved; claim indexes and pending queues rebuild from re-walking.
  */
-public final class KnowledgeData extends SavedData {
-    private static final Identifier ID = Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "knowledge");
+public final class KnowledgeData extends SavedData implements StoreGuard.Checked {
+    /** This store's file key — public so the boot guard can find it on disk. */
+    public static final Identifier ID = Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "knowledge");
 
     private static final Codec<Pos> POS_CODEC = BlockPos.CODEC.xmap(
             bp -> new Pos(bp.getX(), bp.getY(), bp.getZ()),
@@ -100,7 +102,13 @@ public final class KnowledgeData extends SavedData {
                     .forGetter(PersonEntry::sightings)
     ).apply(e, (uuid, pois, sightings) -> new PersonEntry(AgentId.of(uuid), pois, sightings)));
 
+    /** This store's schema. Bump when the shape above changes incompatibly. */
+    private static final int SCHEMA = 1;
+
     private static final Codec<KnowledgeData> CODEC = RecordCodecBuilder.create(d -> d.group(
+            Codec.INT.optionalFieldOf("version", 0).forGetter(d2 -> SCHEMA),
+            Codec.INT.optionalFieldOf("rows", StoreGuard.UNCOUNTED)
+                    .forGetter(d2 -> d2.entries().size()),
             ENTRY_CODEC.listOf().fieldOf("persons").forGetter(KnowledgeData::entries)
     ).apply(d, KnowledgeData::fromEntries));
 
@@ -108,14 +116,33 @@ public final class KnowledgeData extends SavedData {
             SavedDatas.type(ID, KnowledgeData::new, CODEC, DataFixTypes.LEVEL);
 
     private final KnowledgeRegistry registry;
+    private final int loadedVersion;
+    private final int declaredRows;
 
     /** An empty store (the {@link SavedDataType} supplier for a fresh save). */
     public KnowledgeData() {
-        this(new KnowledgeRegistry());
+        this(new KnowledgeRegistry(), StoreGuard.NEVER_LOADED, StoreGuard.UNCOUNTED);
     }
 
-    private KnowledgeData(KnowledgeRegistry registry) {
+    private KnowledgeData(KnowledgeRegistry registry, int loadedVersion, int declaredRows) {
         this.registry = registry;
+        this.loadedVersion = loadedVersion;
+        this.declaredRows = declaredRows;
+    }
+
+    @Override
+    public int loadedVersion() {
+        return loadedVersion;
+    }
+
+    @Override
+    public int declaredRows() {
+        return declaredRows;
+    }
+
+    @Override
+    public int actualRows() {
+        return entries().size();
     }
 
     /** The server's knowledge store, loading or creating the overworld-attached instance. */
@@ -158,7 +185,8 @@ public final class KnowledgeData extends SavedData {
         return entries;
     }
 
-    private static KnowledgeData fromEntries(List<PersonEntry> entries) {
+    private static KnowledgeData fromEntries(int version, int declaredRows,
+                                             List<PersonEntry> entries) {
         KnowledgeRegistry registry = new KnowledgeRegistry();
         for (PersonEntry entry : entries) {
             AgentKnowledge knowledge = registry.forPerson(entry.id());
@@ -169,6 +197,6 @@ public final class KnowledgeData extends SavedData {
                 knowledge.restoreGlimpse(sighting);
             }
         }
-        return new KnowledgeData(registry);
+        return new KnowledgeData(registry, version, declaredRows);
     }
 }

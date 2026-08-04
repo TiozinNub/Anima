@@ -4,6 +4,7 @@ import dev.luizloyola.anima.mod.brain.KnowledgeData;
 import dev.luizloyola.anima.mod.log.Journals;
 import dev.luizloyola.anima.mod.social.ContactData;
 import dev.luizloyola.anima.mod.social.PartyData;
+import dev.luizloyola.anima.mod.store.StoreGuard;
 
 /**
  * Anima's own {@link AgentRecords} registrations — everything the library keeps under an
@@ -36,5 +37,11 @@ public final class AnimaRecords {
                 (server, who) -> ContactData.get(server).erase(who));
         AgentRecords.register("journal", true,
                 (server, who) -> Journals.of(server).drop(who));
+
+        // The other half of "a store declares itself": the persistent ones are also checked at
+        // boot for a load that vanilla swallowed. The journal ring has no file to guard.
+        StoreGuard.guard("knowledge", KnowledgeData.ID, KnowledgeData::get);
+        StoreGuard.guard("parties", PartyData.ID, PartyData::get);
+        StoreGuard.guard("contacts", ContactData.ID, ContactData::get);
     }
 }

@@ -1,8 +1,11 @@
 package dev.luizloyola.anima.compat;
 
 import com.mojang.serialization.Codec;
+import dev.luizloyola.anima.mixin.SavedDataStorageAccessor;
+import java.nio.file.Path;
 import java.util.function.Supplier;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
@@ -21,6 +24,22 @@ public final class SavedDatas {
         return new SavedDataType<>(id, factory, codec, fixType);
         //?} else {
         /*return new SavedDataType<>(id.getNamespace() + "_" + id.getPath(), factory, codec, fixType);
+        *///?}
+    }
+
+    /**
+     * Where a level keeps one store's file — the path vanilla resolves, derived the same way.
+     * Needed because the loader answers "no file" and "unparseable" with the same {@code null};
+     * only the filesystem separates them. Folder from the storage's private field via
+     * {@link SavedDataStorageAccessor}; leaf mirrors {@link #type} — namespaced subfolder at 26.1,
+     * {@code namespace_path} before it.
+     */
+    public static Path fileOf(ServerLevel level, Identifier id) {
+        Path folder = ((SavedDataStorageAccessor) level.getDataStorage()).anima$dataFolder();
+        //? if >=26.1 {
+        return folder.resolve(id.getNamespace()).resolve(id.getPath() + ".dat");
+        //?} else {
+        /*return folder.resolve(id.getNamespace() + "_" + id.getPath() + ".dat");
         *///?}
     }
 }

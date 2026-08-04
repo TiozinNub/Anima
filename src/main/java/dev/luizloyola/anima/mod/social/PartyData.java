@@ -6,6 +6,7 @@ import dev.luizloyola.anima.compat.SavedDatas;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.social.PartyId;
 import dev.luizloyola.anima.core.social.PartyRoster;
+import dev.luizloyola.anima.mod.store.StoreGuard;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -29,8 +30,9 @@ import net.minecraft.world.level.saveddata.SavedDataType;
  * {@link #partyOf} is a mutation in disguise — the first ask about an agent mints their party of
  * one. That is when the file must learn it.
  */
-public final class PartyData extends SavedData {
-    private static final Identifier ID = Identifier.fromNamespaceAndPath("anima", "parties");
+public final class PartyData extends SavedData implements StoreGuard.Checked {
+    /** This store's file key — public so the boot guard can find it on disk. */
+    public static final Identifier ID = Identifier.fromNamespaceAndPath("anima", "parties");
 
     /** One party's row: {@code {party, members:[…]}} in join order. */
     private record Row(UUID party, List<UUID> members) {
@@ -41,7 +43,13 @@ public final class PartyData extends SavedData {
             UUIDUtil.CODEC.listOf().fieldOf("members").forGetter(Row::members)
     ).apply(row, Row::new));
 
+    /** This store's schema. Bump when the shape below changes incompatibly. */
+    private static final int SCHEMA = 1;
+
     private static final Codec<PartyData> CODEC = RecordCodecBuilder.create(data -> data.group(
+            Codec.INT.optionalFieldOf("version", 0).forGetter(d -> SCHEMA),
+            Codec.INT.optionalFieldOf("rows", StoreGuard.UNCOUNTED)
+                    .forGetter(d -> d.rows().size()),
             ROW_CODEC.listOf().fieldOf("parties").forGetter(PartyData::rows)
     ).apply(data, PartyData::fromRows));
 
@@ -49,14 +57,33 @@ public final class PartyData extends SavedData {
             SavedDatas.type(ID, PartyData::new, CODEC, DataFixTypes.LEVEL);
 
     private final PartyRoster roster;
+    private final int loadedVersion;
+    private final int declaredRows;
 
     /** Constructs an empty store (the {@link SavedDataType} supplier for a fresh save). */
     public PartyData() {
-        this(new PartyRoster());
+        this(new PartyRoster(), StoreGuard.NEVER_LOADED, StoreGuard.UNCOUNTED);
     }
 
-    private PartyData(PartyRoster roster) {
+    private PartyData(PartyRoster roster, int loadedVersion, int declaredRows) {
         this.roster = roster;
+        this.loadedVersion = loadedVersion;
+        this.declaredRows = declaredRows;
+    }
+
+    @Override
+    public int loadedVersion() {
+        return loadedVersion;
+    }
+
+    @Override
+    public int declaredRows() {
+        return declaredRows;
+    }
+
+    @Override
+    public int actualRows() {
+        return roster.parties().size();
     }
 
     /** Resolves the single, server-global store (kept on the overworld's data storage). */
@@ -118,13 +145,13 @@ public final class PartyData extends SavedData {
         return rows;
     }
 
-    private static PartyData fromRows(List<Row> rows) {
+    private static PartyData fromRows(int version, int declaredRows, List<Row> rows) {
         PartyRoster roster = new PartyRoster();
         for (Row row : rows) {
             for (UUID member : row.members()) {
                 roster.join(AgentId.of(member), PartyId.of(row.party()));
             }
         }
-        return new PartyData(roster);
+        return new PartyData(roster, version, declaredRows);
     }
 }
