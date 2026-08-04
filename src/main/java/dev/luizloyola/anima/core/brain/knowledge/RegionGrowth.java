@@ -69,10 +69,39 @@ public final class RegionGrowth {
         return all;
     }
 
+    /**
+     * The largest dense {@link #seenBits} box that may be allocated, in cells. A box is
+     * {@code (2·(spread+1)+1)³}, so a Person's spread of 24 is 132,651 cells — sixteen kilobytes
+     * of bitset, against the hundreds of microseconds of hashing it saves on one scan. A species
+     * declaring an absurd spread falls back to the hash set rather than asking for a megabyte.
+     */
+    private static final long MAX_DENSE_CELLS = 4_000_000L;
+
     private final GrowthRule rule;
     private final Pos seed;
     private final Map<Pos, BlockKind> blocks = new LinkedHashMap<>();
-    private final Set<Pos> seen = new HashSet<>();
+    /**
+     * Which cells have been looked at, as a bit per cell of a box centred on the seed.
+     *
+     * <p>The hottest structure in perception: every frontier cell asks about twenty-six neighbours,
+     * and inside a dense mass the answer is overwhelmingly "seen already". As a
+     * {@code HashSet<Pos>} each cost a {@link Pos} allocation and a hash probe — the near-field
+     * loop measured 226 ns per block read against the ray fan's 33.
+     *
+     * <p>The box is sized in advance because growth refuses anything beyond the spread cap from the
+     * seed, so a frontier cell is within the cap and its neighbours within one more. Cells outside
+     * fall back to {@link #seenFar}, which is also the whole story when the box would be too large.
+     *
+     * <p><b>It cannot change a verdict</b>: nothing iterates it, so no order depends on it — unlike
+     * {@link #blocks}, a {@code LinkedHashMap} because the mass's order is the order the rules
+     * individuate in and an anchor's identity hangs off it.
+     */
+    private final long[] seenBits;
+    /** Out-of-box cells, and every cell when {@link #seenBits} was refused. */
+    private final Set<Pos> seenFar = new HashSet<>();
+    /** Half-extent of the {@link #seenBits} box, and its side; 0 when there is no box. */
+    private final int reach;
+    private final int side;
     private final Deque<Pos> frontier = new ArrayDeque<>();
     /**
      * The cells standing against a truncation — a cap or an unloaded border, not the rule saying
@@ -91,9 +120,52 @@ public final class RegionGrowth {
         this.profile = profile;
         this.rule = rule;
         this.seed = seed;
+        // One step past the cap, because a refusal still marks the cell it refused as seen.
+        int want = maxSpread(profile) + 1;
+        long cells = (2L * want + 1) * (2L * want + 1) * (2L * want + 1);
+        if (cells <= MAX_DENSE_CELLS) {
+            this.reach = want;
+            this.side = 2 * want + 1;
+            this.seenBits = new long[(int) ((cells + 63) >>> 6)];
+        } else {
+            this.reach = 0;
+            this.side = 0;
+            this.seenBits = null;
+        }
         this.blocks.put(seed, seedKind);
-        this.seen.add(seed);
+        markSeen(seed.x(), seed.y(), seed.z());
         this.frontier.add(seed);
+    }
+
+    /** Bit offset of a cell in {@link #seenBits}, or −1 when it lies outside the box. */
+    private int bitOf(int x, int y, int z) {
+        if (this.seenBits == null) {
+            return -1;
+        }
+        int dx = x - seed.x() + reach;
+        int dy = y - seed.y() + reach;
+        int dz = z - seed.z() + reach;
+        if ((dx | dy | dz) < 0 || dx >= side || dy >= side || dz >= side) {
+            return -1;
+        }
+        return (dy * side + dz) * side + dx;
+    }
+
+    private boolean alreadySeen(int x, int y, int z) {
+        int bit = bitOf(x, y, z);
+        if (bit < 0) {
+            return seenFar.contains(new Pos(x, y, z));
+        }
+        return (seenBits[bit >>> 6] & (1L << bit)) != 0L;
+    }
+
+    private void markSeen(int x, int y, int z) {
+        int bit = bitOf(x, y, z);
+        if (bit < 0) {
+            seenFar.add(new Pos(x, y, z));
+            return;
+        }
+        seenBits[bit >>> 6] |= 1L << bit;
     }
 
     /**
@@ -121,8 +193,13 @@ public final class RegionGrowth {
             visits++;
             boolean outOfBudget = false;
             for (int[] d : NEIGHBORS) {
-                Pos n = new Pos(p.x() + d[0], p.y() + d[1], p.z() + d[2]);
-                if (seen.contains(n)) {
+                int nx = p.x() + d[0];
+                int ny = p.y() + d[1];
+                int nz = p.z() + d[2];
+                // Asked on the coordinates, not on a cell object. This is the branch nearly every
+                // neighbour takes inside a mass, and building a Pos to ask it was the single
+                // largest cost in the near field.
+                if (alreadySeen(nx, ny, nz)) {
                     continue;
                 }
                 if (reads >= maxReads) {
@@ -132,14 +209,17 @@ public final class RegionGrowth {
                     outOfBudget = true;
                     break;
                 }
-                seen.add(n);
-                BlockKind kind = probe.at(n.x(), n.y(), n.z());
+                markSeen(nx, ny, nz);
+                BlockKind kind = probe.at(nx, ny, nz);
                 reads++;
                 if (kind == BlockKind.UNKNOWN) {
                     partial = true;
                     cutEdge.add(p); // the world ran out here, not the structure
                     continue;
                 }
+                // Only now is a cell worth naming: it exists, and the rule is about to be asked
+                // about it.
+                Pos n = new Pos(nx, ny, nz);
                 if (!rule.joins(n, kind, probe)) {
                     continue; // a real boundary: the structure really does end here
                 }
