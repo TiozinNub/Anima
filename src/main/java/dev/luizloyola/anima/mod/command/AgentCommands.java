@@ -209,6 +209,16 @@ public final class AgentCommands {
     }
 
     /**
+     * What perception makes of the blocks themselves — a dump, for diffing across builds.
+     *
+     * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
+     * so a shared subcommand must be built once per root that mounts it.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> probe() {
+        return Commands.literal("probe").then(ProbeDump.node());
+    }
+
+    /**
      * The mind: what it is doing, and the dev overrides that take the wheel.
      *
      * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,

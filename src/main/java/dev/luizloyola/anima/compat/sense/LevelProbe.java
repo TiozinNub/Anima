@@ -9,75 +9,192 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * The {@link BlockProbe} over a live level, from one body's eyes: real blockstates collapsed to the
- * {@link BlockKind} vocabulary. Server thread only; unloaded columns answer
- * {@link Integer#MIN_VALUE}/{@link BlockKind#UNKNOWN} without triggering a chunk load. Surface
- * questions ride the {@code MOTION_BLOCKING} heightmap — one array lookup, so a column probes O(1)
- * — counting fluids (a lake's surface is its water) and leaves (a canopy's, its top leaf).
+ * The {@link BlockProbe} over a live level, seen from one body's eyes — the one compat seam where
+ * real blockstates collapse to the tiny {@link BlockKind} vocabulary. Server thread only; unloaded
+ * columns answer {@link Integer#MIN_VALUE}/{@link BlockKind#UNKNOWN} without triggering a load.
+ *
+ * <p>The surface question rides the {@code MOTION_BLOCKING} heightmap — one array lookup, so
+ * probing a column is O(1). It counts fluids and leaves, so a lake's surface is its water and a
+ * canopy's is its top leaf.
+ *
+ * <p><b>This is the hottest code in the mod</b>: at fifty settlers crossing a wood, perception
+ * spent 2.1 ms of every tick in here, 94% of it in {@link #sightAt}. Two measures keep it affordable,
+ * neither changing an answer:
+ *
+ * <ul>
+ *   <li><b>The verdict tables</b> (see {@link #sights}) — a hit is one array index instead of up to
+ *       three tag lookups and a collision shape, and {@code state.is(TagKey)} rehashes a record
+ *       {@code TagKey} on every call.</li>
+ *   <li><b>The chunk under the last read</b> — consecutive reads almost always land in the same
+ *       chunk, so holding it removes both chunk lookups per read.</li>
+ * </ul>
  */
 public final class LevelProbe implements BlockProbe {
+
+    // --- the verdict tables: a question about the vocabulary, not about the world --------------
+
+    /** Table values below {@link #VERDICT_BASE}; the rest are an ordinal plus that base. */
+    private static final byte UNASKED = 0;
+    private static final byte POSITIONAL = 1;
+    private static final int VERDICT_BASE = 2;
+
+    private static final Sight[] SIGHTS = Sight.values();
+
+    /**
+     * The only kinds the floor below can answer. A consumer's own kind never reaches the table:
+     * classifiers are asked live, every read, because {@code BlockKinds} promises them a level
+     * and a position and some of them will want it.
+     */
+    private static final BlockKind[] FLOOR_KINDS = {
+            BlockKind.AIR, BlockKind.LOG, BlockKind.LEAVES, BlockKind.WATER, BlockKind.OTHER};
+
+    /**
+     * What an eye makes of each blockstate, indexed by {@link Block#BLOCK_STATE_REGISTRY} id.
+     *
+     * <p>Sound because every question {@link #sightLive} asks is a pure function of the state except
+     * the collision shape, and {@code BlockStateBase.initCache} builds the cache
+     * {@code getCollisionShape} returns from unconditionally, without a level, precisely when
+     * {@code !hasDynamicShape()}. The handful that do are marked {@link #POSITIONAL}.
+     *
+     * <p>Never invalidated: blockstates are interned once, so this is a table about the
+     * <em>vocabulary</em> — the opposite of {@code RegionCache}.
+     */
+    private static byte[] sights = new byte[0];
+
+    /** The same, for what Anima's own floor calls a block. See {@link #sights} for the argument. */
+    private static byte[] floors = new byte[0];
+
     private final LivingEntity eyes;
     private final Level level;
+    /** Reused for every read: these are hot enough that a BlockPos per read is real garbage. */
+    private final BlockPos.MutableBlockPos scratch = new BlockPos.MutableBlockPos();
+    private ChunkAccess chunk;
+    private int chunkX;
+    private int chunkZ;
+    /**
+     * Which tick {@link #chunk} was resolved on. A chunk cannot unload while entities are ticking,
+     * so within one tick the reference is good and no caller has to clear anything — this class is
+     * built in six places, some for a single command.
+     */
+    private long chunkAt = Long.MIN_VALUE;
 
     public LevelProbe(LivingEntity eyes) {
         this.eyes = eyes;
         this.level = eyes.level();
     }
 
+    /**
+     * A probe with no eyes — for asking what a block is, which does not depend on who is looking.
+     * The one question that does ({@link #visibleFromEyes}) refuses to answer. What
+     * {@code ProbeDump} uses, so a dump can be taken from the console with nobody selected.
+     */
+    public LevelProbe(Level level) {
+        this.eyes = null;
+        this.level = level;
+    }
+
+    /** The chunk holding this column, or null if it is not loaded. Never forces a load. */
+    private ChunkAccess chunkFor(int x, int z) {
+        int cx = x >> 4;
+        int cz = z >> 4;
+        long now = this.level.getGameTime();
+        if (now == this.chunkAt && cx == this.chunkX && cz == this.chunkZ) {
+            return this.chunk;
+        }
+        this.chunk = this.level.getChunk(cx, cz, ChunkStatus.FULL, false);
+        this.chunkX = cx;
+        this.chunkZ = cz;
+        this.chunkAt = now;
+        return this.chunk;
+    }
+
     @Override
     public int surfaceY(int x, int z) {
-        if (!this.level.isLoaded(new BlockPos(x, this.level.getMinY(), z))) {
+        ChunkAccess loaded = chunkFor(x, z);
+        if (loaded == null) {
             return Integer.MIN_VALUE;
         }
-        // getHeight returns the first FREE y above the top motion-blocking block.
-        int top = this.level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z) - 1;
+        // Level.getHeight masks to chunk-local coordinates and adds one to what the chunk answers,
+        // and the caller then took one off again — so asking the chunk directly is the same number,
+        // provided the masking that Level was doing happens here.
+        int top = loaded.getHeight(Heightmap.Types.MOTION_BLOCKING, x & 15, z & 15);
         // Snow layers ride the heightmap and mask whatever carries them — a snow-capped canopy
         // would read OTHER and its tree never be hypothesized.
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(x, top, z);
-        while (top > this.level.getMinY() && this.level.getBlockState(pos).is(Blocks.SNOW)) {
-            pos.setY(--top);
+        int floor = this.level.getMinY();
+        this.scratch.set(x, top, z);
+        while (top > floor && loaded.getBlockState(this.scratch).is(Blocks.SNOW)) {
+            this.scratch.setY(--top);
         }
         return top;
     }
 
     /**
-     * What stands at a cell, in the one vocabulary a mind has for blocks. The band order is the
-     * contract (see {@link BlockKinds}): out of reach and nothing there first, then a consuming
-     * mod's claim, then Anima's own floor — last because its collision-free rung swallows every
-     * walk-through block into {@link BlockKind#AIR}, so a classifier after it could never recognise
-     * a plant.
+     * What stands at a cell, in the one vocabulary a mind has for blocks.
+     *
+     * <p>The order of the three bands is the contract (see {@link BlockKinds}): out of reach and
+     * nothing there, then whatever a consuming mod claims, then Anima's own floor. The floor is last
+     * because its collision-free rung swallows every walk-through block into {@link BlockKind#AIR}.
+     *
+     * <p>Only the floor is memoised; a classifier is asked live on every read, so one claiming a
+     * state at some positions and not others still gets asked at all of them.
      */
     @Override
     public BlockKind at(int x, int y, int z) {
-        BlockPos pos = new BlockPos(x, y, z);
-        if (!this.level.isLoaded(pos)) {
+        ChunkAccess loaded = chunkFor(x, z);
+        if (loaded == null) {
             return BlockKind.UNKNOWN;
         }
-        BlockState state = this.level.getBlockState(pos);
+        this.scratch.set(x, y, z);
+        BlockState state = loaded.getBlockState(this.scratch);
         if (state.isAir()) {
             // Settled here rather than through the registry: air is the commonest read there is,
             // and walking a list to confirm it would be the sense's largest single cost.
             return BlockKind.AIR;
         }
-        Optional<BlockKind> claimed = BlockKinds.of(this.level, pos, state);
+        Optional<BlockKind> claimed = BlockKinds.of(this.level, this.scratch, state);
         if (claimed.isPresent()) {
             return claimed.get();
         }
+        return floorKind(state, this.level, this.scratch);
+    }
+
+    /** Anima's own ladder, memoised per blockstate — see {@link #sights} for why that is sound. */
+    private static BlockKind floorKind(BlockState state, Level level, BlockPos pos) {
+        byte[] table = floors();
+        int id = Block.BLOCK_STATE_REGISTRY.getId(state);
+        if (id < 0 || id >= table.length) {
+            return floorLive(state, level, pos);
+        }
+        byte memo = table[id];
+        if (memo == UNASKED) {
+            memo = state.getBlock().hasDynamicShape()
+                    ? POSITIONAL
+                    : (byte) (floorIndex(floorLive(state, level, pos)) + VERDICT_BASE);
+            table[id] = memo;
+        }
+        return memo == POSITIONAL ? floorLive(state, level, pos) : FLOOR_KINDS[memo - VERDICT_BASE];
+    }
+
+    private static BlockKind floorLive(BlockState state, Level level, BlockPos pos) {
         if (state.is(BlockTags.LOGS)) {
             return BlockKind.LOG;
         }
         if (state.is(BlockTags.LEAVES)) {
-            // Persistent leaves were PLACED, not grown, so they read as ordinary blocks: nothing
-            // hypothesizes a tree from them and a log-and-leaf BUILDING never validates as one.
-            // A missing property (a modded canopy) is assumed to decay — only proof demotes. The
-            // eye still sees through leaves (sightClear below).
+            // Leaves that will never decay were PLACED, not grown. Only grown leaves tell a tree
+            // story, so built ones read as ordinary blocks: nothing hypothesizes a tree from them
+            // and a log-and-leaf BUILDING never validates as one. Leaves without the property — a
+            // modded canopy — are assumed to decay: only proof demotes. The eye still sees straight
+            // through them.
             boolean built = state.getOptionalValue(BlockStateProperties.PERSISTENT).orElse(false);
             // The decay rim (distance 7 — no log within reach) is a canopy DYING, usually one a
             // chop just orphaned. Counting it kept hypothesizing "trees" out of vanishing remnants
@@ -89,10 +206,19 @@ public final class LevelProbe implements BlockProbe {
         // fence stays a fence; everything walk-through (vines, moss, grass, flowers) is AIR here,
         // never OTHER, because grounded-ness reads OTHER as "real ground" and a vine under a branch
         // log made the mid-air branch read as a grounded stump (split survey; Luiz, 2026-08-02).
-        if (state.getCollisionShape(this.level, pos).isEmpty()) {
+        if (state.getCollisionShape(level, pos).isEmpty()) {
             return state.getFluidState().is(FluidTags.WATER) ? BlockKind.WATER : BlockKind.AIR;
         }
         return BlockKind.OTHER;
+    }
+
+    private static int floorIndex(BlockKind kind) {
+        for (int i = 0; i < FLOOR_KINDS.length; i++) {
+            if (FLOOR_KINDS[i] == kind) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("the floor answered something not its own: " + kind);
     }
 
     /**
@@ -102,12 +228,34 @@ public final class LevelProbe implements BlockProbe {
      */
     @Override
     public Sight sightAt(int x, int y, int z) {
-        BlockPos pos = new BlockPos(x, y, z);
-        if (!this.level.isLoaded(pos)) {
+        ChunkAccess loaded = chunkFor(x, z);
+        if (loaded == null) {
             return Sight.OUTSIDE;
         }
-        BlockState state = this.level.getBlockState(pos);
-        if (!transparent(this.level, pos, state)) {
+        this.scratch.set(x, y, z);
+        return sightOf(loaded.getBlockState(this.scratch), this.level, this.scratch);
+    }
+
+    /** The memo in front of {@link #sightLive} — see {@link #sights} for why it is sound. */
+    private static Sight sightOf(BlockState state, Level level, BlockPos pos) {
+        byte[] table = sights();
+        int id = Block.BLOCK_STATE_REGISTRY.getId(state);
+        if (id < 0 || id >= table.length) {
+            return sightLive(state, level, pos);
+        }
+        byte memo = table[id];
+        if (memo == UNASKED) {
+            memo = state.getBlock().hasDynamicShape()
+                    ? POSITIONAL
+                    : (byte) (sightLive(state, level, pos).ordinal() + VERDICT_BASE);
+            table[id] = memo;
+        }
+        return memo == POSITIONAL ? sightLive(state, level, pos) : SIGHTS[memo - VERDICT_BASE];
+    }
+
+    /** Never answers {@link Sight#OUTSIDE}: whether there is a world here is asked before this. */
+    private static Sight sightLive(BlockState state, Level level, BlockPos pos) {
+        if (!transparentLive(level, pos, state)) {
             return Sight.BLOCKED;
         }
         // The two see-through things that are nonetheless THINGS: a ray that called a canopy or a
@@ -115,6 +263,29 @@ public final class LevelProbe implements BlockProbe {
         return state.is(BlockTags.LEAVES) || state.getFluidState().is(FluidTags.WATER)
                 ? Sight.VEILED
                 : Sight.CLEAR;
+    }
+
+    /**
+     * The tables, grown on first use rather than in a static initialiser. That is what lets this
+     * class be hot-swapped: a redefinition never re-runs {@code <clinit>}, so a static field the
+     * running server did not have before the swap arrives null.
+     */
+    private static byte[] sights() {
+        byte[] table = sights;
+        if (table == null || table.length < Block.BLOCK_STATE_REGISTRY.size()) {
+            table = new byte[Math.max(Block.BLOCK_STATE_REGISTRY.size(), 1)];
+            sights = table;
+        }
+        return table;
+    }
+
+    private static byte[] floors() {
+        byte[] table = floors;
+        if (table == null || table.length < Block.BLOCK_STATE_REGISTRY.size()) {
+            table = new byte[Math.max(Block.BLOCK_STATE_REGISTRY.size(), 1)];
+            floors = table;
+        }
+        return table;
     }
 
     /**
@@ -146,6 +317,9 @@ public final class LevelProbe implements BlockProbe {
      */
     @Override
     public boolean visibleFromEyes(Pos target) {
+        if (this.eyes == null) {
+            throw new IllegalStateException("this probe has no eyes — see LevelProbe(Level)");
+        }
         Vec3 to = new Vec3(target.x() + 0.5, target.y() + 0.5, target.z() + 0.5);
         return sightClear(this.level, this.eyes.getEyePosition(), to,
                 new BlockPos(target.x(), target.y(), target.z()));
@@ -210,14 +384,19 @@ public final class LevelProbe implements BlockProbe {
     }
 
     /**
-     * What an eye sees through — one definition for both the sampled march and the horizon sweep's
-     * rays, so the two tiers cannot disagree.
+     * What an eye sees through — the same table {@link #sightAt} reads, so the sampled march and
+     * the horizon sweep cannot drift apart.
      *
-     * <p>FINER than {@link BlockKind}: anything without a collision shape is see-through (a meadow
-     * must not blind them; caught live on real worldgen), as are leaves and water — grown or
-     * placed, since that distinction is a tree story.
+     * <p>FINER than the {@link BlockKind} vocabulary: anything without a collision shape is
+     * see-through (a meadow must not blind a body; caught live on real worldgen), as are leaves and
+     * water, grown or placed alike.
      */
     private static boolean transparent(Level level, BlockPos cell, BlockState state) {
+        return sightOf(state, level, cell) != Sight.BLOCKED;
+    }
+
+    /** The definition itself, in front of which {@link #sights} sits. */
+    private static boolean transparentLive(Level level, BlockPos cell, BlockState state) {
         return state.isAir()
                 || state.is(BlockTags.LEAVES)
                 || state.getFluidState().is(FluidTags.WATER)
