@@ -125,6 +125,9 @@ public final class Arbiter {
             ctx.journal().record(Category.PROJECT, claimedItem.describe(),
                     "dropped — the claim lapsed while they were away");
             claimedItem = null;
+            // The belief goes with the claim: the terminal report below trusts this flag ALONE, so
+            // leaving it set reports against a null errand and kills the tick (live-caught).
+            workRunning = false;
         }
 
         // 2b. The commitment bid: the item already owed, else the board's best offer — one more

@@ -267,6 +267,36 @@ class ArbiterWorkTest {
         assertFalse(arbiter.describe().contains("acquire logs x16"), arbiter.describe());
     }
 
+    /**
+     * The belief has to go with the claim: a dropped hold that left {@code workRunning} set gave
+     * the terminal report (which trusts that flag ALONE) a null item to report the next
+     * finishing drive against. A live NullPointerException in Arbiter.tick.
+     */
+    @Test
+    void droppingALapsedHoldAlsoStopsBelievingAnErrandIsRunning() {
+        StubItem item = new StubItem(0.35, 200);
+        board.offered = item;
+        ticks(2); // claimed, and running
+
+        // The manual excursion again: straight through the executor, arbiter never consulted.
+        arbiter.executor().run(new StepsTask(2, TaskStatus.SUCCESS), ctx);
+        arbiter.executor().tick(ctx);
+        arbiter.executor().tick(ctx); // idle again
+
+        board.stillMine = false; // the hold lapsed while they were away
+        board.offered = null;
+        ticks(1); // dropped here — and wander takes the wheel, having nothing to lose to
+
+        // Autonomy carries on until that drive reaches its own terminal. This is the tick
+        // that used to die.
+        ticks(6);
+
+        assertTrue(wander.rootsBuilt > 0, "the body went back to its own business");
+        assertEquals(0, board.completions, "a drive finishing is not the errand completing");
+        assertEquals(0, board.failures, "nor the errand failing");
+        assertFalse(arbiter.describe().contains("acquire logs x16"), arbiter.describe());
+    }
+
     @Test
     void terminalOutcomesReportToTheBoard() {
         StubItem done = new StubItem(0.35, 2);
