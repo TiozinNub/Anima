@@ -140,7 +140,11 @@ public final class JournalService {
      * Cheap: entries are in clock order, so each ring evicts a run from its head and stops. Call
      * on a slow cadence, never on the write path.
      */
-    /** Drops a person's ring outright — the dev purge path (the durable file is untouched). */
+    /**
+     * Drops a person's ring outright; the durable file is untouched. <b>No caller today</b> — kept
+     * for erasure (a Person unmade by command, who never died). A burial does not
+     * call this: the death is the most interesting line the ring holds.
+     */
     public void drop(AgentId who) {
         byPerson.remove(who);
     }

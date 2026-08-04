@@ -27,7 +27,12 @@ public final class KnowledgeRegistry {
         return Collections.unmodifiableSet(byPerson.keySet());
     }
 
-    /** Drops a person's knowledge outright — the dev purge path. */
+    /**
+     * Drops a person's knowledge outright. <b>No caller today</b>; kept as the wipe a burial
+     * performs — only its own agent ever reads a mind's map, and it is the largest per-agent store
+     * by an order of magnitude. See
+     * {@code docs/superpowers/specs/2026-08-03-persistence-design.md}.
+     */
     public boolean remove(AgentId id) {
         return byPerson.remove(id) != null;
     }
