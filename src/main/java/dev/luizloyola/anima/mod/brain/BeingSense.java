@@ -30,6 +30,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.NeutralMob;
 import net.minecraft.world.entity.animal.Animal;
@@ -46,6 +47,7 @@ import net.minecraft.world.item.ProjectileWeaponItem;
 import net.minecraft.world.item.TridentItem;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
@@ -84,6 +86,14 @@ public final class BeingSense {
     /** How far ahead (blocks) the crafting-table assumption looks along the gaze —
      *  generous on purpose ("allow further from the crafting table", decision: Luiz). */
     private static final double STATION_REACH = 4.0;
+
+    /**
+     * Which bodies were looking at a crafting table on {@link #stationAskedAt}, shared by every
+     * observer — fifty observers ask about one body, which has one answer. Server thread only, and
+     * emptied when the tick turns over.
+     */
+    private static final Map<Integer, Boolean> stationAnswers = new HashMap<>();
+    private static long stationAskedAt = Long.MIN_VALUE;
 
     private final AgentBody person;
     /** What this body is like — the one object the query, the sensor and the debug ring share. */
@@ -532,16 +542,57 @@ public final class BeingSense {
         return DamageMarks.dealtWithin(body.getUUID(), person.level().getGameTime(), FIGHT_MARK_TICKS);
     }
 
+    /**
+     * Whether this body is looking at a crafting table — <b>asked once per body per tick, for
+     * everybody</b>. Where a body's eyes point does not depend on who is watching, but this sits on
+     * the per-observer read path: fifty agents in sight of each other made two and a half thousand
+     * calls a tick, and it profiled at <b>21.5% of the server thread</b> on its own (Luiz,
+     * 2026-08-04).
+     *
+     * <p>The dwell clocks in {@link GazeTrack} stay per-observer, because how long <em>I</em> have
+     * seen you at a table is my observation, not yours.
+     */
     private boolean facingCraftingTable(LivingEntity body) {
+        long now = body.level().getGameTime();
+        if (now != stationAskedAt) {
+            stationAskedAt = now;
+            stationAnswers.clear();
+        }
+        Boolean known = stationAnswers.get(body.getId());
+        if (known != null) {
+            return known;
+        }
+        boolean facing = marchToStation(body);
+        stationAnswers.put(body.getId(), facing);
+        return facing;
+    }
+
+    /**
+     * Half-block strides: a full-block step straddles a table at common gaze pitches (a body
+     * pitched 35° sampled the cell above, then the cell beyond). Consecutive samples often land in
+     * the same cell, and skipping the repeats saves a pair of chunk lookups.
+     */
+    private static boolean marchToStation(LivingEntity body) {
         Vec3 eye = body.getEyePosition();
         Vec3 view = body.getViewVector(1.0F);
-        // Half-block strides: a full-block step straddles a table at common gaze pitches
-        // (caught live: a AgentBody pitched 35° at a table sampled the cell above, then the
-        // cell beyond — never the table).
+        Level level = body.level();
+        BlockPos.MutableBlockPos cell = new BlockPos.MutableBlockPos();
+        int lastX = Integer.MIN_VALUE;
+        int lastY = Integer.MIN_VALUE;
+        int lastZ = Integer.MIN_VALUE;
         for (double reach = 1.0; reach <= STATION_REACH; reach += 0.5) {
-            BlockPos cell = BlockPos.containing(eye.add(view.scale(reach)));
-            if (person.level().isLoaded(cell)
-                    && person.level().getBlockState(cell).is(Blocks.CRAFTING_TABLE)) {
+            // Mth.floor on the three components is BlockPos.containing, without the object.
+            int x = Mth.floor(eye.x + view.x * reach);
+            int y = Mth.floor(eye.y + view.y * reach);
+            int z = Mth.floor(eye.z + view.z * reach);
+            if (x == lastX && y == lastY && z == lastZ) {
+                continue;
+            }
+            lastX = x;
+            lastY = y;
+            lastZ = z;
+            cell.set(x, y, z);
+            if (level.isLoaded(cell) && level.getBlockState(cell).is(Blocks.CRAFTING_TABLE)) {
                 return true;
             }
         }
