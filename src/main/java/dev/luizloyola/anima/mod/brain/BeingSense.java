@@ -89,11 +89,24 @@ public final class BeingSense {
 
     /**
      * Which bodies were looking at a crafting table on {@link #stationAskedAt}, shared by every
-     * observer — fifty observers ask about one body, which has one answer. Server thread only, and
-     * emptied when the tick turns over.
+     * observer on the server — see {@link #facingCraftingTable}. One body has one answer, and the
+     * observers are what there are fifty of. Server thread only, emptied when the tick turns over.
+     *
+     * <p>Built on first use, not assigned here, so this class can be hot-swapped: a redefinition
+     * never re-runs a static initialiser, so a new static field arrives null and the next tick dies
+     * on a NullPointerException ({@code LevelProbe}'s verdict tables use the same trick).
      */
-    private static final Map<Integer, Boolean> stationAnswers = new HashMap<>();
+    private static Map<Integer, Boolean> stationAnswers;
     private static long stationAskedAt = Long.MIN_VALUE;
+
+    private static Map<Integer, Boolean> stationAnswers() {
+        Map<Integer, Boolean> answers = stationAnswers;
+        if (answers == null) {
+            answers = new HashMap<>();
+            stationAnswers = answers;
+        }
+        return answers;
+    }
 
     private final AgentBody person;
     /** What this body is like — the one object the query, the sensor and the debug ring share. */
@@ -553,17 +566,18 @@ public final class BeingSense {
      * seen you at a table is my observation, not yours.
      */
     private boolean facingCraftingTable(LivingEntity body) {
+        Map<Integer, Boolean> answers = stationAnswers();
         long now = body.level().getGameTime();
         if (now != stationAskedAt) {
             stationAskedAt = now;
-            stationAnswers.clear();
+            answers.clear();
         }
-        Boolean known = stationAnswers.get(body.getId());
+        Boolean known = answers.get(body.getId());
         if (known != null) {
             return known;
         }
         boolean facing = marchToStation(body);
-        stationAnswers.put(body.getId(), facing);
+        answers.put(body.getId(), facing);
         return facing;
     }
 
