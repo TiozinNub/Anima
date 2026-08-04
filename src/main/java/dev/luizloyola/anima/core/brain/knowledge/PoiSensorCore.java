@@ -128,9 +128,12 @@ public final class PoiSensorCore {
      * @param yawDegrees head bearing — see {@link CrescentSampler#advance}
      */
     public List<SenseEvent> tick(Pos feet, double yawDegrees, long now, BlockProbe probe) {
+        // Read once, not once per column: a full view is hundreds of columns and this loop runs
+        // several times a second per agent. One sweep also sees one consistent cap.
+        int cap = queueCap();
         for (Column column : sampler.advance(feet, yawDegrees)) {
             rayRetries.remove(column); // freshly re-entered range: a fresh retry cycle
-            if (pending.size() >= queueCap()) {
+            if (pending.size() >= cap) {
                 pending.pollFirst();
             }
             pending.addLast(column);
