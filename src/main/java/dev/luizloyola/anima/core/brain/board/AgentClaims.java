@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.board;
 
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
+import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 
 /**
@@ -15,10 +16,19 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
 public interface AgentClaims {
     /**
      * Claim (or re-heartbeat) the site for this person until {@code now + }{@link
-     * SiteClaims#ttlTicks()}. Returns {@code false} when someone else's live claim holds it —
-     * in which case nothing changed and the site is not theirs to work.
+     * SiteClaims#ttlTicks()}. Returns {@code false} when someone else's live claim holds it, and
+     * nothing changed.
+     *
+     * @param area the ground this claim covers. That is what {@link #claimedByOther} answers over.
+     *     Passed on every heartbeat, not fixed at the first, because a worker learns the shape of
+     *     its site only after surveying it
      */
-    boolean claim(PoiKind kind, Pos anchor, long now);
+    boolean claim(PoiKind kind, Pos anchor, Region area, long now);
+
+    /** Claim a site whose extent is not known (or does not matter): just the anchor cell. */
+    default boolean claim(PoiKind kind, Pos anchor, long now) {
+        return claim(kind, anchor, Region.of(anchor), now);
+    }
 
     /** Release the site if this person holds it; anyone else's claim is left untouched. */
     void release(PoiKind kind, Pos anchor);
@@ -27,13 +37,26 @@ public interface AgentClaims {
     boolean availableTo(PoiKind kind, Pos anchor, long now);
 
     /**
+     * Whether {@code cell} lies inside somebody ELSE's live work site — "that ground is being
+     * worked, leave what is on it alone".
+     *
+     * <p>{@link #availableTo} cannot express this: a site is identified by its anchor, and a loose
+     * cell has no anchor to ask with. Without it, the logs a feller strews across its site are a
+     * free-for-all the settlement collects.
+     *
+     * <p>About ground rather than items: it makes sense to a wolf that will never
+     * fell anything.
+     */
+    boolean claimedByOther(Pos cell, long now);
+
+    /**
      * The loner's view — claims always succeed, releases are no-ops. The default for a
      * {@link dev.luizloyola.anima.core.brain.BrainContext} assembled without a shared registry: a
      * person with no group is a group of one.
      */
     AgentClaims SOLO = new AgentClaims() {
         @Override
-        public boolean claim(PoiKind kind, Pos anchor, long now) {
+        public boolean claim(PoiKind kind, Pos anchor, Region area, long now) {
             return true;
         }
 
@@ -44,6 +67,11 @@ public interface AgentClaims {
         @Override
         public boolean availableTo(PoiKind kind, Pos anchor, long now) {
             return true;
+        }
+
+        @Override
+        public boolean claimedByOther(Pos cell, long now) {
+            return false; // nobody else to hold anything
         }
     };
 }

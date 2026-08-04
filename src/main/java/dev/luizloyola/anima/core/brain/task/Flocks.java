@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Drop;
 import dev.luizloyola.anima.core.brain.sense.Pos;
@@ -88,35 +89,41 @@ public final class Flocks {
     }
 
     /**
-     * Whether a drop can actually be walked over: one perched ON the CANOPY cannot — the body
-     * stands beneath the leaves waiting for a fall only decay delivers, and a crowd of gatherers
-     * flocks to the same untakeable bait (2026-08-02). Gatherable unless the only thing holding it
-     * up is leaves.
+     * Whether a drop can actually be walked over: gatherable unless the only thing holding it up is
+     * leaves. One perched ON the CANOPY leaves the body waiting beneath for a fall only decay
+     * delivers, with a crowd drawn to the same untakeable bait (2026-08-02).
      *
-     * <p>Asked of the drop's whole {@linkplain Drop#box footprint}: an item is a quarter of a block
-     * wide, so one settling near an edge overhangs into a neighbouring column and the cell its
-     * centre rounds to is often the empty one — a log on the lip of a leaf drew twenty-nine
-     * gatherers that never got it (2026-08-03).
+     * <p>Asked of the whole {@linkplain Drop#box footprint}: an item is a quarter of a block wide, so
+     * one settling near an edge overhangs into a neighbouring column and the cell its centre rounds
+     * to is often the empty one — a log on the lip of a leaf drew twenty-nine gatherers that never
+     * got it (2026-08-03).
      *
-     * <p>Across cells the rule is what physically holds the item: leaves strand it, solid does not,
-     * air holds nothing. Leaves and ground is fine; leaves alone is the canopy case.
-     * {@code UNKNOWN} neither strands nor supports, so an unseen footprint still reads gatherable.
+     * <p>Across cells, what physically holds the item decides: leaves strand it, anything solid does
+     * not, air holds nothing, and {@code UNKNOWN} does neither — so an unseen footprint still reads
+     * as gatherable. One budgeted block read per cell, and a solid one returns early.
      *
-     * <p>One budgeted block read per cell, so ordinarily one: a footprint only widens when the item
-     * straddles, and a solid cell returns before the rest are read.
+     * <p>Ownership first: a drop inside somebody else's live work site is not this body's however
+     * reachable, or a felled tree's logs go to the crowd that gathers to watch (2026-08-03).
      */
     public static boolean gatherable(Drop drop, dev.luizloyola.anima.core.brain.BrainContext ctx) {
+        // Asked first: a plain map walk, while everything below it spends the perception wallet.
+        if (ctx.claims().claimedByOther(drop.pos(), ctx.percepts().time())) {
+            return false;
+        }
         Region box = drop.box();
         int floor = box.min().y() - 1;
         boolean leafUnderneath = false;
         for (int x = box.min().x(); x <= box.max().x(); x++) {
             for (int z = box.min().z(); z <= box.max().z(); z++) {
-                switch (ctx.percepts().blocks().at(x, floor, z)) {
-                    case LEAVES -> leafUnderneath = true;
-                    case LOG, OTHER -> {
-                        return true; // resting on something solid: reachable by the usual walk
-                    }
-                    default -> { } // AIR, WATER, UNKNOWN hold nothing up and settle nothing
+                BlockKind under = ctx.percepts().blocks().at(x, floor, z);
+                if (under == BlockKind.LEAVES) {
+                    leafUnderneath = true;
+                } else if (under != BlockKind.AIR && under != BlockKind.WATER
+                        && under != BlockKind.UNKNOWN) {
+                    // Named by what cannot bear weight rather than by what can, because the
+                    // vocabulary is open: a consumer's own kind is something to stand on unless
+                    // it is one of the three ways of saying "nothing there".
+                    return true;
                 }
             }
         }

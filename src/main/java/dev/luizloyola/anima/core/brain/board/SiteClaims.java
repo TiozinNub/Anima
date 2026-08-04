@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.board;
 
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
+import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
@@ -32,20 +33,48 @@ public final class SiteClaims {
     private record Key(PoiKind kind, Pos anchor) {
     }
 
-    private record Claim(AgentId who, long untilTick) {
+    private record Claim(AgentId who, long untilTick, Region area) {
     }
 
     private final Map<Key, Claim> claims = new HashMap<>();
 
-    /** See {@link AgentClaims#claim}: succeeds unless someone ELSE's live claim holds the site. */
+    /** Claim a site whose extent is not known (or does not matter): just the anchor cell. */
     public boolean claim(PoiKind kind, Pos anchor, AgentId who, long now) {
+        return claim(kind, anchor, Region.of(anchor), who, now);
+    }
+
+    /** See {@link AgentClaims#claim}: succeeds unless someone ELSE's live claim holds the site. */
+    public boolean claim(PoiKind kind, Pos anchor, Region area, AgentId who, long now) {
         Key key = new Key(kind, anchor);
         Claim held = claims.get(key);
         if (held != null && held.untilTick() > now && !held.who().equals(who)) {
             return false;
         }
-        claims.put(key, new Claim(who, now + ttlTicks()));
+        claims.put(key, new Claim(who, now + ttlTicks(), area));
         return true;
+    }
+
+    /**
+     * Whether {@code cell} falls inside a work site somebody OTHER than {@code who} is holding.
+     *
+     * <p>A worker's own claim wins for them, or two trees whose boxes overlap would lock both
+     * owners out of the seam between them.
+     *
+     * <p>Scans the live claims rather than an index: at most one per working agent, asked per drop
+     * rather than per cell, so an index would cost more to keep current than the walk costs.
+     */
+    public boolean heldByOtherAt(Pos cell, AgentId who, long now) {
+        boolean foreign = false;
+        for (Claim claim : claims.values()) {
+            if (claim.untilTick() <= now || !claim.area().contains(cell)) {
+                continue;
+            }
+            if (claim.who().equals(who)) {
+                return false; // inside their own site: theirs, whoever else also reaches here
+            }
+            foreign = true;
+        }
+        return foreign;
     }
 
     /** See {@link AgentClaims#release}: only the holder's own release removes anything. */
@@ -67,8 +96,8 @@ public final class SiteClaims {
     public AgentClaims forPerson(AgentId who) {
         return new AgentClaims() {
             @Override
-            public boolean claim(PoiKind kind, Pos anchor, long now) {
-                return SiteClaims.this.claim(kind, anchor, who, now);
+            public boolean claim(PoiKind kind, Pos anchor, Region area, long now) {
+                return SiteClaims.this.claim(kind, anchor, area, who, now);
             }
 
             @Override
@@ -79,6 +108,11 @@ public final class SiteClaims {
             @Override
             public boolean availableTo(PoiKind kind, Pos anchor, long now) {
                 return SiteClaims.this.availableTo(kind, anchor, who, now);
+            }
+
+            @Override
+            public boolean claimedByOther(Pos cell, long now) {
+                return SiteClaims.this.heldByOtherAt(cell, who, now);
             }
         };
     }

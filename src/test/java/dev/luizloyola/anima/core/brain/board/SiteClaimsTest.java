@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
+import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.agent.AgentId;
 import org.junit.jupiter.api.Test;
@@ -89,5 +90,59 @@ class SiteClaimsTest {
         assertFalse(his.availableTo(TestPois.TREE, anchor, 1));
         theirs.release(TestPois.TREE, anchor);
         assertTrue(his.availableTo(TestPois.TREE, anchor, 2));
+    }
+
+    /** The felling site: alice's claim covers ground, not just the stump she anchored on. */
+    @Test
+    void aClaimedAreaIsOffLimitsToEveryoneElse() {
+        Region site = new Region(new Pos(8, 64, 8), new Pos(12, 70, 12));
+        claims.claim(TestPois.TREE, anchor, site, alice, 0);
+
+        Pos log = new Pos(11, 65, 9); // a log strewn across her site, nowhere near the anchor
+        assertTrue(claims.heldByOtherAt(log, bob, 1), "bob leaves her felling to her");
+        assertFalse(claims.heldByOtherAt(log, alice, 1), "her own site is hers to pick up from");
+        assertFalse(claims.heldByOtherAt(new Pos(20, 65, 20), bob, 1), "outside it, fair game");
+    }
+
+    @Test
+    void aLapsedClaimStopsFencingTheGroundOff() {
+        claims.claim(TestPois.TREE, anchor, new Region(new Pos(8, 64, 8), new Pos(12, 70, 12)),
+                alice, 0);
+        Pos log = new Pos(11, 65, 9);
+
+        assertTrue(claims.heldByOtherAt(log, bob, SiteClaims.ttlTicks() - 1));
+        assertFalse(claims.heldByOtherAt(log, bob, SiteClaims.ttlTicks()),
+                "a dead claimant's site is not fenced off forever");
+    }
+
+    /**
+     * Two trees close enough that their boxes overlap. Without the your-own-claim-wins rule each
+     * owner would be locked out of the seam, fencing the pair off the ground they are both working.
+     */
+    @Test
+    void overlappingSitesDoNotLockTheirOwnersOut() {
+        Pos hers = new Pos(10, 64, 10);
+        Pos his = new Pos(13, 64, 10);
+        claims.claim(TestPois.TREE, hers, new Region(new Pos(8, 64, 8), new Pos(12, 70, 12)),
+                alice, 0);
+        claims.claim(TestPois.TREE, his, new Region(new Pos(11, 64, 8), new Pos(15, 70, 12)),
+                bob, 0);
+
+        Pos seam = new Pos(11, 65, 10); // inside both
+        assertFalse(claims.heldByOtherAt(seam, alice, 1), "hers covers it, so she may take it");
+        assertFalse(claims.heldByOtherAt(seam, bob, 1), "and his covers it, so may he");
+        assertTrue(claims.heldByOtherAt(seam, AgentId.random(), 1), "a third party may not");
+    }
+
+    @Test
+    void anUndeclaredAreaIsJustTheAnchor() {
+        claims.claim(TestPois.TREE, anchor, alice, 0);
+        assertTrue(claims.heldByOtherAt(anchor, bob, 1));
+        assertFalse(claims.heldByOtherAt(new Pos(11, 64, 10), bob, 1));
+    }
+
+    @Test
+    void aLonerIsFencedOutOfNothing() {
+        assertFalse(AgentClaims.SOLO.claimedByOther(anchor, 0));
     }
 }

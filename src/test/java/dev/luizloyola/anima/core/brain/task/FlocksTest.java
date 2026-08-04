@@ -5,9 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.FakeProbe;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
+import dev.luizloyola.anima.core.brain.knowledge.TestPois;
 import dev.luizloyola.anima.core.brain.sense.Drop;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import java.util.List;
@@ -89,6 +91,33 @@ class FlocksTest {
 
         assertTrue(Flocks.gatherable(straddling(0, 71, 0), ctx),
                 "half of it rests on something solid, so the body can walk to that half");
+    }
+
+    /**
+     * The fifty-lumberjack case again, from the other end: the log is reachable, and still not
+     * this body's to take, because somebody else is felling the tree it came off.
+     */
+    @Test
+    void aDropOnSomeoneElsesSiteIsLeftAlone() {
+        FakeContext ctx = new FakeContext();
+        AgentId feller = AgentId.random();
+        ctx.siteClaims.claim(TestPois.TREE, new Pos(0, 64, 0),
+                new Region(new Pos(-2, 64, -2), new Pos(2, 72, 2)), feller, 0);
+
+        Drop log = at(1, FakeProbe.GROUND_Y + 1, 1); // on solid ground, inside the feller's box
+        assertFalse(Flocks.gatherable(log, ctx), "their felling, their logs");
+
+        assertTrue(Flocks.gatherable(at(9, FakeProbe.GROUND_Y + 1, 9), ctx),
+                "a log outside anyone's site is still anyone's");
+    }
+
+    @Test
+    void theFellerMayTakeWhatIsOnTheirOwnSite() {
+        FakeContext ctx = new FakeContext();
+        ctx.siteClaims.claim(TestPois.TREE, new Pos(0, 64, 0),
+                new Region(new Pos(-2, 64, -2), new Pos(2, 72, 2)), ctx.self, 0);
+
+        assertTrue(Flocks.gatherable(at(1, FakeProbe.GROUND_Y + 1, 1), ctx));
     }
 
     @Test
