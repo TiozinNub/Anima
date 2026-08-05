@@ -43,7 +43,7 @@ class FleeCoverTest {
 
     /** The goal a flee leg picked, read out of the GoTo it decomposed to. */
     private Pos fleeTarget() {
-        List<Task> plan = new FleeStep(new Random(0)).methods().get(0).decompose(ctx);
+        List<Task> plan = new FleeStep().methods().get(0).decompose(ctx);
         assertEquals(1, plan.size());
         String described = ((PrimitiveTask) plan.get(0)).describe();
         Matcher m = GOAL.matcher(described);
@@ -173,7 +173,7 @@ class FleeCoverTest {
         // so a seed-per-roll loop rolled 0.73 two hundred times and never walked once.
         double total = 0.0;
         int walks = 0;
-        WanderStep step = new WanderStep(new Random(20260729L), 8);
+        WanderStep step = new WanderStep(8);
         for (int i = 0; i < 400; i++) {
             for (Task task : step.methods().get(0).decompose(ctx)) {
                 if (task instanceof PrimitiveTask primitive) {

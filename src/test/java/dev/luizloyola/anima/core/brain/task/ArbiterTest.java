@@ -118,7 +118,7 @@ class ArbiterTest {
         final List<Task> grantedRoots = new ArrayList<>();
 
         SpyingFlee(RandomGenerator random) {
-            this.real = new FleeInstinct(random);
+            this.real = new FleeInstinct();
         }
 
         @Override
@@ -459,7 +459,7 @@ class ArbiterTest {
     @Test
     void aCloseThreatPreemptsAMidChewEatThenClearsAndTheRunnerUpResumesAtTheNextBoundary() {
         Arbiter arbiter = new Arbiter(List.of(
-                new EatInstinct(), new WanderInstinct(new Random(13)), new FleeInstinct(new Random(17))));
+                new EatInstinct(), new WanderInstinct(), new FleeInstinct()));
 
         // Peckish (below PREEMPT) with bread in hand -> Eat outbids idle Wander and starts a bite.
         ctx.percepts.food("minecraft:bread", new FoodValue(5, 6.0F, false));

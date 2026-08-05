@@ -128,4 +128,20 @@ public final class FakeContext implements BrainContext {
     public double costTolerance() {
         return costTolerance;
     }
+
+    /** The body's stream. Fixed by default so a test that draws twice gets the same two numbers
+     *  every run; {@link #seed} pins it where a test cares which numbers those are. */
+    private java.util.random.RandomGenerator random =
+            new dev.luizloyola.anima.core.agent.AgentRandom(20260805L);
+
+    /** Pins this context's stream — the replacement for handing a task its own generator. */
+    public FakeContext seed(java.util.random.RandomGenerator random) {
+        this.random = random;
+        return this;
+    }
+
+    @Override
+    public java.util.random.RandomGenerator random() {
+        return random;
+    }
 }

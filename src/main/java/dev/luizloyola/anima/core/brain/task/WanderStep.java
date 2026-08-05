@@ -40,17 +40,13 @@ public final class WanderStep implements CompoundTask {
      */
     private static final int CAUTIOUS_ROLLS = 4;
 
-    private final RandomGenerator random;
     private final int radius;
     private final List<Method> methods;
 
     /**
-     * @param random the shared per-Person RNG (core-pure {@link RandomGenerator}); advancing it here
-     *               is what makes the wander stream continuous across steps
      * @param radius half-width of the roam box in whole blocks (positive)
      */
-    public WanderStep(RandomGenerator random, int radius) {
-        this.random = random;
+    public WanderStep(int radius) {
         this.radius = radius;
         this.methods = List.of(new Roam());
     }
@@ -79,6 +75,7 @@ public final class WanderStep implements CompoundTask {
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
+            RandomGenerator random = ctx.random();
             boolean walks = random.nextDouble() < WALK_CHANCE;
             int pause = IDLE_MIN + random.nextInt(IDLE_RANGE);
             if (!walks) {
@@ -87,7 +84,7 @@ public final class WanderStep implements CompoundTask {
             Pos here = ctx.percepts().position();
             DangerField field = DangerField.of(ctx.danger(), ctx.percepts().beings(),
                     ctx.knowledge(), ctx.percepts().time(), DangerField.FADE_TICKS);
-            Pos target = roll(here, field);
+            Pos target = roll(here, field, random);
             int tx = target.x();
             int ty = target.y();
             int tz = target.z();
@@ -104,7 +101,7 @@ public final class WanderStep implements CompoundTask {
          * where it chooses to be. Best-of-a-few rather than a search: holding out for a perfectly
          * safe cell would mean never moving.
          */
-        private Pos roll(Pos here, DangerField field) {
+        private Pos roll(Pos here, DangerField field, RandomGenerator random) {
             Pos best = null;
             double bestDanger = Double.MAX_VALUE;
             int rolls = field.isEmpty() ? 1 : CAUTIOUS_ROLLS;

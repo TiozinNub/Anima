@@ -196,12 +196,16 @@ public final class BrainDriver {
                 // budget while autonomy is off.
                 return auto ? arbiter.costTolerance() : Double.POSITIVE_INFINITY;
             }
+
+            @Override
+            public java.util.random.RandomGenerator random() {
+                return BrainDriver.this.random;
+            }
         };
         // RandomSource isn't a java.util.random.RandomGenerator, so it can't reach the instincts
         // directly; it seeds this one once at construction instead. Both random-driven instincts
         // (Flee's scatter, Wander's roam) draw from it — one stream per brain, never shared.
         this.random = new AgentRandom(person.entity().getRandom().nextLong());
-        AgentRandom random = this.random;
         // The board reaches the arbiter through a celebrating wrapper: a completed errand gets a
         // beat in the world (decision: Luiz) before the core board hears of it. sendParticles
         // broadcasts to every tracking client; no custom networking.
@@ -245,7 +249,7 @@ public final class BrainDriver {
         // A gate rather than removal from the list: muting zeroes the bid, and zero pressure is
         // not a bid (see Arbiter), so a muted wander never wins and everything else arbitrates
         // unchanged. A wrapper, not a flag in WanderInstinct: a dev override is the mod's business.
-        WanderInstinct roaming = new WanderInstinct(random);
+        WanderInstinct roaming = new WanderInstinct();
         this.wanderDrive = new Instinct() {
             @Override
             public double pressure(BrainContext c) {
@@ -273,7 +277,7 @@ public final class BrainDriver {
         // Flee is first on purpose: the arbiter breaks pressure ties in list order, so an exact
         // flee/eat tie must resolve to fleeing.
         this.arbiter = new Arbiter(List.of(
-                new FleeInstinct(random), new EatInstinct(),
+                new FleeInstinct(), new EatInstinct(),
                 this.wanderDrive),
                 celebrating);
     }

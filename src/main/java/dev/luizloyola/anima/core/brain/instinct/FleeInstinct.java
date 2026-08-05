@@ -7,7 +7,6 @@ import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.task.FleeStep;
 import dev.luizloyola.anima.core.brain.task.Task;
-import java.util.random.RandomGenerator;
 
 /**
  * The emergency drive, reading the PERCEIVED world rather than an omniscient scan: pressure comes
@@ -44,10 +43,8 @@ public final class FleeInstinct implements Instinct {
     /** The emergency override of {@link Instinct#failCooldown()} — retry almost immediately. */
     public static final int FAIL_COOLDOWN = 10;
 
-    private final RandomGenerator random;
 
-    public FleeInstinct(RandomGenerator random) {
-        this.random = random;
+    public FleeInstinct() {
     }
 
     @Override
@@ -118,7 +115,7 @@ public final class FleeInstinct implements Instinct {
 
     @Override
     public Task root(BrainContext ctx) {
-        return new FleeStep(random);
+        return new FleeStep();
     }
 
     @Override

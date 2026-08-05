@@ -30,7 +30,7 @@ class FleeStepTest {
     void runsAwayFromASingleThreatDueEast() {
         ctx.percepts.position = new Pos(0, 64, 0);
         ctx.percepts.beings = List.of(threatAt(10, 0, 10.0, false));
-        executor.run(new FleeStep(new Random(1)), ctx);
+        executor.run(new FleeStep(), ctx.seed(new Random(1)));
         executor.tick(ctx); // expand FleeStep -> Escape.decompose -> GoTo issues moveTo
 
         assertTrue(ctx.mover.lastX < 0, "they run west, away from the eastern threat");
@@ -48,7 +48,7 @@ class FleeStepTest {
         ctx.percepts.beings = List.of(
                 threatAt(4, 0, 4.0, false),
                 threatAt(0, 12, 12.0, false));
-        executor.run(new FleeStep(new Random(2)), ctx);
+        executor.run(new FleeStep(), ctx.seed(new Random(2)));
         executor.tick(ctx);
 
         assertTrue(ctx.mover.lastX < 0, "dominated by the close eastern threat -> runs west");
@@ -62,7 +62,7 @@ class FleeStepTest {
         ctx.percepts.beings = List.of(
                 threatAt(8, 0, 8.0, false),
                 threatAt(-8, 0, 8.0, false));
-        executor.run(new FleeStep(new Random(3)), ctx);
+        executor.run(new FleeStep(), ctx.seed(new Random(3)));
         executor.tick(ctx);
 
         double length = Math.hypot(ctx.mover.lastX, ctx.mover.lastZ);
@@ -75,7 +75,7 @@ class FleeStepTest {
     void decomposeEmitsExactlyOneUrgentGoToAndEndsWithNoIdlePause() {
         ctx.percepts.position = new Pos(0, 64, 0);
         ctx.percepts.beings = List.of(threatAt(10, 0, 10.0, false));
-        executor.run(new FleeStep(new Random(4)), ctx);
+        executor.run(new FleeStep(), ctx.seed(new Random(4)));
         executor.tick(ctx); // issues the one GoTo
 
         assertEquals(1, ctx.mover.moveToCalls, "exactly one GoTo issued");
@@ -89,7 +89,8 @@ class FleeStepTest {
 
     @Test
     void decomposeReadsTheCurrentPositionAndThreatsNotTheGrantTimeOnes() {
-        FleeStep step = new FleeStep(new Random(5));
+        FleeStep step = new FleeStep();
+        ctx.seed(new Random(5));
         ctx.percepts.position = new Pos(0, 64, 0);
         ctx.percepts.beings = List.of(threatAt(10, 0, 10.0, false)); // east, at grant time
         executor.run(step, ctx); // installed while at spawn...
@@ -104,6 +105,6 @@ class FleeStepTest {
 
     @Test
     void describeReadsAsFleeStep() {
-        assertEquals("flee step", new FleeStep(new Random(0)).describe());
+        assertEquals("flee step", new FleeStep().describe());
     }
 }

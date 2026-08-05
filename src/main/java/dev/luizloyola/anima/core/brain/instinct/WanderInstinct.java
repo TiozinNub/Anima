@@ -5,7 +5,6 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.WanderStep;
-import java.util.random.RandomGenerator;
 
 /**
  * The idle-default drive — what they do when nothing else is pressing. Its pressure is a constant
@@ -33,12 +32,10 @@ public final class WanderInstinct implements Instinct {
         return profile.i(ProfileAspect.WANDER_RADIUS);
     }
 
-    private final RandomGenerator random;
     /** An explicit caller-pinned radius, or {@code null} to follow {@link #defaultRadius(AgentProfile)} live. */
     private final Integer radius;
 
-    public WanderInstinct(RandomGenerator random, int radius) {
-        this.random = random;
+    public WanderInstinct(int radius) {
         this.radius = radius;
     }
 
@@ -46,8 +43,7 @@ public final class WanderInstinct implements Instinct {
      * Wander with the {@link #defaultRadius(AgentProfile) configured radius} — and keep following
      * it, so a {@code /anima config reload} re-tunes Persons already walking around.
      */
-    public WanderInstinct(RandomGenerator random) {
-        this.random = random;
+    public WanderInstinct() {
         this.radius = null;
     }
 
@@ -58,7 +54,7 @@ public final class WanderInstinct implements Instinct {
 
     @Override
     public Task root(BrainContext ctx) {
-        return new WanderStep(random, radius == null ? defaultRadius(ctx.profile()) : radius);
+        return new WanderStep(radius == null ? defaultRadius(ctx.profile()) : radius);
     }
 
     @Override

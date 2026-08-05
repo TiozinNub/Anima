@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import dev.luizloyola.anima.core.brain.instinct.EatInstinct;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
-import java.util.Random;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -35,7 +34,7 @@ class InstinctTest {
 
     @Test
     void wanderPressureIsTheConstantIdleFloor() {
-        Instinct wander = new WanderInstinct(new Random(0));
+        Instinct wander = new WanderInstinct();
         assertEquals(WanderInstinct.idlePressure(TestSpecies.PROFILE), wander.pressure(ctx));
         assertEquals(0.15, wander.pressure(ctx), "the documented idle floor");
         // ... and it does not move with the body's state
@@ -55,7 +54,7 @@ class InstinctTest {
 
     @Test
     void wanderRootIsAFreshWanderStepEachGrant() {
-        Instinct wander = new WanderInstinct(new Random(0), 8);
+        Instinct wander = new WanderInstinct(8);
         var a = wander.root(ctx);
         var b = wander.root(ctx);
         assertInstanceOf(WanderStep.class, a);
@@ -66,6 +65,6 @@ class InstinctTest {
     void defaultRadiusConstructorUsesTheDocumentedRadius() {
         assertEquals(8, WanderInstinct.defaultRadius(TestSpecies.PROFILE));
         // The single-arg ctor must still hand out a working WanderStep (radius wired through).
-        assertInstanceOf(WanderStep.class, new WanderInstinct(new Random(1)).root(ctx));
+        assertInstanceOf(WanderStep.class, new WanderInstinct().root(ctx));
     }
 }

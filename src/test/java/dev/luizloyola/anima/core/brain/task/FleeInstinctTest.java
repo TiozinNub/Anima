@@ -41,35 +41,35 @@ class FleeInstinctTest {
 
     @Test
     void nothingAggressiveMeansNoPressure() {
-        FleeInstinct flee = new FleeInstinct(new Random(0));
+        FleeInstinct flee = new FleeInstinct();
         ctx.percepts.beings = List.of();
         assertEquals(0.0, flee.pressure(ctx));
     }
 
     @Test
     void aThreatAtTheEdgeOfRangeExertsNoPressure() {
-        FleeInstinct flee = new FleeInstinct(new Random(0));
+        FleeInstinct flee = new FleeInstinct();
         ctx.percepts.beings = List.of(threatAt(FleeInstinct.range(TestSpecies.PROFILE), false));
         assertEquals(0.0, flee.pressure(ctx), 1e-9);
     }
 
     @Test
     void aPassiveThreatCrossesThePreemptLineAtEightPointEightBlocks() {
-        FleeInstinct flee = new FleeInstinct(new Random(0));
+        FleeInstinct flee = new FleeInstinct();
         ctx.percepts.beings = List.of(threatAt(8.8, false));
         assertEquals(0.6, flee.pressure(ctx), 1e-6);
     }
 
     @Test
     void contactIsFullPressure() {
-        FleeInstinct flee = new FleeInstinct(new Random(0));
+        FleeInstinct flee = new FleeInstinct();
         ctx.percepts.beings = List.of(threatAt(4.0, false));
         assertEquals(1.0, flee.pressure(ctx), 1e-9);
     }
 
     @Test
     void anApproachingThreatCrossesThePreemptLineFurtherOutAtTenPointFiveBlocks() {
-        FleeInstinct flee = new FleeInstinct(new Random(0));
+        FleeInstinct flee = new FleeInstinct();
         ctx.percepts.beings = List.of(threatAt(10.5, true));
         // (16 - 10.5) / 12 = 0.458333... ; * 1.3 (the approach bonus) = 0.595833...
         assertEquals(0.5958333333333333, flee.pressure(ctx), 1e-9);
@@ -77,14 +77,14 @@ class FleeInstinctTest {
 
     @Test
     void approachBonusCapsAtOneEvenAtContact() {
-        FleeInstinct flee = new FleeInstinct(new Random(0));
+        FleeInstinct flee = new FleeInstinct();
         ctx.percepts.beings = List.of(threatAt(4.0, true)); // uncapped would be 1.0 * 1.3 = 1.3
         assertEquals(1.0, flee.pressure(ctx), 1e-9);
     }
 
     @Test
     void pressureIsTheMaxAcrossThreatsSoAFarApproachingThreatCanOutweighANearIdleOne() {
-        FleeInstinct flee = new FleeInstinct(new Random(0));
+        FleeInstinct flee = new FleeInstinct();
         // Further away but closing in (0.5 * 1.3 = 0.65) beats closer but idle (0.5833...).
         ctx.percepts.beings = List.of(threatAt(10.0, true), threatAt(9.0, false));
         assertEquals(0.65, flee.pressure(ctx), 1e-9);
@@ -128,14 +128,14 @@ class FleeInstinctTest {
 
     @Test
     void failCooldownIsTheEmergencyTenTickOverrideNotTheDefaultHundred() {
-        FleeInstinct flee = new FleeInstinct(new Random(0));
+        FleeInstinct flee = new FleeInstinct();
         assertEquals(10, flee.failCooldown());
         assertEquals(FleeInstinct.FAIL_COOLDOWN, flee.failCooldown());
     }
 
     @Test
     void rootIsAFreshFleeStepEachGrant() {
-        FleeInstinct flee = new FleeInstinct(new Random(0));
+        FleeInstinct flee = new FleeInstinct();
         var a = flee.root(ctx);
         var b = flee.root(ctx);
         assertInstanceOf(FleeStep.class, a);
@@ -144,6 +144,6 @@ class FleeInstinctTest {
 
     @Test
     void describeIsFlee() {
-        assertEquals("flee", new FleeInstinct(new Random(0)).describe());
+        assertEquals("flee", new FleeInstinct().describe());
     }
 }

@@ -34,7 +34,7 @@ class WanderStepTest {
         FakeContext ctx = new FakeContext();
         ctx.percepts.position = start;
         TaskExecutor executor = new TaskExecutor();
-        executor.run(new WanderStep(random, RADIUS), ctx);
+        executor.run(new WanderStep(RADIUS), ctx.seed(random));
         executor.tick(ctx); // expand; ticks the first primitive (GoTo issue, or Idle's first tick)
         boolean walked = ctx.mover.moveToCalls > 0;
         Pos target = new Pos(ctx.mover.lastX, ctx.mover.lastY, ctx.mover.lastZ);
@@ -136,6 +136,6 @@ class WanderStepTest {
 
     @Test
     void describeReadsAsTheDesignNamesIt() {
-        assertEquals("wander step", new WanderStep(new Random(0), RADIUS).describe());
+        assertEquals("wander step", new WanderStep(RADIUS).describe());
     }
 }

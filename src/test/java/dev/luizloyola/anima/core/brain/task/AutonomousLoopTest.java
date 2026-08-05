@@ -32,7 +32,7 @@ class AutonomousLoopTest {
 
     private final FakeContext ctx = new FakeContext();
     private final Arbiter arbiter =
-            new Arbiter(java.util.List.of(new EatInstinct(), new WanderInstinct(new Random(7), 8)));
+            new Arbiter(java.util.List.of(new EatInstinct(), new WanderInstinct(8)));
 
     @Test
     void satedWandersInCyclesThenHungerPreemptsAndTheyEatThenWanderResumes() {

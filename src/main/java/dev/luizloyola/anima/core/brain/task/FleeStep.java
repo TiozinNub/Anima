@@ -66,15 +66,9 @@ public final class FleeStep implements CompoundTask {
     /** How much more frightening a cover cell may be before hiding stops being worth it. */
     private static final double COVER_TOLERANCE = 0.05;
 
-    private final RandomGenerator random;
     private final List<Method> methods;
 
-    /**
-     * @param random the shared per-Person RNG (core-pure {@link RandomGenerator}), threaded
-     *               through exactly like {@link WanderStep}'s so the roll stream stays continuous
-     */
-    public FleeStep(RandomGenerator random) {
-        this.random = random;
+    public FleeStep() {
         this.methods = List.of(new Escape());
     }
 
@@ -109,7 +103,8 @@ public final class FleeStep implements CompoundTask {
                     threats.add(being);
                 }
             }
-            double[] direction = escapeDirection(here, threats);
+            RandomGenerator random = ctx.random();
+            double[] direction = escapeDirection(here, threats, random);
             int jitterX = random.nextInt(2 * JITTER + 1) - JITTER;
             int jitterZ = random.nextInt(2 * JITTER + 1) - JITTER;
             DangerField field = DangerField.of(ctx.danger(), ctx.percepts().beings(),
@@ -199,7 +194,7 @@ public final class FleeStep implements CompoundTask {
         BlockProbe probe = ctx.percepts().blocks();
         // Fan out around the escape heading rather than searching a disc: a cover spot behind you
         // is worth nothing if reaching it means running past the archer.
-        for (Pos candidate : fan(here, escapeDirection(here, shooters))) {
+        for (Pos candidate : fan(here, escapeDirection(here, shooters, ctx.random()))) {
             if (hiddenFromAll(probe, candidate, shooters)) {
                 return java.util.Optional.of(candidate);
             }
@@ -222,9 +217,9 @@ public final class FleeStep implements CompoundTask {
      * random heading when there is nothing to run from (no threats) or nowhere is better than
      * anywhere else (surrounded — the centroid lands on them).
      */
-    private double[] escapeDirection(Pos here, List<Being> threats) {
+    private double[] escapeDirection(Pos here, List<Being> threats, RandomGenerator random) {
         if (threats.isEmpty()) {
-            return randomDirection();
+            return randomDirection(random);
         }
         double weightSum = 0.0;
         double centroidX = 0.0;
@@ -242,13 +237,13 @@ public final class FleeStep implements CompoundTask {
         double awayZ = here.z() - centroidZ;
         double lengthSq = awayX * awayX + awayZ * awayZ;
         if (lengthSq < DEGENERATE_EPSILON) {
-            return randomDirection();
+            return randomDirection(random);
         }
         double length = Math.sqrt(lengthSq);
         return new double[] {awayX / length, awayZ / length};
     }
 
-    private double[] randomDirection() {
+    private double[] randomDirection(RandomGenerator random) {
         double angle = random.nextDouble() * 2.0 * Math.PI;
         return new double[] {Math.cos(angle), Math.sin(angle)};
     }

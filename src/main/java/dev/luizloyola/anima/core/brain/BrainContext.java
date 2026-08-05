@@ -7,6 +7,7 @@ import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.agent.AgentProfile;
+import java.util.random.RandomGenerator;
 import dev.luizloyola.anima.core.agent.Pronouns;
 
 /**
@@ -79,4 +80,15 @@ public interface BrainContext {
      * {@link Double#POSITIVE_INFINITY} is unbounded — the STARVING plateau, and manual driving.
      */
     double costTolerance();
+
+    /**
+     * This body's stream of chance — drawn from when an instinct or a method has a genuine choice
+     * to make.
+     *
+     * <p>Reached through the context, never held: <em>a task owns intent, never the body</em>, and
+     * a task holding a generator could not be written down — the codec had no way to reconstruct
+     * it. One stream per body, saved and restored, so the draw after a reload is the draw that was
+     * coming. See {@code AgentRandom}.
+     */
+    RandomGenerator random();
 }
