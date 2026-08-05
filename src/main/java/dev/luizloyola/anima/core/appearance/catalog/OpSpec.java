@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.appearance.catalog;
 
 import dev.luizloyola.anima.core.appearance.ColorOp;
+import dev.luizloyola.anima.core.appearance.Colors;
 import dev.luizloyola.anima.core.appearance.RampSpec;
 import java.util.ArrayList;
 import java.util.List;
@@ -82,6 +83,38 @@ public sealed interface OpSpec {
                 throw new IllegalArgumentException("no ramp named '" + ramp + "' in this catalog");
             }
             return new ColorOp.Ramp(base.resolve(bindings), spec);
+        }
+    }
+
+    /**
+     * Shift a whole image so that one colour in it becomes another — everything else moving with it.
+     *
+     * <p>For art that is a <b>painting rather than a shade map</b>: a ramp replaces a handful of
+     * listed colours, useless for a hand-painted body carrying a hundred and thirty. This measures
+     * the HSV difference between a reference colour and the target and applies it to every pixel,
+     * so the relationships an artist painted survive.
+     *
+     * <p>It resolves to a plain {@link ColorOp.Hsv}, so nothing downstream learns a new case.
+     *
+     * <p>⚠️ Saturation and value are <b>ratios</b>. A greyscale reference can never reach a coloured
+     * target, so this op leaves saturation alone rather than dividing by it, and
+     * {@link ColorOp.Multiply} is the right tool for grey art. Shifting much lighter <b>clips</b>: a
+     * pixel brighter than the ratio allows lands at white and flattens against its neighbours, and
+     * the editor counts those.
+     */
+    record Retint(int fromRgb, Tint to) implements OpSpec {
+        public Retint {
+            Objects.requireNonNull(to, "to");
+        }
+
+        @Override
+        public ColorOp resolve(Map<String, Integer> bindings, Map<String, RampSpec> ramps) {
+            float[] from = Colors.toHsv(fromRgb);
+            float[] target = Colors.toHsv(to.resolve(bindings));
+            return new ColorOp.Hsv(
+                    target[0] - from[0],
+                    from[1] < 1e-4F ? 1.0F : target[1] / from[1],
+                    from[2] < 1e-4F ? 1.0F : target[2] / from[2]);
         }
     }
 

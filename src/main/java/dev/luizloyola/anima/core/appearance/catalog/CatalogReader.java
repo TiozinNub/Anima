@@ -169,6 +169,8 @@ public final class CatalogReader {
             }
             case "ramp":
                 return new OpSpec.Ramp(tint(json, slot), string(json, "ramp"));
+            case "retint":
+                return new OpSpec.Retint(rgb(string(json, "from")), tint(json, slot));
             default:
                 throw new IllegalArgumentException("slot '" + slot + "' has an op of unknown type '" + type + "'");
         }
