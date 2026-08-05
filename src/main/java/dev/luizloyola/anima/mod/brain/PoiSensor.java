@@ -46,6 +46,7 @@ public final class PoiSensor {
                     RegionCaches.of(level), PlaceIndexes.of(level),
                     ReadPools.of(level.getServer()));
             this.probe = new LevelProbe(this.person.entity());
+            applyPending(); // a survey read from NBT before the pipeline existed
         }
         BlockPos feet = this.person.blockPosition();
         // Head rotation, not body rotation — the same bearing the being sense takes its cone
@@ -104,5 +105,33 @@ public final class PoiSensor {
             }
         }
         return line.toString();
+    }
+
+    /** What this body has already accounted for, or empty before the pipeline is built. */
+    public java.util.Optional<PoiSensorCore.State> snapshot() {
+        return core == null ? java.util.Optional.empty() : java.util.Optional.of(core.snapshot());
+    }
+
+    /**
+     * Puts that back. Held until the pipeline exists — the core is built lazily on the first
+     * sense, which is after the body has been read from its chunk.
+     */
+    public void restore(PoiSensorCore.State state) {
+        this.pendingState = state;
+        if (core != null) {
+            core.restore(state);
+            this.pendingState = null;
+        }
+    }
+
+    /** A saved survey waiting for the pipeline to exist. */
+    private PoiSensorCore.@Nullable State pendingState;
+
+    /** Called once the core is built, to hand over anything that was waiting. */
+    private void applyPending() {
+        if (pendingState != null && core != null) {
+            core.restore(pendingState);
+            pendingState = null;
+        }
     }
 }

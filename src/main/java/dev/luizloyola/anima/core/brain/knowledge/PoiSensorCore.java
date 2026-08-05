@@ -377,4 +377,29 @@ public final class PoiSensorCore {
     private static GrowthRule ruleFor(BlockKind kind) {
         return GrowthRules.forSeed(kind).orElse(null);
     }
+
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+
+    /**
+     * What this sense has already accounted for, and what it still means to look at.
+     *
+     * <p>The in-flight region growth is absent: it is a scratch structure and a pure
+     * function of the world at its seed, so an interrupted scan runs again and reaches the same
+     * mass. The claim index is the opposite — it is the record of every scan that already
+     * finished, and losing it sets a settler re-surveying ground it walked days ago.
+     */
+    public record State(List<ClaimIndex.Entry> claims, List<Column> pending) {
+    }
+
+    /** What this sense would need to go on knowing what it has already looked at. */
+    public State snapshot() {
+        return new State(claims.entries(), List.copyOf(pending));
+    }
+
+    /** Puts that back. The queue keeps its order; a column half-probed is probed again. */
+    public void restore(State state) {
+        claims.restore(state.claims());
+        pending.clear();
+        pending.addAll(state.pending());
+    }
 }

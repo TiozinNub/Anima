@@ -215,4 +215,34 @@ public final class AgentRiser implements Riser {
         centring = false;
         state = RiseState.IDLE;
     }
+
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+
+    /**
+     * A step in progress, and where the last one died. A chop that survives a reload comes back
+     * with {@code riseIssued} set, so a forgotten riser leaves it waiting on a climb nobody is
+     * climbing; the failed-cell streak rides along for the reason its field note gives.
+     */
+    public record Step(String state, @Nullable BlockPos base, @Nullable String itemId, int ticks,
+                       int centringTicks, boolean centring, @Nullable BlockPos failedCell,
+                       int failedStreak) {
+    }
+
+    /** What this riser would need to finish the step it was making. */
+    public Step snapshot() {
+        return new Step(state.name(), base, itemId, ticks, centringTicks, centring, failedCell,
+                failedStreak);
+    }
+
+    /** Puts a step back, mid-climb. */
+    public void restore(Step step) {
+        this.state = RiseState.valueOf(step.state());
+        this.base = step.base();
+        this.itemId = step.itemId();
+        this.ticks = step.ticks();
+        this.centringTicks = step.centringTicks();
+        this.centring = step.centring();
+        this.failedCell = step.failedCell();
+        this.failedStreak = step.failedStreak();
+    }
 }

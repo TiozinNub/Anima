@@ -110,4 +110,31 @@ public final class ClaimIndex {
             }
         }
     }
+
+    /** One claimed cell as data — the pair a snapshot is a list of. */
+    public record Entry(Pos at, Claim claim) {
+    }
+
+    /**
+     * Every claim, in insertion order.
+     *
+     * <p>Carried across a reload: losing it is not incorrect — the scans redo themselves and reach
+     * the same answers — but it is a body repeating hours of looking after a reboot.
+     */
+    public List<Entry> entries() {
+        List<Entry> all = new ArrayList<>(byPos.size());
+        byPos.forEach((at, claim) -> all.add(new Entry(at, claim)));
+        return all;
+    }
+
+    /** Puts saved claims back, in the order they were made. */
+    public void restore(List<Entry> entries) {
+        byPos.clear();
+        byColumn.clear();
+        for (Entry entry : entries) {
+            byPos.put(entry.at(), entry.claim());
+            byColumn.computeIfAbsent(new Column(entry.at().x(), entry.at().z()),
+                    key -> new ArrayList<>()).add(entry.at());
+        }
+    }
 }

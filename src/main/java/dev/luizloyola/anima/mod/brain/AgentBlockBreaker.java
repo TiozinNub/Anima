@@ -166,4 +166,37 @@ public final class AgentBlockBreaker implements BlockBreaker {
             sentStage = -1;
         }
     }
+
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+
+    /**
+     * A swing in progress.
+     *
+     * <p>{@code progress} accumulates over many ticks, so losing it restarts the same log from
+     * nothing — and the TASK that ordered the break survives a reload saying one is in flight, so a
+     * forgotten breaker leaves a body waiting on a swing nobody is swinging. The flag and the
+     * machine travel together; see
+     * {@code docs/superpowers/specs/2026-08-03-persistence-design.md}.
+     *
+     * <p>{@code begunOn} is re-read from the world on restore rather than written down.
+     */
+    public record Swing(String state, @Nullable BlockPos target, float progress, int sentStage) {
+    }
+
+    /** What this breaker would need to go on swinging at the same block. */
+    public Swing snapshot() {
+        return new Swing(state.name(), target, progress, sentStage);
+    }
+
+    /**
+     * Puts a swing back. The blockstate it began against is re-read here rather than carried: the
+     * world is restored too, so a fresh read is the same answer and cannot be stale.
+     */
+    public void restore(Swing swing) {
+        this.state = BreakState.valueOf(swing.state());
+        this.target = swing.target();
+        this.progress = swing.progress();
+        this.sentStage = swing.sentStage();
+        this.begunOn = this.target == null ? null : person.level().getBlockState(this.target);
+    }
 }
