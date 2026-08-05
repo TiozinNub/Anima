@@ -9,7 +9,9 @@ import dev.luizloyola.anima.core.brain.task.TaskExecutor;
 import dev.luizloyola.anima.core.brain.task.TaskStatus;
 import dev.luizloyola.anima.core.log.Category;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -70,6 +72,28 @@ public final class Arbiter {
     private double activePressure;
     /** The last drive journalled, so a re-grant of the same drive does not spam the BRAIN log. */
     private Instinct lastGranted;
+
+    /**
+     * Every drive sitting out a fail-cooldown, by {@link Instinct#key()}, with the ticks left;
+     * eligible drives are absent. Saved and restored, or a reload forgives every cooldown.
+     */
+    public Map<String, Integer> cooldowns() {
+        Map<String, Integer> waiting = new LinkedHashMap<>();
+        for (int i = 0; i < instincts.size(); i++) {
+            if (cooldowns[i] > 0) {
+                waiting.put(instincts.get(i).key(), cooldowns[i]);
+            }
+        }
+        return waiting;
+    }
+
+    /** Puts saved fail-cooldowns back. An unknown key is ignored, not fatal — the rest still apply. */
+    public void restoreCooldowns(Map<String, Integer> waiting) {
+        for (int i = 0; i < instincts.size(); i++) {
+            Integer left = waiting.get(instincts.get(i).key());
+            cooldowns[i] = left == null ? 0 : Math.max(0, left);
+        }
+    }
 
     /** An arbiter with no work source — drives only (tests, minimal rigs). */
     public Arbiter(List<Instinct> instincts) {

@@ -70,7 +70,7 @@ public final class ContactsSync {
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(OUTSIDE::remove);
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (server.getTickCount() % WATCH_INTERVAL_TICKS == 0) {
+            if (server.overworld().getGameTime() % WATCH_INTERVAL_TICKS == 0) {
                 watch(server);
             }
         });

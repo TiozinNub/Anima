@@ -32,6 +32,16 @@ public interface Instinct {
     String describe();
 
     /**
+     * A stable name for this drive, for anything that refers to one across a restart — a saved
+     * fail-cooldown most of all. The class's simple name, not its list position: that
+     * list is ordered for tie-breaking, so adding a drive would re-point every saved index at the
+     * wrong one. A name that stops matching only drops a cooldown.
+     */
+    default String key() {
+        return getClass().getSimpleName();
+    }
+
+    /**
      * Ticks this instinct sits out after its root FAILED. Most drives use the default; an
      * emergency drive (Flee) overrides it small — a cornered Person must retry immediately, not
      * stand still being eaten.

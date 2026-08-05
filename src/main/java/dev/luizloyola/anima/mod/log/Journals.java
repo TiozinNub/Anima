@@ -45,7 +45,9 @@ public final class Journals {
             }
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (server.getTickCount() % SWEEP_INTERVAL_TICKS == 0) {
+            if (// Game time, not the server's tick count: that counter restarts at zero every boot, so a
+            // cadence keyed on it re-phases on every reload. The world's clock is saved with the world.
+            server.overworld().getGameTime() % SWEEP_INTERVAL_TICKS == 0) {
                 JournalService service = SERVICES.get(server);
                 if (service != null) {
                     service.sweep();

@@ -59,7 +59,7 @@ public final class ReadPools {
         // The "is it refusing anybody" edge cannot ride a population change: a wood does not move
         // the population, and walking into one is exactly when this bites. Sampled on a slow beat.
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (server.getTickCount() % CANCELLING_SAMPLE_TICKS == 0) {
+            if (server.overworld().getGameTime() % CANCELLING_SAMPLE_TICKS == 0) {
                 synchronized (POOLS) {
                     ReadPool pool = POOLS.get(server);
                     if (pool != null) {

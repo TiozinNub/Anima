@@ -69,7 +69,7 @@ public final class RayPools {
         // moves the pool without moving the population. Sampled on a slow beat instead — without
         // it the stopped-cancelling edge would never fire on a stable server.
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (server.getTickCount() % CANCELLING_SAMPLE_TICKS == 0) {
+            if (server.overworld().getGameTime() % CANCELLING_SAMPLE_TICKS == 0) {
                 synchronized (POOLS) {
                     RayPool pool = POOLS.get(server);
                     if (pool != null) {

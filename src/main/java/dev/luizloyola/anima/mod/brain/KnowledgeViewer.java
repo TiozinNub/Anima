@@ -46,7 +46,7 @@ public final class KnowledgeViewer {
     public static void init() {
         ServerLifecycleEvents.SERVER_STOPPING.register(WATCHERS::remove);
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (server.getTickCount() % RENDER_INTERVAL_TICKS == 0) {
+            if (server.overworld().getGameTime() % RENDER_INTERVAL_TICKS == 0) {
                 render(server);
             }
         });

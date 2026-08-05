@@ -23,6 +23,7 @@ import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.AgentRandom;
 import dev.luizloyola.anima.core.agent.Pronouns;
 import dev.luizloyola.anima.mod.brain.AgentBlockPlacer;
 import dev.luizloyola.anima.mod.brain.AgentItemConsumer;
@@ -31,8 +32,8 @@ import dev.luizloyola.anima.mod.brain.AgentPercepts;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
@@ -65,6 +66,9 @@ public final class BrainDriver {
      * decides each tick. OFF: a manual command has the wheel, and only its task runs.
      */
     private boolean auto = true;
+
+    /** This body's own randomness — see {@link #random()}. */
+    private final AgentRandom random;
 
     /**
      * The wander mute. ON (the default): the idle drive bids its ambient floor. OFF: the brain
@@ -196,7 +200,8 @@ public final class BrainDriver {
         // RandomSource isn't a java.util.random.RandomGenerator, so it can't reach the instincts
         // directly; it seeds this one once at construction instead. Both random-driven instincts
         // (Flee's scatter, Wander's roam) draw from it — one stream per brain, never shared.
-        Random random = new Random(person.entity().getRandom().nextLong());
+        this.random = new AgentRandom(person.entity().getRandom().nextLong());
+        AgentRandom random = this.random;
         // The board reaches the arbiter through a celebrating wrapper: a completed errand gets a
         // beat in the world (decision: Luiz) before the core board hears of it. sendParticles
         // broadcasts to every tracking client; no custom networking.
@@ -317,6 +322,24 @@ public final class BrainDriver {
 
     public boolean isBusy() {
         return this.arbiter.executor().isBusy();
+    }
+
+    /**
+     * This body's stream of chance — seeded once from the entity, then saved and restored, so a
+     * reload picks the same roam. See {@link AgentRandom}.
+     */
+    public AgentRandom random() {
+        return this.random;
+    }
+
+    /** @see Arbiter#cooldowns */
+    public Map<String, Integer> cooldowns() {
+        return this.arbiter.cooldowns();
+    }
+
+    /** @see Arbiter#restoreCooldowns */
+    public void restoreCooldowns(Map<String, Integer> waiting) {
+        this.arbiter.restoreCooldowns(waiting);
     }
 
     /** Whether the arbiter is currently deciding (ON) or a manual task has the wheel (OFF). */
