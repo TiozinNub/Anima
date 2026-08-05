@@ -3,6 +3,7 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import java.util.ArrayList;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 import java.util.Optional;
 
 /**
@@ -487,5 +488,74 @@ public final class TaskExecutor {
         }
         stack.clear();
         root = null;
+    }
+
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+    // A plan is state that outlives the tick that made it, so it survives a reload (decision:
+    // Luiz, 2026-08-05). These records are the whole of what the executor carries; the codecs for
+    // them live in `mod`, so `core` still never names DataFixerUpper.
+
+    /**
+     * One suspended frame of the descent.
+     *
+     * <p><b>Subtasks are carried explicitly.</b> Rebuilding them through {@link Method#decompose}
+     * would re-draw from the body's randomness (a wander step picks where to roam) and advance the
+     * stream past the numbers the agent was going to get: the plan would look right and every later
+     * decision would be a different one. {@link CompoundTask#methods()} draws nothing.
+     */
+    public record FrameState(CompoundTask compound, int methodIndex, List<Boolean> tried,
+                             List<Task> subtasks, int index, int rounds, double lastProgress,
+                             int pricedOut) {
+    }
+
+    /** Everything the executor is in the middle of. Empty root means idle. */
+    public record State(@Nullable Task root, List<FrameState> frames, @Nullable String lastDescription,
+                        @Nullable TaskStatus lastStatus, @Nullable String failureReason) {
+    }
+
+    /** What this executor would need to be built again exactly as it stands. */
+    public State snapshot() {
+        List<FrameState> saved = new ArrayList<>(stack.size());
+        for (Frame frame : stack) {
+            List<Boolean> tried = new ArrayList<>(frame.tried.length);
+            for (boolean was : frame.tried) {
+                tried.add(was);
+            }
+            saved.add(new FrameState(frame.compound, frame.methodIndex, tried,
+                    List.copyOf(frame.subtasks == null ? List.of() : frame.subtasks),
+                    frame.index, frame.rounds, frame.lastProgress, frame.pricedOut));
+        }
+        return new State(root, saved, lastDescription, lastStatus, failureReason);
+    }
+
+    /**
+     * Puts a saved plan back, mid-descent, without running anything — not {@link #run}, which would
+     * start it from its root. The next ordinary tick carries on from the frame this leaves current.
+     */
+    public void restore(State state) {
+        stack.clear();
+        this.root = state.root();
+        this.lastDescription = state.lastDescription();
+        this.lastStatus = state.lastStatus();
+        this.failureReason = state.failureReason();
+        for (FrameState saved : state.frames()) {
+            Frame frame = new Frame(saved.compound());
+            for (int i = 0; i < saved.tried().size() && i < frame.tried.length; i++) {
+                frame.tried[i] = saved.tried().get(i);
+            }
+            frame.methodIndex = saved.methodIndex();
+            // The method list is a property of the compound, rebuilt by its own constructor above;
+            // a saved index that no longer fits means the build changed under the save, and an
+            // out-of-range method is a crash rather than a lost plan.
+            frame.method = saved.methodIndex() >= 0 && saved.methodIndex() < frame.methods.size()
+                    ? frame.methods.get(saved.methodIndex())
+                    : null;
+            frame.subtasks = new ArrayList<>(saved.subtasks());
+            frame.index = saved.index();
+            frame.rounds = saved.rounds();
+            frame.lastProgress = saved.lastProgress();
+            frame.pricedOut = saved.pricedOut();
+            stack.add(frame);
+        }
     }
 }
