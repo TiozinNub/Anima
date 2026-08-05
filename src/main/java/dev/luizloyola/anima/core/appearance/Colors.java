@@ -52,10 +52,13 @@ public final class Colors {
             return argb -> replace(argb, lookup);
         }
         if (op instanceof ColorOp.Ramp ramp) {
-            int[] shades = ramp(ramp.baseRgb(), ramp.spec());
+            RampSpec spec = ramp.spec();
+            int[] shades = ramp(ramp.baseRgb(), spec);
             Map<Integer, Integer> lookup = new HashMap<>();
             for (int index = 0; index < shades.length; index++) {
-                lookup.put(Shades.color(index), shades[index] & 0xFFFFFF);
+                // The key is the ramp's, not Shades' — a ramp may be drawn in the reference art's
+                // own colours rather than the reserved encoding. See RampSpec.
+                lookup.put(spec.keyAt(index), shades[index] & 0xFFFFFF);
             }
             return argb -> replace(argb, lookup);
         }

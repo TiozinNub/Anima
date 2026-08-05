@@ -42,15 +42,7 @@ public final class CatalogReader {
         Map<String, RampSpec> ramps = new LinkedHashMap<>();
         if (root.has("ramps")) {
             for (Map.Entry<String, JsonElement> entry : root.getAsJsonObject("ramps").entrySet()) {
-                List<RampSpec.Shade> shades = new ArrayList<>();
-                for (JsonElement shade : entry.getValue().getAsJsonArray()) {
-                    JsonArray triple = shade.getAsJsonArray();
-                    require(triple.size() == 3,
-                            "ramp '" + entry.getKey() + "' shades are [hue10, sat1000, val1000]");
-                    shades.add(new RampSpec.Shade(
-                            triple.get(0).getAsInt(), triple.get(1).getAsInt(), triple.get(2).getAsInt()));
-                }
-                ramps.put(entry.getKey(), new RampSpec(entry.getKey(), shades));
+                ramps.put(entry.getKey(), ramp(entry.getKey(), entry.getValue()));
             }
         }
 
@@ -72,6 +64,39 @@ public final class CatalogReader {
 
         return new Catalog(canvas.get(0).getAsInt(), canvas.get(1).getAsInt(),
                 anchors, ramps, ladders, slots);
+    }
+
+    /**
+     * One ramp, in either spelling.
+     *
+     * <p>A bare array is the shades alone, drawn in {@link dev.luizloyola.anima.core.appearance.Shades}'
+     * reserved encoding. An object may also carry {@code keys}: the authored colours those shades
+     * replace, which lets a layer be drawn in real, visible colour. Both forms are permanent.
+     */
+    private static RampSpec ramp(String name, JsonElement element) {
+        JsonArray shadeArray;
+        List<Integer> keys = new ArrayList<>();
+        if (element.isJsonObject()) {
+            JsonObject object = element.getAsJsonObject();
+            require(object.has("shades"), "ramp '" + name + "' has no shades");
+            shadeArray = object.getAsJsonArray("shades");
+            if (object.has("keys")) {
+                for (JsonElement key : object.getAsJsonArray("keys")) {
+                    keys.add(rgb(key.getAsString()));
+                }
+            }
+        } else {
+            shadeArray = element.getAsJsonArray();
+        }
+
+        List<RampSpec.Shade> shades = new ArrayList<>();
+        for (JsonElement shade : shadeArray) {
+            JsonArray triple = shade.getAsJsonArray();
+            require(triple.size() == 3, "ramp '" + name + "' shades are [hue10, sat1000, val1000]");
+            shades.add(new RampSpec.Shade(
+                    triple.get(0).getAsInt(), triple.get(1).getAsInt(), triple.get(2).getAsInt()));
+        }
+        return new RampSpec(name, shades, keys);
     }
 
     private static SlotSpec slot(JsonObject json, Map<String, Anchor> anchors) {
@@ -119,7 +144,8 @@ public final class CatalogReader {
         }
 
         boolean dynamic = json.has("dynamic") && json.get("dynamic").getAsBoolean();
-        return new SlotSpec(name, anchorName, offsetX, offsetY, width, height, dynamic,
+        boolean optional = json.has("optional") && json.get("optional").getAsBoolean();
+        return new SlotSpec(name, anchorName, offsetX, offsetY, width, height, dynamic, optional,
                 ops, new Selector(rules));
     }
 
