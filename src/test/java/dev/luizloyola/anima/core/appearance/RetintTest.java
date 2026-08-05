@@ -105,6 +105,56 @@ class RetintTest {
         assertTrue(Float.isFinite(hsv.satMul()));
     }
 
+    /**
+     * Steve's dark brown hair and Alex's light ginger: no list of ramp keys serves both and a
+     * stated reference can only be one of them, so only a measured reference lets one slot wear
+     * either.
+     */
+    @Test
+    void aMeasuredReferenceLandsEitherPaletteOnTheBinding() {
+        Sprite steve = solid(new int[] {0x241808, 0x2B1E0D, 0x2B1E0D, 0x3F2A15});   // dominant 2B1E0D
+        Sprite alex = solid(new int[] {0xDE812E, 0xEB983F, 0xEB983F, 0xF3A858});    // dominant EB983F
+        for (int target : new int[] {0x0F0D0C, 0xC46A2B, 0xE8CE8F}) {
+            assertTrue(channelError(mainColourAfterRetint(steve, target), target) <= 1,
+                    () -> "steve's browns onto #" + Integer.toHexString(target));
+            assertTrue(channelError(mainColourAfterRetint(alex, target), target) <= 1,
+                    () -> "alex's gingers onto #" + Integer.toHexString(target));
+        }
+    }
+
+    /** The op cannot be folded without the pixels, so it survives compose as its own kind. */
+    @Test
+    void withoutAReferenceItStaysUnresolvedUntilTheBake() {
+        ColorOp measured = new OpSpec.Retint(Tint.literal(PALE)).resolve(Map.of(), Map.of());
+        assertTrue(measured instanceof ColorOp.Retint, () -> "was " + measured);
+        ColorOp stated = new OpSpec.Retint(REFERENCE, Tint.literal(PALE)).resolve(Map.of(), Map.of());
+        assertTrue(stated instanceof ColorOp.Hsv, () -> "a stated reference still folds: " + stated);
+    }
+
+    /** Partial alpha is shading over what is beneath, not the material — it must not pull the
+     *  reference toward a colour the layer is not made of. */
+    @Test
+    void theReferenceIgnoresSemiTransparentPixels() {
+        Sprite shaded = new Sprite(4, 1, new int[] {
+                0xFF2B1E0D, 0xFF2B1E0D, 0x60000000, 0x60000000});
+        assertEquals(0x2B1E0D, Colors.dominant(shaded));
+    }
+
+    private static Sprite solid(int[] rgb) {
+        int[] pixels = new int[rgb.length];
+        for (int at = 0; at < rgb.length; at++) {
+            pixels[at] = 0xFF000000 | rgb[at];
+        }
+        return new Sprite(rgb.length, 1, pixels);
+    }
+
+    private static int mainColourAfterRetint(Sprite art, int target) {
+        Recipe recipe = Recipe.of(art.width(), art.height(), List.of(
+                new Part("art", 0, 0, art.width(), art.height(),
+                        List.of(new ColorOp.Retint(target)))));
+        return Colors.dominant(Compositor.bake(recipe, id -> art).image());
+    }
+
     @Test
     void readsFromACatalog() {
         Catalog catalog = CatalogReader.read("""

@@ -102,6 +102,10 @@ public final class Canonical {
                 out.append(hex6(swaps.get(i).fromRgb())).append('-').append(hex6(swaps.get(i).toRgb()));
             }
             out.append(')');
+        } else if (op instanceof ColorOp.Retint retint) {
+            // Only the target is spelled. The reference is the sprite's, and the sprite is named by
+            // the part this op sits on — so two sprites already hash apart without help.
+            out.append("retint(").append(hex6(retint.toRgb())).append(')');
         } else if (op instanceof ColorOp.Ramp ramp) {
             // By NAME, not by the shades behind it — see the note on RampSpec about why that makes
             // clearing the bake cache on a catalog reload an invariant rather than a nicety.

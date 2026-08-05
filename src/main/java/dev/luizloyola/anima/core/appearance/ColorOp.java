@@ -45,6 +45,23 @@ public sealed interface ColorOp {
         }
     }
 
+    /**
+     * Shift a sprite so that <b>its own</b> main colour becomes {@code toRgb}, everything else
+     * moving with it.
+     *
+     * <p>For a family whose members were drawn from different sources: two hairstyles taken off two
+     * different skins share no palette, so no list of keys can serve both.
+     *
+     * <p>⚠️ Alone among these operations it <b>cannot be resolved without the pixels</b> — the
+     * reference is the sprite's most common opaque colour, which only the compositor has. Hence a
+     * distinct case rather than a measured {@link Hsv}: one op over two sprites is two shifts.
+     *
+     * <p>⚠️ Most-common is a judgement, not a law: it is the mid tone in every skin looked at so
+     * far, and art whose deepest shade dominates re-bases off the shadow and comes out lighter than
+     * intended.
+     */
+    record Retint(int toRgb) implements ColorOp {}
+
     /** {@link Palette}'s generated cousin: derive the shades from one base colour and a curve. */
     record Ramp(int baseRgb, RampSpec spec) implements ColorOp {
         public Ramp {

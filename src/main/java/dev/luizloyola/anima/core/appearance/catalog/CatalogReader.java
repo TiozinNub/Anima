@@ -180,7 +180,12 @@ public final class CatalogReader {
             case "ramp":
                 return new OpSpec.Ramp(tint(json, slot), string(json, "ramp"));
             case "retint":
-                return new OpSpec.Retint(rgb(string(json, "from")), tint(json, slot));
+                // "from" is optional: stated, it is one reference for every texture the slot can
+                // wear; omitted, each texture is measured against its own main colour, which is
+                // what lets a family hold art taken off different skins.
+                return json.has("from")
+                        ? new OpSpec.Retint(rgb(string(json, "from")), tint(json, slot))
+                        : new OpSpec.Retint(tint(json, slot));
             default:
                 throw new IllegalArgumentException("slot '" + slot + "' has an op of unknown type '" + type + "'");
         }

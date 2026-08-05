@@ -63,7 +63,7 @@ public final class Compositor {
      */
     private static void draw(int[] canvas, int[] owners, int width, int height,
                              Part part, Sprite sprite, int index) {
-        IntUnaryOperator recolour = Colors.compile(part.ops());
+        IntUnaryOperator recolour = Colors.compile(part.ops(), sprite);
         for (int localY = 0; localY < part.h(); localY++) {
             int canvasY = part.y() + localY;
             if (canvasY < 0 || canvasY >= height || localY >= sprite.height()) {

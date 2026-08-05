@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntUnaryOperator;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The colour arithmetic behind {@link ColorOp}.
@@ -27,16 +28,26 @@ public final class Colors {
      * its first bake rather than silently doing nothing.
      */
     public static IntUnaryOperator compile(List<ColorOp> ops) {
+        return compile(ops, null);
+    }
+
+    /**
+     * As {@link #compile(List)}, but able to measure from the art.
+     *
+     * <p>{@link ColorOp.Retint} takes its reference from the sprite it is about to recolour, so it
+     * is the one operation that cannot be folded without the pixels in hand.
+     */
+    public static IntUnaryOperator compile(List<ColorOp> ops, @Nullable Sprite sprite) {
         IntUnaryOperator compiled = argb -> argb;
         for (ColorOp op : ops) {
-            IntUnaryOperator step = compileOne(op);
+            IntUnaryOperator step = compileOne(op, sprite);
             IntUnaryOperator previous = compiled;
             compiled = argb -> step.applyAsInt(previous.applyAsInt(argb));
         }
         return compiled;
     }
 
-    private static IntUnaryOperator compileOne(ColorOp op) {
+    private static IntUnaryOperator compileOne(ColorOp op, @Nullable Sprite sprite) {
         if (op instanceof ColorOp.Multiply multiply) {
             int rgb = multiply.rgb();
             return argb -> multiply(argb, rgb);
@@ -50,6 +61,15 @@ public final class Colors {
                 lookup.putIfAbsent(swap.fromRgb() & 0xFFFFFF, swap.toRgb() & 0xFFFFFF);
             }
             return argb -> replace(argb, lookup);
+        }
+        if (op instanceof ColorOp.Retint retint) {
+            int reference = sprite == null ? retint.toRgb() : dominant(sprite);
+            float[] from = toHsv(reference);
+            float[] target = toHsv(retint.toRgb());
+            float hue = target[0] - from[0];
+            float saturation = from[1] < 1e-4F ? 1.0F : target[1] / from[1];
+            float value = from[2] < 1e-4F ? 1.0F : target[2] / from[2];
+            return argb -> shift(argb, hue, saturation, value);
         }
         if (op instanceof ColorOp.Ramp ramp) {
             RampSpec spec = ramp.spec();
@@ -80,6 +100,31 @@ public final class Colors {
             shades[index] = toRgb(hue, saturation, value);
         }
         return shades;
+    }
+
+    /**
+     * The most common fully opaque colour in a sprite — what a {@link ColorOp.Retint} measures from.
+     *
+     * <p>Fully opaque only: partial alpha is shading drawn over whatever is beneath, not the
+     * material itself, and counting it would drag the reference toward a colour the layer is not
+     * made of.
+     */
+    public static int dominant(Sprite sprite) {
+        Map<Integer, Integer> counts = new HashMap<>();
+        int best = 0;
+        int bestCount = 0;
+        for (int pixel : sprite.argb()) {
+            if ((pixel >>> 24) != 0xFF) {
+                continue;
+            }
+            int rgb = pixel & 0xFFFFFF;
+            int count = counts.merge(rgb, 1, Integer::sum);
+            if (count > bestCount) {
+                bestCount = count;
+                best = rgb;
+            }
+        }
+        return best;
     }
 
     /** Grey master × colour, per channel. Darkens only. That is the whole reason ramps exist. */

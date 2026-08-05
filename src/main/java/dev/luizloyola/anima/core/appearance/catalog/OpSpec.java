@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A {@link ColorOp} as a catalog can write one — with the wearer's colours still unresolved.
@@ -102,19 +103,37 @@ public sealed interface OpSpec {
      * pixel brighter than the ratio allows lands at white and flattens against its neighbours, and
      * the editor counts those.
      */
-    record Retint(int fromRgb, Tint to) implements OpSpec {
+    record Retint(@Nullable Integer fromRgb, Tint to) implements OpSpec {
         public Retint {
             Objects.requireNonNull(to, "to");
         }
 
+        /** Measured from the art rather than from a stated colour. */
+        public Retint(Tint to) {
+            this(null, to);
+        }
+
+        /**
+         * With a reference this folds to a plain {@link ColorOp.Hsv}. <b>Without one it cannot</b>:
+         * the reference is the sprite's own main colour and the sprite is not here, so it stays a
+         * {@link ColorOp.Retint} for the compositor to finish.
+         *
+         * <p>A stated reference is one colour for every member of a family — a hairstyle taken off
+         * a different skin is measured against a colour it does not contain — while a measured one
+         * is each member's own.
+         */
         @Override
         public ColorOp resolve(Map<String, Integer> bindings, Map<String, RampSpec> ramps) {
+            int target = to.resolve(bindings);
+            if (fromRgb == null) {
+                return new ColorOp.Retint(target);
+            }
             float[] from = Colors.toHsv(fromRgb);
-            float[] target = Colors.toHsv(to.resolve(bindings));
+            float[] hsv = Colors.toHsv(target);
             return new ColorOp.Hsv(
-                    target[0] - from[0],
-                    from[1] < 1e-4F ? 1.0F : target[1] / from[1],
-                    from[2] < 1e-4F ? 1.0F : target[2] / from[2]);
+                    hsv[0] - from[0],
+                    from[1] < 1e-4F ? 1.0F : hsv[1] / from[1],
+                    from[2] < 1e-4F ? 1.0F : hsv[2] / from[2]);
         }
     }
 
