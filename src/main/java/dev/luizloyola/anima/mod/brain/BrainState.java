@@ -8,6 +8,9 @@ import dev.luizloyola.anima.core.brain.task.CompoundTask;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.TaskExecutor;
 import dev.luizloyola.anima.core.brain.task.TaskStatus;
+import dev.luizloyola.anima.core.log.Category;
+import dev.luizloyola.anima.core.log.Entry;
+import java.util.List;
 import dev.luizloyola.anima.core.nav.MoveType;
 import dev.luizloyola.anima.core.nav.Waypoint;
 import dev.luizloyola.anima.mod.nav.Navigator;
@@ -138,4 +141,17 @@ public final class BrainState {
                 repaths, integrity, cooldown) -> new Navigator.Walk(state, goal.orElse(null),
                     waypoints, reached, index, gait, stuck, noMove, grounded, lastLeap, repaths,
                     integrity, cooldown)));
+
+    /** One journal line. Categories round-trip by name; an unknown one errors rather than
+     *  silently re-filing a line under the wrong subsystem. */
+    private static final Codec<Entry> ENTRY = RecordCodecBuilder.create(e -> e.group(
+            Codec.LONG.fieldOf("tick").forGetter(Entry::tick),
+            Codec.STRING.fieldOf("cat").forGetter(entry -> entry.category().name()),
+            Codec.STRING.fieldOf("event").forGetter(Entry::event),
+            Codec.STRING.fieldOf("detail").forGetter(Entry::detail)
+    ).apply(e, (tick, cat, event, detail) ->
+            new Entry(tick, Category.valueOf(cat), event, detail)));
+
+    /** A body's own account of itself — see {@code JournalService#snapshot}. */
+    public static final Codec<List<Entry>> JOURNAL = ENTRY.listOf();
 }

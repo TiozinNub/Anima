@@ -38,12 +38,16 @@ public final class Journals {
      *  the lifecycle. */
     public static void init() {
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            SERVICES.remove(server);
             JournalFileSink sink = SINKS.remove(server);
             if (sink != null) {
                 sink.close(); // final drain + close every per-person file
             }
         });
+        // The RINGS outlive STOPPING and go at STOPPED, and the order is load-bearing: entities are
+        // written to their chunks between the two, and a body saves its own journal as it goes.
+        // Removing the service at STOPPING truncated every Person's saved ring — nineteen lines
+        // became five.
+        ServerLifecycleEvents.SERVER_STOPPED.register(SERVICES::remove);
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             if (// Game time, not the server's tick count: that counter restarts at zero every boot, so a
             // cadence keyed on it re-phases on every reload. The world's clock is saved with the world.
@@ -70,5 +74,17 @@ public final class Journals {
         SINKS.put(server, JournalFileSink.attach(server, service));
         ThoughtBroadcast.attach(server, service); // the thinking-out-loud chat channel
         return service;
+    }
+
+    /** @see dev.luizloyola.anima.core.log.JournalService#snapshot */
+    public static java.util.List<dev.luizloyola.anima.core.log.Entry> snapshot(
+            MinecraftServer server, dev.luizloyola.anima.core.agent.AgentId who) {
+        return of(server).snapshot(who);
+    }
+
+    /** @see dev.luizloyola.anima.core.log.JournalService#restore */
+    public static void restore(MinecraftServer server, dev.luizloyola.anima.core.agent.AgentId who,
+                               java.util.List<dev.luizloyola.anima.core.log.Entry> entries) {
+        of(server).restore(who, entries);
     }
 }

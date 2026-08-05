@@ -207,4 +207,21 @@ public final class JournalService {
             return entries.isEmpty();
         }
     }
+
+    /**
+     * One agent's whole ring, oldest first — what a body carries so its own account of itself
+     * survives a reload. A second copy of what the durable file holds, kept because the file is an
+     * archive while {@code /anima log} reads the ring. Capped by the same knob as the ring.
+     */
+    public List<Entry> snapshot(AgentId who) {
+        return recent(who, Integer.MAX_VALUE);
+    }
+
+    /** Puts a saved ring back, oldest first, without re-broadcasting any of it. */
+    public void restore(AgentId who, List<Entry> entries) {
+        Ring ring = byPerson.computeIfAbsent(who, id -> new Ring());
+        for (Entry entry : entries) {
+            ring.add(entry, maxEntriesPerPerson());
+        }
+    }
 }
