@@ -644,4 +644,14 @@ public final class BeingSense {
         return being.tell(person.pronouns().object())
                 + (being.awareness() == Being.Awareness.HEARD ? ", heard" : "");
     }
+
+    /** What this body remembers of other bodies — see {@code SenseState}. */
+    public dev.luizloyola.anima.core.brain.sense.BeingSensorCore.State snapshot() {
+        return sensor.snapshot();
+    }
+
+    /** Puts those memories back, without announcing any of them a second time. */
+    public void restore(dev.luizloyola.anima.core.brain.sense.BeingSensorCore.State state) {
+        sensor.restore(state);
+    }
 }

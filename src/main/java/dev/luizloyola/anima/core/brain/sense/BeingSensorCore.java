@@ -763,4 +763,69 @@ public final class BeingSensorCore {
                 Being.Locomotion.STILL, false, false, false, last.aggressive(), last.gear(),
                 Being.Activity.IDLE);
     }
+
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+    // Tracks and their ladder rungs are saved: losing them makes an agent RE-NOTICE everything
+    // around it and fire recognition again, a reboot announced out loud.
+    //
+    // A herd's last rendered view is not (`herdBeing` re-renders it from the herd and its member
+    // tracks, which are), nor are the within-tick discovery queues, which drain every tick.
+
+    /** One remembered body, as data. */
+    public record TrackState(BeingReading last, Being.Awareness awareness, Being.Identified tier,
+                             long nextCheckAt, long lastLiveAt, long heardAt, long activityAt,
+                             double trendDistance, long trendAt, boolean approaching,
+                             BeingId herd, long attackedAt) {
+    }
+
+    /** One herd: a stable id over a churning member set. */
+    public record HerdState(BeingId id, String species, List<BeingId> members) {
+    }
+
+    /** Everything this sense is holding between ticks. */
+    public record State(List<TrackState> tracks, List<HerdState> herds, long lastSweepAt,
+                        Pos lastFeet) {
+    }
+
+    /** What this sense would need to go on remembering what it remembers. */
+    public State snapshot() {
+        List<TrackState> savedTracks = new ArrayList<>(tracks.size());
+        tracks.forEach((id, track) -> savedTracks.add(new TrackState(track.last, track.awareness,
+                track.tier, track.nextCheckAt, track.lastLiveAt, track.heardAt, track.activityAt,
+                track.trendDistance, track.trendAt, track.approaching, track.herd,
+                track.attackedAt)));
+        List<HerdState> savedHerds = new ArrayList<>(herds.size());
+        herds.forEach((id, herd) -> savedHerds.add(
+                new HerdState(herd.id, herd.species, List.copyOf(herd.members))));
+        return new State(savedTracks, savedHerds, lastSweepAt, lastFeet);
+    }
+
+    /** Puts remembered bodies back. Nothing is announced: these were noticed before, not now. */
+    public void restore(State state) {
+        tracks.clear();
+        herds.clear();
+        for (TrackState saved : state.tracks()) {
+            Track track = new Track();
+            track.last = saved.last();
+            track.awareness = saved.awareness();
+            track.tier = saved.tier();
+            track.nextCheckAt = saved.nextCheckAt();
+            track.lastLiveAt = saved.lastLiveAt();
+            track.heardAt = saved.heardAt();
+            track.activityAt = saved.activityAt();
+            track.trendDistance = saved.trendDistance();
+            track.trendAt = saved.trendAt();
+            track.approaching = saved.approaching();
+            track.herd = saved.herd();
+            track.attackedAt = saved.attackedAt();
+            tracks.put(saved.last().id(), track);
+        }
+        for (HerdState saved : state.herds()) {
+            Herd herd = new Herd(saved.id(), saved.species());
+            herd.members = new ArrayList<>(saved.members());
+            herds.put(saved.id(), herd);
+        }
+        this.lastSweepAt = state.lastSweepAt();
+        this.lastFeet = state.lastFeet();
+    }
 }
