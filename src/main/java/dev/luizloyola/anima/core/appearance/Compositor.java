@@ -85,8 +85,14 @@ public final class Compositor {
         }
     }
 
-    /** Source-over: {@code source} composited onto {@code under}, both straight ARGB. */
-    static int over(int source, int under) {
+    /**
+     * Source-over: {@code source} composited onto {@code under}, both straight (non-premultiplied)
+     * ARGB.
+     *
+     * <p>Public because anything that stacks these pixels a second time — the editor's paper doll —
+     * must stack them the same way or it shows something the game will not.
+     */
+    public static int over(int source, int under) {
         int sourceAlpha = source >>> 24;
         if (sourceAlpha == 0xFF) {
             return source;
