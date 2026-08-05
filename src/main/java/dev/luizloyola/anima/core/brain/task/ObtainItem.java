@@ -53,4 +53,12 @@ public final class ObtainItem implements AchieveTask {
     public String describe() {
         return "obtain " + spec.name() + " x" + count;
     }
+
+    public ItemSpec spec() {
+        return spec;
+    }
+
+    public int count() {
+        return count;
+    }
 }

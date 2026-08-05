@@ -38,4 +38,22 @@ public final class Idle implements PrimitiveTask {
     public String describe() {
         return "idle " + ticks + "t";
     }
+
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+
+    /** The pause as ordered. */
+    public int ticks() {
+        return ticks;
+    }
+
+    /** How much of it is left — not re-derivable: a countdown that restarts is a pause an agent
+     *  would feel twice. */
+    public int remaining() {
+        return remaining;
+    }
+
+    public Idle resume(int remaining) {
+        this.remaining = remaining;
+        return this;
+    }
 }

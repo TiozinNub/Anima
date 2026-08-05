@@ -59,4 +59,20 @@ public final class ConsumeItem implements PrimitiveTask {
     public String describe() {
         return "consume slot " + slot;
     }
+
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+
+    public int slot() {
+        return slot;
+    }
+
+    /** Whether the eat has already been ordered — a reload must not order it a second time. */
+    public boolean issued() {
+        return issued;
+    }
+
+    public ConsumeItem resume(boolean issued) {
+        this.issued = issued;
+        return this;
+    }
 }

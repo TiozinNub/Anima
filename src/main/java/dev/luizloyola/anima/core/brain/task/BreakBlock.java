@@ -47,4 +47,21 @@ public final class BreakBlock implements PrimitiveTask {
     public String describe() {
         return "break (" + target.x() + ", " + target.y() + ", " + target.z() + ")";
     }
+
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+
+    public Pos target() {
+        return target;
+    }
+
+    /** Whether the swing has started. Breaking is a progress bar the world keeps; beginning it
+     *  again from a reload would drop that progress on the floor. */
+    public boolean begun() {
+        return begun;
+    }
+
+    public BreakBlock resume(boolean begun) {
+        this.begun = begun;
+        return this;
+    }
 }

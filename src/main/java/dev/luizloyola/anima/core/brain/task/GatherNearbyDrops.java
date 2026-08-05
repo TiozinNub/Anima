@@ -67,4 +67,36 @@ public final class GatherNearbyDrops implements PrimitiveTask {
     public String describe() {
         return "gather " + spec.name();
     }
+
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+    // Four fields, and every one of them is a lap counter of some sort: this task walks a circuit
+    // and gives up after so many. Losing them hands a body an unbounded errand.
+
+    public ItemSpec spec() {
+        return spec;
+    }
+
+    public int startCount() {
+        return startCount;
+    }
+
+    public int laps() {
+        return laps;
+    }
+
+    public int lapCap() {
+        return lapCap;
+    }
+
+    public boolean walkIssued() {
+        return walkIssued;
+    }
+
+    public GatherNearbyDrops resume(int startCount, int laps, int lapCap, boolean walkIssued) {
+        this.startCount = startCount;
+        this.laps = laps;
+        this.lapCap = lapCap;
+        this.walkIssued = walkIssued;
+        return this;
+    }
 }

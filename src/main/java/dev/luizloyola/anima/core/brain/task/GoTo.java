@@ -78,4 +78,35 @@ public final class GoTo implements PrimitiveTask {
         String pace = gait == Gait.WALK ? "" : " (" + gait.name().toLowerCase(Locale.ROOT) + ")";
         return "goto (" + x + ", " + y + ", " + z + ")" + pace;
     }
+
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+    // What this task is, and where it has got to. `issued` is the difference between a walk that
+    // has been ordered and one that has not: without it a reload re-orders the walk, which reads
+    // as a body that hesitated.
+
+    public int x() {
+        return x;
+    }
+
+    public int y() {
+        return y;
+    }
+
+    public int z() {
+        return z;
+    }
+
+    public Gait gait() {
+        return gait;
+    }
+
+    public boolean issued() {
+        return issued;
+    }
+
+    /** Puts a saved mid-walk back — see the note above. */
+    public GoTo resume(boolean issued) {
+        this.issued = issued;
+        return this;
+    }
 }

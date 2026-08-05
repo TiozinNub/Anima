@@ -127,4 +127,9 @@ public final class WanderStep implements CompoundTask {
             return "roam";
         }
     }
+
+    /** The roam radius this step was built with — the whole of what it is. */
+    public int radius() {
+        return radius;
+    }
 }
