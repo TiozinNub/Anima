@@ -90,16 +90,9 @@ public record Catalog(int canvasWidth, int canvasHeight,
             if (anchor == null) {
                 continue;
             }
-            List<String> candidates = slot.selector().candidates(params);
-            if (candidates.isEmpty()) {
+            String texture = chosen(slot, params, exists);
+            if (texture == null) {
                 continue;
-            }
-            String texture = candidates.get(candidates.size() - 1);
-            for (String candidate : candidates) {
-                if (exists.test(candidate)) {
-                    texture = candidate;
-                    break;
-                }
             }
             List<ColorOp> ops = OpSpec.resolveAll(slot.ops(), bindings, ramps);
             Part part = new Part(texture,
@@ -108,6 +101,34 @@ public record Catalog(int canvasWidth, int canvasHeight,
             (slot.dynamic() ? dynamics : statics).add(part);
         }
         return new Recipe(canvasWidth, canvasHeight, statics, dynamics);
+    }
+
+    /**
+     * The texture a slot wears, or {@code null} if it wears none.
+     *
+     * <p>Two ways to wear none: the selector matches nothing (ordinary for blood or grime), or
+     * every candidate still carries an <b>unfilled placeholder</b> — nobody has chosen a member of
+     * that family, which is a choice not made rather than a file gone missing.
+     */
+    private @Nullable String chosen(SlotSpec slot, Map<String, String> params,
+                                    Predicate<String> exists) {
+        List<String> candidates = slot.selector().candidates(params);
+        String fallback = null;
+        for (String candidate : candidates) {
+            if (candidate.indexOf('{') >= 0) {
+                continue;
+            }
+            if (exists.test(candidate)) {
+                return candidate;
+            }
+            fallback = candidate;
+        }
+        return fallback;
+    }
+
+    /** Whether a slot is drawing at all — the same question {@link #chosen} answers. */
+    public boolean draws(SlotSpec slot, Map<String, String> params) {
+        return chosen(slot, params, texture -> true) != null;
     }
 
     /**
@@ -121,7 +142,7 @@ public record Catalog(int canvasWidth, int canvasHeight,
         List<String> staticNames = new ArrayList<>();
         List<String> dynamicNames = new ArrayList<>();
         for (SlotSpec slot : slots) {
-            if (anchors.containsKey(slot.anchor()) && slot.selector().pick(params) != null) {
+            if (anchors.containsKey(slot.anchor()) && draws(slot, params)) {
                 (slot.dynamic() ? dynamicNames : staticNames).add(slot.name());
             }
         }

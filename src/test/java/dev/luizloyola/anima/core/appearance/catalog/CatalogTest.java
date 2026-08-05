@@ -81,11 +81,19 @@ class CatalogTest {
         assertEquals("autarkia:body/slim", compose(Map.of("build", "slim")).statics().get(0).texture());
     }
 
-    /** An unknown placeholder is left as written, so it surfaces as a missing texture rather than
-     *  as a silently wrong one. */
+    /**
+     * An unfilled placeholder means nobody chose from that family, so the slot draws nothing.
+     *
+     * <p>⚠️ A MISTYPED placeholder is now silent too, where it used to surface as a missing texture.
+     * The editor catches it instead, reporting a non-optional slot that drew nothing — see
+     * {@code ValidationTest}.
+     */
     @Test
-    void anUnknownPlaceholderIsLeftAlone() {
-        assertEquals("autarkia:body/{build}", compose(Map.of()).statics().get(0).texture());
+    void anUnfilledPlaceholderDrawsNothing() {
+        assertEquals(List.of(), compose(Map.of()).statics(), "no build chosen, so no body");
+        assertEquals(1, compose(Map.of()).dynamics().size(), "the eyes are unaffected");
+        assertEquals("autarkia:body/slim",
+                compose(Map.of("build", "slim")).statics().get(0).texture());
     }
 
     @Test
