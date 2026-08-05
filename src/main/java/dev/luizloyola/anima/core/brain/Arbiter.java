@@ -95,6 +95,39 @@ public final class Arbiter {
         }
     }
 
+    /**
+     * Which drive holds the wheel and how hard it was pressing; {@code active} is null when nothing
+     * is granted. <b>Only ever saved and restored alongside the executor's plan</b> — a grant with
+     * no running root is the half-a-commitment bug, paid for three times over.
+     */
+    public record Grant(String active, double activePressure, boolean workRunning, String lastGranted) {
+    }
+
+    public Grant grant() {
+        return new Grant(active == null ? "" : active.key(), activePressure, workRunning,
+                lastGranted == null ? "" : lastGranted.key());
+    }
+
+    /** Puts a saved grant back. An unknown drive clears the grant rather than failing the load. */
+    public void restoreGrant(Grant grant) {
+        this.active = byKey(grant.active());
+        this.activePressure = grant.activePressure();
+        this.workRunning = grant.workRunning();
+        this.lastGranted = byKey(grant.lastGranted());
+    }
+
+    private Instinct byKey(String key) {
+        if (key == null || key.isEmpty()) {
+            return null;
+        }
+        for (Instinct instinct : instincts) {
+            if (instinct.key().equals(key)) {
+                return instinct;
+            }
+        }
+        return null;
+    }
+
     /** An arbiter with no work source — drives only (tests, minimal rigs). */
     public Arbiter(List<Instinct> instincts) {
         this(instincts, WorkSource.NONE);

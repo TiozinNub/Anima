@@ -13,6 +13,7 @@ import dev.luizloyola.anima.core.nav.NavGrids;
 import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.PathIntegrity;
 import dev.luizloyola.anima.core.nav.Waypoint;
+import java.util.List;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -829,5 +830,54 @@ public final class Navigator {
      */
     private MoveCapabilities capabilities() {
         return MoveCapabilities.of(this.person.profile());
+    }
+
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+
+    /**
+     * A walk in progress, as data. Named for the walk, not the state machine — {@code State}
+     * already owns that word.
+     *
+     * <p>The path is carried rather than recomputed: routes of similar cost are chosen among, so
+     * re-pathing gives <em>a</em> route rather than <em>the</em> route, and the index and stuck
+     * counters only mean anything against the path they were counted on.
+     *
+     * <p>The nav grid is absent on purpose — a captured read of a world that is itself restored
+     * rebuilds identically.
+     */
+    public record Walk(String state, @Nullable BlockPos goal, List<Waypoint> waypoints,
+                        boolean reachedGoal, int index, String gait, int stuckTicks,
+                        int noMoveTicks, int groundedTicks, int lastLeapPressIndex,
+                        int repathsLeft, int integrityCheckedIndex, int proactiveRepathCooldown) {
+    }
+
+    /** What this navigator would need to carry on the same walk. */
+    public Walk snapshot() {
+        return new Walk(this.state.name(), this.goal,
+                this.path == null ? List.of() : List.copyOf(this.path.waypoints()),
+                this.path != null && this.path.reachedGoal(),
+                this.index, this.gait.name(), this.stuckTicks, this.noMoveTicks,
+                this.groundedTicks, this.lastLeapPressIndex, this.repathsLeft,
+                this.integrityCheckedIndex, this.proactiveRepathCooldown);
+    }
+
+    /**
+     * Puts a walk back. The grid is left null on purpose: the follower asks for one when it needs
+     * it, and rebuilding it from the restored world gives back the same grid.
+     */
+    public void restore(Walk saved) {
+        this.state = Navigator.State.valueOf(saved.state());
+        this.goal = saved.goal();
+        this.path = saved.waypoints().isEmpty() ? null
+                : new Path(List.copyOf(saved.waypoints()), saved.reachedGoal());
+        this.index = saved.index();
+        this.gait = Gait.valueOf(saved.gait());
+        this.stuckTicks = saved.stuckTicks();
+        this.noMoveTicks = saved.noMoveTicks();
+        this.groundedTicks = saved.groundedTicks();
+        this.lastLeapPressIndex = saved.lastLeapPressIndex();
+        this.repathsLeft = saved.repathsLeft();
+        this.integrityCheckedIndex = saved.integrityCheckedIndex();
+        this.proactiveRepathCooldown = saved.proactiveRepathCooldown();
     }
 }

@@ -336,6 +336,34 @@ public final class BrainDriver {
         return this.random;
     }
 
+    /**
+     * The plan and the grant that owns it, always as one — see {@link Arbiter.Grant} for why they
+     * are never separated.
+     */
+    public BrainSnapshot snapshot() {
+        return new BrainSnapshot(this.arbiter.executor().snapshot(), this.arbiter.grant());
+    }
+
+    /**
+     * Puts a saved plan and its grant back. Nothing is ticked; the next tick carries on.
+     *
+     * <p><b>A plan owed to a work item is refused whole</b> until the item can be restored with it:
+     * the grant would say an errand is in hand while {@code claimedItem} is null — work items have
+     * no durable identity yet — and the arbiter dereferences it on its next tick and takes the
+     * server down. The plan waits, and the next tick re-arbitrates from a clean board.
+     */
+    public void restore(BrainSnapshot snapshot) {
+        if (snapshot.grant().workRunning()) {
+            return;
+        }
+        this.arbiter.executor().restore(snapshot.plan());
+        this.arbiter.restoreGrant(snapshot.grant());
+    }
+
+    public record BrainSnapshot(dev.luizloyola.anima.core.brain.task.TaskExecutor.State plan,
+                                Arbiter.Grant grant) {
+    }
+
     /** @see Arbiter#cooldowns */
     public Map<String, Integer> cooldowns() {
         return this.arbiter.cooldowns();
