@@ -109,11 +109,13 @@ public final class Arbiter {
     }
 
     /** Puts a saved grant back. An unknown drive clears the grant rather than failing the load. */
-    public void restoreGrant(Grant grant) {
+    public void restoreGrant(Grant grant, WorkItem held) {
         this.active = byKey(grant.active());
         this.activePressure = grant.activePressure();
-        this.workRunning = grant.workRunning();
         this.lastGranted = byKey(grant.lastGranted());
+        // Errand and flag together or neither: the flag alone took the server down on a null claim.
+        this.claimedItem = held;
+        this.workRunning = grant.workRunning() && held != null;
     }
 
     private Instinct byKey(String key) {

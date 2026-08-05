@@ -345,19 +345,16 @@ public final class BrainDriver {
     }
 
     /**
-     * Puts a saved plan and its grant back. Nothing is ticked; the next tick carries on.
+     * Puts a saved plan and its grant back; nothing is ticked.
      *
-     * <p><b>A plan owed to a work item is refused whole</b> until the item can be restored with it:
-     * the grant would say an errand is in hand while {@code claimedItem} is null — work items have
-     * no durable identity yet — and the arbiter dereferences it on its next tick and takes the
-     * server down. The plan waits, and the next tick re-arbitrates from a clean board.
+     * <p>{@code held} is the errand the board has just handed back, or null — an argument rather
+     * than a lookup, because the board must be restored first. A grant owing an errand while
+     * nothing is held took the server down.
      */
-    public void restore(BrainSnapshot snapshot) {
-        if (snapshot.grant().workRunning()) {
-            return;
-        }
+    public void restore(BrainSnapshot snapshot,
+                        dev.luizloyola.anima.core.brain.board.WorkItem held) {
         this.arbiter.executor().restore(snapshot.plan());
-        this.arbiter.restoreGrant(snapshot.grant());
+        this.arbiter.restoreGrant(snapshot.grant(), held);
     }
 
     public record BrainSnapshot(dev.luizloyola.anima.core.brain.task.TaskExecutor.State plan,
