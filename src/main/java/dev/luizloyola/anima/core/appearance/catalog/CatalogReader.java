@@ -140,7 +140,17 @@ public final class CatalogReader {
                     when.put(condition.getKey(), condition.getValue().getAsString());
                 }
             }
-            rules.add(new Selector.Rule(when, string(entry, "texture")));
+            // "texture" is one id, or several best-first: the model-specific one, then the shared
+            // one it falls back to when nobody has drawn it.
+            require(entry.has("texture"), "slot '" + name + "' has a rule with no texture");
+            List<String> textures = new ArrayList<>();
+            if (entry.get("texture").isJsonArray()) {
+                entry.getAsJsonArray("texture").forEach(one -> textures.add(one.getAsString()));
+                require(!textures.isEmpty(), "slot '" + name + "' has a rule with an empty texture list");
+            } else {
+                textures.add(entry.get("texture").getAsString());
+            }
+            rules.add(new Selector.Rule(when, textures));
         }
 
         boolean dynamic = json.has("dynamic") && json.get("dynamic").getAsBoolean();

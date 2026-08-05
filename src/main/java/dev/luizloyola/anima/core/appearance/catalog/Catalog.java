@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -68,6 +69,20 @@ public record Catalog(int canvasWidth, int canvasHeight,
      * validation pass reports both.
      */
     public Recipe compose(Map<String, String> params, Map<String, Integer> bindings) {
+        return compose(params, bindings, texture -> true);
+    }
+
+    /**
+     * As {@link #compose(Map, Map)}, but able to answer "specific if it exists, shared otherwise".
+     *
+     * <p>A rule may offer several textures, best first — {@code shirt_slim} then {@code shirt} —
+     * and only the caller knows which have been drawn, so {@code exists} decides.
+     *
+     * <p>When nothing exists the <b>last</b> candidate wins: the author's general case, and the
+     * more useful name in a missing-texture report. The part is skipped at bake time either way.
+     */
+    public Recipe compose(Map<String, String> params, Map<String, Integer> bindings,
+                          Predicate<String> exists) {
         List<Part> statics = new ArrayList<>();
         List<Part> dynamics = new ArrayList<>();
         for (SlotSpec slot : slots) {
@@ -75,9 +90,16 @@ public record Catalog(int canvasWidth, int canvasHeight,
             if (anchor == null) {
                 continue;
             }
-            String texture = slot.selector().pick(params);
-            if (texture == null) {
+            List<String> candidates = slot.selector().candidates(params);
+            if (candidates.isEmpty()) {
                 continue;
+            }
+            String texture = candidates.get(candidates.size() - 1);
+            for (String candidate : candidates) {
+                if (exists.test(candidate)) {
+                    texture = candidate;
+                    break;
+                }
             }
             List<ColorOp> ops = OpSpec.resolveAll(slot.ops(), bindings, ramps);
             Part part = new Part(texture,
