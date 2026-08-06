@@ -120,6 +120,24 @@ tasks.named<Test>("test") {
     // adding a `//?` to a core file, or an import nothing uses. Without this the test task is
     // UP-TO-DATE after the edits it exists to catch.
     inputs.dir(branchSources).withPropertyName("branchSources").withPathSensitivity(PathSensitivity.RELATIVE)
+
+    // JarContentsTest inspects the jar this build produced. `remapJar` where it exists (the
+    // Mojang-mapped nodes) and `jar` where it does not (26.1+ is unobfuscated, so Loom registers
+    // no remap task at all) — whichever one is the artifact that actually ships.
+    //
+    // Handed in rather than found: build/libs/ keeps every timestamped jar this repo has ever
+    // built, hundreds of them, so "newest match for a glob" is a guess and would happily verify
+    // last month's release.
+    val shippedJar = (if (tasks.names.contains("remapJar")) tasks.named<Jar>("remapJar")
+                      else tasks.named<Jar>("jar")).flatMap { it.archiveFile }
+    dependsOn(shippedJar)
+    inputs.file(shippedJar).withPropertyName("shippedJar").withPathSensitivity(PathSensitivity.NAME_ONLY)
+    // Resolved here rather than through a jvmArgumentProviders lambda: a lambda written in a build
+    // script captures the script object, which the configuration cache cannot serialize. The path
+    // itself is known at configuration time — it is derived from archivesName and version, not
+    // from anything the Jar task does.
+    systemProperty("anima.jar", shippedJar.get().asFile.absolutePath)
+    systemProperty("anima.version", modVersion)
 }
 
 // Every warning javac can raise is an error, less four categories. `-Xlint:all` rather than a
