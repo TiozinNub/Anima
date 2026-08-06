@@ -1,3 +1,5 @@
+import net.ltgt.gradle.errorprone.errorprone
+
 plugins {
     // This plugin applies the correct loom variant based on the Minecraft version
     id("dev.kikugie.loom-back-compat")
@@ -5,6 +7,7 @@ plugins {
     // that wants other mods to write tests against its machinery has to hand them the harness.
     `java-test-fixtures`
     id("me.modmuss50.mod-publish-plugin") version "2.1.1"
+    id("net.ltgt.errorprone") version "5.1.0"
 }
 
 // DO NOT set group = ...!
@@ -104,6 +107,8 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    errorprone("com.google.errorprone:error_prone_core:2.50.0")
 }
 
 tasks.named<Test>("test") {
@@ -157,11 +162,30 @@ tasks.named<Test>("test") {
 //                 worth fixing — each one is a stale design note sitting where a reader will
 //                 take it for the current one — but a cleanup with 21 judgement calls in it, not
 //                 a lint switch. Delete this line when they are gone.
+//
+// Error Prone rides along on the same switch. Its ERROR tier is the part that earns its keep —
+// around a hundred high-confidence bug patterns, on by default, and both mods pass every one of
+// them today, so what it actually buys is a guard on every future commit. Its WARNING tier is
+// switched off wholesale rather than triaged here: 250 findings across the two mods, most of them
+// documentation drift of the same species as the dangling comments above, and with `-Werror` on
+// every single one would be a build failure. Turning a check back on is one line
+// (`check("Name", CheckSeverity.ERROR)`), and that is the shape the cleanup should take — one
+// check at a time, cleaned then enforced, rather than 250 findings in one sitting.
 tasks.withType<JavaCompile>().configureEach {
-    if (providers.gradleProperty("lint").orNull != "off") {
+    val lint = providers.gradleProperty("lint").orNull != "off"
+    if (lint) {
         options.compilerArgs.addAll(
             listOf("-Xlint:all,-classfile,-deprecation,-this-escape,-dangling-doc-comments", "-Werror")
         )
+    }
+    options.errorprone {
+        isEnabled = lint
+        // A mixin is bytecode surgery written as Java. An injector's parameters must match the
+        // target method's signature whether the handler reads them or not, and a method a mixin
+        // injects is called by the mixin machinery and never from Java. Error Prone reads both as
+        // dead code — correctly by its rules, wrongly by ours.
+        excludedPaths = ".*/mixin/.*"
+        disableAllWarnings = true
     }
 }
 
