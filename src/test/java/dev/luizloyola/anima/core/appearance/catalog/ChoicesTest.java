@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.appearance.catalog;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -99,5 +100,67 @@ class ChoicesTest {
     @Test
     void aTemplateWithoutThatParameterOffersNothing() {
         assertEquals(List.of(), Choices.valuesFor("a:person/body/{model}", "hairstyle", ART));
+    }
+
+    // --- families split by another parameter ------------------------------------------------
+
+    /** Art split into folders per gender: two placeholders in one path. */
+    private static Catalog split() {
+        return CatalogReader.read("""
+                {
+                  "canvas": [64, 64],
+                  "anchors": { "SHEET": [0, 0, 64, 64] },
+                  "slots": [
+                    { "name": "shirt", "anchor": "SHEET",
+                      "select": [ { "texture": "a:person/{gender}/shirts/{shirt}" } ] }
+                  ]
+                }
+                """);
+    }
+
+    private static final Set<String> SPLIT_ART = Set.of(
+            "a:person/male/shirts/steve", "a:person/male/shirts/zuri",
+            "a:person/female/shirts/alex", "a:person/female/shirts/ari");
+
+    /**
+     * A picker wants both parameters so it can offer both controls and let a mismatch be seen. A
+     * two-placeholder path used to answer nothing, and the slot then stopped drawing.
+     */
+    @Test
+    void bothParametersOfASplitFamilyAreAnswered() {
+        Map<String, List<String>> all = Choices.of(split(), SPLIT_ART);
+        assertEquals(List.of("female", "male"), all.get("gender"));
+        assertEquals(List.of("alex", "ari", "steve", "zuri"), all.get("shirt"));
+    }
+
+    /**
+     * A roll must have the narrower answer: a man in a woman-only shirt resolves to a path with no
+     * file behind it — not an error, just a torso that never draws, for the life of the world.
+     */
+    @Test
+    void aDecidedParameterNarrowsTheRest() {
+        assertEquals(List.of("steve", "zuri"),
+                Choices.of(split(), SPLIT_ART, Map.of("gender", "male")).get("shirt"));
+        assertEquals(List.of("alex", "ari"),
+                Choices.of(split(), SPLIT_ART, Map.of("gender", "female")).get("shirt"));
+    }
+
+    /** A split a gender has no folder for offers nothing for it — which is how only men have beards
+     *  without a line of code saying so. */
+    @Test
+    void aSplitWithNoArtForThatValueOffersNothing() {
+        Catalog beards = CatalogReader.read("""
+                {
+                  "canvas": [64, 64],
+                  "anchors": { "SHEET": [0, 0, 64, 64] },
+                  "slots": [
+                    { "name": "beard", "anchor": "SHEET", "optional": true,
+                      "select": [ { "texture": "a:person/{gender}/beard/{beard}" } ] }
+                  ]
+                }
+                """);
+        Set<String> onlyMale = Set.of("a:person/male/beard/plain");
+        assertEquals(List.of("plain"), Choices.of(beards, onlyMale, Map.of("gender", "male")).get("beard"));
+        assertNull(Choices.of(beards, onlyMale, Map.of("gender", "female")).get("beard"));
     }
 }

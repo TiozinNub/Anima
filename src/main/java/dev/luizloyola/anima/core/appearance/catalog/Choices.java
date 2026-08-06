@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * What values a catalog's parameters may actually take, given the art that exists.
@@ -41,6 +43,22 @@ public final class Choices {
      *                   walk of the mod jar on the other, and neither is this class's business.
      */
     public static Map<String, List<String>> of(Catalog catalog, Collection<String> textureIds) {
+        return of(catalog, textureIds, Map.of());
+    }
+
+    /**
+     * As above, but with some parameters already decided.
+     *
+     * <p>What a family split by another parameter needs: with art at
+     * {@code {gender}/shirts/{shirt}}, a picker wants every shirt, while a <b>roll</b> must have
+     * only those drawn for that gender or a man is handed a woman's shirt and his torso
+     * silently draws nothing.
+     *
+     * @param known parameters already fixed, substituted into every template before globbing.
+     *              Anything not named here is still answered across all of its values.
+     */
+    public static Map<String, List<String>> of(Catalog catalog, Collection<String> textureIds,
+                                               Map<String, String> known) {
         Map<String, List<String>> options = new TreeMap<>();
         Set<String> specialisers = specialisers(catalog);
         Map<String, Set<String>> raw = new TreeMap<>();
@@ -48,7 +66,7 @@ public final class Choices {
             for (Selector.Rule rule : slot.selector().rules()) {
                 // Glob the GENERAL candidate (the last one), because it is the pattern every member
                 // of the family matches, specialised or not.
-                String general = rule.textures().get(rule.textures().size() - 1);
+                String general = resolve(rule.textures().get(rule.textures().size() - 1), known);
                 for (String key : placeholders(general)) {
                     raw.computeIfAbsent(key, any -> new LinkedHashSet<>())
                             .addAll(valuesFor(general, key, textureIds));
@@ -76,30 +94,41 @@ public final class Choices {
      * and a jar entry.
      */
     public static List<String> valuesFor(String template, String parameter, Collection<String> textureIds) {
-        String token = "{" + parameter + "}";
-        int at = template.indexOf(token);
-        if (at < 0) {
+        List<String> keys = placeholders(template);
+        int group = keys.indexOf(parameter);
+        if (group < 0) {
             return List.of();
         }
-        String prefix = template.substring(0, at);
-        String suffix = template.substring(at + token.length());
-        // A remaining placeholder in either half would match nothing sensibly — a template with two
-        // unresolved parameters is asked about one at a time, and the other is filled by its own pass.
-        if (prefix.indexOf('{') >= 0 || suffix.indexOf('{') >= 0) {
-            return List.of();
+        // Matched as a pattern rather than split around one placeholder, because a template may
+        // carry several. Each placeholder matches within one path segment: a family is a folder,
+        // so a value never spans a slash.
+        StringBuilder regex = new StringBuilder();
+        int cursor = 0;
+        for (String key : keys) {
+            int open = template.indexOf("{" + key + "}", cursor);
+            regex.append(Pattern.quote(template.substring(cursor, open))).append("([^/]+)");
+            cursor = open + key.length() + 2;
         }
+        regex.append(Pattern.quote(template.substring(cursor)));
+        Pattern pattern = Pattern.compile(regex.toString());
+
         Set<String> found = new TreeSet<>();
         for (String id : textureIds) {
-            if (id.length() > prefix.length() + suffix.length()
-                    && id.startsWith(prefix) && id.endsWith(suffix)) {
-                String value = id.substring(prefix.length(), id.length() - suffix.length());
-                // A value spanning a folder boundary is a different family, not a member of this one.
-                if (value.indexOf('/') < 0) {
-                    found.add(value);
-                }
+            Matcher matched = pattern.matcher(id);
+            if (matched.matches()) {
+                found.add(matched.group(group + 1));
             }
         }
         return List.copyOf(found);
+    }
+
+    /** A template with the parameters somebody has already decided filled in. */
+    private static String resolve(String template, Map<String, String> known) {
+        String resolved = template;
+        for (Map.Entry<String, String> fixed : known.entrySet()) {
+            resolved = resolved.replace("{" + fixed.getKey() + "}", fixed.getValue());
+        }
+        return resolved;
     }
 
     /**
