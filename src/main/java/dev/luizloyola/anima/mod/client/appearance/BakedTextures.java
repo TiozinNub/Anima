@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -166,6 +168,7 @@ public final class BakedTextures {
         AnimaMod.LOGGER.info("appearance: released {} baked texture(s) ({} source sprite(s) dropped)",
                 registered.size(), sprites().size());
         registered.clear();
+        idle().clear();
         sprites().clear();
         generation++;
     }
@@ -182,9 +185,32 @@ public final class BakedTextures {
             live().put(hash, entry);
             AnimaMod.LOGGER.debug("appearance: baked {} ({} live)", entry.id, live().size());
         }
+        // Claiming one back out of the park is the point of it: an eye reopening finds the texture
+        // it had a moment ago rather than compositing it again.
+        idle().remove(hash);
         entry.holders++;
         return entry;
     }
+
+    /**
+     * Textures nobody is holding any more, youngest last, kept against the near future.
+     *
+     * <p>Freeing the instant the last holder lets go is <b>wrong for a face</b>: an agent blinking
+     * alternates two textures every few seconds, so a sole wearer closing their eyes drops the
+     * open-eyed texture to zero holders and re-composites and re-uploads it 150 milliseconds later.
+     * Measured on eighteen settlers: 358 bakes for 28 distinct textures.
+     *
+     * <p>So an unheld texture is <em>parked</em> rather than freed, and evicted only once the park
+     * is full — the cap is the memory bound.
+     */
+    private static @Nullable LinkedHashSet<Long> idle;
+
+    /**
+     * How many unheld textures to keep. At 16 KB of native memory each this is about a megabyte —
+     * against a single vanilla block atlas at four — and it is comfortably more than the two-per-face
+     * a settlement's worth of blinking needs.
+     */
+    private static final int IDLE_CAPACITY = 64;
 
     private static void release(long hash) {
         Entry entry = live().get(hash);
@@ -192,11 +218,21 @@ public final class BakedTextures {
             return;
         }
         if (--entry.holders <= 0) {
-            live().remove(hash);
-            if (entry.registered) {
+            idle().add(hash);
+            evictWhileOverCapacity();
+        }
+    }
+
+    /** Free parked textures oldest-first until the park is inside its cap. */
+    private static void evictWhileOverCapacity() {
+        Iterator<Long> oldest = idle().iterator();
+        while (idle().size() > IDLE_CAPACITY && oldest.hasNext()) {
+            Entry evicted = live().remove(oldest.next());
+            oldest.remove();
+            if (evicted != null && evicted.registered) {
                 // release() removes the texture from the manager and closes it. That is what frees
                 // the NativeImage the DynamicTexture took ownership of.
-                Minecraft.getInstance().getTextureManager().release(entry.id);
+                Minecraft.getInstance().getTextureManager().release(evicted.id);
             }
         }
     }
@@ -256,6 +292,13 @@ public final class BakedTextures {
             }
         }
         return true;
+    }
+
+    private static LinkedHashSet<Long> idle() {
+        if (idle == null) {
+            idle = new LinkedHashSet<>();
+        }
+        return idle;
     }
 
     private static Map<Long, Entry> live() {
