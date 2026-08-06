@@ -46,14 +46,10 @@ public final class CatalogReader {
             }
         }
 
-        Map<String, List<Integer>> ladders = new LinkedHashMap<>();
+        Map<String, LadderSpec> ladders = new LinkedHashMap<>();
         if (root.has("ladders")) {
             for (Map.Entry<String, JsonElement> entry : root.getAsJsonObject("ladders").entrySet()) {
-                List<Integer> colours = new ArrayList<>();
-                for (JsonElement colour : entry.getValue().getAsJsonArray()) {
-                    colours.add(rgb(colour.getAsString()));
-                }
-                ladders.put(entry.getKey(), List.copyOf(colours));
+                ladders.put(entry.getKey(), ladder(entry.getKey(), entry.getValue()));
             }
         }
 
@@ -64,6 +60,40 @@ public final class CatalogReader {
 
         return new Catalog(canvas.get(0).getAsInt(), canvas.get(1).getAsInt(),
                 anchors, ramps, ladders, slots);
+    }
+
+    /**
+     * One ladder, in either spelling.
+     *
+     * <p>A bare array is the colours alone, drawn triangularly — see {@link LadderSpec}. An object
+     * may add {@code weights}, one per colour, replacing "the middle of the list is commoner" with
+     * a statement of how common each colour actually is.
+     */
+    private static LadderSpec ladder(String name, JsonElement element) {
+        if (!element.isJsonObject()) {
+            return LadderSpec.of(colours(element.getAsJsonArray()));
+        }
+        JsonObject object = element.getAsJsonObject();
+        require(object.has("colors"), "ladder '" + name + "' has no colors");
+        List<Integer> colours = colours(object.getAsJsonArray("colors"));
+        List<Integer> weights = new ArrayList<>();
+        if (object.has("weights")) {
+            for (JsonElement weight : object.getAsJsonArray("weights")) {
+                weights.add(weight.getAsInt());
+            }
+            // Checked here rather than left to the record, so the message names the ladder.
+            require(weights.size() == colours.size(), "ladder '" + name + "' has " + colours.size()
+                    + " colour(s) but " + weights.size() + " weight(s) — there must be one each");
+        }
+        return new LadderSpec(colours, weights);
+    }
+
+    private static List<Integer> colours(JsonArray array) {
+        List<Integer> colours = new ArrayList<>();
+        for (JsonElement colour : array) {
+            colours.add(rgb(colour.getAsString()));
+        }
+        return List.copyOf(colours);
     }
 
     /**

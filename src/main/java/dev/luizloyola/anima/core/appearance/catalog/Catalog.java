@@ -26,7 +26,7 @@ import org.jspecify.annotations.Nullable;
 public record Catalog(int canvasWidth, int canvasHeight,
                       Map<String, Anchor> anchors,
                       Map<String, RampSpec> ramps,
-                      Map<String, List<Integer>> ladders,
+                      Map<String, LadderSpec> ladders,
                       List<SlotSpec> slots) {
 
     public Catalog {
@@ -49,11 +49,8 @@ public record Catalog(int canvasWidth, int canvasHeight,
 
     /** An entry of a named ladder, wrapping so an out-of-range index cannot break a bake. */
     public int ladder(String name, int index) {
-        List<Integer> entries = ladders.get(name);
-        if (entries == null || entries.isEmpty()) {
-            return 0xFFFFFF;
-        }
-        return entries.get(Math.floorMod(index, entries.size()));
+        LadderSpec spec = ladders.get(name);
+        return spec == null ? LadderSpec.FALLBACK : spec.color(index);
     }
 
     /**
@@ -154,9 +151,9 @@ public record Catalog(int canvasWidth, int canvasHeight,
      *  rolled a genotype. That is what the editor opens with. */
     public Map<String, Integer> defaultBindings() {
         Map<String, Integer> bindings = new LinkedHashMap<>();
-        for (Map.Entry<String, List<Integer>> ladder : ladders.entrySet()) {
-            if (!ladder.getValue().isEmpty()) {
-                bindings.put(ladder.getKey().toUpperCase(java.util.Locale.ROOT), ladder.getValue().get(0));
+        for (Map.Entry<String, LadderSpec> ladder : ladders.entrySet()) {
+            if (ladder.getValue().size() > 0) {
+                bindings.put(ladder.getKey().toUpperCase(java.util.Locale.ROOT), ladder.getValue().color(0));
             }
         }
         return bindings;
