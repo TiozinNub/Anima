@@ -53,13 +53,43 @@ public final class CatalogReader {
             }
         }
 
+        Map<String, ChoiceWeights> odds = new LinkedHashMap<>();
+        if (root.has("odds")) {
+            for (Map.Entry<String, JsonElement> entry : root.getAsJsonObject("odds").entrySet()) {
+                odds.put(entry.getKey(), odds(entry.getKey(), entry.getValue().getAsJsonObject()));
+            }
+        }
+
         List<SlotSpec> slots = new ArrayList<>();
         for (JsonElement element : array(root, "slots", -1)) {
             slots.add(slot(element.getAsJsonObject(), anchors));
         }
 
         return new Catalog(canvas.get(0).getAsInt(), canvas.get(1).getAsInt(),
-                anchors, ramps, ladders, slots);
+                anchors, ramps, ladders, odds, slots);
+    }
+
+    /**
+     * How likely each member of one family is.
+     *
+     * <p>A map by NAME, not a list: a family's members are discovered by walking a folder, so a
+     * parallel array would go out of step the first time somebody drew a new PNG. {@code "*"} sets
+     * what an unnamed member is worth.
+     */
+    private static ChoiceWeights odds(String parameter, JsonObject object) {
+        Map<String, Integer> byValue = new LinkedHashMap<>();
+        int fallback = 1;
+        for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
+            int weight = entry.getValue().getAsInt();
+            require(weight >= 0, "odds for '" + parameter + "." + entry.getKey()
+                    + "' may not be negative: " + weight);
+            if (ChoiceWeights.DEFAULT_KEY.equals(entry.getKey())) {
+                fallback = weight;
+            } else {
+                byValue.put(entry.getKey(), weight);
+            }
+        }
+        return new ChoiceWeights(byValue, fallback);
     }
 
     /**

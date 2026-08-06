@@ -27,16 +27,23 @@ public record Catalog(int canvasWidth, int canvasHeight,
                       Map<String, Anchor> anchors,
                       Map<String, RampSpec> ramps,
                       Map<String, LadderSpec> ladders,
+                      Map<String, ChoiceWeights> odds,
                       List<SlotSpec> slots) {
 
     public Catalog {
         anchors = Map.copyOf(Objects.requireNonNull(anchors, "anchors"));
         ramps = Map.copyOf(Objects.requireNonNull(ramps, "ramps"));
         ladders = Map.copyOf(Objects.requireNonNull(ladders, "ladders"));
+        odds = Map.copyOf(Objects.requireNonNull(odds, "odds"));
         slots = List.copyOf(Objects.requireNonNull(slots, "slots"));
         if (canvasWidth <= 0 || canvasHeight <= 0) {
             throw new IllegalArgumentException("a canvas of " + canvasWidth + "x" + canvasHeight);
         }
+    }
+
+    /** How likely each member of a family is — uniform for a parameter nothing was said about. */
+    public ChoiceWeights odds(String parameter) {
+        return odds.getOrDefault(parameter, ChoiceWeights.UNIFORM);
     }
 
     public @Nullable Anchor anchor(String name) {
