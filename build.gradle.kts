@@ -114,6 +114,15 @@ dependencies {
 tasks.named<Test>("test") {
     useJUnitPlatform()
 
+    // This node's own named classes, ahead of everything else. Loom resolves a project on the test
+    // classpath to its published jar rather than to `build/classes/java/main` — and on a
+    // Mojang-mapped node that jar is `remapJar`'s output, bytecode written against intermediary
+    // names. A test then only has to DECLARE a field of a mod/-layer type for JUnit's field scan to
+    // die on `NoClassDefFoundError: net/minecraft/class_18` while loading a class whose source says
+    // `SavedData`. Prepending makes the named classes win the lookup. The 26.1+ nodes never saw it:
+    // they are unobfuscated, so their jar holds the same names either way.
+    classpath = sourceSets["main"].output + classpath
+
     // ArchitectureTest reads Java source as TEXT, and the text it must read is the BRANCH's
     // (`anima/src`), never this node's generated copy: the layering rules are about the one
     // shared source of truth, and the Stonecutter rule can only be asked of source that still
@@ -133,8 +142,15 @@ tasks.named<Test>("test") {
     // Handed in rather than found: build/libs/ keeps every timestamped jar this repo has ever
     // built, hundreds of them, so "newest match for a glob" is a guess and would happily verify
     // last month's release.
-    val shippedJar = (if (tasks.names.contains("remapJar")) tasks.named<Jar>("remapJar")
-                      else tasks.named<Jar>("jar")).flatMap { it.archiveFile }
+    //
+    // Typed `AbstractArchiveTask`, not `Jar`. Loom's RemapJarTask descends from
+    // `org.gradle.jvm.tasks.Jar`, which is the SUPERclass of the `Jar` a build script means when it
+    // writes the bare name (`org.gradle.api.tasks.bundling.Jar`) — so asking for `named<Jar>` on a
+    // node that has a remapJar failed configuration outright with "not a subclass of the given
+    // type", and every Mojang-mapped node died before compiling. The 26.1+ nodes never noticed,
+    // having no remapJar to look up.
+    val shippedJar = (if (tasks.names.contains("remapJar")) tasks.named<AbstractArchiveTask>("remapJar")
+                      else tasks.named<AbstractArchiveTask>("jar")).flatMap { it.archiveFile }
     dependsOn(shippedJar)
     inputs.file(shippedJar).withPropertyName("shippedJar").withPathSensitivity(PathSensitivity.NAME_ONLY)
     // Resolved here rather than through a jvmArgumentProviders lambda: a lambda written in a build
@@ -163,6 +179,12 @@ tasks.named<Test>("test") {
 //                 take it for the current one — but a cleanup with 21 judgement calls in it, not
 //                 a lint switch. Delete this line when they are gone.
 //
+// The last two are spelled out only where the toolchain has them. `-Xlint` rejects the whole flag
+// with `invalid flag` (not a warning, a compilation-initialization error) the moment it reads a
+// category it does not know, so naming one costs every node compiled by an older JDK. `this-escape`
+// arrived in 21 and `dangling-doc-comments` in 22; the 1.21.11 node builds on 21. That is what
+// made `:anima:1.21.11:compileJava` fail before it read a single source file.
+//
 // Error Prone rides along on the same switch. Its ERROR tier is the part that earns its keep —
 // around a hundred high-confidence bug patterns, on by default, and both mods pass every one of
 // them today, so what it actually buys is a guard on every future commit. Its WARNING tier is
@@ -174,8 +196,14 @@ tasks.named<Test>("test") {
 tasks.withType<JavaCompile>().configureEach {
     val lint = providers.gradleProperty("lint").orNull != "off"
     if (lint) {
+        val muted = buildList {
+            add("classfile")
+            add("deprecation")
+            if (requiredJava >= JavaVersion.VERSION_21) add("this-escape")
+            if (requiredJava >= JavaVersion.VERSION_22) add("dangling-doc-comments")
+        }
         options.compilerArgs.addAll(
-            listOf("-Xlint:all,-classfile,-deprecation,-this-escape,-dangling-doc-comments", "-Werror")
+            listOf(muted.joinToString(",-", prefix = "-Xlint:all,-"), "-Werror")
         )
     }
     options.errorprone {
