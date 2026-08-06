@@ -53,6 +53,20 @@ public final class Needs {
     }
 
     /**
+     * The same, as the concrete type that knows how to MOVE it — {@code gauge(COMPANY,
+     * Company.class)} — or empty when this body has no such gauge, or has one of another type under
+     * that key.
+     *
+     * <p>{@link Gauge} is read-only: a need moves by a typed call named for what
+     * happened to the body ({@code eat(bread)}), never an {@code add(0.1)}. The amounts belong to
+     * the gauge and its species aspects, the only place they can be tuned.
+     */
+    public <G extends Gauge> Optional<G> gauge(NeedKind kind, Class<G> type) {
+        Gauge gauge = gauges.get(kind);
+        return type.isInstance(gauge) ? Optional.of(type.cast(gauge)) : Optional.empty();
+    }
+
+    /**
      * How full that gauge is, or {@code 0} for a need this body does not have — the same answer a
      * body with an empty gauge would give, and harmless because nothing acts on a level alone.
      */

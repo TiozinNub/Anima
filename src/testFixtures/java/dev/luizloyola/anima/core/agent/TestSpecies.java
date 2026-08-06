@@ -60,7 +60,7 @@ public final class TestSpecies {
             .set(ProfileAspect.SOCIAL_COMPANY_WIDTH, 0.5)
             .set(ProfileAspect.SOCIAL_COMPANY_SOLITUDE_TICKS, 48_000)
             .set(ProfileAspect.SOCIAL_COMPANY_PROXIMITY_TICKS, 24_000)
-            .set(ProfileAspect.SOCIAL_COMPANY_ENCOUNTER_TICKS, 1_200)
+            .set(ProfileAspect.SOCIAL_COMPANY_UTTERANCES, 30)
             .set(ProfileAspect.BODY_HEIGHT, 2)
             .set(ProfileAspect.BODY_JUMP_HEIGHT, 1)
             .set(ProfileAspect.BODY_MAX_DROP, 3)

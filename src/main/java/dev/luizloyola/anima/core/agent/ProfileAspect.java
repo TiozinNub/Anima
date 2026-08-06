@@ -174,10 +174,11 @@ public enum ProfileAspect {
             "How long simply being near ONE person this body has met would take to fill its "
                     + "company from empty. Below social.company_solitude_ticks, company sinks even "
                     + "with a neighbour standing there."),
-    SOCIAL_COMPANY_ENCOUNTER_TICKS("social.company_encounter_ticks", Kind.INT, 20, 480_000,
-            "How long an actual conversation would take to fill this body's company from empty. "
-                    + "Much shorter than proximity: talking to someone is worth more than standing "
-                    + "beside them."),
+    SOCIAL_COMPANY_UTTERANCES("social.company_utterances", Kind.INT, 1, 10_000,
+            "How many lines of conversation would fill this body's company from empty. Counted "
+                    + "per line exchanged, NOT per tick spent talking — otherwise a slow replier "
+                    + "would be better company than a brisk one. Time spent together still counts, "
+                    + "through social.company_proximity_ticks, which is what it actually is."),
 
     // --- body: what this one can physically do -------------------------------------------------
 

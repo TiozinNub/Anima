@@ -19,6 +19,11 @@ import java.util.function.Supplier;
  * whatever else is happening, so a crowd is a net gain and being alone a net loss, with no branch
  * anywhere saying so.
  *
+ * <p><b>A conversation is worth what was SAID in it, not how long it stayed open</b> (decision:
+ * Luiz, 2026-08-06). Filling per open-encounter tick priced silence — a slow replier made better
+ * company than a brisk one — so the fill is {@link #conversed()}, one event per utterance
+ * exchanged; time together counts through {@link #observe(int)}.
+ *
  * <p><b>Known people, not any people.</b> {@link #observe(int)} counts only people this body has
  * met, so a stranger leaves the drive to go and meet them intact rather than satisfying it by
  * sight. A player counts exactly like a Person, by not being special-cased.
@@ -49,16 +54,6 @@ public final class Company implements Gauge {
     /** Pushed by the body each tick: how many people it can currently see or hear and has met. */
     private int nearby;
 
-    /**
-     * Pushed when an encounter opens and closes. Always false today — nothing opens one yet.
-     *
-     * <p><b>not persisted, and it must stay that way.</b> "We are talking" belongs
-     * beside the encounter it refers to, and encounters are their own persisted store; a second
-     * copy here would give the world two answers that can disagree, and this one would win
-     * silently. When encounters land, the body re-derives it from the store on load.
-     */
-    private boolean conversing;
-
     public Company(Supplier<AgentProfile> profile) {
         this.profile = Objects.requireNonNull(profile, "profile");
     }
@@ -73,25 +68,31 @@ public final class Company implements Gauge {
         this.nearby = Math.max(0, knownNearby);
     }
 
-    /** Whether this body is in an open encounter — a conversation fills far faster than presence. */
-    public void conversing(boolean conversing) {
-        this.conversing = conversing;
-    }
-
-    public boolean conversing() {
-        return conversing;
+    /**
+     * One line was exchanged in a conversation this body is part of — said by it or to it. An
+     * EVENT, not a state: it lands in full, and nothing has to be told when a conversation ends.
+     *
+     * <p><b>Call this as an utterance ARRIVES, never by walking a transcript.</b> Encounters persist
+     * and resume, so a body that counted the lines it could see would come back from a restart
+     * having had the same chat twice.
+     */
+    public void conversed() {
+        AgentProfile p = seeded();
+        level = clamp(level + perStep(p.i(ProfileAspect.SOCIAL_COMPANY_UTTERANCES)));
     }
 
     /**
-     * One tick of company. Solitude, nearby known people and a conversation are summed, so
-     * "alone", "in a crowd" and "talking" are not states this has to know about.
+     * One tick of company: solitude drains and every known person nearby trickles in. The two are
+     * summed, so "alone" and "in a crowd" are not states this has to know about.
+     *
+     * <p>Conversation is absent, arriving through {@link #conversed()} when something
+     * is actually said.
      */
     @Override
     public void tick() {
         AgentProfile p = seeded();
-        double delta = nearby * perTick(p.i(ProfileAspect.SOCIAL_COMPANY_PROXIMITY_TICKS))
-                + (conversing ? perTick(p.i(ProfileAspect.SOCIAL_COMPANY_ENCOUNTER_TICKS)) : 0.0)
-                - perTick(p.i(ProfileAspect.SOCIAL_COMPANY_SOLITUDE_TICKS));
+        double delta = nearby * perStep(p.i(ProfileAspect.SOCIAL_COMPANY_PROXIMITY_TICKS))
+                - perStep(p.i(ProfileAspect.SOCIAL_COMPANY_SOLITUDE_TICKS));
         level = clamp(level + delta);
     }
 
@@ -139,7 +140,7 @@ public final class Company implements Gauge {
         AgentProfile p = seeded();
         return String.format(Locale.ROOT, "company %.2f in [%.2f, %.2f] (%s)%s",
                 level, low(p), high(p), band().name().toLowerCase(Locale.ROOT),
-                conversing ? " talking" : nearby > 0 ? " with " + nearby : "");
+                nearby > 0 ? " with " + nearby : "");
     }
 
     /**
@@ -166,9 +167,12 @@ public final class Company implements Gauge {
                 + p.d(ProfileAspect.SOCIAL_COMPANY_WIDTH) / 2.0);
     }
 
-    /** A "ticks to cross the whole gauge" aspect as a per-tick rate; 0 ticks means no effect. */
-    private static double perTick(int ticks) {
-        return ticks <= 0 ? 0.0 : 1.0 / ticks;
+    /**
+     * A "how many of these cross the whole gauge" aspect as one step's worth; 0 means no effect.
+     * Serves both kinds of step this gauge has — a tick of the clock and a line of conversation.
+     */
+    private static double perStep(int steps) {
+        return steps <= 0 ? 0.0 : 1.0 / steps;
     }
 
     private static double clamp(double value) {

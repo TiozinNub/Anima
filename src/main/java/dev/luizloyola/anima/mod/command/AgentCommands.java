@@ -898,12 +898,13 @@ public final class AgentCommands {
     private static int setCompany(CommandSourceStack source, double level) {
         AgentBody body = resolveBody(source);
         if (body == null) return 0;
-        Optional<Gauge> gauge = body.needs().gauge(NeedKind.COMPANY);
-        if (gauge.isEmpty() || !(gauge.get() instanceof Company company)) {
+        Optional<Company> gauge = body.needs().gauge(NeedKind.COMPANY, Company.class);
+        if (gauge.isEmpty()) {
             Replies.fail(source, Component.literal(body.entity().getName().getString()
                     + " has no company gauge — that body's species does not feel lonely."));
             return 0;
         }
+        Company company = gauge.get();
         company.setLevel(level);
         Replies.send(source, () -> Component.literal(body.entity().getName().getString() + ": "
                 + company.describe()).withStyle(ChatFormatting.AQUA), true);

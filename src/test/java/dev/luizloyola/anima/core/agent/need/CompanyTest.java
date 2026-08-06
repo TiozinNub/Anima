@@ -24,7 +24,7 @@ class CompanyTest {
     private static final double DELTA = 1e-9;
     private static final double SOLITUDE = 1.0 / 48_000;
     private static final double PROXIMITY = 1.0 / 24_000;
-    private static final double ENCOUNTER = 1.0 / 1_200;
+    private static final double PER_LINE = 1.0 / 30;
 
     private static Company fresh() {
         return new Company(() -> TestSpecies.PROFILE);
@@ -73,15 +73,54 @@ class CompanyTest {
     }
 
     @Test
-    @DisplayName("a conversation is worth far more than standing beside someone")
-    void talkingFillsFaster() {
+    @DisplayName("a conversation is paid for by the LINE, not by the second")
+    void conversationIsPaidPerLine() {
         Company talking = fresh();
-        talking.conversing(true);
-        talking.tick();
-        assertEquals(0.6 + ENCOUNTER - SOLITUDE, talking.level(), DELTA);
-        assertTrue(ENCOUNTER > 20 * PROXIMITY,
-                "the declared rates must keep talking worth more than proximity, or the encounter "
-                        + "rung has nothing to pay for itself with");
+        talking.setLevel(0.20);
+        talking.conversed();
+        assertEquals(0.20 + PER_LINE, talking.level(), DELTA, "one line, one step, at once");
+        talking.conversed();
+        talking.conversed();
+        assertEquals(0.20 + 3 * PER_LINE, talking.level(), DELTA);
+    }
+
+    @Test
+    @DisplayName("a slow talker is not better company than a brisk one")
+    void timeSpentTalkingBuysNothing() {
+        // A per-tick fill while an encounter was open paid a slow answer more than a brisk one, and
+        // went on paying while a body waited out a timeout on somebody already gone.
+        Company brisk = fresh();
+        brisk.setLevel(0.20);
+        Company slow = fresh();
+        slow.setLevel(0.20);
+
+        for (int i = 0; i < 3; i++) {
+            brisk.conversed();
+            brisk.tick();
+        }
+        for (int i = 0; i < 3; i++) {
+            slow.conversed();
+            for (int t = 0; t < 200; t++) {
+                slow.tick();
+            }
+        }
+
+        assertTrue(slow.level() < brisk.level(),
+                "the same three lines, dragged out over ten seconds, must not be worth MORE — "
+                        + "with nobody counted nearby, all the extra time does is drain");
+    }
+
+    @Test
+    @DisplayName("sitting through a pause is still worth something — as proximity, which is what it is")
+    void aPauseIsStillTimeSpentTogether() {
+        Company together = fresh();
+        together.setLevel(0.20);
+        together.observe(1);
+        for (int t = 0; t < 200; t++) {
+            together.tick();
+        }
+        assertEquals(0.20 + 200 * (PROXIMITY - SOLITUDE), together.level(), DELTA,
+                "the pause paid the proximity rate, and only that");
     }
 
     @Test
