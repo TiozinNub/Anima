@@ -6,9 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins {@link ToleranceCurve}'s four plateaus and its boundaries — the mechanism that retired
- * {@code EatFromInventory}'s STARVING band-gate. A pressure exactly on a threshold takes the
- * HIGHER band, matching {@code Needs.band()}.
+ * The four plateaus of {@link ToleranceCurve} and its boundary values — the general mechanism that
+ * retired {@code EatFromInventory}'s STARVING band-gate. A pressure exactly on a threshold gets
+ * the HIGHER band, matching {@code Metabolism.band()}.
  */
 class ToleranceCurveTest {
 

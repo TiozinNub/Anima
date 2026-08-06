@@ -159,7 +159,7 @@ public final class SourceTree {
             this.text = text;
         }
 
-        /** Path relative to the source root, e.g. {@code dev/luizloyola/anima/core/agent/Needs.java}. */
+        /** Path relative to the source root, e.g. {@code dev/luizloyola/anima/core/agent/Metabolism.java}. */
         public String path() {
             return path;
         }

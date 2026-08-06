@@ -6,7 +6,7 @@ import dev.luizloyola.anima.core.brain.act.ConsumeState;
 import dev.luizloyola.anima.core.brain.act.ItemConsumer;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.agent.FoodValue;
-import dev.luizloyola.anima.core.agent.Needs;
+import dev.luizloyola.anima.core.agent.Metabolism;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.InteractionHand;
@@ -16,26 +16,27 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The {@link ItemConsumer} actuator <em>adapter</em>: the mouth. Core tasks say "consume slot N";
- * this drives VANILLA's item-use pipeline, so the animation, sounds, particles, duration, consume
- * effects and stack shrink are all vanilla's. On 26.1.2 bytecode {@code LivingEntity.tick()} runs
- * {@code updatingUsingItem()} for any living entity, so after {@code startUsingItem} the countdown,
- * {@code completeUsingItem} and {@code Consumable.onConsume} need no player anywhere.
+ * this class drives VANILLA's real item-use pipeline to do it, so the animation, sounds, particles,
+ * duration, consume effects and stack shrink are all vanilla's. On the 26.1.2 bytecode
+ * {@code LivingEntity.tick()} runs {@code updatingUsingItem()} for any living entity, so
+ * {@code startUsingItem} is all it takes — no player anywhere.
  *
- * <p><b>Except nutrition</b>, which vanilla applies inside {@code FoodProperties.onConsume} behind
- * an {@code instanceof Player} gate and would silently vanish here: on completion this actuator
- * applies the item's {@link FoodValue} to {@link AgentBody#needs()} itself.
+ * <p><b>Except nutrition</b>, which vanilla applies behind an {@code instanceof Player} gate in
+ * {@code FoodProperties.onConsume}; on completion this actuator applies the item's
+ * {@link FoodValue} to {@link AgentBody#metabolism()} itself.
  *
- * <p><b>The handshake with the equipment mirror.</b> Only the hand item can be used, and the hand is
- * the mirror's business: {@link #begin} arranges the CORE inventory and waits; the mirror pushes
- * core&nbsp;→&nbsp;entity hand at the START of the next {@code serverAiStep} and the brain polls
- * {@link #state()} after it, so PREPARING resolves on the next poll. The mirror also carries the
- * completion shrink back into core — this class never edits the eaten slot.
+ * <p><b>The handshake with the equipment mirror.</b> Only the hand item can be used:
+ * {@link #begin} arranges the CORE inventory and waits, the mirror pushes it into the hand at the
+ * START of the next {@code serverAiStep}, and the brain polls {@link #state()} after the mirror that
+ * tick, so PREPARING resolves on the next poll. The mirror's pull carries the in-place shrink back,
+ * so this class never edits the eaten slot.
  *
- * <p><b>SETTLING burns one more tick, for the watching clients.</b>
- * {@code detectEquipmentUpdates()} runs before {@code aiStep()} (26.1.2 bytecode, offsets 125 and
- * 178), so the equipment packet ships a tick behind the synched using-item flag; the client finds
- * an empty hand, calls {@code stopUsingItem} and runs no consume tick, costing the crumbs only it
- * can draw. Waiting a tick puts the packet first.
+ * <p><b>SETTLING burns one more tick, for the watching clients.</b> {@code detectEquipmentUpdates()}
+ * runs before {@code aiStep()} (26.1.2 bytecode, offsets 125 and 178), so a hand set during
+ * {@code serverAiStep} is not broadcast until the FOLLOWING tick, while the using-item flag ships
+ * that same tick. Started together, the flag lands first, the client leaves {@code useItem} EMPTY
+ * and stops the use without ever running a consume tick — the eating sound survived, the crumbs did
+ * not.
  *
  * <p>Phases: {@code IDLE → PREPARING → SETTLING → CONSUMING → FINISHED | FAILED}; externally both
  * PREPARING and SETTLING read as {@link ConsumeState#CONSUMING}.
@@ -175,7 +176,7 @@ public final class AgentItemConsumer implements ItemConsumer {
             return;
         }
         if (this.foodValue != null) {
-            this.person.needs().eat(this.foodValue.nutrition(), this.foodValue.saturation());
+            this.person.metabolism().eat(this.foodValue.nutrition(), this.foodValue.saturation());
         }
         this.phase = Phase.FINISHED;
     }
@@ -188,7 +189,7 @@ public final class AgentItemConsumer implements ItemConsumer {
      * gate must live here or a full AgentBody would happily waste food.
      */
     private boolean canEat(boolean canAlwaysEat) {
-        return canAlwaysEat || this.person.needs().foodLevel() < Needs.MAX_FOOD;
+        return canAlwaysEat || this.person.metabolism().foodLevel() < Metabolism.MAX_FOOD;
     }
 
     /** Stops any bite in progress ({@code releaseUsingItem}, vanilla's put-it-down) and resets to IDLE. */

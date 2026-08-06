@@ -50,7 +50,10 @@ import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.log.Entry;
 import dev.luizloyola.anima.core.log.JournalService;
-import dev.luizloyola.anima.core.agent.Needs;
+import dev.luizloyola.anima.core.agent.Metabolism;
+import dev.luizloyola.anima.core.agent.need.Company;
+import dev.luizloyola.anima.core.agent.need.Gauge;
+import dev.luizloyola.anima.core.agent.need.NeedKind;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.mod.brain.KnowledgeViewer;
 import dev.luizloyola.anima.core.brain.board.SiteClaims;
@@ -95,6 +98,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -462,6 +466,38 @@ public final class AgentCommands {
                                 .executes(ctx -> claimsShow(ctx.getSource()));
     }
 
+    /**
+     * What the resolved agent feels — one line per gauge, in the order its body declared them,
+     * plus the dev setters for staging a mood.
+     *
+     * <p><b>Written against the roster, not against a list of needs</b>: it walks
+     * {@code needs().all()}, so a gauge some other mod registers appears the day it exists. The
+     * setters are the exception — moving a gauge is its own typed business, and {@code food} moves
+     * an organ rather than a level.
+     *
+     * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
+     * so a shared subcommand must be built once per root that mounts it.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> needs() {
+        return Commands.literal("needs")
+                                .executes(ctx -> needsShow(ctx.getSource()))
+                                .then(Commands.literal("food")
+                                        .then(Commands.argument("food",
+                                                        IntegerArgumentType.integer(0, Metabolism.MAX_FOOD))
+                                                .executes(ctx -> setFood(ctx.getSource(),
+                                                        IntegerArgumentType.getInteger(ctx, "food"), 0.0F))
+                                                .then(Commands.argument("saturation",
+                                                                FloatArgumentType.floatArg(0.0F, Metabolism.MAX_FOOD))
+                                                        .executes(ctx -> setFood(ctx.getSource(),
+                                                                IntegerArgumentType.getInteger(ctx, "food"),
+                                                                FloatArgumentType.getFloat(ctx, "saturation"))))))
+                                .then(Commands.literal("company")
+                                        .then(Commands.argument("level",
+                                                        DoubleArgumentType.doubleArg(0.0, 1.0))
+                                                .executes(ctx -> setCompany(ctx.getSource(),
+                                                        DoubleArgumentType.getDouble(ctx, "level")))));
+    }
+
     public static LiteralArgumentBuilder<CommandSourceStack> peers() {
         return Commands.literal("peers")
                                 .executes(ctx -> peersList(ctx.getSource()))
@@ -808,6 +844,72 @@ public final class AgentCommands {
     }
 
     /** The resolved Person's live {@code beings()} reading — everything they make out. */
+    /** Every gauge the resolved body has, one line each, without knowing what any of them are. */
+    private static int needsShow(CommandSourceStack source) {
+        AgentBody body = resolveBody(source);
+        if (body == null) return 0;
+        String name = body.entity().getName().getString();
+        Collection<Gauge> gauges = body.needs().all();
+        if (gauges.isEmpty()) {
+            Replies.send(source, () -> Component.literal(name + " needs nothing at all.")
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        Replies.send(source, () -> Component.literal(name + " — " + gauges.size() + " needs")
+                .withStyle(ChatFormatting.AQUA));
+        for (Gauge gauge : gauges) {
+            // No key prefix: every gauge's describe() already names itself, and the alternative
+            // reads "food: food 14/20".
+            String line = String.format(Locale.ROOT, "  %s  (pressure %.2f)",
+                    gauge.describe(), gauge.pressure());
+            Replies.send(source, () -> Component.literal(line)
+                    .withStyle(gauge.pressure() > 0.0 ? ChatFormatting.YELLOW : ChatFormatting.GRAY));
+        }
+        return 1;
+    }
+
+    /**
+     * Sets the resolved body's food level (0..20) and saturation (0.0 when omitted) — the dev knob
+     * for exercising starvation, regen and the Eat instinct without waiting out the natural burn.
+     * Food is set before saturation because saturation clamps against the current food level;
+     * exhaustion is zeroed so behavior afterwards is deterministic.
+     *
+     * <p>Reaches for the ORGAN, not the gauge, as every need setter will: {@code need.food} is a
+     * view, so there is no level here to write.
+     */
+    private static int setFood(CommandSourceStack source, int food, float saturation) {
+        AgentBody body = resolveBody(source);
+        if (body == null) return 0;
+        Metabolism metabolism = body.metabolism();
+        metabolism.setFoodLevel(food);
+        metabolism.setSaturation(saturation);
+        metabolism.setExhaustion(0.0F);
+        // LOGGED: needs persist on the body and drive the arbiter — a hand-set hunger explains an
+        // eat that would otherwise read as the brain deciding something inexplicable.
+        Replies.send(source, () -> Component.literal(body.entity().getName().getString() + ": "
+                + metabolism.describe()).withStyle(ChatFormatting.AQUA), true);
+        return 1;
+    }
+
+    /**
+     * Sets the resolved body's company level directly — the dev knob for staging a lonely settler
+     * without leaving one alone for two in-game days. LOGGED for the same reason as the food one.
+     */
+    private static int setCompany(CommandSourceStack source, double level) {
+        AgentBody body = resolveBody(source);
+        if (body == null) return 0;
+        Optional<Gauge> gauge = body.needs().gauge(NeedKind.COMPANY);
+        if (gauge.isEmpty() || !(gauge.get() instanceof Company company)) {
+            Replies.fail(source, Component.literal(body.entity().getName().getString()
+                    + " has no company gauge — that body's species does not feel lonely."));
+            return 0;
+        }
+        company.setLevel(level);
+        Replies.send(source, () -> Component.literal(body.entity().getName().getString() + ": "
+                + company.describe()).withStyle(ChatFormatting.AQUA), true);
+        return 1;
+    }
+
     private static int peersList(CommandSourceStack source) {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;

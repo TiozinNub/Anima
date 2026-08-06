@@ -13,7 +13,8 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import dev.luizloyola.anima.core.agent.FoodValue;
-import dev.luizloyola.anima.core.agent.Needs;
+import dev.luizloyola.anima.core.agent.Metabolism;
+import dev.luizloyola.anima.core.agent.need.Needs;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import java.util.ArrayList;
 import java.util.List;
@@ -84,6 +85,12 @@ public final class AgentPercepts implements Percepts {
     }
 
     /** The body's metabolism, read as pressure — the brain never writes here. */
+    @Override
+    public Metabolism metabolism() {
+        return this.person.metabolism();
+    }
+
+    /** Every gauge the body feels, read as pressure — the brain never writes here either. */
     @Override
     public Needs needs() {
         return this.person.needs();

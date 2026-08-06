@@ -40,17 +40,15 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 
 /**
- * Per-{@link AgentBody} brain host: mounts the core decision machinery on the entity and gives it a
- * {@link BrainContext} — actuators ({@link AgentMover} legs, {@link AgentItemConsumer} mouth) and
- * percepts ({@link AgentPercepts}). Arbiter-first: it hosts an {@link Arbiter} (Flee, Eat, Wander
- * today — Flee first so a flee/eat pressure tie flees) rather than a bare
- * {@link dev.luizloyola.anima.core.brain.task.TaskExecutor}. Only the mounting bracket and the
- * Minecraft boundary, assembled once at construction since the adapters are stateless views.
+ * Per-{@link AgentBody} brain host: mounts the pure-core machinery on the entity and hands it a
+ * {@link BrainContext} — {@link AgentMover} legs, {@link AgentItemConsumer} mouth,
+ * {@link AgentPercepts} senses. Arbiter-first ({@link Arbiter} over Flee, Eat and Wander, Flee
+ * first so a flee/eat pressure tie flees); a mounting bracket only, built once from stateless
+ * views.
  *
- * <p>The brain decides; the body suffers. The entity owns and ticks its own metabolism
- * ({@link AgentBody#needs()}), the way vanilla's {@code FoodData} belongs to the player, so a
- * paused or throttled brain still starves. Anything of the body persists on the entity; the brain's
- * working state is transient like the Navigator's — a reload just re-decides.
+ * <p>It reads the body through {@link Percepts} and never owns body state: metabolism is the
+ * entity's ({@link AgentBody#metabolism()}), so a paused or throttled brain still starves. The
+ * arbiter and its task tree are transient — a reload re-decides.
  */
 public final class BrainDriver {
     private final AgentBody person;

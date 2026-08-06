@@ -3,8 +3,9 @@ package dev.luizloyola.anima.mod.body;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.AgentModifiers;
 import dev.luizloyola.anima.core.agent.AgentProfile;
-import dev.luizloyola.anima.core.agent.Needs;
+import dev.luizloyola.anima.core.agent.Metabolism;
 import dev.luizloyola.anima.core.agent.Pronouns;
+import dev.luizloyola.anima.core.agent.need.Needs;
 import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.log.AgentJournal;
@@ -58,6 +59,13 @@ public interface AgentBody {
 
     Inventory inventory();
 
+    Metabolism metabolism();
+
+    /**
+     * Every gauge this body feels — hunger, company, whatever else its mod declared. The metabolism
+     * above is the organ behind {@code need.food}; this roster ticks them all on one beat and prints
+     * them without knowing what any of them are.
+     */
     Needs needs();
 
     /**

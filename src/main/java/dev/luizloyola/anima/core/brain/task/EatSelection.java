@@ -4,7 +4,7 @@ import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.sense.FoodLookup;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.agent.FoodValue;
-import dev.luizloyola.anima.core.agent.Needs;
+import dev.luizloyola.anima.core.agent.Metabolism;
 import java.util.Optional;
 
 /**
@@ -47,8 +47,8 @@ final class EatSelection {
     }
 
     private static Optional<Inventory.Entry> best(BrainContext ctx, boolean wantLastResort) {
-        Needs needs = ctx.percepts().needs();
-        int missing = Needs.MAX_FOOD - needs.foodLevel();
+        Metabolism metabolism = ctx.percepts().metabolism();
+        int missing = Metabolism.MAX_FOOD - metabolism.foodLevel();
         if (missing == 0) {
             return Optional.empty(); // nothing to restore — no reason to eat anything, either tier
         }

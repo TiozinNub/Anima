@@ -58,7 +58,7 @@ class EatLastResortTest {
     void rawFoodIsPricedByForgoneNutrition() {
         registerFoods();
         potatoIsRaw();
-        ctx.percepts.needs.setFoodLevel(3);
+        ctx.percepts.metabolism.setFoodLevel(3);
         ctx.percepts.inventory.set(4, ItemStack.of("minecraft:potato", 6, 64));
         // 20 per forgone point * (baked 5 - raw 1 = 4) = 80
         assertEquals(80.0, new EatLastResort().estimateCost(ctx), "raw potato: forgone-nutrition price");
@@ -67,7 +67,7 @@ class EatLastResortTest {
     @Test
     void treatIsPricedFlat() {
         registerFoods();
-        ctx.percepts.needs.setFoodLevel(3);
+        ctx.percepts.metabolism.setFoodLevel(3);
         ctx.percepts.inventory.set(0, ItemStack.of("minecraft:golden_apple", 1, 64));
         assertEquals(80.0, new EatLastResort().estimateCost(ctx), "a golden apple is emergency supplies");
     }
@@ -78,7 +78,7 @@ class EatLastResortTest {
     void rawPotatoHeldAtHungryToleranceThenEatenAtInfinity() {
         registerFoods();
         potatoIsRaw();
-        ctx.percepts.needs.setFoodLevel(8); // merely hungry (band is now irrelevant — the number is)
+        ctx.percepts.metabolism.setFoodLevel(8); // merely hungry (band is now irrelevant — the number is)
         ctx.percepts.inventory.set(4, ItemStack.of("minecraft:potato", 6, 64));
 
         ctx.costTolerance = ToleranceCurve.HUNGRY_TOLERANCE; // 60 < the raw potato's 80
@@ -103,7 +103,7 @@ class EatLastResortTest {
     @Test
     void goldenAppleHeldAtHungryToleranceThenEatenAtInfinity() {
         registerFoods();
-        ctx.percepts.needs.setFoodLevel(8);
+        ctx.percepts.metabolism.setFoodLevel(8);
         ctx.percepts.inventory.set(0, ItemStack.of("minecraft:golden_apple", 1, 64));
 
         ctx.costTolerance = ToleranceCurve.HUNGRY_TOLERANCE; // 60 < the treat's 80
@@ -125,7 +125,7 @@ class EatLastResortTest {
     void readyBreadBeatsRawPotatoByCost() {
         registerFoods();
         potatoIsRaw();
-        ctx.percepts.needs.setFoodLevel(18); // missing 2: bread wastes 3, raw potato wastes 0
+        ctx.percepts.metabolism.setFoodLevel(18); // missing 2: bread wastes 3, raw potato wastes 0
         ctx.percepts.inventory.set(1, ItemStack.of("minecraft:bread", 1, 64));
         ctx.percepts.inventory.set(3, ItemStack.of("minecraft:potato", 4, 64));
         assertEquals(1, chosenSlot(), "ready food out-competes raw on cost, whatever the tolerance");
@@ -135,7 +135,7 @@ class EatLastResortTest {
     void readyBreadWinsEvenWhileStarving() {
         registerFoods();
         potatoIsRaw();
-        ctx.percepts.needs.setFoodLevel(3); // starving -> tolerance would be infinite
+        ctx.percepts.metabolism.setFoodLevel(3); // starving -> tolerance would be infinite
         ctx.costTolerance = Double.POSITIVE_INFINITY;
         ctx.percepts.inventory.set(6, ItemStack.of("minecraft:potato", 2, 64));
         ctx.percepts.inventory.set(8, ItemStack.of("minecraft:bread", 1, 64));
@@ -148,7 +148,7 @@ class EatLastResortTest {
     void lastResortTiesGoToTheLowestSlot() {
         registerFoods();
         potatoIsRaw();
-        ctx.percepts.needs.setFoodLevel(3);
+        ctx.percepts.metabolism.setFoodLevel(3);
         ctx.percepts.inventory.set(9, ItemStack.of("minecraft:potato", 1, 64));
         ctx.percepts.inventory.set(4, ItemStack.of("minecraft:potato", 1, 64));
         assertEquals(4, chosenSlot(), "deterministic within tier 2 too — lowest slot");
@@ -161,9 +161,9 @@ class EatLastResortTest {
         registerFoods();
         potatoIsRaw();
         ctx.percepts.inventory.set(4, ItemStack.of("minecraft:potato", 6, 64));
-        ctx.percepts.needs.setFoodLevel(8); // HUNGRY
+        ctx.percepts.metabolism.setFoodLevel(8); // HUNGRY
         assertTrue(new EatLastResort().applicable(ctx), "applicable while hungry — the gate is price");
-        ctx.percepts.needs.setFoodLevel(3); // STARVING
+        ctx.percepts.metabolism.setFoodLevel(3); // STARVING
         assertTrue(new EatLastResort().applicable(ctx));
     }
 
@@ -179,7 +179,7 @@ class EatLastResortTest {
     void decomposeWithoutApplicableIsAContractViolation() {
         registerFoods();
         potatoIsRaw();
-        ctx.percepts.needs.setFoodLevel(8); // hungry, but nothing carried
+        ctx.percepts.metabolism.setFoodLevel(8); // hungry, but nothing carried
         EatLastResort method = new EatLastResort();
         assertFalse(method.applicable(ctx));
         assertThrows(IllegalStateException.class, () -> method.decompose(ctx));

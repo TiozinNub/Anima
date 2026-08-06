@@ -30,7 +30,7 @@ class SatisfyHungerTest {
         ctx.percepts.food("minecraft:cooked_beef", STEAK);
         // Hungry (food 8, missing 12): every plain food here fits without waste, so the policy
         // reduces to highest-nutrition-then-lowest-slot and the machinery stays the subject.
-        ctx.percepts.needs.setFoodLevel(8);
+        ctx.percepts.metabolism.setFoodLevel(8);
     }
 
     @Test

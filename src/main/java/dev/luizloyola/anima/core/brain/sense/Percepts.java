@@ -2,7 +2,8 @@ package dev.luizloyola.anima.core.brain.sense;
 
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.inv.Inventory;
-import dev.luizloyola.anima.core.agent.Needs;
+import dev.luizloyola.anima.core.agent.Metabolism;
+import dev.luizloyola.anima.core.agent.need.Needs;
 import java.util.List;
 
 /**
@@ -24,6 +25,14 @@ public interface Percepts {
      * Body vitals ({@code core/person}) — read-only BY CONVENTION: the body owns and ticks its
      * metabolism, and nutrition is applied by the body when the consume actuator finishes, never
      * by a task writing here. The brain only reads pressure ({@code hunger()}, {@code band()}).
+     */
+    Metabolism metabolism();
+
+    /**
+     * Everything this body feels ({@code core/agent/need}) — read-only BY CONVENTION, exactly like
+     * the metabolism above and for the same reason: the body owns and ticks its gauges. An
+     * instinct bids on {@code needs().pressure(kind)}, which answers 0 for a need this species does
+     * not have, so a drive stays portable across bodies without ever asking what body it is on.
      */
     Needs needs();
 

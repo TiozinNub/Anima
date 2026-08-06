@@ -1,19 +1,16 @@
 package dev.luizloyola.anima.core.brain;
 
 /**
- * The pressure → cost-tolerance curve: the maximum acceptable method cost grows with the driving
- * need's pressure ("mildly hungry won't walk 300 blocks for berries; starving will"). The arbiter
- * feeds the ACTIVE instinct's pressure through here and publishes the result as
- * {@link BrainContext#costTolerance()}; the executor refuses any method whose {@code estimateCost}
- * exceeds it. Desperation is PRICED, not hard-gated — {@code EatLastResort} charges for forgone
- * nutrition and this curve decides whether the pressure can afford it.
+ * The pressure → cost-tolerance curve: the arbiter feeds the ACTIVE instinct's pressure through
+ * here and publishes the result as {@link BrainContext#costTolerance()}; the executor then refuses
+ * any method whose {@code estimateCost} exceeds it (see {@code TaskExecutor}).
  *
- * <p><b>Plateaus, not a smooth ramp.</b> The step function keeps the "why did they pay for that?"
- * story a handful of legible bands, and maps 1:1 onto the hunger bands in {@code Needs} — the
- * {@code 0.30 / 0.60 / 0.85} thresholds ARE the PECKISH / HUNGRY / STARVING pressures on the same
- * {@code hunger()} scale. Below PECKISH only FREE methods run; at STARVING the cap lifts entirely.
- * Boundaries are inclusive-below (a pressure exactly on a threshold gets the HIGHER band), matching
- * {@code Needs.band()}.
+ * <p><b>Plateaus, not a smooth ramp.</b> A step function keeps the "why did they pay for that?"
+ * story a handful of legible bands, and maps 1:1 onto the hunger bands already carved into
+ * {@code Metabolism} — the {@code 0.30 / 0.60 / 0.85} thresholds ARE the PECKISH / HUNGRY /
+ * STARVING pressures, on the same {@code hunger()} scale. Below PECKISH only FREE methods run; at
+ * STARVING the cap lifts entirely, which is when a raw potato (priced 80) becomes acceptable.
+ * Boundaries are inclusive-below, matching {@code Metabolism.band()}.
  */
 public final class ToleranceCurve {
 

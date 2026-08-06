@@ -22,12 +22,12 @@ class InstinctTest {
     @Test
     void eatPressureTracksHungerExactly() {
         Instinct eat = new EatInstinct();
-        ctx.percepts.needs.setFoodLevel(20);
+        ctx.percepts.metabolism.setFoodLevel(20);
         assertEquals(0.0, eat.pressure(ctx), "full bar -> no hunger pressure");
-        ctx.percepts.needs.setFoodLevel(8); // hunger 1 - 8/20 = 0.6
-        assertEquals(ctx.percepts.needs.hunger(), eat.pressure(ctx));
+        ctx.percepts.metabolism.setFoodLevel(8); // hunger 1 - 8/20 = 0.6
+        assertEquals(ctx.percepts.metabolism.hunger(), eat.pressure(ctx));
         assertEquals(0.6, eat.pressure(ctx), 1e-9);
-        ctx.percepts.needs.setFoodLevel(0);
+        ctx.percepts.metabolism.setFoodLevel(0);
         assertEquals(1.0, eat.pressure(ctx), "empty bar -> full pressure");
         assertEquals("eat", eat.describe());
     }
@@ -38,7 +38,7 @@ class InstinctTest {
         assertEquals(WanderInstinct.idlePressure(TestSpecies.PROFILE), wander.pressure(ctx));
         assertEquals(0.15, wander.pressure(ctx), "the documented idle floor");
         // ... and it does not move with the body's state
-        ctx.percepts.needs.setFoodLevel(0);
+        ctx.percepts.metabolism.setFoodLevel(0);
         assertEquals(0.15, wander.pressure(ctx));
         assertEquals("wander", wander.describe());
     }

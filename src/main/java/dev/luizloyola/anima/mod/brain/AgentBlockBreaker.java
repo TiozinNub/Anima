@@ -18,7 +18,7 @@ import org.jspecify.annotations.Nullable;
  * {@code Player}: the survival progress formula (hardness, the HELD stack's destroy speed, the
  * correct-tool divisor — a bare hand takes ~3s on a log), the broadcast crack animation, real drops
  * via {@code destroyBlock(pos, true)}, and 0.005 exhaustion per block onto
- * {@link AgentBody#needs()}.
+ * {@link AgentBody#metabolism()}.
  *
  * <p>Owned and ticked by the body, exposed to the brain as a port: the machine lives with the body,
  * the brain holds intent. Every tick re-validates the world, re-reading the held item, so a swapped
@@ -120,7 +120,7 @@ public final class AgentBlockBreaker implements BlockBreaker {
                 held.hurtAndBreak(1, person.entity(), net.minecraft.world.entity.EquipmentSlot.MAINHAND);
             }
             level.destroyBlock(target, drops, person.entity());
-            person.needs().exhaust(EXHAUSTION_PER_BLOCK);
+            person.metabolism().exhaust(EXHAUSTION_PER_BLOCK);
             state = BreakState.FINISHED;
             return;
         }

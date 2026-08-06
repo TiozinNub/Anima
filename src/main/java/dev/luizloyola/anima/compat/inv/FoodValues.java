@@ -8,10 +8,12 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.food.FoodProperties;
 
 /**
- * An item's food payload as the core {@link FoodValue}, read from the item's own {@code FOOD} data
- * component rather than a hardcoded table, so modded foods work too. The mapping is verbatim
- * (checked against the 26.1.2 bytecode) and {@code saturation} is already the precomputed value
- * {@code Needs.eat} expects — no modifier math on this side.
+ * Reads an item's food payload into the core {@link FoodValue} from the item's own {@code FOOD}
+ * data component, not a hardcoded table — so every vanilla food, and every modded one declaring
+ * the component, works at its author's numbers.
+ *
+ * <p>Verbatim (verified against the 26.1.2 bytecode): {@code saturation} is already the value
+ * {@code Metabolism.eat} expects — no modifier math on this side.
  */
 public final class FoodValues {
     private FoodValues() {}

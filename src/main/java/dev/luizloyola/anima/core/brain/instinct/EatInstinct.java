@@ -5,18 +5,18 @@ import dev.luizloyola.anima.core.brain.task.SatisfyHunger;
 import dev.luizloyola.anima.core.brain.task.Task;
 
 /**
- * The Eat drive — the brain design doc's worked example, as a layer-1 instinct. Its
- * {@code pressure} is the body's hunger ({@code 1 - food/20}, from
- * {@link dev.luizloyola.anima.core.agent.Needs#hunger()}), so the arbiter's
- * {@link dev.luizloyola.anima.core.brain.ToleranceCurve} bands ({@code 0.30 / 0.60 / 0.85}) make a
- * peckish Person wait for a task boundary, a hungry one preempt, a starving one lift the cost cap.
- * Root: a fresh {@link SatisfyHunger}, re-granted after each meal.
+ * The Eat drive — the canonical worked example from the brain design doc, as a layer-1 instinct.
+ * Its {@code pressure} is the body's hunger ({@code 1 - food/20}, from {@link
+ * dev.luizloyola.anima.core.agent.Metabolism#hunger()}), landing on the
+ * {@code 0.30 / 0.60 / 0.85} bands {@link dev.luizloyola.anima.core.brain.ToleranceCurve} reads:
+ * peckish waits for a task boundary, hungry preempts, starving lifts the cost cap. Its root is a
+ * fresh {@link SatisfyHunger}, re-granted after each meal.
  */
 public final class EatInstinct implements Instinct {
 
     @Override
     public double pressure(BrainContext ctx) {
-        return ctx.percepts().needs().hunger();
+        return ctx.percepts().metabolism().hunger();
     }
 
     @Override

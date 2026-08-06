@@ -464,7 +464,7 @@ class ArbiterTest {
         // Peckish (below PREEMPT) with bread in hand -> Eat outbids idle Wander and starts a bite.
         ctx.percepts.food("minecraft:bread", new FoodValue(5, 6.0F, false));
         ctx.percepts.inventory.set(0, ItemStack.of("minecraft:bread", 10, 64));
-        ctx.percepts.needs.setFoodLevel(12); // hunger 1 - 12/20 = 0.4 -- PECKISH, under PREEMPT (0.6)
+        ctx.percepts.metabolism.setFoodLevel(12); // hunger 1 - 12/20 = 0.4 -- PECKISH, under PREEMPT (0.6)
 
         arbiter.tick(ctx); // t1: Eat (0.4) beats Wander (0.15) and no-threat Flee (0.0); begins a bite
         assertEquals(1, ctx.consumer.beginCalls);

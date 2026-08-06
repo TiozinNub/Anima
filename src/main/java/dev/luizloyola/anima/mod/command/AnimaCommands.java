@@ -41,6 +41,8 @@ public final class AnimaCommands {
                         .then(AgentCommands.survey())
                         .then(AgentCommands.claims())
                         .then(AgentCommands.peers())
+                        // Every gauge the body declared — hunger and company today.
+                        .then(AgentCommands.needs())
                         // What this one is running: species -> modifiers -> effective.
                         .then(AgentCommands.profile())
                         .then(AgentCommands.debug())

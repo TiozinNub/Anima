@@ -161,6 +161,23 @@ public enum ProfileAspect {
             "How far (blocks) a deliberate shout reaches this body, and how far its own carries. "
                     + "Must exceed this species' senses.radius or hailing adds nothing to simply "
                     + "noticing someone."),
+    SOCIAL_COMPANY_CENTER("social.company_center", Kind.DOUBLE, 0.0, 1.0,
+            "How much company this body is comfortable with — the centre of the band it tries to "
+                    + "sit in. Low is a hermit, high wants a crowd."),
+    SOCIAL_COMPANY_WIDTH("social.company_width", Kind.DOUBLE, 0.0, 1.0,
+            "How wide that comfortable band is, around the centre. Wide is easy-going; narrow is "
+                    + "a body that is lonely or crowded almost all the time."),
+    SOCIAL_COMPANY_SOLITUDE_TICKS("social.company_solitude_ticks", Kind.INT, 20, 480_000,
+            "How long it takes complete solitude to drain this body's company from full to empty. "
+                    + "24000 ticks is one in-game day."),
+    SOCIAL_COMPANY_PROXIMITY_TICKS("social.company_proximity_ticks", Kind.INT, 20, 480_000,
+            "How long simply being near ONE person this body has met would take to fill its "
+                    + "company from empty. Below social.company_solitude_ticks, company sinks even "
+                    + "with a neighbour standing there."),
+    SOCIAL_COMPANY_ENCOUNTER_TICKS("social.company_encounter_ticks", Kind.INT, 20, 480_000,
+            "How long an actual conversation would take to fill this body's company from empty. "
+                    + "Much shorter than proximity: talking to someone is worth more than standing "
+                    + "beside them."),
 
     // --- body: what this one can physically do -------------------------------------------------
 

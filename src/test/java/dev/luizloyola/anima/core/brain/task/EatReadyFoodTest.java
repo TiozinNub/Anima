@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import dev.luizloyola.anima.core.inv.ItemStack;
 import dev.luizloyola.anima.core.agent.FoodValue;
-import dev.luizloyola.anima.core.agent.Needs;
+import dev.luizloyola.anima.core.agent.Metabolism;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -42,7 +42,7 @@ class EatReadyFoodTest {
     @Test
     void leastWasteWinsWhenNearlyFull() {
         registerFoods();
-        ctx.percepts.needs.setFoodLevel(18); // missing 2
+        ctx.percepts.metabolism.setFoodLevel(18); // missing 2
         ctx.percepts.inventory.set(2, ItemStack.of("minecraft:potato", 1, 64)); // waste 0
         ctx.percepts.inventory.set(5, ItemStack.of("minecraft:cooked_beef", 1, 64)); // waste 6
         assertEquals(2, chosenSlot(), "the 1-point potato fits missing 2; the steak would burn 6");
@@ -51,7 +51,7 @@ class EatReadyFoodTest {
     @Test
     void equalZeroWasteFallsBackToHighestNutrition() {
         registerFoods();
-        ctx.percepts.needs.setFoodLevel(8); // missing 12 — everything fits, all waste 0
+        ctx.percepts.metabolism.setFoodLevel(8); // missing 12 — everything fits, all waste 0
         ctx.percepts.inventory.set(2, ItemStack.of("minecraft:potato", 1, 64));
         ctx.percepts.inventory.set(5, ItemStack.of("minecraft:cooked_beef", 1, 64));
         assertEquals(5, chosenSlot(), "equal zero waste -> highest nutrition: the steak");
@@ -60,7 +60,7 @@ class EatReadyFoodTest {
     @Test
     void nutritionTiesGoToTheLowestSlot() {
         registerFoods();
-        ctx.percepts.needs.setFoodLevel(8);
+        ctx.percepts.metabolism.setFoodLevel(8);
         ctx.percepts.inventory.set(4, ItemStack.of("minecraft:bread", 1, 64));
         ctx.percepts.inventory.set(1, ItemStack.of("minecraft:bread", 1, 64));
         assertEquals(1, chosenSlot(), "same waste, same nutrition -> lowest slot");
@@ -69,7 +69,7 @@ class EatReadyFoodTest {
     @Test
     void costIsAlwaysZero() {
         registerFoods();
-        ctx.percepts.needs.setFoodLevel(8);
+        ctx.percepts.metabolism.setFoodLevel(8);
         ctx.percepts.inventory.set(2, ItemStack.of("minecraft:bread", 1, 64));
         assertEquals(0.0, new EatReadyFood().estimateCost(ctx), "ready food is the free baseline");
     }
@@ -78,7 +78,7 @@ class EatReadyFoodTest {
     @Test
     void readyFoodIsEatenEvenAtZeroTolerance() {
         registerFoods();
-        ctx.percepts.needs.setFoodLevel(18); // hunger 0.1 -> the arbiter would set tolerance 0.0
+        ctx.percepts.metabolism.setFoodLevel(18); // hunger 0.1 -> the arbiter would set tolerance 0.0
         ctx.costTolerance = 0.0;
         ctx.percepts.inventory.set(3, ItemStack.of("minecraft:bread", 1, 64));
         assertEquals(3, chosenSlot(), "free food passes a zero cost ceiling");
@@ -87,7 +87,7 @@ class EatReadyFoodTest {
     @Test
     void fullBarIsInapplicable() {
         registerFoods();
-        assertEquals(Needs.MAX_FOOD, ctx.percepts.needs.foodLevel(), "a fresh body spawns fed");
+        assertEquals(Metabolism.MAX_FOOD, ctx.percepts.metabolism.foodLevel(), "a fresh body spawns fed");
         ctx.percepts.inventory.set(5, ItemStack.of("minecraft:cooked_beef", 3, 64));
         assertFalse(new EatReadyFood().applicable(ctx), "missing == 0 -> nothing to restore");
         executor.run(new SatisfyHunger(), ctx);
@@ -100,7 +100,7 @@ class EatReadyFoodTest {
     @Test
     void decomposeWithoutApplicableIsAContractViolation() {
         registerFoods();
-        ctx.percepts.needs.setFoodLevel(8); // hungry, but nothing edible carried
+        ctx.percepts.metabolism.setFoodLevel(8); // hungry, but nothing edible carried
         EatReadyFood method = new EatReadyFood();
         assertFalse(method.applicable(ctx));
         assertThrows(IllegalStateException.class, () -> method.decompose(ctx));

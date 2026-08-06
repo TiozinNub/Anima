@@ -3,29 +3,32 @@ package dev.luizloyola.anima.core.agent;
 import java.util.Locale;
 
 /**
- * The Person's food physiology — vanilla's player {@code FoodData}, transcribed and verified
- * against the 26.1.2 bytecode. Vanilla gives a plain {@code LivingEntity} no FoodData, so the model
- * is ours. That is what makes it headless-testable.
+ * The Person's food physiology — vanilla's player {@code FoodData}, transcribed (verified against
+ * the 26.1.2 bytecode). Vanilla gives a plain {@code LivingEntity} no FoodData, so the model is
+ * ours to own, which is also what makes it headless-testable here.
  *
- * <p>Hunger is activity-driven like a player's: walking is free, only sprint meters, jumps, damage
- * and eventually attacking and mining bank exhaustion, so an idle Person does not get hungry
- * (ambient metabolism was tried and removed, decision 2026-07-22).
+ * <p>Hunger is purely activity-driven: only real exertion — sprint meters, jumps, taking damage,
+ * and eventually attacking and mining — banks exhaustion, so an idle Person does not get hungry
+ * (ambient metabolism was tried and removed by decision 2026-07-22).
  *
- * <p>Two deviations, because a Person is an autonomous NPC:
+ * <p>Two deliberate deviations from vanilla, because a Person is an autonomous NPC:
  * <ul>
- *   <li><b>No Peaceful exemption.</b> Vanilla skips the food-level decrement on Peaceful; we drain
- *       at every difficulty.</li>
- *   <li><b>No difficulty clamp on starvation.</b> Vanilla clamps by difficulty (Easy stops at
- *       10 hp, Normal at 1 hp, only Hard kills); we always land the hit, so starvation is a real
- *       cause of death.</li>
+ *   <li><b>No Peaceful exemption.</b> Vanilla skips the food-level decrement on Peaceful
+ *       difficulty; we drain at every difficulty.</li>
+ *   <li><b>No difficulty clamp on starvation.</b> Vanilla clamps starvation damage by difficulty
+ *       (Easy stops at 10 hp, Normal at 1 hp, only Hard kills); we always land the hit.</li>
  * </ul>
  *
- * <p>Needs are BODY state. The mod-layer Person owns this, ticks it once per game tick, feeds it
- * activity exhaustion ({@link #exhaust(float)} with the {@code EXHAUSTION_*} costs) and applies the
- * returned {@link TickResult} to the entity. The brain never writes here; it reads
- * {@link #hunger()} / {@link #band()} as bidding pressure.
+ * <p>Hunger also appears on {@link dev.luizloyola.anima.core.agent.need.Needs} as
+ * {@code need.food}, a {@link dev.luizloyola.anima.core.agent.need.FoodNeed} view over
+ * {@link #hunger()} rather than a second number that would drift from this one.
+ *
+ * <p>BODY state, not brain state: the mod-layer body owns it, ticks it once per game tick, feeds it
+ * activity exhaustion ({@link #exhaust(float)} with the {@code EXHAUSTION_*} costs), and applies
+ * the returned {@link TickResult}. The brain never writes here; it reads {@link #hunger()} /
+ * {@link #band()} as pressure when bidding for Eat.
  */
-public final class Needs {
+public final class Metabolism {
     // --- Vanilla FoodConstants, verbatim from the 26.1.2 jar ---
     /** Full food bar: 20 points (10 drumsticks). */
     public static final int MAX_FOOD = 20;

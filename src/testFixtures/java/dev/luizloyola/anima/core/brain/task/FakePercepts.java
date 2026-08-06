@@ -12,7 +12,11 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import dev.luizloyola.anima.core.agent.FoodValue;
-import dev.luizloyola.anima.core.agent.Needs;
+import dev.luizloyola.anima.core.agent.Metabolism;
+import dev.luizloyola.anima.core.agent.TestSpecies;
+import dev.luizloyola.anima.core.agent.need.Company;
+import dev.luizloyola.anima.core.agent.need.FoodNeed;
+import dev.luizloyola.anima.core.agent.need.Needs;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,14 +24,18 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Test double for the {@link Percepts} bundle: a real {@link Inventory} and {@link Needs} —
- * already pure and headless, so faking them would fake away the truth — plus a map-backed
- * {@link FoodLookup} for compat's registry+recipe read. Nothing is cookable by default,
- * mirroring compat finding no bettering recipe.
+ * Test double for the {@link Percepts} bundle: Real core {@link Inventory} and {@link Metabolism}
+ * (already pure and headless), plus a map-backed {@link FoodLookup} standing in for compat's
+ * registry+recipe read — {@link #food} registers what counts as food, {@link #cooked} what cooking
+ * would improve, and nothing is cookable by default, mirroring compat finding no bettering recipe.
  */
 public final class FakePercepts implements Percepts {
     public final Inventory inventory = new Inventory();
-    public final Needs needs = new Needs();
+    public final Metabolism metabolism = new Metabolism();
+    /** The company gauge, on the test biped's band — settable through its own typed calls. */
+    public final Company company = new Company(() -> TestSpecies.PROFILE);
+    /** The real roster over the two above: food is a view, so hunger stays one number here too. */
+    public final Needs needs = new Needs().add(new FoodNeed(metabolism)).add(company);
     /** The feet cell — settable; defaults to a plausible stance so wander targets are sane. */
     public Pos position = new Pos(0, 64, 0);
     public List<Being> beings = List.of();
@@ -52,6 +60,11 @@ public final class FakePercepts implements Percepts {
     @Override
     public Inventory inventory() {
         return inventory;
+    }
+
+    @Override
+    public Metabolism metabolism() {
+        return metabolism;
     }
 
     @Override
