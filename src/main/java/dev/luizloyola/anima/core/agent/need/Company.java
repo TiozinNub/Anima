@@ -49,7 +49,14 @@ public final class Company implements Gauge {
     /** Pushed by the body each tick: how many people it can currently see or hear and has met. */
     private int nearby;
 
-    /** Pushed when an encounter opens and closes. Always false until encounters exist. */
+    /**
+     * Pushed when an encounter opens and closes. Always false today — nothing opens one yet.
+     *
+     * <p><b>not persisted, and it must stay that way.</b> "We are talking" belongs
+     * beside the encounter it refers to, and encounters are their own persisted store; a second
+     * copy here would give the world two answers that can disagree, and this one would win
+     * silently. When encounters land, the body re-derives it from the store on load.
+     */
     private boolean conversing;
 
     public Company(Supplier<AgentProfile> profile) {
