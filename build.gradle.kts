@@ -108,6 +108,43 @@ dependencies {
 
 tasks.named<Test>("test") {
     useJUnitPlatform()
+
+    // ArchitectureTest reads Java source as TEXT, and the text it must read is the BRANCH's
+    // (`anima/src`), never this node's generated copy: the layering rules are about the one
+    // shared source of truth, and the Stonecutter rule can only be asked of source that still
+    // has its `//?` directives. Handed in rather than derived from the working directory, so a
+    // moved node layout fails with a message instead of scanning an empty tree and passing.
+    val branchSources = sc.branch.project.file("src/main/java")
+    systemProperty("anima.arch.sourceRoot", branchSources.absolutePath)
+    // Declared as an input because a violation can be introduced without changing any bytecode —
+    // adding a `//?` to a core file, or an import nothing uses. Without this the test task is
+    // UP-TO-DATE after the edits it exists to catch.
+    inputs.dir(branchSources).withPropertyName("branchSources").withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
+// Every warning javac can raise is an error, less four categories. `-Xlint:all` rather than a
+// list, so a JDK upgrade adopts new checks on its own; `-Plint=off` is the way out on the day
+// one of them arrives in the middle of something else.
+//
+//   classfile     gson and guava ship references to Error Prone annotations they do not bundle.
+//                 Nothing here can fix a warning about the inside of somebody else's jar.
+//   deprecation   Minecraft deprecates by the hundred, and some of it is deliberate here — the
+//                 resource-reload listener AppearanceClient implements is kept,
+//                 because its replacement renamed a method between targets.
+//   this-escape   a Minecraft entity is its fields: Person builds ten organs with `this` before
+//                 the constructor ends, and vanilla subclasses it. Unfixable without leaving the
+//                 pattern every entity in the game uses.
+//   dangling-doc-comments
+//                 21 doc comments stranded above the wrong member by past refactors. Real, and
+//                 worth fixing — each one is a stale design note sitting where a reader will
+//                 take it for the current one — but a cleanup with 21 judgement calls in it, not
+//                 a lint switch. Delete this line when they are gone.
+tasks.withType<JavaCompile>().configureEach {
+    if (providers.gradleProperty("lint").orNull != "off") {
+        options.compilerArgs.addAll(
+            listOf("-Xlint:all,-classfile,-deprecation,-this-escape,-dangling-doc-comments", "-Werror")
+        )
+    }
 }
 
 // A running dev game holds these jars OPEN and reads mod classes out of them lazily — Autarkia
