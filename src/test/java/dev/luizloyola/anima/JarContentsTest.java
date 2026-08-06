@@ -106,8 +106,9 @@ class JarContentsTest {
     void theJarCarriesOnlyItsOwnFiles() {
         List<String> strays = JAR.entriesOutside(ALLOWED_PREFIXES).stream()
                 .filter(e -> !ALLOWED_FILES.contains(e))
-                // Loom generates a refmap on the Mojang-mapped nodes and none on the unobfuscated
-                // ones, so it is matched by shape rather than listed by a name that varies.
+                // No node ships a refmap today (26.1+ is unobfuscated; the Mojang-mapped nodes do
+                // not emit one, checked against the remapped 1.21.11 jar). Allowed by shape anyway:
+                // a refmap is a Loom/mixin-config property and would arrive without a commit.
                 .filter(e -> !e.matches(".*refmap.*\\.json"))
                 .toList();
         assertTrue(strays.isEmpty(), () -> ModJar.class.getSimpleName() + ": " + JAR.name()
