@@ -92,7 +92,7 @@ class ProfileAspectTest {
         Set<String> seen = new HashSet<>();
         for (ProfileAspect aspect : ProfileAspect.all()) {
             assertTrue(seen.add(aspect.key()), "duplicate aspect key " + aspect.key());
-            assertTrue(aspect.key().matches("[a-z0-9_]+\\.[a-z0-9_]+"),
+            assertTrue(aspect.key().matches("[a-z0-9_]+(\\.[a-z0-9_]+)+"),
                     aspect.key() + " is not a dotted snake_case key");
             assertTrue(aspect.min() < aspect.max(), aspect.key() + " has an empty range");
             assertTrue(aspect.doc().length() > 20 && aspect.doc().endsWith("."),

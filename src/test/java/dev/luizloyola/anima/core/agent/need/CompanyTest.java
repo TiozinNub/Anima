@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.SpeciesProfile;
 import dev.luizloyola.anima.core.agent.TestSpecies;
+import dev.luizloyola.anima.core.agent.need.NeedLevel;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,8 +36,8 @@ class CompanyTest {
     @DisplayName("a fresh body starts content, at the centre of its own band")
     void seedsToTheBandCentre() {
         Company company = fresh();
-        assertEquals(0.6, company.level(), DELTA, "the species' centre, not zero");
-        assertEquals(Company.Band.CONTENT, company.band());
+        assertEquals(0.6, company.value(), DELTA, "the species' centre, not zero");
+        assertEquals("content", company.level().key());
         assertEquals(0.0, company.pressure(), DELTA, "inside the band there is nothing to want");
     }
 
@@ -45,12 +46,12 @@ class CompanyTest {
     void seedsBeforeAnyReadCanSeeZero() {
         // The band's centre is a species question a field initialiser cannot ask, so every accessor
         // must seed on first read — or a body is born desperately lonely.
-        assertEquals(Company.Band.CONTENT, fresh().band());
+        assertEquals("content", fresh().level().key());
         assertEquals(0.0, fresh().pressure(), DELTA);
         assertTrue(fresh().describe().contains("content"));
         Company ticked = fresh();
         ticked.tick();
-        assertEquals(0.6 - SOLITUDE, ticked.level(), DELTA, "seeded, THEN drained by one tick");
+        assertEquals(0.6 - SOLITUDE, ticked.value(), DELTA, "seeded, THEN drained by one tick");
     }
 
     @Test
@@ -58,18 +59,18 @@ class CompanyTest {
     void solitudeDrainsAndProximityFills() {
         Company alone = fresh();
         alone.tick();
-        assertEquals(0.6 - SOLITUDE, alone.level(), DELTA);
+        assertEquals(0.6 - SOLITUDE, alone.value(), DELTA);
 
         Company withOne = fresh();
         withOne.observe(1);
         withOne.tick();
-        assertEquals(0.6 + PROXIMITY - SOLITUDE, withOne.level(), DELTA,
+        assertEquals(0.6 + PROXIMITY - SOLITUDE, withOne.value(), DELTA,
                 "one neighbour fills at twice the drain, so the net is upward");
 
         Company inACrowd = fresh();
         inACrowd.observe(4);
         inACrowd.tick();
-        assertEquals(0.6 + 4 * PROXIMITY - SOLITUDE, inACrowd.level(), DELTA,
+        assertEquals(0.6 + 4 * PROXIMITY - SOLITUDE, inACrowd.value(), DELTA,
                 "every known person counts; nothing anywhere decides what a crowd is");
     }
 
@@ -77,12 +78,12 @@ class CompanyTest {
     @DisplayName("a conversation is paid for by the LINE, not by the second")
     void conversationIsPaidPerLine() {
         Company talking = fresh();
-        talking.setLevel(0.20);
+        talking.setValue(0.20);
         talking.conversed();
-        assertEquals(0.20 + PER_LINE, talking.level(), DELTA, "one line, one step, at once");
+        assertEquals(0.20 + PER_LINE, talking.value(), DELTA, "one line, one step, at once");
         talking.conversed();
         talking.conversed();
-        assertEquals(0.20 + 3 * PER_LINE, talking.level(), DELTA);
+        assertEquals(0.20 + 3 * PER_LINE, talking.value(), DELTA);
     }
 
     @Test
@@ -91,9 +92,9 @@ class CompanyTest {
         // A per-tick fill while an encounter was open paid a slow answer more than a brisk one, and
         // went on paying while a body waited out a timeout on somebody already gone.
         Company brisk = fresh();
-        brisk.setLevel(0.20);
+        brisk.setValue(0.20);
         Company slow = fresh();
-        slow.setLevel(0.20);
+        slow.setValue(0.20);
 
         for (int i = 0; i < 3; i++) {
             brisk.conversed();
@@ -106,7 +107,7 @@ class CompanyTest {
             }
         }
 
-        assertTrue(slow.level() < brisk.level(),
+        assertTrue(slow.value() < brisk.value(),
                 "the same three lines, dragged out over ten seconds, must not be worth MORE — "
                         + "with nobody counted nearby, all the extra time does is drain");
     }
@@ -115,12 +116,12 @@ class CompanyTest {
     @DisplayName("sitting through a pause is still worth something — as proximity, which is what it is")
     void aPauseIsStillTimeSpentTogether() {
         Company together = fresh();
-        together.setLevel(0.20);
+        together.setValue(0.20);
         together.observe(1);
         for (int t = 0; t < 200; t++) {
             together.tick();
         }
-        assertEquals(0.20 + 200 * (PROXIMITY - SOLITUDE), together.level(), DELTA,
+        assertEquals(0.20 + 200 * (PROXIMITY - SOLITUDE), together.value(), DELTA,
                 "the pause paid the proximity rate, and only that");
     }
 
@@ -128,19 +129,19 @@ class CompanyTest {
     @DisplayName("the level never leaves 0..1, however long it is pushed")
     void clampsBothWays() {
         Company empty = fresh();
-        empty.setLevel(0.0);
+        empty.setValue(0.0);
         for (int i = 0; i < 100; i++) {
             empty.tick();
         }
-        assertEquals(0.0, empty.level(), DELTA);
+        assertEquals(0.0, empty.value(), DELTA);
 
         Company full = fresh();
-        full.setLevel(1.0);
+        full.setValue(1.0);
         full.observe(50);
         for (int i = 0; i < 100; i++) {
             full.tick();
         }
-        assertEquals(1.0, full.level(), DELTA);
+        assertEquals(1.0, full.value(), DELTA);
     }
 
     @Test
@@ -148,26 +149,34 @@ class CompanyTest {
     void bandIsBidirectional() {
         Company company = fresh();
 
-        company.setLevel(0.35);
-        assertEquals(Company.Band.CONTENT, company.band(), "the low edge is inside the band");
+        // A level owns up TO and INCLUDING its own value, moving away from comfort: `alone` starts
+        // at 0.35, `content` runs to 0.85. Neither edge presses — the ramp's corner there is zero.
+        company.setValue(0.35);
+        assertEquals("alone", company.level().key(), "the boundary belongs to the outer level");
+        assertEquals(0.0, company.pressure(), DELTA, "but the edge itself asks for nothing");
+
+        company.setValue(0.36);
+        assertEquals("content", company.level().key(), "just inside is content");
+
+        company.setValue(0.85);
+        assertEquals("content", company.level().key(), "and the far edge is still content");
         assertEquals(0.0, company.pressure(), DELTA);
 
-        company.setLevel(0.85);
-        assertEquals(Company.Band.CONTENT, company.band(), "and so is the high edge");
-        assertEquals(0.0, company.pressure(), DELTA);
+        company.setValue(0.25);
+        assertEquals("alone", company.level().key());
 
-        company.setLevel(0.175);
-        assertEquals(Company.Band.LONELY, company.band());
+        company.setValue(0.175);
+        assertEquals("desolate", company.level().key(), "its own boundary belongs to it");
         assertEquals(0.5, company.pressure(), DELTA, "halfway from the low edge down to empty");
 
-        company.setLevel(0.0);
+        company.setValue(0.0);
         assertEquals(1.0, company.pressure(), DELTA, "as lonely as this body gets");
 
-        company.setLevel(0.925);
-        assertEquals(Company.Band.CROWDED, company.band());
+        company.setValue(0.925);
+        assertEquals("crowded", company.level().key());
         assertEquals(0.5, company.pressure(), DELTA, "halfway from the high edge up to full");
 
-        company.setLevel(1.0);
+        company.setValue(1.0);
         assertEquals(1.0, company.pressure(), DELTA, "as crowded as this body gets");
     }
 
@@ -175,11 +184,11 @@ class CompanyTest {
     @DisplayName("empty and full are equally uncomfortable — which one number could never say")
     void bothEndsPressEqually() {
         Company lonely = fresh();
-        lonely.setLevel(0.0);
+        lonely.setValue(0.0);
         Company crowded = fresh();
-        crowded.setLevel(1.0);
+        crowded.setValue(1.0);
         assertEquals(lonely.pressure(), crowded.pressure(), DELTA);
-        assertTrue(lonely.level() != crowded.level(),
+        assertTrue(lonely.value() != crowded.value(),
                 "and they are at opposite ends of the level, which is the whole point of two "
                         + "numbers rather than one");
     }
@@ -187,13 +196,15 @@ class CompanyTest {
     @Test
     @DisplayName("a hermit and a socialite are the same mechanism at different centres")
     void theBandIsPerSpecies() {
-        Company hermit = new Company(() -> speciesWith(0.15, 0.3));
-        hermit.setLevel(0.3);
-        assertEquals(Company.Band.CONTENT, hermit.band(), "0.3 is plenty of company for a hermit");
+        // A hermit is content on very little: its comfortable stretch starts near the floor.
+        Company hermit = new Company(() -> speciesWith(0.05, 0.9));
+        hermit.setValue(0.3);
+        assertEquals("content", hermit.level().key(), "0.3 is plenty of company for a hermit");
 
-        Company socialite = new Company(() -> speciesWith(0.9, 0.2));
-        socialite.setLevel(0.3);
-        assertEquals(Company.Band.LONELY, socialite.band(), "and miserable for a socialite");
+        // A socialite is not content until nearly full.
+        Company socialite = new Company(() -> speciesWith(0.8, 1.0));
+        socialite.setValue(0.3);
+        assertEquals("alone", socialite.level().key(), "and miserable for a socialite");
     }
 
     @Test
@@ -201,13 +212,13 @@ class CompanyTest {
     void readsAspectsThroughRatherThanCaching() {
         // The config doctrine applied to aspects: a snapshot taken in the constructor would leave a
         // settler walking around on the band it was born with.
-        AgentProfile[] current = {speciesWith(0.6, 0.5)};
+        AgentProfile[] current = {speciesWith(0.35, 0.85)};
         Company company = new Company(() -> current[0]);
-        company.setLevel(0.3);
-        assertEquals(Company.Band.LONELY, company.band());
+        company.setValue(0.3);
+        assertEquals("alone", company.level().key());
 
-        current[0] = speciesWith(0.25, 0.3);
-        assertEquals(Company.Band.CONTENT, company.band(),
+        current[0] = speciesWith(0.2, 0.9);
+        assertEquals("content", company.level().key(),
                 "the same level, on a species that now finds it comfortable");
     }
 
@@ -220,15 +231,20 @@ class CompanyTest {
         assertSame(company, needs.gauge(NeedKind.COMPANY).orElseThrow());
     }
 
-    /** The test biped with a different company band and everything else left alone. */
-    private static AgentProfile speciesWith(double centre, double width) {
+    /** The test biped with its company levels moved, and everything else left alone. */
+    private static AgentProfile speciesWith(double aloneAt, double contentAt) {
         Map<ProfileAspect, Double> overrides = Map.of(
-                ProfileAspect.SOCIAL_COMPANY_CENTER, centre,
-                ProfileAspect.SOCIAL_COMPANY_WIDTH, width);
+                level("alone").valueAspect(), aloneAt,
+                level("content").valueAspect(), contentAt);
         SpeciesProfile.Builder builder = SpeciesProfile.of("test_company");
         for (ProfileAspect aspect : ProfileAspect.all()) {
             builder.set(aspect, overrides.getOrDefault(aspect, TestSpecies.BIPED.get(aspect)));
         }
         return builder.build().fixed();
+    }
+
+    private static NeedLevel level(String key) {
+        return NeedKind.COMPANY.levels().stream().filter(l -> l.key().equals(key))
+                .findFirst().orElseThrow();
     }
 }

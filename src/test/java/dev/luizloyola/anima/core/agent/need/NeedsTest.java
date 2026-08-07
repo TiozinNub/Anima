@@ -20,7 +20,7 @@ class NeedsTest {
     /** A body shaped like a settler's: hunger as a view, company as its own number. */
     private static Needs settler(Metabolism metabolism) {
         return new Needs()
-                .add(new FoodNeed(metabolism))
+                .add(new FoodNeed(metabolism, () -> TestSpecies.PROFILE))
                 .add(new Company(() -> TestSpecies.PROFILE));
     }
 
@@ -30,14 +30,16 @@ class NeedsTest {
         Metabolism metabolism = new Metabolism();
         Needs needs = settler(metabolism);
 
-        assertEquals(1.0, needs.level(NeedKind.FOOD), DELTA, "a fresh body spawns fed");
-        assertEquals(0.0, needs.pressure(NeedKind.FOOD), DELTA);
+        assertEquals(20.0, needs.value(NeedKind.HUNGER), DELTA,
+                "a fresh body spawns fed — and the reading is in FOOD POINTS, which is what an "
+                        + "operator tunes and a readout prints");
+        assertEquals(0.0, needs.pressure(NeedKind.HUNGER), DELTA);
 
         metabolism.setFoodLevel(8);
-        assertEquals(0.4, needs.level(NeedKind.FOOD), DELTA, "the gauge moved because the ORGAN did");
-        assertEquals(0.6, needs.pressure(NeedKind.FOOD), DELTA,
+        assertEquals(8.0, needs.value(NeedKind.HUNGER), DELTA, "the gauge moved because the ORGAN did");
+        assertEquals(0.6, needs.pressure(NeedKind.HUNGER), DELTA,
                 "and pressure is the metabolism's own hunger, unchanged");
-        assertEquals(metabolism.hunger(), needs.pressure(NeedKind.FOOD), DELTA);
+        assertEquals(metabolism.hunger(), needs.pressure(NeedKind.HUNGER), DELTA);
     }
 
     @Test
@@ -51,16 +53,16 @@ class NeedsTest {
         }
         assertEquals(8, metabolism.foodLevel(),
                 "a roster tick that fed or starved a body would be a second metabolism");
-        assertEquals(0.6, needs.pressure(NeedKind.FOOD), DELTA);
+        assertEquals(0.6, needs.pressure(NeedKind.HUNGER), DELTA);
     }
 
     @Test
     @DisplayName("one tick advances every gauge that owns its number")
     void tickAdvancesTheRealGauges() {
         Needs needs = settler(new Metabolism());
-        double before = needs.level(NeedKind.COMPANY);
+        double before = needs.value(NeedKind.COMPANY);
         needs.tick();
-        assertTrue(needs.level(NeedKind.COMPANY) < before, "solitude drained it on the shared beat");
+        assertTrue(needs.value(NeedKind.COMPANY) < before, "solitude drained it on the shared beat");
     }
 
     @Test
@@ -74,7 +76,7 @@ class NeedsTest {
         // The reading that makes a drive portable: an instinct that bids on warmth never
         // bids on a body without it, without first asking whether it has one.
         assertEquals(0.0, needs.pressure(warmth), DELTA);
-        assertEquals(0.0, needs.level(warmth), DELTA);
+        assertEquals(0.0, needs.value(warmth), DELTA);
     }
 
     @Test
@@ -82,7 +84,7 @@ class NeedsTest {
     void refusesADuplicateKind() {
         Metabolism metabolism = new Metabolism();
         Needs needs = settler(metabolism);
-        assertThrows(IllegalStateException.class, () -> needs.add(new FoodNeed(metabolism)));
+        assertThrows(IllegalStateException.class, () -> needs.add(new FoodNeed(metabolism, () -> TestSpecies.PROFILE)));
     }
 
     @Test
@@ -92,7 +94,7 @@ class NeedsTest {
         Needs needs = settler(metabolism);
         metabolism.setFoodLevel(8);
 
-        assertEquals(List.of(NeedKind.FOOD, NeedKind.COMPANY),
+        assertEquals(List.of(NeedKind.HUNGER, NeedKind.COMPANY),
                 needs.all().stream().map(Gauge::kind).toList(),
                 "declaration order, so a saved file and a printed line agree between runs");
 
@@ -112,9 +114,9 @@ class NeedsTest {
     @Test
     @DisplayName("a kind is canonical per key, so two mods cannot disagree about one")
     void kindsAreCanonical() {
-        assertSame(NeedKind.register("food"), NeedKind.FOOD);
+        assertSame(NeedKind.register("hunger"), NeedKind.HUNGER);
         assertSame(NeedKind.byKey("company").orElseThrow(), NeedKind.COMPANY);
-        assertTrue(NeedKind.all().contains(NeedKind.FOOD));
+        assertTrue(NeedKind.all().contains(NeedKind.HUNGER));
         assertThrows(IllegalArgumentException.class, () -> NeedKind.register(" "));
     }
 }

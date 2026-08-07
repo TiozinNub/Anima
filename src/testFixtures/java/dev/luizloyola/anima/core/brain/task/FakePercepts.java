@@ -35,7 +35,7 @@ public final class FakePercepts implements Percepts {
     /** The company gauge, on the test biped's band — settable through its own typed calls. */
     public final Company company = new Company(() -> TestSpecies.PROFILE);
     /** The real roster over the two above: food is a view, so hunger stays one number here too. */
-    public final Needs needs = new Needs().add(new FoodNeed(metabolism)).add(company);
+    public final Needs needs = new Needs().add(new FoodNeed(metabolism, () -> TestSpecies.PROFILE)).add(company);
     /** The feet cell — settable; defaults to a plausible stance so wander targets are sane. */
     public Pos position = new Pos(0, 64, 0);
     public List<Being> beings = List.of();

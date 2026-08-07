@@ -905,7 +905,7 @@ public final class AgentCommands {
             return 0;
         }
         Company company = gauge.get();
-        company.setLevel(level);
+        company.setValue(level);
         Replies.send(source, () -> Component.literal(body.entity().getName().getString() + ": "
                 + company.describe()).withStyle(ChatFormatting.AQUA), true);
         return 1;

@@ -190,12 +190,6 @@ public final class ProfileAspect {
             "How far (blocks) a deliberate shout reaches this body, and how far its own carries. "
                     + "Must exceed this species' senses.radius or hailing adds nothing to simply "
                     + "noticing someone.");
-    public static final ProfileAspect SOCIAL_COMPANY_CENTER = register("social.company_center", Kind.DOUBLE, 0.0, 1.0,
-            "How much company this body is comfortable with — the centre of the band it tries to "
-                    + "sit in. Low is a hermit, high wants a crowd.");
-    public static final ProfileAspect SOCIAL_COMPANY_WIDTH = register("social.company_width", Kind.DOUBLE, 0.0, 1.0,
-            "How wide that comfortable band is, around the centre. Wide is easy-going; narrow is "
-                    + "a body that is lonely or crowded almost all the time.");
     public static final ProfileAspect SOCIAL_COMPANY_SOLITUDE_TICKS = register("social.company_solitude_ticks", Kind.INT, 20, 480_000,
             "How long it takes complete solitude to drain this body's company from full to empty. "
                     + "24000 ticks is one in-game day.");

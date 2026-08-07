@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -40,6 +41,23 @@ class ConfigLabelsTest {
     /** Not a knob: the open-keyed danger table's own "everything else" row. */
     private static final String DANGER_DEFAULT_ROW = OPTION_PREFIX + "danger.default_weight";
 
+    /**
+     * Aspects a NEED generated, three per level — {@code needs.hunger.starving.value} and its forty
+     * siblings. Exempt from the one-label-per-aspect rule: they are the same three words every time
+     * ({@link #NEED_PARAMS}), so forty labels would be forty chances to disagree in every language.
+     * The need and its levels carry the words that differ.
+     */
+    private static final String GENERATED_PREFIX = "needs.";
+
+    /** The three words every generated level aspect borrows instead of owning one. */
+    private static final List<String> NEED_PARAMS =
+            List.of("anima.needs.param.value", "anima.needs.param.pressure",
+                    "anima.needs.param.tolerance");
+
+    private static boolean generated(ProfileAspect aspect) {
+        return aspect.key().startsWith(GENERATED_PREFIX);
+    }
+
     @Test
     @DisplayName("every knob has a label, and every label belongs to a knob")
     void labelsAndKnobsAgree() {
@@ -68,7 +86,9 @@ class ConfigLabelsTest {
     void labelsAndAspectsAgree() {
         Set<String> expected = new TreeSet<>();
         for (ProfileAspect aspect : ProfileAspect.all()) {
-            expected.add(ASPECT_PREFIX + aspect.key());
+            if (!generated(aspect)) {
+                expected.add(ASPECT_PREFIX + aspect.key());
+            }
         }
 
         Set<String> actual = new TreeSet<>();
@@ -137,8 +157,15 @@ class ConfigLabelsTest {
             assertLabelSaysSomething(OPTION_PREFIX + knob.key(), knob.key(), knob.leaf());
         }
         for (ProfileAspect aspect : ProfileAspect.all()) {
+            if (generated(aspect)) {
+                continue;
+            }
             assertLabelSaysSomething(ASPECT_PREFIX + aspect.key(), aspect.key(),
                     aspect.key().substring(aspect.key().indexOf('.') + 1));
+        }
+        // What the generated ones borrow instead. Three labels, once, for the whole tier.
+        for (String param : NEED_PARAMS) {
+            assertLabelSaysSomething(param, param, param.substring(param.lastIndexOf('.') + 1));
         }
     }
 

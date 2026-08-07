@@ -137,10 +137,21 @@ public final class SpeciesProfile {
          *     on why this is the one hard failure in the config stack.
          */
         public SpeciesProfile build() {
+            // Anima's own needs generate an aspect trio per level; nothing else loads that class
+            // early enough, and leaving it to consumers would surface as a missing aspect.
+            dev.luizloyola.anima.core.agent.need.NeedKind.ensureDeclared();
             // The first declaration closes the schema. Anything registering an aspect after this
             // point would leave this species missing it, having already passed the check below —
             // see ProfileAspect.freeze().
             ProfileAspect.freeze();
+            // The one place a declaration may be incomplete, and not the "Anima ships no values"
+            // rule bent: a need's LEVELS are its own declaration of what its words mean — where
+            // `starving` starts, what it presses at — as PoiKind.HERD ships a merge radius. A
+            // species that disagrees says so in one line of a config file.
+            for (Map.Entry<ProfileAspect, Double> declaredByItsNeed
+                    : dev.luizloyola.anima.core.agent.need.NeedKind.levelDefaults().entrySet()) {
+                values.putIfAbsent(declaredByItsNeed.getKey(), declaredByItsNeed.getValue());
+            }
             List<ProfileAspect> schema = ProfileAspect.all();
             if (values.size() != schema.size()) {
                 StringJoiner missing = new StringJoiner(", ");

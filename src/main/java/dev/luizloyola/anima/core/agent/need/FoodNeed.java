@@ -1,47 +1,60 @@
 package dev.luizloyola.anima.core.agent.need;
 
+import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.Metabolism;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
- * Hunger as a gauge — a VIEW over the body's {@link Metabolism}, and never a second number: a
- * stored copy would give a body two answers to "how hungry are you" that agree on the first day and
- * drift by the second. This holds no state at all; every call goes to the organ.
+ * Hunger as a gauge — a VIEW over the body's {@link Metabolism}, and never a second number.
  *
- * <p>{@link #tick()} therefore does nothing — only the body knows the gamerule and whether it is
- * hurt, and only the body can apply the heal or the starvation hit that comes back.
+ * <p>The metabolism is the physiology — saturation, exhaustion, a regen cadence, ticked against
+ * vanilla's own constants — and the food bar is one reading off it. A stored copy would give a body
+ * two answers to "how hungry are you" that drift apart, so this holds no state: every call goes to
+ * the organ.
+ *
+ * <p>The bands come from one declaration, {@link NeedKind#HUNGER}'s levels, and the ramp through
+ * them reproduces {@code 1 - food/20} exactly, because the corners were always collinear.
+ *
+ * <p>{@link #tick()} does nothing: the body ticks the metabolism itself, since only it knows the
+ * gamerule and whether it is hurt, and only it can apply the heal or starvation hit.
  */
 public final class FoodNeed implements Gauge {
 
     private final Metabolism metabolism;
+    private final Supplier<AgentProfile> profile;
 
-    public FoodNeed(Metabolism metabolism) {
+    public FoodNeed(Metabolism metabolism, Supplier<AgentProfile> profile) {
         this.metabolism = Objects.requireNonNull(metabolism, "metabolism");
+        this.profile = Objects.requireNonNull(profile, "profile");
     }
 
     @Override
     public NeedKind kind() {
-        return NeedKind.FOOD;
+        return NeedKind.HUNGER;
     }
 
-    /** A full bar is 1, an empty one is 0 — {@code foodLevel / 20}. */
+    /** The food bar itself, {@code 0..20} — the organ's number, in the organ's units. */
     @Override
-    public double level() {
-        return 1.0 - metabolism.hunger();
+    public double value() {
+        return metabolism.foodLevel();
     }
 
-    /**
-     * The metabolism's own hunger, unchanged: {@code 1 - food/20}. The arbiter's tolerance curve
-     * and the Eat instinct read the same number through the organ. That is what keeps the band
-     * thresholds ({@code 0.30 / 0.60 / 0.85}) meaning one thing.
-     */
     @Override
     public double pressure() {
-        return metabolism.hunger();
+        return NeedKind.HUNGER.ramp().pressureAt(profile.get(), value());
+    }
+
+    @Override
+    public NeedLevel level() {
+        return NeedKind.HUNGER.ramp().levelAt(profile.get(), value());
     }
 
     @Override
     public String describe() {
-        return metabolism.describe();
+        return String.format(Locale.ROOT, "food %.0f/%.0f sat %.1f exh %.1f (%s)",
+                value(), NeedKind.HUNGER.axisMax(), metabolism.saturation(),
+                metabolism.exhaustion(), level().key());
     }
 }

@@ -3,30 +3,31 @@ package dev.luizloyola.anima.core.agent;
 import java.util.Locale;
 
 /**
- * The Person's food physiology — vanilla's player {@code FoodData}, transcribed (verified against
- * the 26.1.2 bytecode). Vanilla gives a plain {@code LivingEntity} no FoodData, so the model is
- * ours to own, which is also what makes it headless-testable here.
+ * The Person's food physiology — vanilla's player {@code FoodData}, transcribed and verified
+ * against the 26.1.2 bytecode. Vanilla gives a plain {@code LivingEntity} no FoodData, so the model
+ * is ours. That is what makes it headless-testable.
  *
- * <p>Hunger is purely activity-driven: only real exertion — sprint meters, jumps, taking damage,
- * and eventually attacking and mining — banks exhaustion, so an idle Person does not get hungry
- * (ambient metabolism was tried and removed by decision 2026-07-22).
+ * <p>Hunger is activity-driven like a player's: walking is free, only sprint meters, jumps, damage
+ * and eventually attacking and mining bank exhaustion, so an idle Person does not get hungry
+ * (ambient metabolism was tried and removed, decision 2026-07-22).
  *
- * <p>Two deliberate deviations from vanilla, because a Person is an autonomous NPC:
+ * <p>Two deviations, because a Person is an autonomous NPC:
  * <ul>
- *   <li><b>No Peaceful exemption.</b> Vanilla skips the food-level decrement on Peaceful
- *       difficulty; we drain at every difficulty.</li>
- *   <li><b>No difficulty clamp on starvation.</b> Vanilla clamps starvation damage by difficulty
- *       (Easy stops at 10 hp, Normal at 1 hp, only Hard kills); we always land the hit.</li>
+ *   <li><b>No Peaceful exemption.</b> Vanilla skips the food-level decrement on Peaceful; we drain
+ *       at every difficulty.</li>
+ *   <li><b>No difficulty clamp on starvation.</b> Vanilla clamps by difficulty (Easy stops at
+ *       10 hp, Normal at 1 hp, only Hard kills); we always land the hit, so starvation is a real
+ *       cause of death.</li>
  * </ul>
  *
- * <p>Hunger also appears on {@link dev.luizloyola.anima.core.agent.need.Needs} as
- * {@code need.food}, a {@link dev.luizloyola.anima.core.agent.need.FoodNeed} view over
- * {@link #hunger()} rather than a second number that would drift from this one.
+ * <p>The organ, not the need: hunger appears on
+ * {@link dev.luizloyola.anima.core.agent.need.Needs} as a
+ * {@link dev.luizloyola.anima.core.agent.need.FoodNeed} view over {@link #hunger()}, never a second
+ * number.
  *
- * <p>BODY state, not brain state: the mod-layer body owns it, ticks it once per game tick, feeds it
- * activity exhaustion ({@link #exhaust(float)} with the {@code EXHAUSTION_*} costs), and applies
- * the returned {@link TickResult}. The brain never writes here; it reads {@link #hunger()} /
- * {@link #band()} as pressure when bidding for Eat.
+ * <p>BODY state. The body owns it, ticks it once per game tick, feeds it activity exhaustion
+ * ({@link #exhaust(float)} with the {@code EXHAUSTION_*} costs) and applies the returned
+ * {@link TickResult}; the brain only reads {@link #hunger()} as bidding pressure.
  */
 public final class Metabolism {
     // --- Vanilla FoodConstants, verbatim from the 26.1.2 jar ---
@@ -198,26 +199,12 @@ public final class Metabolism {
     }
 
     /**
-     * Instinct-pressure bands on the {@link #hunger()} scale — where Eat starts bidding
-     * (PECKISH), where it wins outright (HUNGRY), and where the arbiter's cost tolerance expands
-     * to risky/expensive food methods (STARVING).
+     * One-line debug summary, e.g. {@code "food 14/20 sat 2.3 exh 1.2"}. What a food level is
+     * CALLED belongs to the hunger need, declared per species and printed by
+     * {@link dev.luizloyola.anima.core.agent.need.FoodNeed}.
      */
-    public enum Band { SATED, PECKISH, HUNGRY, STARVING }
-
-    /**
-     * The band this hunger falls in: {@code hunger() >= 0.85} STARVING, {@code >= 0.6} HUNGRY,
-     * {@code >= 0.3} PECKISH, else SATED. Compared in food units so boundaries are exact.
-     */
-    public Band band() {
-        if (foodLevel <= 3) return Band.STARVING;
-        if (foodLevel <= 8) return Band.HUNGRY;
-        if (foodLevel <= 14) return Band.PECKISH;
-        return Band.SATED;
-    }
-
-    /** One-line debug summary, e.g. {@code "food 14/20 sat 2.3 exh 1.2 (peckish)"}. */
     public String describe() {
-        return String.format(Locale.ROOT, "food %d/%d sat %.1f exh %.1f (%s)",
-                foodLevel, MAX_FOOD, saturation, exhaustion, band().name().toLowerCase(Locale.ROOT));
+        return String.format(Locale.ROOT, "food %d/%d sat %.1f exh %.1f",
+                foodLevel, MAX_FOOD, saturation, exhaustion);
     }
 }

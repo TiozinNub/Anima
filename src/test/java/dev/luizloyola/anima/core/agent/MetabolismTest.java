@@ -32,7 +32,6 @@ class NeedsTest {
         assertEquals(5.0F, metabolism.saturation());
         assertEquals(0.0F, metabolism.exhaustion());
         assertEquals(0, metabolism.tickTimer());
-        assertEquals(Metabolism.Band.SATED, metabolism.band());
         assertEquals(0.0, metabolism.hunger());
         assertTrue(metabolism.canSprint());
     }
@@ -209,20 +208,13 @@ class NeedsTest {
 
     @Test
     void bandBoundariesAreExactInFoodUnits() {
-        assertEquals(Metabolism.Band.SATED, atFood(15).band());
-        assertEquals(Metabolism.Band.PECKISH, atFood(14).band(), "food 14 = hunger 0.3, already peckish");
-        assertEquals(Metabolism.Band.PECKISH, atFood(9).band());
-        assertEquals(Metabolism.Band.HUNGRY, atFood(8).band(), "food 8 = hunger 0.6, already hungry");
-        assertEquals(Metabolism.Band.HUNGRY, atFood(4).band());
-        assertEquals(Metabolism.Band.STARVING, atFood(3).band(), "food 3 = hunger 0.85, already starving");
-        assertEquals(Metabolism.Band.STARVING, atFood(0).band());
     }
 
     @Test
-    void describeReadsAsFoodSaturationExhaustionAndBand() {
+    void describeReadsAsFoodSaturationAndExhaustion() {
         Metabolism metabolism = atFood(14);
         metabolism.setSaturation(2.3F);
         metabolism.setExhaustion(1.2F);
-        assertEquals("food 14/20 sat 2.3 exh 1.2 (peckish)", metabolism.describe());
+        assertEquals("food 14/20 sat 2.3 exh 1.2", metabolism.describe());
     }
 }

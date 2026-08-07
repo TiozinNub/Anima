@@ -56,8 +56,6 @@ public final class TestSpecies {
             // A settler's company band and rates. Round numbers on purpose: the band is exactly
             // [0.35, 0.85] and one neighbour is exactly twice solitude, so a suite can assert what
             // a tick did without carrying a tolerance for it.
-            .set(ProfileAspect.SOCIAL_COMPANY_CENTER, 0.6)
-            .set(ProfileAspect.SOCIAL_COMPANY_WIDTH, 0.5)
             .set(ProfileAspect.SOCIAL_COMPANY_SOLITUDE_TICKS, 48_000)
             .set(ProfileAspect.SOCIAL_COMPANY_PROXIMITY_TICKS, 24_000)
             .set(ProfileAspect.SOCIAL_COMPANY_UTTERANCES, 30)

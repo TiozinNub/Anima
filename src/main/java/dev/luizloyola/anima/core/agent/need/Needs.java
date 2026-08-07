@@ -66,13 +66,15 @@ public final class Needs {
         return type.isInstance(gauge) ? Optional.of(type.cast(gauge)) : Optional.empty();
     }
 
-    /**
-     * How full that gauge is, or {@code 0} for a need this body does not have — the same answer a
-     * body with an empty gauge would give, and harmless because nothing acts on a level alone.
-     */
-    public double level(NeedKind kind) {
+    /** That gauge's reading in its own units, or {@code 0} for a need this body does not have. */
+    public double value(NeedKind kind) {
         Gauge gauge = gauges.get(kind);
-        return gauge == null ? 0.0 : gauge.level();
+        return gauge == null ? 0.0 : gauge.value();
+    }
+
+    public Optional<NeedLevel> level(NeedKind kind) {
+        Gauge gauge = gauges.get(kind);
+        return gauge == null ? Optional.empty() : Optional.ofNullable(gauge.level());
     }
 
     /**
