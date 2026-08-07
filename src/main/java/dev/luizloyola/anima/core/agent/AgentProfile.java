@@ -3,21 +3,25 @@ package dev.luizloyola.anima.core.agent;
 import java.util.List;
 
 /**
- * What one body is like, resolved — the answer an instinct, a sense or the navigator gets when it
- * asks. Anima names the aspects ({@link ProfileAspect}); who answers them is the body's business.
- * Design: {@code docs/superpowers/specs/2026-07-28-per-species-minds-design.md}.
+ * What one body is like, resolved — the answer an organ gets when it asks. Anima names the aspects
+ * ({@link ProfileAspect}); who answers them is the body's business.
  *
- * <p>Resolved, not declared: a consumer declares a complete {@link SpeciesProfile} per species, and
- * modifiers it contributes (a trait, a skill, a job) shift an agent's values before they arrive
- * here. "Traits" are one such modifier source, in the consumer's private identity tier.
+ * <p><b>Why this exists.</b> Anima's tunables were global: every agent saw the same 24-block
+ * perception radius out of {@code anima.toml}, where a rabbit's flight distance and a wolf's
+ * eyesight are different bodies, not one dial at two settings. Full design:
+ * {@code docs/superpowers/specs/2026-07-28-per-species-minds-design.md}.
  *
- * <p>Implementations are live views, not snapshots: an organ may hold one for a body's whole life
- * and still see an {@code /anima config reload} or a job change. The off-thread pathfinder is the
- * exception — it takes a {@link dev.luizloyola.anima.core.nav.MoveCapabilities} snapshot minted
- * here at request time.
+ * <p><b>The resolved read, not the declaration.</b> A consumer declares a {@link SpeciesProfile}
+ * per species and contributes modifiers (a trait, a skill, a job) that shift an agent's values;
+ * what arrives here is the answer after all of it. "Traits" in this codebase are one such source,
+ * belonging to the consumer's private identity tier.
  *
- * <p>One abstract method on purpose: everything else derives, so a modifier layer wraps a species
- * view by implementing {@link #raw} alone.
+ * <p><b>Read through, every time.</b> Implementations are live views, so an organ may hold one for
+ * a body's whole life and still see an {@code /anima config reload} or a job change — except the
+ * off-thread pathfinder, which takes a
+ * {@link dev.luizloyola.anima.core.nav.MoveCapabilities} snapshot at request time.
+ *
+ * <p>One abstract method on purpose: a modifier layer implements {@link #raw} alone.
  */
 public interface AgentProfile {
 

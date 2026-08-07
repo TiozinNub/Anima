@@ -47,6 +47,15 @@ class ArchitectureTest {
     private static final List<String> FABRIC_INTERNALS =
             List.of("net.fabricmc.fabric.impl.", "net.fabricmc.fabric.mixin.");
 
+    /**
+     * Third-party libraries this mod NESTS — a separate list from {@link #GAME_PACKAGES} because
+     * these arrive only because we put them on the compile classpath, where {@code core/} can
+     * reach for them. Keeping them out keeps {@code core/} headless-testable and cheap to inherit:
+     * parsing is {@code mod/}'s job, and {@code core/} deals in
+     * {@link dev.luizloyola.anima.core.config.ConfigValues}.
+     */
+    private static final List<String> BUNDLED_LIBRARIES = List.of("com.electronwill.");
+
     private static final SourceTree TREE = SourceTree.fromSystemProperty(SOURCE_ROOT_PROPERTY);
 
     @Test
@@ -63,6 +72,24 @@ class ArchitectureTest {
         assertTrue(violations.isEmpty(), () -> SourceTree.report(
                 "core/ is the version-independent half of the mod and must stay headless-testable: "
                         + "the type belongs behind a compat/ facade named for what the agent needs",
+                violations));
+    }
+
+    @Test
+    @DisplayName("core/ never names a nested third-party library")
+    void coreCarriesNoBundledLibraries() {
+        List<String> violations = new ArrayList<>();
+        for (JavaSource file : TREE.inPackage(CORE)) {
+            for (String banned : BUNDLED_LIBRARIES) {
+                for (Line line : file.mentions(banned)) {
+                    violations.add(SourceTree.at(file, line));
+                }
+            }
+        }
+        assertTrue(violations.isEmpty(), () -> SourceTree.report(
+                "core/ is a pure simulation and must stay headless-testable and dependency-free: "
+                        + "reading and writing a file format is mod/'s job, and core/ deals in "
+                        + "ConfigValues rather than in whatever happens to be on disk",
                 violations));
     }
 

@@ -19,11 +19,8 @@ import org.junit.jupiter.api.Test;
 /**
  * The audit, made enforceable. Everything Anima can be tuned by is either something a species
  * declares for itself ({@link ProfileAspect}) or something the server keeps for everybody
- * ({@link Knob}), and this suite fails if a new one appears that nobody classified.
- *
- * <p>The set left in {@code anima.json} is written down here with the reason each earned its
- * place, so adding to that enum fails the build until somebody says why a species may not answer
- * it.
+ * ({@link Knob}), and this suite fails if a new one appears that nobody classified: the exact set
+ * left in {@code anima.toml} is written down below with the reason each earned its place.
  */
 class ProfileAspectTest {
 
@@ -59,7 +56,7 @@ class ProfileAspectTest {
             Knob.JOURNAL_KEEP_RUNS);
 
     @Test
-    @DisplayName("anima.json holds only what no species may answer for itself")
+    @DisplayName("anima.toml holds only what no species may answer for itself")
     void animaKeepsOnlyWhatNoSpeciesMayAnswer() {
         Set<Knob> unjustified = EnumSet.noneOf(Knob.class);
         for (Knob knob : Knob.values()) {

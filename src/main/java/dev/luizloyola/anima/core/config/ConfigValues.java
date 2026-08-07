@@ -9,16 +9,16 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * An immutable set of values for every knob in one {@link KnobSet}. Values sit in a flat array at
+ * An immutable set of values for every knob in one {@link KnobSet}. Values live in a flat array at
  * the slot {@link KnobSet#indexOf} assigns, so adding a knob to a set's enum is the only edit a new
- * tunable needs: this class never names one, and never asks a knob where it belongs.
+ * tunable needs.
  *
- * <p><b>Always valid by construction</b>: every entry point runs {@link KnobSpec#clamp}, so loading
- * a hand-edited file cannot fail — {@link #from} returns the nearest legal configuration plus what
- * it had to correct, so a caller warns about a typo instead of refusing to boot a server.
+ * <p><b>Always valid by construction.</b> Every entry point runs {@link KnobSpec#clamp}, so loading
+ * a hand-edited file cannot fail: {@link #from} returns the nearest legal configuration alongside
+ * what it corrected, and a typo need not refuse to boot a server.
  *
- * <p>Pure core: no Minecraft, no Fabric, no I/O. JSON on disk is the mod layer's job; the live one
- * is {@link ConfigStore}'s.
+ * <p>Pure core: no Minecraft, no Fabric, no I/O. TOML is the mod layer's job; {@link ConfigStore}
+ * holds the live one.
  */
 public final class ConfigValues {
 
@@ -65,7 +65,7 @@ public final class ConfigValues {
         return new ConfigValues(set, copy);
     }
 
-    /** Every knob and its current value — the encoding side of the JSON round trip. */
+    /** Every knob and its current value — the encoding side of the file round trip. */
     public Map<KnobSpec, Double> toMap() {
         Map<KnobSpec, Double> map = new LinkedHashMap<>();
         for (KnobSpec knob : set.knobs()) {

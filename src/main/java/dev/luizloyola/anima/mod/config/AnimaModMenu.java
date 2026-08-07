@@ -8,18 +8,20 @@ import net.fabricmc.loader.api.FabricLoader;
 
 /**
  * Puts a Config button next to Anima in Mod Menu's list, opening {@link YaclConfigScreen} over
- * Anima's knob set; the screen is set-generic, so a consuming mod needs only its own entrypoint and
- * store.
+ * Anima's own knob set. The screen is set-generic: a consuming mod registers its own entrypoint
+ * over its own store.
  *
- * <p>Both halves are optional: Mod Menu is the only thing that loads this class, and YACL's absence
- * is caught by the {@link FabricLoader#isModLoaded} check below, which returns Mod Menu's own "no
- * screen" answer — hence no {@code dev.isxander} type is named here. The id checked is YACL's own
- * and identical on Fabric and NeoForge, so nothing depends on Connector's mod-alias table, unlike
- * the Cloth Config this replaced.
+ * <p>Both dependencies are optional. Mod Menu is the only thing that ever loads this class, through
+ * the {@code modmenu} entrypoint, and YACL's absence is caught by {@link FabricLoader#isModLoaded}
+ * below — which is why no {@code dev.isxander} type is named here.
  *
- * <p>Mod Menu runs on Fabric and Quilt clients only, and a Fabric jar under Connector cannot hook
- * NeoForge's config-screen extension point: elsewhere {@code config/anima.json} and
- * {@code /anima config} are the whole interface.
+ * <p>The YACL id is the same on Fabric and NeoForge, so nothing depends on Sinytra Connector's
+ * mod-alias table, unlike the Cloth Config this replaced (reachable only as
+ * {@code cloth-config2}).
+ *
+ * <p>Mod Menu runs only on Fabric and Quilt clients, and a Fabric jar under Connector cannot hook
+ * NeoForge's own config-screen extension point — so on a dedicated server, and for NeoForge users,
+ * {@code config/anima.toml} and {@code /anima config} are the whole interface.
  */
 public final class AnimaModMenu implements ModMenuApi {
 

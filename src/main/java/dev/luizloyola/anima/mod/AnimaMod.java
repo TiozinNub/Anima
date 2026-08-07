@@ -27,10 +27,7 @@ public final class AnimaMod implements ModInitializer {
     /** The library's log channel, shared by everything under {@code dev.luizloyola.anima}. */
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    /**
-     * Anima's own {@code config/anima.json}. A consuming mod builds its own for its own knob
-     * set — this one is not shared, and neither is the file.
-     */
+    /** Anima's own {@code config/anima.toml}; a consuming mod builds its own for its own knob set. */
     public static final ConfigFile CONFIG = new ConfigFile(Config.store());
 
     @Override

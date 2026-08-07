@@ -6,25 +6,27 @@ import java.util.Optional;
 
 /**
  * What a single tunable is: a dotted key, a type, a default, safety bounds and a sentence for the
- * operator. Anima's own set is {@link Knob}.
+ * operator. One constant per knob, in an enum the owning mod declares; Anima's own set is
+ * {@link Knob}.
  *
- * <p><b>An interface, not an enum,</b> because none of the config stack cares whose knobs it
- * drives: every mod keeps its own enum, file and command. A knob never knows where its value is
- * stored — {@link KnobSet#indexOf} decides, so a hand-written enum and a generated family can share
- * one set.
+ * <p><b>An interface, not an enum</b>: the config stack — file schema, atomic write, unknown-key
+ * report, completions, clamp, GUI — does not care whose knobs it drives, so every mod keeps its
+ * own enum, file and command. An enum is the natural implementor but nothing requires one; a knob
+ * does not know where its value is stored ({@link KnobSet#indexOf} decides), which lets a set mix
+ * a hand-written enum with a generated family without collision. Everything below the accessors is
+ * derived: six values per knob buy parsing, clamping, formatting and error phrasing.
  *
- * <p>Everything below the accessors is derived: six values per knob buy parsing, clamping,
- * formatting and error phrasing.
- *
- * <p><b>Ranges are safety bounds, not taste:</b> they only stop a hand-edited file producing an
- * unusable agent or a stalled server, and {@link ConfigValues} clamps rather than rejects.
+ * <p><b>Ranges are safety bounds, not taste.</b> {@code min}/{@code max} stop a hand-edited file
+ * producing an agent that cannot function or a server that stalls; values inside are the
+ * operator's business. {@link ConfigValues} clamps rather than rejects, so one bad line degrades
+ * to a warning instead of failing the whole file.
  */
 public interface KnobSpec {
 
     /** What a knob holds. Everything is stored as a double; the kind decides how it reads back. */
     enum Kind { DOUBLE, INT, BOOL }
 
-    /** The dotted, snake_case key — the name used in JSON, in commands, and in log messages. */
+    /** The dotted, snake_case key — the name used in the file, in commands, and in log messages. */
     String key();
 
     Kind kind();
@@ -48,16 +50,17 @@ public interface KnobSpec {
     }
 
     /**
-     * The key split on its dots — the nesting the file is written with, one object per segment
-     * before the last. A hand-written key nests one deep, a generated species family three or four
-     * ({@code person.anima_settings.senses.radius}), so the file reads as a species.
+     * The key split on its dots — one TOML table per segment before the last. A hand-written key
+     * has one dot and nests one deep; a generated species family's is three or four
+     * ({@code person.anima_settings.senses.radius}), so the file reads as a description of a
+     * species rather than one flat object of long names.
      */
     default List<String> path() {
         return List.of(key().split("\\."));
     }
 
     /**
-     * The outermost JSON object this knob nests under, and its GUI category — {@code "perception"}
+     * The outermost TOML table this knob nests under, and its GUI category — {@code "perception"}
      * for {@code perception.*}, the species for a generated family.
      */
     default String section() {
@@ -108,7 +111,7 @@ public interface KnobSpec {
         return Double.isFinite(raw) && clamp(raw) == raw;
     }
 
-    /** Renders a stored value the way it should appear in JSON and in command output. */
+    /** Renders a stored value the way it should appear in the file and in command output. */
     default String format(double value) {
         return switch (kind()) {
             case BOOL -> value != 0.0 ? "true" : "false";

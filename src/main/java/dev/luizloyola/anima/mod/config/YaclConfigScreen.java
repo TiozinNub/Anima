@@ -19,19 +19,21 @@ import net.minecraft.network.chat.Component;
 
 /**
  * The optional YACL config screen — one category per {@link KnobSpec#section()}, one option per
- * knob, built from a {@link KnobSet} so it cannot fall out of step with the file or the command.
+ * knob, built from a {@link KnobSet}, so it cannot fall out of step with the file or the command
+ * and a consumer gets the same screen from its own store.
  *
- * <p><b>YACL is the GUI only.</b> {@link ConfigFile} keeps {@code config/<mod>.json} for an atomic
- * write, unknown-key reporting and regenerated {@code "// name"} doc lines; values stay in the
- * immutable {@link ConfigValues} behind {@link Config}, whose whole-object swap keeps a reload safe
- * for the off-thread pathfinder.
+ * <p><b>YACL is used here for the GUI only.</b> {@link ConfigFile} keeps {@code config/<mod>.toml}
+ * for the atomic tmp-and-rename write, the unknown-key report and the regenerated {@code #} doc
+ * comments YACL's serializer has none of; values stay in the immutable {@link ConfigValues} behind
+ * {@link Config}, whose volatile whole-object swap makes a reload safe for the off-thread
+ * pathfinder.
  *
- * <p><b>Do not load this class unless YACL is installed:</b> it names {@code dev.isxander.*} types,
- * so touching it without the library is a {@link NoClassDefFoundError}. {@link AnimaModMenu} checks
- * first; the library is {@code modCompileOnly}.
+ * <p><b>Must not be loaded unless YACL is installed</b> — it names {@code dev.isxander.*} types
+ * directly, so touching it without the {@code modCompileOnly} library is a
+ * {@link NoClassDefFoundError}; {@link AnimaModMenu} is the only caller and checks first.
  *
- * <p>Controllers get the ranges, but the guarantee is {@link ConfigValues#with}, which clamps again
- * on the way in.
+ * <p>Controller ranges refuse illegal input early; {@link ConfigValues#with} clamps again on the
+ * way in.
  */
 public final class YaclConfigScreen {
 

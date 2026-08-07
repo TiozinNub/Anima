@@ -32,18 +32,35 @@ class JarContentsTest {
 
     /**
      * Where a jar entry is allowed to be. Anything outside this is a file that arrived without
-     * anyone deciding it should — a shaded dependency, a stray asset, a jar-in-jar. Jar-in-jar in
-     * particular is a DECISION here (Luiz): Anima ships as its own download, and nesting it would
-     * mean a player running two consumers carries two copies and lets Loader choose.
+     * anyone deciding it should — a shaded dependency or a stray asset.
      */
     private static final List<String> ALLOWED_PREFIXES = List.of(
             "dev/luizloyola/" + MOD_ID + "/", "assets/" + MOD_ID + "/", "data/" + MOD_ID + "/",
-            "META-INF/");
+            "META-INF/", "licenses/");
 
     /** Top-level files that belong in the jar by name. */
     private static final List<String> ALLOWED_FILES = List.of(
             "fabric.mod.json", MOD_ID + ".mixins.json", MOD_ID + ".accesswidener", MOD_ID + ".ct",
-            "LICENSE", "TRADEMARKS.md");
+            "LICENSE", "TRADEMARKS.md", "THIRD-PARTY.md");
+
+    /**
+     * The nested jars this mod is allowed to carry, BY NAME rather than under a blanket
+     * {@code META-INF/}: a dependency that starts nesting itself after a version bump arrives
+     * without a commit mentioning it, carrying a licence nobody read.
+     *
+     * <p>Jar-in-jar is a DECISION (Luiz) about our mods — Anima is its own download, never nested
+     * into Autarkia, or a player running two consumers carries two copies and lets Loader choose.
+     * A third-party library was never that rule's case: the alternative is every Anima user
+     * hand-installing a parser, and Loader de-duplicates night-config.
+     */
+    private static final List<String> ALLOWED_NESTED_JARS = List.of(
+            "META-INF/jars/core-" + nightConfig() + ".jar",
+            "META-INF/jars/toml-" + nightConfig() + ".jar");
+
+    /** night-config's version, handed in by the build so a bump stays a one-line edit. */
+    private static String nightConfig() {
+        return System.getProperty("anima.night_config.version");
+    }
 
     private static final ModJar JAR = ModJar.fromSystemProperty("anima.jar");
     private static final JsonObject METADATA =
@@ -61,6 +78,36 @@ class JarContentsTest {
                         + LICENCE + " — one of the two is wrong");
         assertEquals(LICENCE, METADATA.get("license").getAsString(),
                 "fabric.mod.json declares a licence this mod does not ship");
+    }
+
+    @Test
+    @DisplayName("the nested library's terms travel with it")
+    void nestedLicenceTextIsPackaged() {
+        assertTrue(JAR.has("THIRD-PARTY.md"), JAR.name() + " nests a third-party library but "
+                + "ships no THIRD-PARTY.md — night-config's own jars carry no licence text, so "
+                + "without this nobody holding this jar can read the terms of the code inside it");
+        for (String text : List.of("licenses/LGPL-3.0.txt", "licenses/GPL-3.0.txt")) {
+            assertTrue(JAR.has(text), text + " is missing — LGPL-3.0 is not conveyed by naming it");
+        }
+        assertTrue(JAR.text("licenses/LGPL-3.0.txt")
+                        .startsWith("                   GNU LESSER GENERAL PUBLIC LICENSE"),
+                "licenses/LGPL-3.0.txt is not the verbatim LGPL — the file night-config is "
+                        + "actually licensed under is the one that has to be in here");
+    }
+
+    @Test
+    @DisplayName("the jar nests exactly the libraries it says it does")
+    void nestsOnlyTheDeclaredLibraries() {
+        List<String> nested = JAR.entries().stream()
+                .filter(e -> e.startsWith("META-INF/jars/"))
+                .filter(e -> e.endsWith(".jar"))
+                .sorted()
+                .toList();
+        assertEquals(ALLOWED_NESTED_JARS.stream().sorted().toList(), nested,
+                "the nested jars are not the ones this mod declares. Anima nests night-config and "
+                        + "nothing else, and each nested jar carries a licence somebody has to "
+                        + "have read: a new one here needs a row in THIRD-PARTY.md and its text "
+                        + "in licenses/ before it ships");
     }
 
     @Test
@@ -112,9 +159,9 @@ class JarContentsTest {
                 .filter(e -> !e.matches(".*refmap.*\\.json"))
                 .toList();
         assertTrue(strays.isEmpty(), () -> ModJar.class.getSimpleName() + ": " + JAR.name()
-                + " carries " + strays.size() + " unexpected entr(y/ies) — a shaded dependency, a "
-                + "stray asset, or a nested jar (which this repo deliberately does not use): "
-                + strays);
+                + " carries " + strays.size() + " unexpected entr(y/ies) — a shaded dependency or "
+                + "a stray asset. Nested jars are covered separately and by name, see "
+                + "nestsOnlyTheDeclaredLibraries(): " + strays);
     }
 
     @Test

@@ -10,44 +10,44 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The schema of a mind: one aspect per thing on which one species may differ from another. See
- * {@link SpeciesProfile} for the declaration, {@link AgentProfile} for the resolved read, and
- * {@code docs/superpowers/specs/2026-07-28-per-species-minds-design.md} for the whole design.
+ * The schema of a mind: one aspect per thing on which one species may differ from another. A
+ * consumer declares a complete value for every registered aspect per species; an agent runs that
+ * plus its consumer's modifiers. See {@link SpeciesProfile} for the declaration,
+ * {@link AgentProfile} for the resolved read, and
+ * {@code docs/superpowers/specs/2026-07-28-per-species-minds-design.md} for the design.
  *
- * <p><b>Open, not an enum</b>, so a consumer can tune the vocabulary it registers itself — its own
- * {@code NeedKind} or {@code PoiKind} numbers belong to a species. See
+ * <p><b>Open, not an enum</b>, so a consumer can tune its own vocabulary: a mod that registers its
+ * own {@code NeedKind} or {@code PoiKind} has numbers that belong to a species, and a closed schema
+ * left them declarable but not tunable. See
  * {@code docs/superpowers/specs/2026-08-06-needs-design.md} §1.
  *
- * <p><b>Registration order is schema order</b> — the generated knob family, the sections of a
- * consumer's config file and every readout follow it, so it must not depend on when somebody
- * touched a class. Anima registers its own in this class's initializer, a consumer at mod init,
- * and the registry {@linkplain #freeze() freezes} the moment the first species is declared, so
- * "too late" throws rather than leaving a declared species silently short an aspect.
+ * <p><b>Registration order is schema order</b> — of the generated knob family, of the sections in a
+ * consumer's config file, and of every readout. Anima registers its own in this class's
+ * initializer, a consumer at mod init, and the registry {@linkplain #freeze() freezes} at the first
+ * species declaration.
  *
- * <p><b>Instances are canonical per key.</b> {@link #register} returns the one instance for a key
- * and refuses to redefine it, so {@code ==} is safe and two mods cannot disagree about what
- * {@code senses.radius} means.
+ * <p><b>Canonical per key.</b> {@link #register} returns the one instance for a key and refuses to
+ * redefine it, so {@code ==} is safe.
  *
- * <p><b>No defaults.</b> An undeclared aspect is a programming error rather than a species quietly
- * inheriting a library's idea of how far a body can see. Bounds travel with the aspect: a declared
- * value still has to be legal, and the operator may hand-edit the species file afterwards.
+ * <p><b>No defaults.</b> An undeclared aspect is a programming error, not a species inheriting the
+ * library's idea of how far a body can see — that inheritance is what made every agent in the world
+ * see 24 blocks. Bounds travel with the aspect: a declared value must still be legal, and the
+ * operator may hand-edit the species file.
  *
- * <p><b>What is not here.</b> This holds all but nine of Anima's tunables; the nine left in
- * {@code anima.json} failed one of two tests, and {@code ProfileAspectTest} fails the build until a
+ * <p><b>What is not here.</b> All but nine of Anima's tunables are per-species; the nine left in
+ * {@code anima.toml} failed one of two tests, and {@code ProfileAspectTest} fails the build until a
  * new tunable is listed here or listed there:
  *
  * <ul>
  *   <li><b>A species could spend the server's budget with it.</b> {@code perception.reads_per_tick},
  *       {@code perception.queue_cap}, {@code perception.region_max_blocks} and
- *       {@code peers.ray_budget} bound work per agent per tick — server-wide caps, not defaults.
+ *       {@code peers.ray_budget} bound work per agent per tick: server-wide caps, not defaults.
  *   <li><b>It is not a way one mind differs from another.</b> {@code claims.ttl_ticks} is the
  *       contract of a registry two agents share; the four {@code journal.*} knobs configure a
  *       debugging facility and its disk use.
  * </ul>
  *
- * <p>Keys land inside a consumer's file as {@code <species>.anima_settings.<path>}. The old
- * {@code peers.*} name went with the old shape — that sense outgrew peers when it widened to every
- * living body.
+ * <p>Keys land inside a consumer's file as {@code <species>.anima_settings.<path>}.
  */
 public final class ProfileAspect {
 
@@ -336,7 +336,7 @@ public final class ProfileAspect {
         return doc;
     }
 
-    /** The JSON object this aspect nests under within a species ({@code "senses"}). */
+    /** The TOML table this aspect nests under within a species ({@code "senses"}). */
     public String section() {
         return key.substring(0, key.indexOf('.'));
     }

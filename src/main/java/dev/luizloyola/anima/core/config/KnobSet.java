@@ -6,18 +6,21 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * One mod's complete set of tunables — the unit the whole config stack operates on. A set owns a
- * file, a command and a GUI page, and a consuming mod declares its own rather than reaching for
- * Anima's, because a library behind another mod's command is not adoptable and inherited knobs hide
- * which are whose.
+ * One mod's complete set of tunables — the unit the whole config stack operates on.
  *
+ * <p>A set owns a file, a command and a GUI page: Anima's live in {@code config/anima.toml} behind
+ * {@code /anima config}, and a consuming mod declares its own. A library reachable only through
+ * another mod's command is not adoptable, and a mod that inherits a hundred library knobs cannot
+ * tell an operator which are its own.
+ *
+ * <p>Registering is one line beside the enum:
  * <pre>{@code
  * public static final KnobSet SET = KnobSet.of("mymod", "My Mod", MyKnob.values());
  * }</pre>
  *
- * <p><b>The set assigns the storage index, not the knob:</b> declaration order is the index and
- * {@link ConfigValues} asks the set, so two enums in one set (both counting from zero) cannot
- * write over each other.
+ * <p><b>The set assigns the storage index, not the knob.</b> Declaration order is the index and
+ * {@link ConfigValues} asks the set — necessary once a set is assembled from more than one source,
+ * since two independent enums both start at zero and would overwrite each other's values.
  */
 public final class KnobSet {
 
@@ -109,7 +112,7 @@ public final class KnobSet {
 
     /** The file this set persists to, relative to the config directory. */
     public String fileName() {
-        return id + ".json";
+        return id + ".toml";
     }
 
     /** Translation key root for the optional GUI — {@code <id>.config.category.<section>} etc. */

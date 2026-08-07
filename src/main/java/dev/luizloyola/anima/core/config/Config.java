@@ -11,7 +11,7 @@ package dev.luizloyola.anima.core.config;
  */
 public final class Config {
 
-    /** Anima's knob set: {@code config/anima.json}, edited with {@code /anima config}. */
+    /** Anima's knob set: {@code config/anima.toml}, edited with {@code /anima config}. */
     public static final KnobSet SET = KnobSet.of("anima", "Anima", Knob.values());
 
     private static final ConfigStore STORE = new ConfigStore(SET);

@@ -3,36 +3,22 @@ package dev.luizloyola.anima.core.config;
 import java.util.Optional;
 
 /**
- * Anima's own tunables, one constant per knob. Everything else in Anima's config stack derives from
- * this list — the JSON schema, the {@code /anima config} completions, the validation clamp, the
- * optional YACL screen — so a new tunable is a line here plus a one-line accessor beside the code
- * that reads it, and nothing anywhere reflects over field names.
+ * Anima's own tunables: one constant per knob — dotted key, type, default, legal range. The file
+ * schema, the {@code /anima config} completions, the clamp and the optional YACL screen all derive
+ * from this list, so a new tunable is a line here plus a one-line accessor.
  *
- * <p><b>These are limits, not defaults.</b> The dials of a mind are now
- * {@link dev.luizloyola.anima.core.agent.ProfileAspect}s, declared per species by the mod that
- * ships the body; keeping them here is why a rabbit saw as far as a settler. What is left is the
- * short list a species must not answer for itself:
+ * <p><b>Limits, not defaults.</b> Per-species dials are
+ * {@link dev.luizloyola.anima.core.agent.ProfileAspect}s, in the file of the mod that ships the
+ * body. What stays is what a species must not answer for itself: {@code limits.*}, the operator's
+ * ceiling on work per agent per tick; {@code claims.*}, the contract of a registry two agents
+ * share; {@code journal.*}, disk use. A consumer's own tunables go in its own enum and file
+ * ({@link KnobSpec}, {@link KnobSet}); flee weights are not knobs at all, entity ids being an open
+ * set ({@code DangerFile}).
  *
- * <ul>
- *   <li><b>{@code limits.*}</b> — work per agent per tick; the operator's ceiling over everybody,
- *       since a species that could raise its own could take a server down. Each doc line says what
- *       happens at saturation, because a cap degrades behaviour rather than breaking it.
- *   <li><b>{@code claims.*}</b> — the contract of a registry two agents share, so it belongs to the
- *       board between them rather than to either one.
- *   <li><b>{@code journal.*}</b> — a debugging facility and its disk use.
- * </ul>
- *
- * <p>A consuming mod's own tunables belong in its own enum and file; see {@link KnobSpec} and
- * {@link KnobSet}. The flee weights are not knobs at
- * all (entity ids are an open set, belonging to whoever ships a body), so they are their own
- * artifact per consumer ({@code DangerFile}).
- *
- * <p>Keys are dotted {@code snake_case}, the file nesting one object per segment, as Minecraft
- * itself moved to in 26.1.
- *
- * <p><b>Ranges are safety bounds, not taste.</b> {@code min}/{@code max} keep a hand-edited file
- * from producing a server that stalls (a million block reads per tick); {@link ConfigValues} clamps
- * rather than rejects, so one bad line degrades to a warning instead of failing the whole file.
+ * <p>Keys are dotted {@code snake_case}, nested one object per segment as Minecraft has since
+ * 26.1. {@code min}/{@code max} are safety bounds against a hand-edited file stalling a server,
+ * not taste; {@link ConfigValues} clamps rather than rejects, so one bad line is a warning instead
+ * of a failed file.
  */
 public enum Knob implements KnobSpec {
 

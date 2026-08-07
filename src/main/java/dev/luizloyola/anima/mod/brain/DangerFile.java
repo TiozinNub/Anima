@@ -1,18 +1,17 @@
 package dev.luizloyola.anima.mod.brain;
 
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.electronwill.nightconfig.core.CommentedConfig;
+import com.electronwill.nightconfig.core.UnmodifiableConfig;
 import dev.luizloyola.anima.core.brain.sense.DangerStore;
 import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.mod.AnimaMod;
+import dev.luizloyola.anima.mod.config.TomlDocument;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
@@ -23,7 +22,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 
 /**
- * One species' flee weights on disk — {@code config/<mod id>-danger.json}.
+ * One species' flee weights on disk — {@code config/<mod id>-danger.toml}.
  *
  * <p><b>Its own artifact, not a config section:</b> hundreds of machine-written entries do not
  * belong beside thirty hand-tuned numbers, and it cannot be written at mod init — modded and
@@ -42,8 +41,6 @@ import net.minecraft.world.entity.MobCategory;
  */
 public final class DangerFile {
 
-    /** Prefix marking a generated documentation line rather than a value — as in the config file. */
-    private static final String DOC_PREFIX = "// ";
     private static final String DERIVED = "derived";
     private static final String OVERRIDES = "overrides";
 
@@ -65,9 +62,9 @@ public final class DangerFile {
         this.store = store;
     }
 
-    /** {@code <game dir>/config/<mod id>-danger.json}. */
+    /** {@code <game dir>/config/<mod id>-danger.toml}. */
     public Path path() {
-        return FabricLoader.getInstance().getConfigDir().resolve(modId + "-danger.json");
+        return FabricLoader.getInstance().getConfigDir().resolve(modId + "-danger.toml");
     }
 
     /**
@@ -132,39 +129,32 @@ public final class DangerFile {
         if (!Files.exists(path)) {
             return store.get().overrides(); // first run: whatever the mod author declared
         }
-        JsonObject root;
+        CommentedConfig root;
         try {
-            JsonElement parsed = JsonParser.parseString(
-                    Files.readString(path, StandardCharsets.UTF_8));
-            if (!parsed.isJsonObject()) {
-                AnimaMod.LOGGER.error("{} danger: {} is not a JSON object — using the declared "
-                        + "weights and leaving your file alone", modId, path);
-                return store.get().overrides();
-            }
-            root = parsed.getAsJsonObject();
+            root = TomlDocument.parse(Files.readString(path, StandardCharsets.UTF_8));
         } catch (IOException | RuntimeException e) {
             AnimaMod.LOGGER.error("{} danger: could not read {} ({}) — using the declared weights "
-                    + "and leaving your file alone", modId, path, e.getMessage());
+                    + "and leaving your file alone", modId, path, TomlDocument.problem(e));
             return store.get().overrides();
         }
-        JsonElement section = root.get(OVERRIDES);
-        if (section == null || !section.isJsonObject()) {
+        // The LIST form of get(), not the dotted String form: an override key is an entity id,
+        // written quoted and read back whole. "overrides.somemod:thing" as a dotted string would
+        // break the first time an id carried a dot.
+        Object section = root.get(List.of(OVERRIDES));
+        if (!(section instanceof UnmodifiableConfig table)) {
             return Map.of();
         }
         Map<String, Double> overrides = new LinkedHashMap<>();
-        JsonObject object = section.getAsJsonObject();
-        for (String species : object.keySet()) {
-            if (species.startsWith(DOC_PREFIX.trim())) {
-                continue;
-            }
-            JsonElement value = object.get(species);
-            if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()
-                    || !Double.isFinite(value.getAsDouble())) {
+        for (UnmodifiableConfig.Entry entry : table.entrySet()) {
+            String species = entry.getKey();
+            Object value = entry.getValue();
+            if (!(value instanceof Number number) || value instanceof Boolean
+                    || !Double.isFinite(number.doubleValue())) {
                 AnimaMod.LOGGER.warn("{} danger: {}.{} should be a number, found {} — ignored",
                         modId, OVERRIDES, species, value);
                 continue;
             }
-            double raw = value.getAsDouble();
+            double raw = number.doubleValue();
             double clamped = Math.max(MIN, Math.min(MAX, raw));
             if (clamped != raw) {
                 AnimaMod.LOGGER.warn(String.format(Locale.ROOT,
@@ -180,15 +170,7 @@ public final class DangerFile {
     public boolean save(DangerTable table) {
         Path path = path();
         try {
-            Files.createDirectories(path.getParent());
-            Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
-            Files.writeString(tmp, render(table), StandardCharsets.UTF_8);
-            try {
-                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING,
-                        StandardCopyOption.ATOMIC_MOVE);
-            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
-                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING);
-            }
+            TomlDocument.save(path, render(table));
             return true;
         } catch (IOException e) {
             AnimaMod.LOGGER.error("{} danger: could not write {}", modId, path, e);
@@ -196,33 +178,33 @@ public final class DangerFile {
         }
     }
 
-    /** The exact text {@link #save} writes — pulled out so a test can check it round-trips. */
+    /**
+     * The exact text {@link #save} writes — pulled out so a test can check it round-trips. Each
+     * half is introduced by a comment on its own table, so EDITS HERE ARE OVERWRITTEN is a real
+     * TOML comment rather than the first of several hundred string entries.
+     */
     public String render(DangerTable table) {
-        JsonObject root = new JsonObject();
-        root.addProperty(DOC_PREFIX + "about",
+        CommentedConfig root = TomlDocument.document();
+
+        root.set(List.of(DERIVED), TomlDocument.document());
+        root.setComment(List.of(DERIVED), TomlDocument.comment(
                 "How frightening each kind of thing is to a " + modId + " agent. 0 is not "
                         + "frightening at all; 1 is a zombie-grade nuisance. Anything not named "
-                        + "here falls back to \"" + DangerTable.DEFAULT_KEY + "\".");
+                        + "here falls back to \"" + DangerTable.DEFAULT_KEY + "\".\n\n"
+                        + "GENERATED from the entity registry every time the server starts, "
+                        + "guessed from each type's category. EDITS HERE ARE OVERWRITTEN — put "
+                        + "yours in \"" + OVERRIDES + "\" below, which is never touched."));
+        table.derived().forEach((species, weight) -> root.set(List.of(DERIVED, species), weight));
 
-        JsonObject derived = new JsonObject();
-        derived.addProperty(DOC_PREFIX + "about",
-                "GENERATED from the entity registry every time the server starts, guessed from "
-                        + "each type's category. EDITS HERE ARE OVERWRITTEN — put yours in \""
-                        + OVERRIDES + "\" below, which is never touched.");
-        table.derived().forEach(derived::addProperty);
-        root.add(DERIVED, derived);
-
-        JsonObject overrides = new JsonObject();
-        overrides.addProperty(DOC_PREFIX + "about",
+        root.set(List.of(OVERRIDES), TomlDocument.document());
+        root.setComment(List.of(OVERRIDES), TomlDocument.comment(
                 "Yours. Anything here wins over the generated guess above and survives every "
                         + "regeneration. \"" + DangerTable.DEFAULT_KEY + "\" is what an unlisted "
                         + "species is worth; \"" + DangerTable.HOSTILE_KEY + "\" is what "
                         + "something that has attacked from cover is worth before it is "
-                        + "identified.");
-        table.overrides().forEach(overrides::addProperty);
-        root.add(OVERRIDES, overrides);
+                        + "identified."));
+        table.overrides().forEach((species, weight) -> root.set(List.of(OVERRIDES, species), weight));
 
-        return new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create().toJson(root)
-                + System.lineSeparator();
+        return TomlDocument.render(root);
     }
 }

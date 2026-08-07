@@ -83,6 +83,24 @@ dependencies {
         "fabric-rendering-v1", "fabric-object-builder-api-v1"
     )
 
+    // The TOML reader/writer behind `config/<mod>.toml`. A plain Java library that never sees
+    // Minecraft, so it is `implementation` rather than `modImplementation`; Loom generates the
+    // nested mod metadata for it at `include` time. `include` is not transitive — naming only
+    // `toml` would nest a jar whose every class fails to link — so both modules are listed.
+    //
+    // NESTED, and it is the only thing Anima nests. The no-jar-in-jar decision (CLAUDE.md) is
+    // about our mods staying separate downloads: nesting Anima into Autarkia would give a player
+    // running two consumers two copies of the library and let Loader pick. A third-party parser
+    // is the case that rule was never about — the alternative is telling every Anima user to
+    // install a Java library by hand. LGPL-3.0, conveyed unmodified and replaceable (a newer
+    // night-config in `mods/` wins. That is the relinking freedom the licence asks for);
+    // the texts and the notice ride in the jar. See THIRD-PARTY.md.
+    val nightConfig: String = sc.properties["deps.night_config"]
+    for (module in listOf("core", "toml")) {
+        implementation("com.electronwill.night-config:$module:$nightConfig")
+        include("com.electronwill.night-config:$module:$nightConfig")
+    }
+
     // Optional config GUI. Both are compile-only: never shipped, never required at runtime, and
     // guarded at every call site (see AnimaModMenu). YACL is used for the SCREEN only — its
     // config API is not used, because mod/config/ConfigFile keeps the atomic
@@ -159,6 +177,10 @@ tasks.named<Test>("test") {
     // from anything the Jar task does.
     systemProperty("anima.jar", shippedJar.get().asFile.absolutePath)
     systemProperty("anima.version", modVersion)
+    // JarContentsTest pins the nested jars by name. Handed in rather than hardcoded in the test,
+    // so bumping the library is still a one-line edit in stonecutter.properties.toml.
+    val nightConfigVersion: String = sc.properties["deps.night_config"]
+    systemProperty("anima.night_config.version", nightConfigVersion)
 }
 
 // Every warning javac can raise is an error, less four categories. `-Xlint:all` rather than a
@@ -275,9 +297,15 @@ tasks {
     // The licence travels with the jar: someone who has only the file, not the repository,
     // still has the terms. TRADEMARKS.md rides along because the licences say
     // nothing about the name, so the jar would otherwise imply the name came with the code.
+    //
+    // THIRD-PARTY.md and licenses/ ride along for the nested night-config, which is LGPL-3.0 and
+    // ships no licence text of its own — so if we did not carry one, nobody downloading this jar
+    // would ever see the terms of the library inside it. That is an obligation, not a courtesy.
     named<Jar>("jar") {
         from(rootProject.file("TRADEMARKS.md"))
         from(sc.branch.project.file("LICENSE"))
+        from(sc.branch.project.file("THIRD-PARTY.md"))
+        from(sc.branch.project.file("licenses")) { into("licenses") }
     }
 
     register<Copy>("buildAndCollect") {
