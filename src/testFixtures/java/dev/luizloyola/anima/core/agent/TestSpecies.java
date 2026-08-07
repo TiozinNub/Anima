@@ -74,7 +74,7 @@ public final class TestSpecies {
     /** {@link #BIPED} with one aspect moved, for a test that needs a body unlike the default one. */
     public static AgentProfile with(ProfileAspect aspect, double value) {
         SpeciesProfile.Builder builder = SpeciesProfile.of("test_variant");
-        for (ProfileAspect each : ProfileAspect.values()) {
+        for (ProfileAspect each : ProfileAspect.all()) {
             builder.set(each, each == aspect ? value : BIPED.get(each));
         }
         return builder.build().fixed();

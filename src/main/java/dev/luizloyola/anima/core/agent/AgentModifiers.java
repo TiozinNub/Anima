@@ -2,7 +2,7 @@ package dev.luizloyola.anima.core.agent;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +27,7 @@ public final class AgentModifiers {
     public static final AgentModifiers NONE = new AgentModifiers(true);
 
     private final Map<ProfileAspect, Map<String, AspectModifier>> byAspect =
-            new EnumMap<>(ProfileAspect.class);
+            new LinkedHashMap<>();
     private final boolean frozen;
     private long version;
 

@@ -307,15 +307,14 @@ class BeingSensorCoreTest {
 
     /** One body's eyes, stated as a variation on the test species. */
     private static AgentProfile eyes(int radius, int cone, int vertical, double sneakMult) {
+        Map<ProfileAspect, Double> overrides = Map.of(
+                ProfileAspect.SENSES_RADIUS, (double) radius,
+                ProfileAspect.SENSES_CONE_DEGREES, (double) cone,
+                ProfileAspect.SENSES_VERTICAL_DEGREES, (double) vertical,
+                ProfileAspect.SENSES_SNEAK_RANGE_MULT, sneakMult);
         SpeciesProfile.Builder builder = SpeciesProfile.of("test_eyes");
-        for (ProfileAspect aspect : ProfileAspect.values()) {
-            builder.set(aspect, switch (aspect) {
-                case SENSES_RADIUS -> radius;
-                case SENSES_CONE_DEGREES -> cone;
-                case SENSES_VERTICAL_DEGREES -> vertical;
-                case SENSES_SNEAK_RANGE_MULT -> sneakMult;
-                default -> TestSpecies.BIPED.get(aspect);
-            });
+        for (ProfileAspect aspect : ProfileAspect.all()) {
+            builder.set(aspect, overrides.getOrDefault(aspect, TestSpecies.BIPED.get(aspect)));
         }
         return builder.build().fixed();
     }

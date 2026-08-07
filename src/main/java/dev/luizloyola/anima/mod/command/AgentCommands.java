@@ -523,7 +523,7 @@ public final class AgentCommands {
     public static LiteralArgumentBuilder<CommandSourceStack> profile() {
         SuggestionProvider<CommandSourceStack> aspects = (ctx, builder) ->
                 SharedSuggestionProvider.suggest(
-                        java.util.Arrays.stream(ProfileAspect.values())
+                        ProfileAspect.all().stream()
                                 .map(ProfileAspect::key).toList(), builder);
         return Commands.literal("profile")
                                 .executes(ctx -> profileShow(ctx.getSource(), null))
@@ -609,7 +609,7 @@ public final class AgentCommands {
             return 1;
         }
 
-        List<ProfileAspect> shifted = java.util.Arrays.stream(ProfileAspect.values())
+        List<ProfileAspect> shifted = ProfileAspect.all().stream()
                 .filter(aspect -> !profile.modifiers(aspect).isEmpty())
                 .toList();
         Replies.send(source, () -> Component.literal(name + " is a " + profile.species()
@@ -640,7 +640,7 @@ public final class AgentCommands {
         Replies.send(source, () -> Component.literal(person.entity().getName().getString()
                 + " — " + profile.species()).withStyle(ChatFormatting.AQUA));
         String section = null;
-        for (ProfileAspect aspect : ProfileAspect.values()) {
+        for (ProfileAspect aspect : ProfileAspect.all()) {
             if (!aspect.section().equals(section)) {
                 section = aspect.section();
                 String heading = section;
@@ -653,7 +653,7 @@ public final class AgentCommands {
                                 ? ChatFormatting.GRAY : ChatFormatting.YELLOW));
             }
         }
-        return ProfileAspect.values().length;
+        return ProfileAspect.count();
     }
 
     /**

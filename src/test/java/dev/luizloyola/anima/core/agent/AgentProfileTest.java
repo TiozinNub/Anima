@@ -26,7 +26,7 @@ class AgentProfileTest {
         AgentProfile profile = knobs.profile(store);
 
         assertEquals("test_biped", profile.species());
-        for (ProfileAspect aspect : ProfileAspect.values()) {
+        for (ProfileAspect aspect : ProfileAspect.all()) {
             assertEquals(TestSpecies.BIPED.get(aspect), profile.raw(aspect), aspect.key());
         }
         assertTrue(profile.b(ProfileAspect.BODY_CAN_SWIM));
@@ -110,7 +110,7 @@ class AgentProfileTest {
         // Two species in one set: the whole reason the namespace segment exists.
         SpeciesProfile.Builder other = SpeciesProfile.of("test_other")
                 .set(ProfileAspect.SENSES_RADIUS, 8);
-        for (ProfileAspect aspect : ProfileAspect.values()) {
+        for (ProfileAspect aspect : ProfileAspect.all()) {
             if (aspect != ProfileAspect.SENSES_RADIUS) {
                 other.set(aspect, TestSpecies.BIPED.get(aspect));
             }
@@ -118,6 +118,6 @@ class AgentProfileTest {
         KnobSet both = KnobSet.of("testmod", "Test Mod",
                 java.util.stream.Stream.concat(knobs.knobs().stream(),
                         SpeciesKnobs.of(other.build()).knobs().stream()).toList());
-        assertEquals(ProfileAspect.values().length * 2, both.size());
+        assertEquals(ProfileAspect.count() * 2, both.size());
     }
 }

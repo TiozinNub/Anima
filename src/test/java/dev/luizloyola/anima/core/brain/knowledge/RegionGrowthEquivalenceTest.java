@@ -51,7 +51,7 @@ class RegionGrowthEquivalenceTest {
         Map<ProfileAspect, Double> overrides = Map.of(
                 ProfileAspect.PLACES_REGION_MAX_SPREAD, (double) cap);
         SpeciesProfile.Builder builder = SpeciesProfile.of("test_growth_" + cap);
-        for (ProfileAspect aspect : ProfileAspect.values()) {
+        for (ProfileAspect aspect : ProfileAspect.all()) {
             builder.set(aspect, overrides.getOrDefault(aspect, TestSpecies.BIPED.get(aspect)));
         }
         return builder.build().fixed();

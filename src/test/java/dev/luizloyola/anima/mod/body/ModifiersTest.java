@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
  */
 class ModifiersTest {
 
-    private static final ProfileAspect ASPECT = ProfileAspect.values()[0];
+    private static final ProfileAspect ASPECT = ProfileAspect.all().get(0);
 
     @Test
     void oneModifierSurvivesTheRoundTrip() {

@@ -1,7 +1,8 @@
 package dev.luizloyola.anima.core.agent;
 
 import java.util.Collections;
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -91,7 +92,7 @@ public final class SpeciesProfile {
     public static final class Builder {
 
         private final String species;
-        private final EnumMap<ProfileAspect, Double> values = new EnumMap<>(ProfileAspect.class);
+        private final Map<ProfileAspect, Double> values = new LinkedHashMap<>();
 
         private Builder(String species) {
             if (species == null || species.isBlank()) {
@@ -136,19 +137,27 @@ public final class SpeciesProfile {
          *     on why this is the one hard failure in the config stack.
          */
         public SpeciesProfile build() {
-            if (values.size() != ProfileAspect.values().length) {
+            // The first declaration closes the schema. Anything registering an aspect after this
+            // point would leave this species missing it, having already passed the check below —
+            // see ProfileAspect.freeze().
+            ProfileAspect.freeze();
+            List<ProfileAspect> schema = ProfileAspect.all();
+            if (values.size() != schema.size()) {
                 StringJoiner missing = new StringJoiner(", ");
-                for (ProfileAspect aspect : ProfileAspect.values()) {
+                for (ProfileAspect aspect : schema) {
                     if (!values.containsKey(aspect)) {
                         missing.add(aspect.key());
                     }
                 }
                 throw new IllegalStateException(species + " is missing " + missing);
             }
-            // An EnumMap copy, not Map.copyOf: iteration order is schema order. That is what the
-            // generated knob family, the file and the readout all present.
-            return new SpeciesProfile(species,
-                    Collections.unmodifiableMap(new EnumMap<>(values)));
+            // Rebuilt in SCHEMA order, not declaration order: this map's iteration is what the knob
+            // family, the config file and every readout present, and set() may be called in any order.
+            Map<ProfileAspect, Double> ordered = new LinkedHashMap<>();
+            for (ProfileAspect aspect : schema) {
+                ordered.put(aspect, values.get(aspect));
+            }
+            return new SpeciesProfile(species, Collections.unmodifiableMap(ordered));
         }
     }
 }

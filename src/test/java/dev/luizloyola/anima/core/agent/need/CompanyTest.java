@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.SpeciesProfile;
 import dev.luizloyola.anima.core.agent.TestSpecies;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -221,14 +222,12 @@ class CompanyTest {
 
     /** The test biped with a different company band and everything else left alone. */
     private static AgentProfile speciesWith(double centre, double width) {
+        Map<ProfileAspect, Double> overrides = Map.of(
+                ProfileAspect.SOCIAL_COMPANY_CENTER, centre,
+                ProfileAspect.SOCIAL_COMPANY_WIDTH, width);
         SpeciesProfile.Builder builder = SpeciesProfile.of("test_company");
-        for (ProfileAspect aspect : ProfileAspect.values()) {
-            double value = switch (aspect) {
-                case SOCIAL_COMPANY_CENTER -> centre;
-                case SOCIAL_COMPANY_WIDTH -> width;
-                default -> TestSpecies.BIPED.get(aspect);
-            };
-            builder.set(aspect, value);
+        for (ProfileAspect aspect : ProfileAspect.all()) {
+            builder.set(aspect, overrides.getOrDefault(aspect, TestSpecies.BIPED.get(aspect)));
         }
         return builder.build().fixed();
     }

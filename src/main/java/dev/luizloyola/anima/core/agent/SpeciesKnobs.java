@@ -4,7 +4,7 @@ import dev.luizloyola.anima.core.config.ConfigStore;
 import dev.luizloyola.anima.core.config.KnobSpec;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -45,9 +45,9 @@ public final class SpeciesKnobs {
 
     private SpeciesKnobs(SpeciesProfile declared) {
         this.declared = declared;
-        Map<ProfileAspect, KnobSpec> byAspect = new EnumMap<>(ProfileAspect.class);
-        List<KnobSpec> knobs = new ArrayList<>(ProfileAspect.values().length);
-        for (ProfileAspect aspect : ProfileAspect.values()) {
+        Map<ProfileAspect, KnobSpec> byAspect = new LinkedHashMap<>();
+        List<KnobSpec> knobs = new ArrayList<>(ProfileAspect.count());
+        for (ProfileAspect aspect : ProfileAspect.all()) {
             KnobSpec knob = new SpeciesKnob(
                     declared.species() + "." + NAMESPACE + "." + aspect.key(),
                     aspect,

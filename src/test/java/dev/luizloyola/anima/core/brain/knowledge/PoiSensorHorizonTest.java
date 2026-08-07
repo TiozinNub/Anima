@@ -37,7 +37,7 @@ class PoiSensorHorizonTest {
                 ProfileAspect.PLACES_NEAR_RADIUS, 4.0,
                 ProfileAspect.BODY_HEIGHT, 2.0);
         SpeciesProfile.Builder builder = SpeciesProfile.of("test_eyed_sensor");
-        for (ProfileAspect aspect : ProfileAspect.values()) {
+        for (ProfileAspect aspect : ProfileAspect.all()) {
             builder.set(aspect, overrides.getOrDefault(aspect, TestSpecies.BIPED.get(aspect)));
         }
         return builder.build().fixed();

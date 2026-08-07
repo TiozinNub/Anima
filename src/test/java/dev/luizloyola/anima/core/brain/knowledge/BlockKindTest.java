@@ -138,7 +138,7 @@ class BlockKindTest {
                 ProfileAspect.PLACES_HORIZON_RADIUS, 0.0,
                 ProfileAspect.BODY_HEIGHT, 2.0);
         SpeciesProfile.Builder builder = SpeciesProfile.of("test_gourd_eyed");
-        for (ProfileAspect aspect : ProfileAspect.values()) {
+        for (ProfileAspect aspect : ProfileAspect.all()) {
             builder.set(aspect, overrides.getOrDefault(aspect, TestSpecies.BIPED.get(aspect)));
         }
         return builder.build().fixed();

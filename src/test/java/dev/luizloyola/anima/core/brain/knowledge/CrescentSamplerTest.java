@@ -35,7 +35,7 @@ class CrescentSamplerTest {
                 ProfileAspect.PLACES_CONE_DEGREES, (double) cone,
                 ProfileAspect.PLACES_NEAR_RADIUS, (double) near);
         SpeciesProfile.Builder builder = SpeciesProfile.of("test_eyed");
-        for (ProfileAspect aspect : ProfileAspect.values()) {
+        for (ProfileAspect aspect : ProfileAspect.all()) {
             builder.set(aspect, overrides.getOrDefault(aspect, TestSpecies.BIPED.get(aspect)));
         }
         return builder.build().fixed();

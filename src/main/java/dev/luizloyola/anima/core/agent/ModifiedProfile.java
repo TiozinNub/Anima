@@ -22,7 +22,7 @@ public final class ModifiedProfile implements AgentProfile {
     private final AgentProfile species;
     private final AgentModifiers modifiers;
 
-    private final double[] resolved = new double[ProfileAspect.values().length];
+    private final double[] resolved = new double[ProfileAspect.count()];
     private long foldedSpeciesVersion = Long.MIN_VALUE;
     private long foldedModifierVersion = Long.MIN_VALUE;
     private long version;
@@ -48,7 +48,7 @@ public final class ModifiedProfile implements AgentProfile {
     @Override
     public double raw(ProfileAspect aspect) {
         refoldIfStale();
-        return resolved[aspect.ordinal()];
+        return resolved[aspect.index()];
     }
 
     @Override
@@ -76,8 +76,8 @@ public final class ModifiedProfile implements AgentProfile {
         foldedSpeciesVersion = speciesVersion;
         foldedModifierVersion = modifierVersion;
         version++;
-        for (ProfileAspect aspect : ProfileAspect.values()) {
-            resolved[aspect.ordinal()] = resolve(aspect);
+        for (ProfileAspect aspect : ProfileAspect.all()) {
+            resolved[aspect.index()] = resolve(aspect);
         }
     }
 

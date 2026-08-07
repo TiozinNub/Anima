@@ -1,11 +1,17 @@
 package dev.luizloyola.anima.core.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.config.Knob;
+import dev.luizloyola.anima.core.config.KnobSpec.Kind;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -74,7 +80,7 @@ class ProfileAspectTest {
             assertTrue(ProfileAspect.byKey(knob.key()).isEmpty(),
                     knob.key() + " is declared both per-species and server-wide");
         }
-        for (ProfileAspect aspect : ProfileAspect.values()) {
+        for (ProfileAspect aspect : ProfileAspect.all()) {
             assertTrue(Knob.byKey(aspect.key()).isEmpty(),
                     aspect.key() + " is declared both per-species and server-wide");
         }
@@ -84,7 +90,7 @@ class ProfileAspectTest {
     @DisplayName("aspects are well formed: unique dotted keys, a real range, a sentence each")
     void aspectsAreWellFormed() {
         Set<String> seen = new HashSet<>();
-        for (ProfileAspect aspect : ProfileAspect.values()) {
+        for (ProfileAspect aspect : ProfileAspect.all()) {
             assertTrue(seen.add(aspect.key()), "duplicate aspect key " + aspect.key());
             assertTrue(aspect.key().matches("[a-z0-9_]+\\.[a-z0-9_]+"),
                     aspect.key() + " is not a dotted snake_case key");
@@ -94,6 +100,71 @@ class ProfileAspectTest {
             assertEquals(java.util.Optional.of(aspect), ProfileAspect.byKey(aspect.key()));
         }
         assertEquals(java.util.Optional.empty(), ProfileAspect.byKey("nope.nothing"));
+    }
+
+    @Test
+    @DisplayName("index is schema order, dense, and starts where the file starts")
+    void indexIsDenseSchemaOrder() {
+        // The replacement for the enum ordinal ModifiedProfile used to fold by. Dense and stable
+        // or that array is the wrong size and every hot-path read is off by one.
+        List<ProfileAspect> all = ProfileAspect.all();
+        assertEquals(ProfileAspect.count(), all.size());
+        for (int i = 0; i < all.size(); i++) {
+            assertEquals(i, all.get(i).index(), all.get(i).key());
+        }
+        assertSame(ProfileAspect.MIND_STICKINESS, all.get(0),
+                "registration order is schema order, and schema order opens the config file");
+    }
+
+    @Test
+    @DisplayName("a species iterates in SCHEMA order, however its author chose to declare it")
+    void speciesIterateInSchemaOrder() {
+        // What an EnumMap used to impose for free and a registry has to do on purpose: this
+        // iteration drives the knob family, the config file and every readout, so a consumer's
+        // declaration order must not reshuffle an operator's file. Backwards is the worst case.
+        List<ProfileAspect> backwards = new ArrayList<>(ProfileAspect.all());
+        Collections.reverse(backwards);
+        SpeciesProfile.Builder builder = SpeciesProfile.of("test_backwards");
+        for (ProfileAspect aspect : backwards) {
+            builder.set(aspect, TestSpecies.BIPED.get(aspect));
+        }
+        assertEquals(ProfileAspect.all(), List.copyOf(builder.build().values().keySet()));
+    }
+
+    @Test
+    @DisplayName("an aspect is canonical per key — two mods cannot disagree about one")
+    void aspectsAreCanonicalPerKey() {
+        ProfileAspect radius = ProfileAspect.SENSES_RADIUS;
+        assertSame(radius, ProfileAspect.register(radius.key(), radius.kind(),
+                radius.min(), radius.max(), radius.doc()),
+                "re-registering the same shape hands back the one instance, so == stays safe");
+        assertThrows(IllegalStateException.class, () -> ProfileAspect.register(
+                radius.key(), radius.kind(), radius.min(), 999.0, radius.doc()),
+                "a different shape under the same key is two mods disagreeing");
+    }
+
+    @Test
+    @DisplayName("a key is a config path, and is checked as one")
+    void keysAreCheckedAtRegistration() {
+        // The enum could not be handed a bad key; a registry can, from a mod this suite will never
+        // see. section() slices on the first dot, so a key without one would break a config file
+        // rather than fail here.
+        assertThrows(IllegalArgumentException.class, () ->
+                ProfileAspect.register("nodots", Kind.INT, 0, 1, "A key with no section."));
+        assertThrows(IllegalArgumentException.class, () ->
+                ProfileAspect.register("Bad.Key", Kind.INT, 0, 1, "Not snake_case."));
+    }
+
+    @Test
+    @DisplayName("the schema closes when the first species is declared")
+    void registeringAfterTheFirstSpeciesFails() {
+        // Touching any declaration closes it — TestSpecies builds one in its own initializer. An
+        // aspect arriving later would leave every species already declared silently missing it,
+        // having passed its completeness check without it.
+        assertEquals("test_biped", TestSpecies.PROFILE.species());
+        assertThrows(IllegalStateException.class, () -> ProfileAspect.register(
+                "test.registered_too_late", Kind.DOUBLE, 0.0, 1.0,
+                "An aspect nobody's species could possibly have answered."));
     }
 
     @Test

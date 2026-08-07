@@ -67,7 +67,7 @@ class ConfigLabelsTest {
     @DisplayName("every aspect has a label — one word for it, shared by every species everywhere")
     void labelsAndAspectsAgree() {
         Set<String> expected = new TreeSet<>();
-        for (ProfileAspect aspect : ProfileAspect.values()) {
+        for (ProfileAspect aspect : ProfileAspect.all()) {
             expected.add(ASPECT_PREFIX + aspect.key());
         }
 
@@ -93,7 +93,7 @@ class ConfigLabelsTest {
         }
         // A generated family groups by species and by the aspect's own section. The species half of
         // that tab name is the consumer's word for its own body; this half is ours.
-        for (ProfileAspect aspect : ProfileAspect.values()) {
+        for (ProfileAspect aspect : ProfileAspect.all()) {
             expected.add(CATEGORY_PREFIX + aspect.section());
         }
 
@@ -136,7 +136,7 @@ class ConfigLabelsTest {
         for (Knob knob : Knob.values()) {
             assertLabelSaysSomething(OPTION_PREFIX + knob.key(), knob.key(), knob.leaf());
         }
-        for (ProfileAspect aspect : ProfileAspect.values()) {
+        for (ProfileAspect aspect : ProfileAspect.all()) {
             assertLabelSaysSomething(ASPECT_PREFIX + aspect.key(), aspect.key(),
                     aspect.key().substring(aspect.key().indexOf('.') + 1));
         }
