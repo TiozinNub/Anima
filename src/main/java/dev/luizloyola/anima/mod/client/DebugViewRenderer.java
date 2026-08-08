@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.mod.client;
 
 import dev.luizloyola.anima.compat.client.debug.GizmoFrame;
+import dev.luizloyola.anima.core.agent.need.Severity;
 import dev.luizloyola.anima.core.brain.knowledge.HorizonBuffer;
 import dev.luizloyola.anima.core.brain.knowledge.HorizonScanner;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
@@ -72,6 +73,15 @@ public final class DebugViewRenderer {
     private static final int BRAIN_TEXT_COLOR = 0xFFFFFFFF;
     private static final int HORIZON_TEXT_COLOR = 0xFFFFD700;
 
+    /**
+     * The severity ramp, and the only place in the codebase that turns a pressure into a colour.
+     * Grey is "nothing to want" — inert, so a comfortable roster reads as background.
+     */
+    private static final int COMFORTABLE_COLOR = 0xFF9A9A9A;
+    private static final int MILD_COLOR = 0xFFFFE066;
+    private static final int URGENT_COLOR = 0xFFFF9E3D;
+    private static final int CRITICAL_COLOR = 0xFFFF4D4D;
+
     /** Line widths: the leg being walked now is drawn heavier than the rest of the plan. */
     private static final float PATH_WIDTH = 2.5F;
     private static final float CURRENT_LEG_WIDTH = 5.0F;
@@ -125,6 +135,18 @@ public final class DebugViewRenderer {
     /** Clearance between a glimpsed cell and its label. */
     private static final double GLIMPSE_LABEL_CLEARANCE = 0.6;
 
+    /**
+     * The pressure meter: ten cells, drawn out of block characters rather than as gizmo geometry.
+     *
+     * <p>A bar made of lines would be world-space and would turn edge-on as you walked round the
+     * body. Text billboards face the camera for free and ride the same stack over their head. Ten
+     * cells because a pressure is worth reading to about a tenth; finer, and the number beside it
+     * is what is being read anyway.
+     */
+    private static final int METER_CELLS = 10;
+    private static final char METER_FULL = '█';
+    private static final char METER_EMPTY = '░';
+
     public static void install() {
         GizmoFrame.onFrame(DebugViewRenderer::draw);
     }
@@ -164,6 +186,97 @@ public final class DebugViewRenderer {
         if (DebugLayer.HORIZON.in(view.layers()) && person != null) {
             drawHorizon(view.sight(), person, partialTick, line);
         }
+        if (DebugLayer.NEEDS.in(view.layers()) && person != null) {
+            drawNeeds(view.needs(), person, partialTick, line);
+        }
+    }
+
+    /**
+     * What they want, stacked over their head: a headline naming whichever need is loudest, then
+     * one line per gauge (its own readout, a meter, and the pressure) each in the colour of the
+     * severity that pressure works out to.
+     *
+     * <p><b>The colour is the layer.</b> The numbers are already in chat from {@code /anima needs};
+     * what this adds is that they are live, over the right head, and readable across a field.
+     *
+     * <p>Ordered as the body declared its gauges, not by how loudly they are asking, so a line
+     * never swaps places with its neighbour while you are watching it. The headline carries the
+     * ranking instead.
+     */
+    private static void drawNeeds(List<DebugViewPayload.NeedMark> needs, Entity person,
+                                  float partialTick, int[] line) {
+        DebugViewPayload.NeedMark loudest = loudest(needs);
+        // Headline first, so it lands at the BOTTOM of the stack under its own detail lines — the
+        // arrangement drawBrain already uses.
+        overhead(person, partialTick, line[0]++, headline(loudest),
+                loudest == null ? COMFORTABLE_COLOR : severityColor(loudest.pressure()),
+                TITLE_SCALE);
+        for (DebugViewPayload.NeedMark need : needs) {
+            overhead(person, partialTick, line[0]++,
+                    String.format(Locale.ROOT, "%s  %s %.2f",
+                            need.label(), meter(need.pressure()), need.pressure()),
+                    severityColor(need.pressure()), DETAIL_SCALE);
+        }
+    }
+
+    /**
+     * The one line to read if you read nothing else: which need is winning, and how badly.
+     *
+     * <p>A roster with nothing on it says "nothing pressing" rather than nothing at all — printing
+     * only non-zero terms cannot tell <em>nothing is dragging you down</em> from <em>nobody
+     * looked</em>. A body with no gauges at all says so plainly.
+     */
+    private static String headline(DebugViewPayload.@Nullable NeedMark loudest) {
+        if (loudest == null) {
+            return "needs · nothing at all";
+        }
+        Severity severity = Severity.of(loudest.pressure());
+        return severity == Severity.COMFORTABLE
+                ? "needs · nothing pressing"
+                : String.format(Locale.ROOT, "needs · %s %s",
+                        loudest.need(), severity.name().toLowerCase(Locale.ROOT));
+    }
+
+    /** The need asking loudest, or null when this body has no gauges at all. */
+    private static DebugViewPayload.@Nullable NeedMark loudest(
+            List<DebugViewPayload.NeedMark> needs) {
+        DebugViewPayload.NeedMark loudest = null;
+        for (DebugViewPayload.NeedMark need : needs) {
+            if (loudest == null || need.pressure() > loudest.pressure()) {
+                loudest = need;
+            }
+        }
+        return loudest;
+    }
+
+    /**
+     * A pressure as a bar. Anything asking at all keeps a cell: rounding a real 0.02 down to an
+     * empty bar would draw it identically to a need with nothing to want.
+     */
+    private static String meter(float pressure) {
+        float clamped = Mth.clamp(pressure, 0.0F, 1.0F);
+        int filled = clamped <= 0.0F
+                ? 0
+                : Math.max(1, Math.round(clamped * METER_CELLS));
+        StringBuilder bar = new StringBuilder(METER_CELLS);
+        for (int cell = 0; cell < METER_CELLS; cell++) {
+            bar.append(cell < filled ? METER_FULL : METER_EMPTY);
+        }
+        return bar.toString();
+    }
+
+    /**
+     * How loudly a need is asking, as a colour — via {@link Severity}, which derives it from the
+     * pressure, so the tier drawn here can never disagree with the number drawn beside it. That is
+     * why the server sends the number and not the tier.
+     */
+    private static int severityColor(float pressure) {
+        return switch (Severity.of(pressure)) {
+            case COMFORTABLE -> COMFORTABLE_COLOR;
+            case MILD -> MILD_COLOR;
+            case URGENT -> URGENT_COLOR;
+            case CRITICAL -> CRITICAL_COLOR;
+        };
     }
 
     /**

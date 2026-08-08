@@ -113,9 +113,12 @@ public class DebugWandItem extends Item {
 
     /**
      * The wand's debug-view cycle: shift-click an AgentBody to walk their layers one at a time —
-     * path, brain, memory, peers, horizon, then off. It REPLACES the layer set rather than adding
-     * to it (decision: Luiz); {@code /anima debug} is the only way to have several up at once.
-     * Clicking pins them first, so the view draws whoever was last clicked.
+     * path, brain, memory, peers, horizon, needs, then off. It REPLACES the layer set rather than
+     * adding to it (decision: Luiz): the wand is the one-handed sweep, {@code /anima debug} the
+     * only way to have several layers up at once.
+     *
+     * <p>Clicking also pins them, so a shift-click on someone new both selects and starts their
+     * cycle; the view always draws whoever was last clicked.
      */
     private static void cycleDebugLayer(ServerPlayer player, AgentBody agent) {
         AgentId id = agent.agentId();

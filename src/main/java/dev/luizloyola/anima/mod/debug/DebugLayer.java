@@ -6,13 +6,14 @@ import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The independently switchable halves of the in-world debug view ({@link DebugView}), drawn over
- * the selected Person as gizmo lines, boxes and text: {@link #PATH} where and how, {@link #BRAIN}
- * why, {@link #MEMORY} what they think is out there, {@link #PEERS} who they know about,
- * {@link #HORIZON} how far they see and what stopped them.
+ * The independently switchable halves of the in-world debug view ({@link DebugView}) — what gets
+ * drawn over the selected Person as gizmo lines, boxes and floating text. Each layer is one belief
+ * made visible and never implies another: chasing a pathfinding bug with the peer lines on is
+ * noise.
  *
- * <p>Declaration order is load-bearing twice — the wand's cycle ({@link #next}) and the wire bit
- * order ({@link #bit}) — so a layer is added at the END.
+ * <p>Declaration order is load-bearing twice over — the debug wand's cycle order ({@link #next})
+ * and the wire bit order ({@link #bit}), so a client and server that disagree about it disagree
+ * about everything. Add a layer at the END.
  */
 public enum DebugLayer {
     /** Waypoint polyline coloured by move type, the current leg highlighted, and the goal cell. */
@@ -30,7 +31,16 @@ public enum DebugLayer {
      * <p>Same idiom as {@link #PEERS} one ring further out, so raising both draws the near sense
      * inside the far one.
      */
-    HORIZON;
+    HORIZON,
+    /**
+     * What the body WANTS: one line per gauge on its needs roster — the reading in its own units,
+     * the word for how it feels, and how loudly it is asking — over their head, coloured by
+     * severity.
+     *
+     * <p>The companion to {@link #BRAIN}. That is what the arbiter <em>decided</em> where this is
+     * what it was deciding <em>between</em>; raising both stacks every bid under the one that won.
+     */
+    NEEDS;
 
     /** The command literal and config-facing name — lower case, no underscores in v1. */
     public String key() {

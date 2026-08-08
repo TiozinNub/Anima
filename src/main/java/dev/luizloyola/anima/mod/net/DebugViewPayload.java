@@ -37,7 +37,8 @@ public record DebugViewPayload(
         List<String> brain,
         List<Belief> beliefs,
         List<PeerMark> peers,
-        Sight sight) implements CustomPacketPayload {
+        Sight sight,
+        List<NeedMark> needs) implements CustomPacketPayload {
 
     public static final Type<DebugViewPayload> TYPE =
             new Type<>(Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "debug_view"));
@@ -182,6 +183,34 @@ public record DebugViewPayload(
                         Sight::new);
     }
 
+    /**
+     * One gauge on the body's needs roster: what it measures, what it says about itself, and how
+     * badly it is asking.
+     *
+     * <p>{@link #label} is the gauge's own {@code describe()}, composed server-side for the reason
+     * {@link Belief#label} is: a gauge reads its species' aspects to know where its levels sit,
+     * and the client has no profile. It already names itself ("food 14/20 sat 0.0 (peckish)"), so
+     * {@link #need} is the gauge's stable KEY rather than a prefix — what a summary line can say
+     * without picking a name out of prose.
+     *
+     * <p><b>The severity tier is not sent.</b> It is derived from the pressure
+     * ({@code Severity.of}), and a second copy on the wire would be two rankings that drift. The
+     * client colours the dot and draws the meter from the number it was handed.
+     */
+    public record NeedMark(String need, String label, float pressure) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, NeedMark> CODEC =
+                StreamCodec.composite(
+                        ByteBufCodecs.STRING_UTF8, NeedMark::need,
+                        ByteBufCodecs.STRING_UTF8, NeedMark::label,
+                        ByteBufCodecs.FLOAT, NeedMark::pressure,
+                        NeedMark::new);
+    }
+
+    /**
+     * {@code StreamCodec.composite} tops out at TWELVE fields on every target this builds for, and
+     * this is the eleventh. The next fact a layer needs travels grouped into a sub-record, the way
+     * {@link Sight} groups the eyes.
+     */
     public static final StreamCodec<RegistryFriendlyByteBuf, DebugViewPayload> CODEC =
             StreamCodec.composite(
                     ByteBufCodecs.VAR_INT, DebugViewPayload::entityId,
@@ -194,12 +223,13 @@ public record DebugViewPayload(
                     Belief.CODEC.apply(ByteBufCodecs.list()), DebugViewPayload::beliefs,
                     PeerMark.CODEC.apply(ByteBufCodecs.list()), DebugViewPayload::peers,
                     Sight.CODEC, DebugViewPayload::sight,
+                    NeedMark.CODEC.apply(ByteBufCodecs.list()), DebugViewPayload::needs,
                     DebugViewPayload::new);
 
     /** The "draw nothing" snapshot — every layer off, no entity to anchor to. */
     public static DebugViewPayload clear() {
         return new DebugViewPayload(-1, 0, List.of(), 0, Optional.empty(), "", List.of(),
-                List.of(), List.of(), Sight.NONE);
+                List.of(), List.of(), Sight.NONE, List.of());
     }
 
     /** Whether this snapshot carries anything to draw at all. */

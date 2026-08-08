@@ -3,6 +3,7 @@ package dev.luizloyola.anima.mod.debug;
 import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.agent.need.Gauge;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.knowledge.HorizonBuffer;
@@ -206,7 +207,26 @@ public final class DebugView {
                 layers.contains(DebugLayer.BRAIN) ? person.brain().describeLines() : List.of(),
                 layers.contains(DebugLayer.MEMORY) ? beliefs(server, person) : List.of(),
                 layers.contains(DebugLayer.PEERS) ? peers(person) : List.of(),
-                sight(server, person, layers.contains(DebugLayer.HORIZON)));
+                sight(server, person, layers.contains(DebugLayer.HORIZON)),
+                layers.contains(DebugLayer.NEEDS) ? needs(person) : List.of());
+    }
+
+    /**
+     * What the body wants: one mark per gauge on its roster, in the order the body declared them.
+     *
+     * <p><b>Written against the roster, not a list of needs.</b> Nothing here names hunger or
+     * company — it walks {@code needs().all()} and ships what each gauge says about itself, so a
+     * gauge a consumer registers is drawn the day it exists.
+     *
+     * <p>The pressure travels as the raw number — see {@link DebugViewPayload.NeedMark}.
+     */
+    private static List<DebugViewPayload.NeedMark> needs(AgentBody person) {
+        List<DebugViewPayload.NeedMark> out = new ArrayList<>();
+        for (Gauge gauge : person.needs().all()) {
+            out.add(new DebugViewPayload.NeedMark(
+                    gauge.kind().key(), gauge.describe(), (float) gauge.pressure()));
+        }
+        return out;
     }
 
     /**
