@@ -166,7 +166,7 @@ class CompanyTest {
         assertEquals("alone", company.level().key());
 
         company.setValue(0.175);
-        assertEquals("desolate", company.level().key(), "its own boundary belongs to it");
+        assertEquals("lonely", company.level().key(), "its own boundary belongs to it");
         assertEquals(0.5, company.pressure(), DELTA, "halfway from the low edge down to empty");
 
         company.setValue(0.0);

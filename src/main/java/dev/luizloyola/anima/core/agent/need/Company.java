@@ -9,28 +9,28 @@ import java.util.function.Supplier;
 /**
  * How much company this body has had lately — the first need that is genuinely its own number.
  *
- * <p><b>Comfortable in the middle, unhappy at both ends.</b> Hunger only ever runs out; company
- * runs out at both. That shape is four ordinary {@link NeedKind#COMPANY} levels — desolate, alone,
- * content, crowded — whose pressures dip to nothing and rise again; neither end of the axis is
- * anchored by a level, so both pin at full pressure and the V falls out of the same {@link Ramp}
- * hunger uses. Hermits and extroverts are that ramp with the corners moved.
+ * <p><b>Comfortable in the middle, unhappy at both ends.</b> Four {@link NeedKind#COMPANY} levels —
+ * lonely, alone, content, crowded — whose pressures dip to nothing and rise again. Neither end of
+ * the axis is anchored by a level, so both pin at full pressure and the V falls out of the same
+ * {@link Ramp} hunger uses.
  *
- * <p><b>Both proximity and real conversation move it</b> (decision: Luiz). Solitude drains it
- * whatever else is happening, so a crowd is a net gain and being alone a net loss, with no branch
+ * <p><b>Both proximity and real conversation move it</b> (decision: Luiz), and solitude drains it
+ * whatever else is happening, so a crowd is a net gain and being alone a net loss with no branch
  * anywhere saying so.
  *
  * <p><b>A conversation is worth what was SAID in it, not how long it stayed open</b> (decision:
- * Luiz, 2026-08-06). Filling per open-encounter tick priced silence — a slow replier made better
- * company than a brisk one — so the fill is {@link #conversed()}, one event per utterance
- * exchanged; time together counts through {@link #observe(int)}.
+ * Luiz, 2026-08-06): the fill is {@link #conversed()}, one event per utterance exchanged, and
+ * duration buys nothing — filling per tick paid a slow replier more than a brisk one, and kept
+ * paying a body waiting out a timeout on somebody who had walked off. Time spent together still
+ * counts, through {@link #observe(int)}.
  *
- * <p><b>Known people, not any people.</b> {@link #observe(int)} counts only people this body has
- * met, so a stranger leaves the drive to go and meet them intact rather than satisfying it by
- * sight. A player counts exactly like a Person, by not being special-cased.
+ * <p><b>Known people, not any people.</b> Whoever is counted into {@link #observe(int)} has been
+ * met, so a stranger in a field leaves the drive to go and meet them intact. A player counts
+ * exactly like a Person.
  *
- * <p><b>Every number is read live from the profile</b>, so a species retuned at runtime retunes the
- * bodies already walking around. It arrives as a supplier because this gauge is built in a field
- * initializer, before a body can say what species it is.
+ * <p><b>Every number is read live from the profile</b>, never snapshotted, so a species retuned at
+ * runtime retunes the bodies already walking around. The profile arrives as a supplier because this
+ * gauge is built in a field initializer.
  */
 public final class Company implements Gauge {
 

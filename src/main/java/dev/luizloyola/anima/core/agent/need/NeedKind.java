@@ -55,7 +55,7 @@ public final class NeedKind {
      * comfortable, so both pin at full pressure and the V falls out of the ordinary ramp.
      */
     public static final NeedKind COMPANY = declare("company", Kind.DOUBLE, 0.0, 1.0, "parts of a full day's worth")
-            .level("desolate", 0.175, 0.50, -1)
+            .level("lonely", 0.175, 0.50, -1)
             .level("alone", 0.35, 0.00, 80)
             .level("content", 0.85, 0.00, 0)
             .level("crowded", 1.0, 1.00, 20)

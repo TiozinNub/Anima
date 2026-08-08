@@ -109,8 +109,8 @@ class RampTest {
     void severityFollowsPressure() {
         Ramp hunger = NeedKind.HUNGER.ramp();
         assertEquals(Severity.COMFORTABLE, Severity.of(hunger.pressureAt(SETTLER, 20)));
-        assertEquals(Severity.NAGGING, Severity.of(hunger.pressureAt(SETTLER, 14)));
+        assertEquals(Severity.MILD, Severity.of(hunger.pressureAt(SETTLER, 14)));
         assertEquals(Severity.URGENT, Severity.of(hunger.pressureAt(SETTLER, 8)));
-        assertEquals(Severity.DESPERATE, Severity.of(hunger.pressureAt(SETTLER, 3)));
+        assertEquals(Severity.CRITICAL, Severity.of(hunger.pressureAt(SETTLER, 3)));
     }
 }
