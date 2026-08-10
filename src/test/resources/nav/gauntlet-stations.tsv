@@ -14,7 +14,7 @@ A4	601	-49	40	618	-49	40	false	block	gap 4
 A5	601	-49	52	618	-50	52	false	reach	gap 2 -> land 1 DOWN
 A6	601	-49	64	618	-48	64	false	reach	gap 2 -> land 1 UP
 A7	601	-49	76	618	-51	76	false	reach	gap 4 -> land 2 DOWN
-A8	601	-49	88	618	-49	88	false	reach	corner-diagonal staircase
+A8	601	-49	88	618	-49	88	true	reach	corner-diagonal staircase
 A9	601	-49	100	618	-49	100	true	reach	gap 2 onto 1-wide pillars
 A10	601	-49	112	618	-49	112	true	reach	chained gap-1 pillars
 A11	601	-49	124	618	-49	124	true	reach	gap 3 onto 1-wide pillars
@@ -27,8 +27,8 @@ A17	601	-49	196	618	-49	196	false	reach	DIAGONAL pillar hops
 A18	601	-49	208	618	-49	208	false	block	gap 4 between SLAB-topped banks
 B1	625	-49	4	642	-45	4	true	reach	step UP x4 (full blocks)
 B2	625	-49	16	642	-53	16	true	reach	step DOWN x4 (full blocks)
-B3	625	-49	28	642	-45	28	false	reach	DIAGONAL staircase UP x4
-B4	625	-49	40	642	-53	40	false	reach	DIAGONAL staircase DOWN x4
+B3	625	-49	28	642	-45	28	true	reach	DIAGONAL staircase UP x4
+B4	625	-49	40	642	-53	40	true	reach	DIAGONAL staircase DOWN x4
 B5	625	-49	52	642	-45	52	true	reach	STAIR BLOCKS up x4
 B6	625	-49	64	642	-53	64	true	reach	STAIR BLOCKS down x4
 B7	625	-49	76	642	-47	76	true	reach	HALF-STEP slab ramp (+0.5 x4)
@@ -50,7 +50,7 @@ C3	649	-49	28	666	-49	28	true	reach	2-wide bridge
 C4	649	-49	40	666	-49	40	true	reach	1-wide STAIR-BLOCK bridge
 C5	649	-49	52	666	-49	52	true	reach	1-wide bottom-slab bridge
 C6	649	-49	64	666	-49	64	true	reach	RAILED 1-wide bridge
-C7	649	-49	76	666	-49	76	false	reach	1-wide bridge with a DIAGONAL dogleg
+C7	649	-49	76	666	-49	76	true	reach	1-wide bridge with a DIAGONAL dogleg
 C8	649	-49	88	666	-45	88	true	reach	1-wide ASCENDING bridge
 C9	649	-49	100	666	-49	100	true	reach	1-wide bridge, 90 deg corner
 D1	673	-49	4	690	-43	4	false	reach	LADDER up 6
@@ -99,12 +99,25 @@ H2	769	-49	16	786	-52	16	true	reach	drop 3
 H3	769	-49	28	786	-53	28	false	reach	drop 4
 H4	769	-49	40	786	-55	40	false	reach	drop 6
 H5	769	-49	52	786	-59	52	false	reach	drop 10
-H6	769	-49	64	786	-53	64	false	reach	drop 4 into 1-deep water
-H7	769	-49	76	786	-52	77	false	reach	drop 3, DIAGONAL only
+H6	769	-49	64	786	-53	64	true	reach	drop 4 into 1-deep water
+H7	769	-49	76	786	-52	77	true	reach	drop 3, DIAGONAL only
 H8	769	-49	88	786	-55	88	true	reach	staircase down x6
 H9	769	-49	100	786	-55	100	false	reach	drop 6 onto slime
 H10	769	-49	112	786	-57	112	false	reach	drop 8 onto hay
 H11	769	-49	124	786	-52	124	false	reach	drop 3 taken off a bottom SLAB (3.5)
+J1	829	-49	4	846	-49	4	true	reach	corner diagonals over VOID
+J2	829	-49	16	846	-49	16	true	reach	corner diagonals, flanks FLOORED
+J3	829	-49	28	846	-49	28	false	block	corner diagonal, both flanks WALLED
+J4	829	-49	40	846	-49	40	true	reach	corner diagonal, one flank a CARPET
+J5	829	-49	52	846	-49	52	false	block	corner diagonal through FIRE
+J6	829	-49	64	843	-48	65	true	reach	diagonal step +0.5 SLAB
+J7	829	-49	76	843	-49	77	true	reach	diagonal step -0.5 SLAB
+J8	829	-49	88	843	-48	89	true	reach	diagonal JUMP up a full block
+J9	829	-49	100	843	-49	101	true	reach	diagonal DROP of 1
+J10	829	-49	112	843	-47	113	false	block	diagonal rise of TWO blocks
+J11	829	-49	124	843	-49	125	false	reach	diagonal LEAP over a 1-gap
+J12	829	-49	136	843	-49	137	false	reach	diagonal LEAP over a 2-gap
+J13	829	-49	148	846	-49	146	true	reach	chained corner diagonals (zigzag)
 I1.1	795	-49	4	801	-49	4	true	reach	STAND ON IT: stone
 I1.2	795	-49	9	801	-49	9	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=bottom]
 I1.3	795	-49	14	801	-49	14	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=top]

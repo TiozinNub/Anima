@@ -450,30 +450,95 @@ public final class Pathfinder {
     }
 
     /**
-     * One diagonal step, level ground only (elevation changes take the cardinal moves). Both
-     * flanking columns must be fully standable (not merely passable), because a body walking the
-     * center-to-center line overlaps both flanks: a solid flank would be a cut corner, and a flank
-     * over lava or a hole would put the hitbox into the danger cell mid-step. (Stricter than the
-     * predecessor, which only checked clearance; costs an occasional diagonal along cliff edges.)
+     * One diagonal step — the cardinal move's twin, and built the same way: scan the destination
+     * column for the first footing within reach and let the rise say whether it is a walk, a jump
+     * or a drop.
+     *
+     * <p><b>The flanks need not be floors.</b> A body crossing the centre line overlaps both
+     * flanking columns, so a solid one is still refused as a corner cut through a wall — but
+     * requiring them to be <em>standable</em> refused every pair of blocks touching only at a
+     * corner, which a player crosses perfectly well: the feet are carried by the two blocks on the
+     * diagonal and the empty corners are passed over. A flank that harms, or one too tall to sweep
+     * through, still stops the move.
      */
     private void diagonalNeighbor(long current, Node node, int x, int y, int z, double from,
                                   int dx, int dz) {
         int nx = x + dx;
         int nz = z + dz;
-        double to = footing(nx, y, nz);
-        // "Level" now means level to WALK (within a step of where we stand) rather than
-        // identical y, so a diagonal crosses a carpet or a slab instead of stopping at it. Both
-        // flanks are held to the same bar: they are ground the body's box sweeps through.
-        if (to == NO_FOOTING || Math.abs(to - from) > STEP_UP) return;
-        if (!walkableFlank(nx, y, z, from) || !walkableFlank(x, y, nz, from)) return;
-        relax(current, node, pack(nx, y, nz), to, MoveType.WALK,
-                DIAGONAL_COST * carefulFactor(x, y, z, nx, y, nz));
+        for (int ny = y + 1; ny >= y - this.profile.maxDrop(); ny--) {
+            double to = footing(nx, ny, nz);
+            if (to != NO_FOOTING) {
+                diagonalTo(current, node, x, y, z, from, nx, ny, nz, to, dx, dz);
+                return;
+            }
+            if (this.grid.cell(nx, ny, nz) != CellType.PASSABLE) {
+                return;
+            }
+        }
     }
 
-    /** Whether a cell is footing the body could walk across from {@code from} without a step up. */
+    /** Classifies a reachable diagonal footing by its rise, once both flanks allow the sweep. */
+    private void diagonalTo(long current, Node node, int x, int y, int z, double from,
+                            int nx, int ny, int nz, double to, int dx, int dz) {
+        double rise = to - from;
+        double lo = Math.min(from, to);
+        double hi = Math.max(from, to);
+        if (!diagonalFlank(nx, z, lo, hi) || !diagonalFlank(x, nz, lo, hi)) return;
+
+        // Every cost here must stay at or above the move's horizontal length (√2), or the
+        // Euclidean heuristic stops being a lower bound and A* stops being optimal. A cardinal
+        // drop of one costs 1.0, which is under it — hence the floor.
+        if (rise > STEP_UP) {
+            if (this.profile.jumpHeight() < 1 || rise > JUMP_UP) return;
+            if (this.grid.cell(x, y + this.profile.topCell(from - y) + 1, z) != CellType.PASSABLE) return;
+            relax(current, node, pack(nx, ny, nz), to, MoveType.JUMP,
+                    Math.max(DIAGONAL_COST, JUMP_COST) * carefulFactor(x, y, z, nx, ny, nz));
+            return;
+        }
+        if (rise >= -STEP_UP) {
+            relax(current, node, pack(nx, ny, nz), to, MoveType.WALK,
+                    DIAGONAL_COST * carefulFactor(x, y, z, nx, ny, nz));
+            return;
+        }
+        double depth = -rise;
+        if (depth > this.profile.maxDrop()) return;
+        relax(current, node, pack(nx, ny, nz), to, MoveType.DROP,
+                Math.max(DIAGONAL_COST, dropCost(depth)) * carefulFactor(x, y, z, nx, ny, nz));
+    }
+
+    /**
+     * Whether a cell is footing the body could walk across from {@code from} without a step up —
+     * what a STRIDE needs of every cell it sweeps, which is a stricter thing than what a diagonal
+     * needs of its flanks. A stride walks ON each of them; a diagonal only passes between two of
+     * them, carried by the blocks at its ends.
+     */
     private boolean walkableFlank(int x, int y, int z, double from) {
         double f = footing(x, y, z);
         return f != NO_FOOTING && Math.abs(f - from) <= STEP_UP;
+    }
+
+    /**
+     * Whether the body may sweep through one flanking column of a diagonal running between the
+     * footings {@code lo} and {@code hi}. It must clip no solid and touch nothing harmful; it does
+     * not need anything to stand on.
+     *
+     * <p>The lowest cell may hold a partial floor the body steps over — a carpet beside a
+     * doorway is not a reason to walk the long way round — but everything above it, all the way to
+     * where the head reaches at the higher end of the move, has to be clear.
+     */
+    private boolean diagonalFlank(int fx, int fz, double lo, double hi) {
+        int loCell = (int) Math.floor(lo);
+        int hiCell = (int) Math.floor(hi) + this.profile.topCell(hi - Math.floor(hi));
+        CellType bottom = this.grid.cell(fx, loCell, fz);
+        if (bottom == CellType.STEP) {
+            if (loCell + this.grid.surface(fx, loCell, fz) - lo > STEP_UP) return false;
+        } else if (bottom != CellType.PASSABLE) {
+            return false;
+        }
+        for (int cy = loCell + 1; cy <= hiCell; cy++) {
+            if (this.grid.cell(fx, cy, fz) != CellType.PASSABLE) return false;
+        }
+        return true;
     }
 
     /**
