@@ -10,8 +10,8 @@ public enum CellType {
     /** Solid with a sturdy top: blocks bodies, and the cell above it can be stood in. */
     GROUND('G'),
     /**
-     * Blocks bodies but not standable (fences, walls, open trapdoors, unmodeled partial collision)
-     * — also the out-of-bounds sentinel: unknown space must stay unwalkable.
+     * Blocks bodies but cannot be stood on: fences, walls, anything reaching past the top of its
+     * own cell. Also everything outside a grid's bounds — unknown space must be unwalkable.
      */
     OBSTACLE('X'),
     /** Harmful to touch or stand on: lava, fire, cactus, magma. Never entered, never a floor. */
@@ -23,7 +23,22 @@ public enum CellType {
      * waterline is derived geometrically (water with air above), so these cells serve future
      * underwater routing without a second value.
      */
-    WATER('W');
+    WATER('W'),
+    /**
+     * A floor that stops <em>inside</em> its own cell: slab, stair, snow layer, carpet, dirt path,
+     * closed trapdoor, cauldron bowl. The body stands <b>in this cell</b>, feet at
+     * {@link NavGrid#surface} — not in the cell above, the way {@link #GROUND} works. Only this
+     * when the surface lies strictly between the cell's floor and its top: full height is
+     * {@link #GROUND}, past it (fence, wall) {@link #OBSTACLE}.
+     *
+     * <p>These once read {@code OBSTACLE}, walling off streets, fields and hillsides the body
+     * crosses fine on vanilla's 0.6 step height.
+     *
+     * <p><b>Last.</b> The ordinals are memoised ({@code WorldSnapshot} packs a byte per
+     * cell) and a hot swap never re-runs a static initialiser, so a value inserted before the end
+     * decodes stale entries as the wrong type. Append; never reorder.
+     */
+    STEP('S');
 
     private final char code;
 

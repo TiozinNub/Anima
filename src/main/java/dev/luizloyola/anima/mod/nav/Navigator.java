@@ -6,6 +6,7 @@ import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.mod.brain.DangerFields;
 import dev.luizloyola.anima.core.nav.CellNeed;
+import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.MoveType;
 import dev.luizloyola.anima.core.nav.NavGrid;
@@ -19,6 +20,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
@@ -359,7 +361,7 @@ public final class Navigator {
         double dx = waypoint.x() + 0.5 - pos.x;
         double dz = waypoint.z() + 0.5 - pos.z;
         double horizontalSq = dx * dx + dz * dz;
-        double dy = pos.y - waypoint.y();
+        double dy = aboveWaypoint(pos, waypoint);
 
         // In the water, or about to step in (the last on-shore tick of an entry waypoint): swim
         // physics takes over, skipping all the grounded edge logic below — which is also the
@@ -608,7 +610,8 @@ public final class Navigator {
             if (w.move() == MoveType.LEAP && !this.person.onGround()) {
                 continue;
             }
-            if (feet.getX() == w.x() && feet.getZ() == w.z() && atWaypointHeight(y - w.y(), w.move())) {
+            if (feet.getX() == w.x() && feet.getZ() == w.z()
+                    && atWaypointHeight(y - w.feetY(), w.move())) {
                 this.index = Math.min(j + 1, last);
                 this.stuckTicks = 0;
                 return;
@@ -641,7 +644,7 @@ public final class Navigator {
             // conflated the two.
             double forward = (offX * segX + offZ * segZ) / segLen;
             double lateral = Math.abs(offX * segZ - offZ * segX) / segLen;
-            if (!atWaypointHeight(pos.y - current.y(), current.move())
+            if (!atWaypointHeight(aboveWaypoint(pos, current), current.move())
                     || forward <= 0.0 || forward > 2.5 || lateral > 0.6) {
                 return;
             }
@@ -657,14 +660,21 @@ public final class Navigator {
     }
 
     /**
-     * Vertical distance from a waypoint's <em>standing band</em>: feet legitimately rest anywhere
-     * from the cell floor to half a block above it (slabs, stair bottoms), so that range counts
-     * as zero and the gap grows outside it. Keeps 3-D arrival checks strict without making every
-     * slab cell unreachable.
+     * Vertical distance from a waypoint's <em>standing band</em>: feet legitimately rest from the
+     * cell floor to half a block above it (slabs, stair bottoms), so that range counts as zero.
+     * Keeps 3-D arrival checks strict without making every slab cell unreachable.
+     *
+     * <p>Measured from {@link Waypoint#feetY()}, so the band is centred on the actual standing
+     * height rather than spread to cover wherever a partial floor put the feet.
      */
     private static double verticalGap(double dy) {
         if (dy < 0.0) return -dy;
         return Math.max(0.0, dy - 0.5);
+    }
+
+    /** How far above its own standing height the body is, for the waypoint it is walking toward. */
+    private static double aboveWaypoint(Vec3 pos, Waypoint waypoint) {
+        return pos.y - waypoint.feetY();
     }
 
     /**
@@ -780,7 +790,7 @@ public final class Navigator {
             Waypoint to = this.path.waypoints().get(i);
             for (CellNeed need : PathIntegrity.edgeNeeds(from, to, body)) {
                 pos.set(need.x(), need.y(), need.z());
-                if (level.isLoaded(pos) && WorldSnapshot.classifyAt(level, pos) != need.required()) {
+                if (level.isLoaded(pos) && !stillHolds(level, pos, need.need())) {
                     return need;
                 }
             }
@@ -802,13 +812,33 @@ public final class Navigator {
         requestPath();
     }
 
-    /** A human phrase for a completion-critical cell that no longer matches the plan. */
+    /**
+     * Whether the live world still satisfies one {@link CellNeed} — the mod-side half, since only
+     * here is there a level to read. {@link CellNeed.Need#FOOTING} alone reads two cells: footing
+     * can be a partial floor in the cell or a full block under it, so a slab laid over the route
+     * reads as the route still holding.
+     */
+    private static boolean stillHolds(ServerLevel level, BlockPos.MutableBlockPos pos,
+                                      CellNeed.Need need) {
+        CellType here = WorldSnapshot.classifyAt(level, pos);
+        return switch (need) {
+            case CLEAR -> here == CellType.PASSABLE;
+            case WATER -> here == CellType.WATER;
+            case FOOTING -> here == CellType.STEP
+                    || (here == CellType.PASSABLE
+                            && WorldSnapshot.classifyAt(level, pos.move(Direction.DOWN)) == CellType.GROUND);
+        };
+    }
+
+    /**
+     * A human phrase for a completion-critical cell that no longer meets what the plan needs there:
+     * footing gone from under the feet, a cell now blocked, a swim lane drained.
+     */
     private static String changeReason(CellNeed need) {
-        String phrase = switch (need.required()) {
-            case GROUND -> "missing floor";
-            case PASSABLE -> "blocked";
+        String phrase = switch (need.need()) {
+            case FOOTING -> "missing floor";
+            case CLEAR -> "blocked";
             case WATER -> "drained";
-            default -> "changed";
         };
         return phrase + " at " + need.x() + ", " + need.y() + ", " + need.z();
     }

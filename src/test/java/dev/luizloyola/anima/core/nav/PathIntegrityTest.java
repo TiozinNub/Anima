@@ -7,10 +7,9 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * The completion-critical cells {@link PathIntegrity} watches ahead of a walking Person: the floor
- * and body along the deck the feet cross on a level edge, a swim waypoint's surface-float condition,
- * a vertical move's destination standability. This is the contract the follower's integrity check
- * re-validates a few nodes ahead — see {@code Navigator.pathChangedAhead}.
+ * The completion-critical cells {@link PathIntegrity} watches: footing and body clearance along
+ * the deck a level edge crosses, a swim waypoint's surface float, a vertical move's destination
+ * standability — re-validated a few nodes ahead by {@code Navigator.pathChangedAhead}.
  */
 class PathIntegrityTest {
 
@@ -22,12 +21,10 @@ class PathIntegrityTest {
         List<CellNeed> needs = PathIntegrity.edgeNeeds(
                 new Waypoint(3, 10, 7, MoveType.WALK), new Waypoint(4, 10, 7, MoveType.WALK), PERSON);
         assertEquals(List.of(
-                new CellNeed(3, 9, 7, CellType.GROUND),
-                new CellNeed(3, 10, 7, CellType.PASSABLE),
-                new CellNeed(3, 11, 7, CellType.PASSABLE),
-                new CellNeed(4, 9, 7, CellType.GROUND),
-                new CellNeed(4, 10, 7, CellType.PASSABLE),
-                new CellNeed(4, 11, 7, CellType.PASSABLE)), needs);
+                new CellNeed(3, 10, 7, CellNeed.Need.FOOTING),
+                new CellNeed(3, 11, 7, CellNeed.Need.CLEAR),
+                new CellNeed(4, 10, 7, CellNeed.Need.FOOTING),
+                new CellNeed(4, 11, 7, CellNeed.Need.CLEAR)), needs);
     }
 
     @Test
@@ -37,8 +34,8 @@ class PathIntegrityTest {
         List<CellNeed> needs = PathIntegrity.edgeNeeds(
                 new Waypoint(0, 5, 0, MoveType.WALK), new Waypoint(3, 5, 0, MoveType.WALK), PERSON);
         for (int x = 0; x <= 3; x++) {
-            assertTrue(needs.contains(new CellNeed(x, 4, 0, CellType.GROUND)),
-                    "floor under x=" + x + " must be watched across the stride");
+            assertTrue(needs.contains(new CellNeed(x, 5, 0, CellNeed.Need.FOOTING)),
+                    "footing at x=" + x + " must be watched across the stride");
         }
     }
 
@@ -58,8 +55,8 @@ class PathIntegrityTest {
         List<CellNeed> needs = PathIntegrity.edgeNeeds(
                 new Waypoint(1, 63, 8, MoveType.SWIM), new Waypoint(2, 63, 8, MoveType.SWIM), PERSON);
         assertEquals(List.of(
-                new CellNeed(2, 63, 8, CellType.WATER),
-                new CellNeed(2, 64, 8, CellType.PASSABLE)), needs);
+                new CellNeed(2, 63, 8, CellNeed.Need.WATER),
+                new CellNeed(2, 64, 8, CellNeed.Need.CLEAR)), needs);
     }
 
     @Test
@@ -69,9 +66,8 @@ class PathIntegrityTest {
             List<CellNeed> needs = PathIntegrity.edgeNeeds(
                     new Waypoint(0, 8, 0, MoveType.WALK), new Waypoint(2, 5, 0, move), PERSON);
             assertEquals(List.of(
-                    new CellNeed(2, 4, 0, CellType.GROUND),
-                    new CellNeed(2, 5, 0, CellType.PASSABLE),
-                    new CellNeed(2, 6, 0, CellType.PASSABLE)), needs,
+                    new CellNeed(2, 5, 0, CellNeed.Need.FOOTING),
+                    new CellNeed(2, 6, 0, CellNeed.Need.CLEAR)), needs,
                     move + " should watch only the landing cell's standability");
         }
     }
@@ -83,19 +79,18 @@ class PathIntegrityTest {
                 new Waypoint(0, 5, 0, MoveType.WALK), new Waypoint(3, 5, 0, MoveType.LEAP), PERSON);
         assertEquals(List.of(
                 // landing standability
-                new CellNeed(3, 4, 0, CellType.GROUND),
-                new CellNeed(3, 5, 0, CellType.PASSABLE),
-                new CellNeed(3, 6, 0, CellType.PASSABLE),
+                new CellNeed(3, 5, 0, CellNeed.Need.FOOTING),
+                new CellNeed(3, 6, 0, CellNeed.Need.CLEAR),
                 // takeoff headroom (y + height, above the launch cell)
-                new CellNeed(0, 7, 0, CellType.PASSABLE),
+                new CellNeed(0, 7, 0, CellNeed.Need.CLEAR),
                 // arc corridor over gap column x=1: body-height+1 cells (y..y+height)
-                new CellNeed(1, 5, 0, CellType.PASSABLE),
-                new CellNeed(1, 6, 0, CellType.PASSABLE),
-                new CellNeed(1, 7, 0, CellType.PASSABLE),
+                new CellNeed(1, 5, 0, CellNeed.Need.CLEAR),
+                new CellNeed(1, 6, 0, CellNeed.Need.CLEAR),
+                new CellNeed(1, 7, 0, CellNeed.Need.CLEAR),
                 // arc corridor over gap column x=2
-                new CellNeed(2, 5, 0, CellType.PASSABLE),
-                new CellNeed(2, 6, 0, CellType.PASSABLE),
-                new CellNeed(2, 7, 0, CellType.PASSABLE)), needs);
+                new CellNeed(2, 5, 0, CellNeed.Need.CLEAR),
+                new CellNeed(2, 6, 0, CellNeed.Need.CLEAR),
+                new CellNeed(2, 7, 0, CellNeed.Need.CLEAR)), needs);
         // The gap floor itself is cost-only — never watched (filling it doesn't break the leap).
         assertTrue(needs.stream().noneMatch(n -> n.y() == 4 && (n.x() == 1 || n.x() == 2)),
                 "gap-column floors must not be watched");

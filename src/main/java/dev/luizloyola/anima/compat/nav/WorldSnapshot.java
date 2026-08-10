@@ -17,6 +17,8 @@ import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * An immutable box of {@link CellType} classifications baked from real blockstates, and the
@@ -35,24 +37,57 @@ import net.minecraft.world.level.material.FluidState;
 public final class WorldSnapshot implements NavGrid {
     private static final CellType[] TYPES = CellType.values();
 
-    /** Values in {@link #verdicts} below {@link #VERDICT_BASE}; the rest are {@code ordinal + BASE}. */
+    /** Values in {@link #verdicts} below {@link #VERDICT_BASE}; the rest are {@code packed + BASE}. */
     private static final byte UNASKED = 0;
     private static final byte POSITIONAL = 1;
     private static final int VERDICT_BASE = 2;
 
     /**
+     * A cell is one byte: the {@link CellType} in the low three bits and — for a
+     * {@link CellType#STEP} and nothing else — how high its surface sits, in the four above.
+     *
+     * <p>The height is stored as {@code sixteenths - 1}: a partial floor is 1 to 15 sixteenths (0 is
+     * no floor, 16 a full block), so fifteen values fit in four bits and the widest packed cell
+     * comes to 117 — still a positive {@code byte} once the verdict table's offset is added, so
+     * nothing needs masking or a wider array.
+     */
+    private static final int TYPE_BITS = 3;
+    private static final int TYPE_MASK = (1 << TYPE_BITS) - 1;
+    /** Sixteenths of a block, the grid every vanilla collision shape is built on. */
+    private static final int SIXTEENTHS = 16;
+
+    private static byte pack(CellType type, int surface16) {
+        return type == CellType.STEP
+                ? (byte) (type.ordinal() | (surface16 - 1) << TYPE_BITS)
+                : (byte) type.ordinal();
+    }
+
+    static CellType type(int packed) {
+        return TYPES[packed & TYPE_MASK];
+    }
+
+    /** The surface a packed cell describes, as a fraction of a block — see {@link NavGrid#surface}. */
+    static double surface(int packed) {
+        CellType type = type(packed);
+        if (type == CellType.GROUND) return 1.0;
+        if (type != CellType.STEP) return 0.0;
+        return ((packed >> TYPE_BITS) + 1) / (double) SIXTEENTHS;
+    }
+
+    /**
      * What each blockstate classifies as, indexed by {@link Block#BLOCK_STATE_REGISTRY} id.
      *
-     * <p>Sound because {@code BlockStateBase.initCache} builds the cache {@code getCollisionShape}
-     * and {@code isFaceSturdy} read unconditionally, without a level, precisely when
-     * {@code !hasDynamicShape()}: every question {@link #classifyLive} asks is then a pure function
-     * of the state, and a cell costs one array read instead of five hashed tag lookups. The six
-     * dynamic-shape blocks (moving piston, scaffolding, bamboo and its sapling, pointed dripstone,
-     * powder snow) are marked {@link #POSITIONAL} and keep asking the world cell by cell.
+     * <p>Sound because every question {@link #classifyLive} asks — five tag lookups, a collision
+     * shape and one collision query — answers the same for every copy of a blockstate unless the
+     * block's shape depends on where it stands: {@code BlockStateBase.initCache} builds the cache
+     * {@code getCollisionShape} reads from unconditionally, without a level, exactly when
+     * {@code !hasDynamicShape()}. The six blocks that do (moving piston, scaffolding, bamboo and its
+     * sapling, pointed dripstone, powder snow) are marked {@link #POSITIONAL} and keep asking the
+     * world.
      *
-     * <p>Never invalidated — blockstates are interned once, so this is a table about the
-     * <em>vocabulary</em>, not the world. Unsynchronised on purpose: an id always computes the same
-     * byte and byte array elements never tear, so a race costs only a recomputation.
+     * <p>Never invalidated: blockstates are interned once, so this is a table about the
+     * <em>vocabulary</em>, not the world. Unsynchronised — capture is server-thread-only, and a race
+     * is benign: an id always computes the same byte, and byte arrays never tear.
      */
     private static byte[] verdicts = new byte[0];
 
@@ -90,7 +125,7 @@ public final class WorldSnapshot implements NavGrid {
         // OBSTACLE is the floor for every cell the walk below never reaches — an unloaded chunk, a
         // section off the end of the level. It has to be painted: OBSTACLE is not ordinal 0, so a
         // fresh array would read PASSABLE, the one thing unknown space must never be.
-        Arrays.fill(cells, (byte) CellType.OBSTACLE.ordinal());
+        Arrays.fill(cells, pack(CellType.OBSTACLE, 0));
 
         WorldSnapshot snapshot =
                 new WorldSnapshot(min.getX(), minY, min.getZ(), sizeX, sizeY, sizeZ, cells);
@@ -151,14 +186,13 @@ public final class WorldSnapshot implements NavGrid {
                 // Index of x = 0 in this row, so a cell is row + x with no per-cell arithmetic.
                 int row = ((y - this.minY) * this.sizeZ + (z - this.minZ)) * this.sizeX - this.minX;
                 if (onlyAir) {
-                    Arrays.fill(this.cells, row + x0, row + x1 + 1,
-                            (byte) CellType.PASSABLE.ordinal());
+                    Arrays.fill(this.cells, row + x0, row + x1 + 1, pack(CellType.PASSABLE, 0));
                     continue;
                 }
                 for (int x = x0; x <= x1; x++) {
                     BlockState state = section.getBlockState(x & 15, y & 15, z & 15);
                     pos.set(x, y, z);
-                    this.cells[row + x] = (byte) classify(state, level, pos).ordinal();
+                    this.cells[row + x] = packedAt(state, level, pos);
                 }
             }
         }
@@ -171,7 +205,15 @@ public final class WorldSnapshot implements NavGrid {
      * unchecked call into an unloaded chunk would misread.
      */
     public static CellType classifyAt(Level level, BlockPos pos) {
-        return classify(level.getBlockState(pos), level, pos);
+        return type(packedAt(level.getBlockState(pos), level, pos));
+    }
+
+    /**
+     * How high the standable surface of a single live cell sits — {@link NavGrid#surface} through
+     * the same seam as {@link #classifyAt}, and under the same server-thread rule.
+     */
+    public static double surfaceAt(Level level, BlockPos pos) {
+        return surface(packedAt(level.getBlockState(pos), level, pos));
     }
 
     /**
@@ -179,7 +221,7 @@ public final class WorldSnapshot implements NavGrid {
      * state the table has no room for (registered after it was sized) goes the long way
      * round; it is answered correctly, just not cheaply.
      */
-    private static CellType classify(BlockState state, BlockGetter level, BlockPos pos) {
+    private static byte packedAt(BlockState state, BlockGetter level, BlockPos pos) {
         byte[] table = verdicts();
         int id = Block.BLOCK_STATE_REGISTRY.getId(state);
         if (id < 0 || id >= table.length) {
@@ -191,10 +233,10 @@ public final class WorldSnapshot implements NavGrid {
             // than about the block; every other input classifyLive reads lives on the state.
             memo = state.getBlock().hasDynamicShape()
                     ? POSITIONAL
-                    : (byte) (classifyLive(state, level, pos).ordinal() + VERDICT_BASE);
+                    : (byte) (classifyLive(state, level, pos) + VERDICT_BASE);
             table[id] = memo;
         }
-        return memo == POSITIONAL ? classifyLive(state, level, pos) : TYPES[memo - VERDICT_BASE];
+        return memo == POSITIONAL ? classifyLive(state, level, pos) : (byte) (memo - VERDICT_BASE);
     }
 
     /**
@@ -212,19 +254,55 @@ public final class WorldSnapshot implements NavGrid {
         return table;
     }
 
-    /** Collapses one blockstate to the navigation vocabulary. The order matters — see comments. */
-    private static CellType classifyLive(BlockState state, BlockGetter level, BlockPos pos) {
+    /**
+     * A body's footprint, parked just above a cell and dropped into it — how {@link #surfaceOf}
+     * asks the block where the feet would come to rest.
+     *
+     * <p>0.6 wide, a player's, because a Person is player-shaped and drives itself through the same
+     * physics. Width matters more than it looks: it is the whole reason a ladder, an open door and
+     * an open trapdoor are walked <em>through</em> rather than around — their collision hugs one
+     * side of the cell and a body in the middle never touches it — while a fence post, which sits
+     * in the middle, is the wall it should be. Asking a shape "is your top face full" could not
+     * tell those apart, and answered "no" to every one of them.
+     *
+     * <p>It starts at y=2, above the tallest thing any block puts in its own cell (a fence reaches
+     * 1.5), so the box never begins already overlapping — a collision query started inside a shape
+     * has nothing to stop it and would report a clear fall through the block.
+     */
+    private static final double BODY_WIDTH = 0.6;
+    private static final AABB FOOTPRINT = new AABB(
+            0.5 - BODY_WIDTH / 2, 2.0, 0.5 - BODY_WIDTH / 2,
+            0.5 + BODY_WIDTH / 2, 2.1, 0.5 + BODY_WIDTH / 2);
+    private static final double PROBE_DROP = -2.0;
+
+    /**
+     * How high a body standing in this cell would come to rest, in blocks above the cell's floor:
+     * {@code 0} walking straight through, {@code 0.5} for a bottom slab, {@code 1.0} for a full
+     * block, {@code 1.5} for a fence — more than a cell, so nothing can stand in it.
+     *
+     * <p>Vanilla's own collision resolution, not a table of block types, so the awkward shapes are
+     * right for free: a cauldron's bowl, a hopper's funnel, a stair's upper tread, a ladder's cell.
+     */
+    private static double surfaceOf(VoxelShape shape) {
+        return FOOTPRINT.minY + shape.collide(Direction.Axis.Y, FOOTPRINT, PROBE_DROP);
+    }
+
+    /**
+     * Collapses one blockstate to the navigation vocabulary, as a packed cell byte. The order
+     * matters — see comments.
+     */
+    static byte classifyLive(BlockState state, BlockGetter level, BlockPos pos) {
         if (state.isAir()) {
-            return CellType.PASSABLE;
+            return pack(CellType.PASSABLE, 0);
         }
         // Harmful before everything else: fire has no collision (would read PASSABLE), magma is a
         // full sturdy block (would read GROUND) — both must classify DANGER first.
         if (isHarmful(state)) {
-            return CellType.DANGER;
+            return pack(CellType.DANGER, 0);
         }
         FluidState fluid = state.getFluidState();
         if (fluid.is(FluidTags.LAVA)) {
-            return CellType.DANGER;
+            return pack(CellType.DANGER, 0);
         }
         // Leaves need their own rule ahead of the sturdy-top check: their support shape is empty,
         // so they would read OBSTACLE — yet a body stands on them like a player. Stable leaves are
@@ -232,19 +310,34 @@ public final class WorldSnapshot implements NavGrid {
         // vanish on any random tick and keep reading OBSTACLE. That is what lets a chopper walk the
         // canopy to a far branch (Luiz's sixth chop choreography); the cell itself stays impassable.
         if (state.is(BlockTags.LEAVES)) {
-            return isStableLeaves(state) ? CellType.GROUND : CellType.OBSTACLE;
+            return pack(isStableLeaves(state) ? CellType.GROUND : CellType.OBSTACLE, 0);
         }
-        if (state.getCollisionShape(level, pos).isEmpty()) {
+        VoxelShape shape = state.getCollisionShape(level, pos);
+        if (shape.isEmpty()) {
             // No collision: air-like plants — or the inside of a water column (kelp, seagrass,
-            // source blocks). Waterlogged solids fall through to the sturdy-top check instead.
-            return fluid.is(FluidTags.WATER) ? CellType.WATER : CellType.PASSABLE;
+            // source blocks). Waterlogged solids fall through to the surface probe instead.
+            return pack(fluid.is(FluidTags.WATER) ? CellType.WATER : CellType.PASSABLE, 0);
         }
-        if (state.isFaceSturdy(level, pos, Direction.UP)) {
-            return CellType.GROUND;
+        double surface = surfaceOf(shape);
+        if (surface >= 1.0) {
+            // Solid to the top of its own cell, or past it. At exactly a cell it is a floor for the
+            // cell above; beyond one (a fence, a wall) nothing can stand in it or on it at any
+            // height this vocabulary can name.
+            return pack(surface > 1.0 ? CellType.OBSTACLE : CellType.GROUND, 0);
         }
-        // Collides but can't be stood on square: fences, walls, open trapdoors, bottom-half
-        // shapes we don't model.
-        return CellType.OBSTACLE;
+        if (surface <= 0.0) {
+            // Collision the body's footprint never meets, because it hugs one wall of the cell: a
+            // ladder, a door, an open trapdoor. Not passable, though a player really does walk into
+            // a ladder's cell — the probe answers where FEET COME TO REST, not whether a body can
+            // cross. A closed door and a ladder have the very same shape, and telling them apart
+            // needs a per-direction reading this vocabulary does not have.
+            return pack(CellType.OBSTACLE, 0);
+        }
+        // A floor that stops inside its own cell. This is the case that used to be OBSTACLE and
+        // made a village street a wall — see CellType.STEP. Rounding to sixteenths is lossless for
+        // vanilla shapes; the clamp only guards a modded shape thinner than one sixteenth.
+        int surface16 = Math.max(1, Math.min(SIXTEENTHS - 1, (int) Math.round(surface * SIXTEENTHS)));
+        return pack(CellType.STEP, surface16);
     }
 
     /**
@@ -274,13 +367,25 @@ public final class WorldSnapshot implements NavGrid {
 
     @Override
     public CellType cell(int x, int y, int z) {
+        int index = index(x, y, z);
+        return index < 0 ? CellType.OBSTACLE : type(this.cells[index]);
+    }
+
+    @Override
+    public double surface(int x, int y, int z) {
+        int index = index(x, y, z);
+        return index < 0 ? 0.0 : surface(this.cells[index]);
+    }
+
+    /** The cell's slot in {@link #cells}, or {@code -1} for anything outside the box. */
+    private int index(int x, int y, int z) {
         int ix = x - this.minX;
         int iy = y - this.minY;
         int iz = z - this.minZ;
         if (ix < 0 || ix >= this.sizeX || iy < 0 || iy >= this.sizeY || iz < 0 || iz >= this.sizeZ) {
-            return CellType.OBSTACLE;
+            return -1;
         }
-        return TYPES[this.cells[(iy * this.sizeZ + iz) * this.sizeX + ix]];
+        return (iy * this.sizeZ + iz) * this.sizeX + ix;
     }
 
     /** Whether the inclusive box {@code [min, max]} lies fully inside this snapshot. */

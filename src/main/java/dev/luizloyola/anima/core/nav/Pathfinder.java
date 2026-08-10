@@ -91,6 +91,27 @@ public final class Pathfinder {
 
     private static final long NO_PARENT = Long.MIN_VALUE;
 
+    /**
+     * How far up a body walks without jumping — vanilla's step height, which a Person keeps at the
+     * living default of 0.6 (see {@code Person.createAttributes}). A slab, a snow layer, a dirt
+     * path and a carpet are all under it, so crossing them is a walk and not a hop.
+     */
+    private static final double STEP_UP = 0.6;
+    /**
+     * How far up a jump reaches: vanilla's ~1.25 blocks. Enough for a full block (1.0), and for a
+     * full block with a carpet on it (1.0625); not enough for a block topped with a slab (1.5),
+     * which is correctly a wall to be walked around.
+     */
+    private static final double JUMP_UP = 1.25;
+    /** {@link #footing} for a cell the body cannot stand in at all. */
+    private static final double NO_FOOTING = Double.NEGATIVE_INFINITY;
+    /**
+     * The footing handed to a swim move: none. A floating body's feet hang around the surface cell
+     * and bob, so there is no standing height to record — the follower knows this and matches a
+     * {@link MoveType#SWIM} waypoint by a wide band instead of a height.
+     */
+    private static final double FLOATING = NO_FOOTING;
+
     private final NavGrid grid;
     private final MoveCapabilities profile;
     private final int goalX;
@@ -102,6 +123,8 @@ public final class Pathfinder {
         double g;
         long parent = NO_PARENT;
         MoveType move = MoveType.WALK;
+        /** Feet height above this cell's floor, in sixteenths — see {@link Waypoint#surface16}. */
+        int surface16;
         boolean closed;
     }
 
@@ -147,7 +170,12 @@ public final class Pathfinder {
             return new Path(List.of(), true);
         }
 
-        this.nodes.put(start, new Node());
+        // The start node carries its footing like any other: a first move measured from the cell
+        // floor would read the rise wrong in both directions. Read from the grid rather than from
+        // footing(), because where the body actually stands is not this search's to second-guess.
+        Node origin = new Node();
+        origin.surface16 = surface16At(request.startX(), request.startY(), request.startZ());
+        this.nodes.put(start, origin);
         this.open.push(start, heuristic(request.startX(), request.startZ()));
 
         long best = start;
@@ -185,17 +213,20 @@ public final class Pathfinder {
         int x = unpackX(current);
         int y = unpackY(current);
         int z = unpackZ(current);
+        // Where this node's feet are, read once: every land move below is a rise measured from it,
+        // and re-deriving it per probe would be twenty reads of the same two cells.
+        double from = y + node.surface16 / 16.0;
         for (int[] d : CARDINALS) {
-            cardinalNeighbor(current, node, x, y, z, d[0], d[1]);
+            cardinalNeighbor(current, node, x, y, z, from, d[0], d[1]);
         }
         for (int[] d : DIAGONALS) {
-            diagonalNeighbor(current, node, x, y, z, d[0], d[1]);
+            diagonalNeighbor(current, node, x, y, z, from, d[0], d[1]);
         }
         for (int i = 0; i < STRIDES.length; i++) {
-            strideNeighbor(current, node, x, y, z, STRIDES[i][0], STRIDES[i][1], STRIDE_COSTS[i]);
+            strideNeighbor(current, node, x, y, z, from, STRIDES[i][0], STRIDES[i][1], STRIDE_COSTS[i]);
         }
         for (int[] d : CARDINALS) {
-            leapNeighbor(current, node, x, y, z, d[0], d[1]);
+            leapNeighbor(current, node, x, y, z, from, d[0], d[1]);
         }
         swimNeighbors(current, node, x, y, z);
     }
@@ -235,7 +266,7 @@ public final class Pathfinder {
         int nx = x + dx;
         int nz = z + dz;
         if (isSurfaceSwim(nx, y, nz)) {
-            relax(current, node, pack(nx, y, nz), MoveType.SWIM, SWIM_COST);
+            relax(current, node, pack(nx, y, nz), FLOATING, MoveType.SWIM, SWIM_COST);
         }
     }
 
@@ -247,7 +278,7 @@ public final class Pathfinder {
         int nx = x + dx;
         int nz = z + dz;
         if (isSurfaceSwim(nx, y, nz) && isSurfaceSwim(nx, y, z) && isSurfaceSwim(x, y, nz)) {
-            relax(current, node, pack(nx, y, nz), MoveType.SWIM, SWIM_COST * SQRT2);
+            relax(current, node, pack(nx, y, nz), FLOATING, MoveType.SWIM, SWIM_COST * SQRT2);
         }
     }
 
@@ -260,17 +291,17 @@ public final class Pathfinder {
         int nx = x + dx;
         int nz = z + dz;
         if (isSurfaceSwim(nx, y, nz)) { // water level with the bank: step straight in
-            relax(current, node, pack(nx, y, nz), MoveType.SWIM, SWIM_COST);
+            relax(current, node, pack(nx, y, nz), FLOATING, MoveType.SWIM, SWIM_COST);
             return;
         }
         if (!hasClearance(nx, y, nz)) return; // can't even move into the near column
-        int surface = y - 1;
+        int waterline = y - 1;
         int limit = y - this.profile.maxDrop();
-        while (surface >= limit && this.grid.cell(nx, surface, nz) == CellType.PASSABLE) {
-            surface--; // fall through the air above the water
+        while (waterline >= limit && this.grid.cell(nx, waterline, nz) == CellType.PASSABLE) {
+            waterline--; // fall through the air above the water
         }
-        if (surface >= limit && isSurfaceSwim(nx, surface, nz)) {
-            relax(current, node, pack(nx, surface, nz), MoveType.SWIM, SWIM_COST);
+        if (waterline >= limit && isSurfaceSwim(nx, waterline, nz)) {
+            relax(current, node, pack(nx, waterline, nz), FLOATING, MoveType.SWIM, SWIM_COST);
         }
     }
 
@@ -283,13 +314,15 @@ public final class Pathfinder {
     private void swimExit(long current, Node node, int x, int y, int z, int dx, int dz) {
         int nx = x + dx;
         int nz = z + dz;
-        if (isStandable(nx, y, nz)) {
-            relax(current, node, pack(nx, y, nz), MoveType.WALK, SWIM_COST);
+        double bank = footing(nx, y, nz);
+        if (bank != NO_FOOTING) {
+            relax(current, node, pack(nx, y, nz), bank, MoveType.WALK, SWIM_COST);
             return;
         }
         for (int up = 1; up <= this.profile.jumpHeight(); up++) {
-            if (isStandable(nx, y + up, nz)) {
-                relax(current, node, pack(nx, y + up, nz), MoveType.JUMP, SWIM_COST);
+            double ledge = footing(nx, y + up, nz);
+            if (ledge != NO_FOOTING) {
+                relax(current, node, pack(nx, y + up, nz), ledge, MoveType.JUMP, SWIM_COST);
                 return;
             }
         }
@@ -302,7 +335,8 @@ public final class Pathfinder {
      * body-height+1 corridor over every gap column (the arc rises a block), a standable landing.
      * Same-level landings only in v1.
      */
-    private void leapNeighbor(long current, Node node, int x, int y, int z, int dx, int dz) {
+    private void leapNeighbor(long current, Node node, int x, int y, int z, double from,
+                              int dx, int dz) {
         int maxLeap = Math.min(this.profile.maxLeap(), LEAP_COSTS.length - 1);
         if (maxLeap < 1 || this.profile.jumpHeight() < 1) return;
         if (this.grid.cell(x, y + this.profile.height(), z) != CellType.PASSABLE) return; // takeoff headroom
@@ -310,19 +344,25 @@ public final class Pathfinder {
             int gx = x + gap * dx;
             int gz = z + gap * dz;
             // The column must be open for the flight but floorless at this level — else it is
-            // walkable ground (no leap needed) or a wall (no leap possible).
+            // walkable ground (no leap needed) or a wall (no leap possible). A partial floor in it
+            // counts as ground for that purpose: you walk onto a slab rather than leaping it, and
+            // the corridor check below would have refused the cell anyway.
             if (this.grid.cell(gx, y - 1, gz) == CellType.GROUND) return;
             for (int i = 0; i <= this.profile.height(); i++) { // height+1: the arc rises a block
                 if (this.grid.cell(gx, y + i, gz) != CellType.PASSABLE) return;
             }
             int lx = x + (gap + 1) * dx;
             int lz = z + (gap + 1) * dz;
-            if (isStandable(lx, y, lz)) {
+            double landing = footing(lx, y, lz);
+            // Same-level landings only, still — but "level" is the footing, so leaping onto a
+            // slab-topped far bank is a leap rather than a refusal. Landings a full cell up or
+            // down remain out of the model (gauntlet A5/A6/A7).
+            if (landing != NO_FOOTING && Math.abs(landing - from) <= STEP_UP) {
                 // No run-up requirement, deliberately (Luiz): the follower sprints from inside the
                 // takeoff cell and never backs up, so ground behind it changed which leaps were
                 // ALLOWED without changing how any was EXECUTED. Capability is purely geometric;
                 // if 3-gaps prove unreliable, fix the follower, not this check.
-                relax(current, node, pack(lx, y, lz), MoveType.LEAP, LEAP_COSTS[gap]);
+                relax(current, node, pack(lx, y, lz), landing, MoveType.LEAP, LEAP_COSTS[gap]);
                 return; // landed on the near edge of the far side; wider leaps from here are moot
             }
         }
@@ -334,7 +374,8 @@ public final class Pathfinder {
      * superset of every cell the body sweeps at any angle, so no obstacle, hole, or danger cell
      * can hide inside a stride, and terrain that isn't flat degrades to the unit moves.
      */
-    private void strideNeighbor(long current, Node node, int x, int y, int z, int dx, int dz, double cost) {
+    private void strideNeighbor(long current, Node node, int x, int y, int z, double from,
+                                int dx, int dz, double cost) {
         int x0 = Math.min(x, x + dx);
         int x1 = Math.max(x, x + dx);
         int z0 = Math.min(z, z + dz);
@@ -342,48 +383,72 @@ public final class Pathfinder {
         for (int cx = x0; cx <= x1; cx++) {
             for (int cz = z0; cz <= z1; cz++) {
                 if (cx == x && cz == z) continue; // where we stand — standable by construction
-                if (!isStandable(cx, y, cz)) return;
+                // Every cell swept must be footing the body could walk across without a step up:
+                // a stride is one long straight move, so anything it can't take in its own stride
+                // must degrade to the unit moves that price the climb properly.
+                if (!walkableFlank(cx, y, cz, from)) return;
                 // Strides are open-ground moves: careful ground (rim lanes, narrow bridges)
                 // takes unit steps at the careful cost instead — precise and correctly priced.
                 if (isCareful(cx, y, cz)) return;
             }
         }
-        relax(current, node, pack(x + dx, y, z + dz), MoveType.WALK, cost);
+        relax(current, node, pack(x + dx, y, z + dz), footing(x + dx, y, z + dz), MoveType.WALK, cost);
     }
 
     /**
-     * One cardinal step: level walk, drop (walk off the edge, land up to {@code maxDrop} below),
-     * or jump-up-1 when the destination column is one block higher.
+     * One cardinal step, whatever the terrain does vertically: a level walk, a step up or down onto
+     * a partial floor, a jump onto a full block, or a drop of up to {@code maxDrop}.
+     *
+     * <p>Which of those it is falls out of one number — the <b>rise</b> between the two footings —
+     * rather than out of a case per shape of ground. That is why a staircase reads as walking
+     * rather than as four hops: each stair is half a block, and half a block is a walk.
      */
-    private void cardinalNeighbor(long current, Node node, int x, int y, int z, int dx, int dz) {
+    private void cardinalNeighbor(long current, Node node, int x, int y, int z, double from,
+                                  int dx, int dz) {
         int nx = x + dx;
         int nz = z + dz;
-        if (hasClearance(nx, y, nz)) {
-            // Walk if there is ground right below, drop if the floor is further down. The cells
-            // scanned through are the fall path, so passing them is the fall-clearance
-            // check.
-            int floor = y - 1;
-            int limit = y - this.profile.maxDrop() - 1;
-            while (floor >= limit && this.grid.cell(nx, floor, nz) == CellType.PASSABLE) {
-                floor--;
+        // The highest place to stand in the destination column that is within reach: scan from one
+        // cell up (a step or a jump) down to the deepest survivable landing, and take the first
+        // footing found. A cell that is not passable ends the scan — you cannot fall through a
+        // floor to a better one under it, and you cannot walk through a wall to what is behind it.
+        // The cells the scan passes through are the fall path, so passing them is the
+        // fall-clearance check, as it always was.
+        for (int ny = y + 1; ny >= y - this.profile.maxDrop(); ny--) {
+            double to = footing(nx, ny, nz);
+            if (to != NO_FOOTING) {
+                stepTo(current, node, x, y, z, from, nx, ny, nz, to);
+                return;
             }
-            if (floor < limit) return; // deeper than maxDrop (or bottomless): a hole, not a move
-            if (this.grid.cell(nx, floor, nz) != CellType.GROUND) return; // no floor worth landing on
-            int depth = y - floor - 1;
-            if (depth == 0) {
-                relax(current, node, pack(nx, y, nz), MoveType.WALK,
-                        WALK_COST * carefulFactor(x, y, z, nx, y, nz));
-            } else {
-                relax(current, node, pack(nx, floor + 1, nz), MoveType.DROP,
-                        dropCost(depth) * carefulFactor(x, y, z, nx, floor + 1, nz));
+            if (this.grid.cell(nx, ny, nz) != CellType.PASSABLE) {
+                return;
             }
-        } else if (this.profile.jumpHeight() >= 1
-                && this.grid.cell(nx, y, nz) == CellType.GROUND // must land ON the blocking block
-                && this.grid.cell(x, y + this.profile.height(), z) == CellType.PASSABLE // headroom to jump
-                && hasClearance(nx, y + 1, nz)) {
-            relax(current, node, pack(nx, y + 1, nz), MoveType.JUMP,
-                    JUMP_COST * carefulFactor(x, y, z, nx, y + 1, nz));
         }
+    }
+
+    /** Classifies a reachable neighbouring footing by its rise and relaxes it. */
+    private void stepTo(long current, Node node, int x, int y, int z, double from,
+                        int nx, int ny, int nz, double to) {
+        double rise = to - from;
+        if (rise > STEP_UP) {
+            if (this.profile.jumpHeight() < 1 || rise > JUMP_UP) return;
+            // Headroom to jump: a clear cell above the head to rise into.
+            if (this.grid.cell(x, y + this.profile.height(), z) != CellType.PASSABLE) return;
+            relax(current, node, pack(nx, ny, nz), to, MoveType.JUMP,
+                    JUMP_COST * carefulFactor(x, y, z, nx, ny, nz));
+            return;
+        }
+        if (rise >= -STEP_UP) {
+            relax(current, node, pack(nx, ny, nz), to, MoveType.WALK,
+                    WALK_COST * carefulFactor(x, y, z, nx, ny, nz));
+            return;
+        }
+        // A fall. The scan bounds the CELL to maxDrop, but a raised takeoff makes the real fall
+        // deeper than the cells suggest — standing on a slab and dropping maxDrop cells is half a
+        // block further than this body agreed to.
+        double depth = -rise;
+        if (depth > this.profile.maxDrop()) return;
+        relax(current, node, pack(nx, ny, nz), to, MoveType.DROP,
+                dropCost(depth) * carefulFactor(x, y, z, nx, ny, nz));
     }
 
     /**
@@ -393,18 +458,79 @@ public final class Pathfinder {
      * over lava or a hole would put the hitbox into the danger cell mid-step. (Stricter than the
      * predecessor, which only checked clearance; costs an occasional diagonal along cliff edges.)
      */
-    private void diagonalNeighbor(long current, Node node, int x, int y, int z, int dx, int dz) {
+    private void diagonalNeighbor(long current, Node node, int x, int y, int z, double from,
+                                  int dx, int dz) {
         int nx = x + dx;
         int nz = z + dz;
-        if (isStandable(nx, y, nz) && isStandable(nx, y, z) && isStandable(x, y, nz)) {
-            relax(current, node, pack(nx, y, nz), MoveType.WALK,
-                    DIAGONAL_COST * carefulFactor(x, y, z, nx, y, nz));
-        }
+        double to = footing(nx, y, nz);
+        // "Level" now means level to WALK (within a step of where we stand) rather than
+        // identical y, so a diagonal crosses a carpet or a slab instead of stopping at it. Both
+        // flanks are held to the same bar: they are ground the body's box sweeps through.
+        if (to == NO_FOOTING || Math.abs(to - from) > STEP_UP) return;
+        if (!walkableFlank(nx, y, z, from) || !walkableFlank(x, y, nz, from)) return;
+        relax(current, node, pack(nx, y, nz), to, MoveType.WALK,
+                DIAGONAL_COST * carefulFactor(x, y, z, nx, y, nz));
     }
 
-    /** Whether feet-cell {@code (x,y,z)} has solid ground beneath it and room for the body. */
+    /** Whether a cell is footing the body could walk across from {@code from} without a step up. */
+    private boolean walkableFlank(int x, int y, int z, double from) {
+        double f = footing(x, y, z);
+        return f != NO_FOOTING && Math.abs(f - from) <= STEP_UP;
+    }
+
+    /**
+     * Where the feet come to rest if the body stands with {@code (x,y,z)} as its feet-cell, as an
+     * absolute y — or {@link #NO_FOOTING}. Every move is a pair of footings and the rise between.
+     *
+     * <p>A cell never has footing both ways: nodes are keyed by cell, so one standing place
+     * answering to two cells would be two nodes with two costs and parents. Hence a
+     * {@link CellType#STEP} is its <em>own</em> feet-cell, never a floor for the cell above.
+     */
+    private double footing(int x, int y, int z) {
+        CellType here = this.grid.cell(x, y, z);
+        if (here == CellType.STEP) {
+            double surface = this.grid.surface(x, y, z);
+            return fits(x, y, z, surface) ? y + surface : NO_FOOTING;
+        }
+        if (here != CellType.PASSABLE) {
+            return NO_FOOTING; // solid, harmful, water, or off the edge of the world
+        }
+        if (this.grid.cell(x, y - 1, z) != CellType.GROUND) {
+            return NO_FOOTING; // nothing under us — or a STEP, which is its own feet-cell
+        }
+        return fits(x, y, z, 0.0) ? y : NO_FOOTING;
+    }
+
+    /** Whether feet-cell {@code (x,y,z)} affords footing at all — {@link #footing} as a predicate. */
     private boolean isStandable(int x, int y, int z) {
-        return this.grid.cell(x, y - 1, z) == CellType.GROUND && hasClearance(x, y, z);
+        return footing(x, y, z) != NO_FOOTING;
+    }
+
+    /** How far into a cell its own surface sits, in sixteenths — 0 for anything but a partial floor. */
+    private int surface16At(int x, int y, int z) {
+        if (this.grid.cell(x, y, z) != CellType.STEP) return 0;
+        return Math.max(0, Math.min(15, (int) Math.round(this.grid.surface(x, y, z) * 16.0)));
+    }
+
+    /**
+     * Whether a body standing at {@code surface} above the floor of feet-cell {@code (x,y,z)} has
+     * room for the rest of itself. The feet cell is clear above the surface by construction (a
+     * {@link CellType#STEP} is solid only up to it, a {@link CellType#PASSABLE} not at all), so
+     * this checks the cells above — one more when a raised surface pushes the head into it.
+     *
+     * <p><b>conservative by up to a fifth of a block.</b> The body is modelled as
+     * {@code height} whole blocks tall because that is the only height a profile declares; a Person
+     * is really 1.8, so a surface less than 0.2 up (a carpet, a pressure plate) is charged for
+     * headroom it does not use. That costs a detour, where being optimistic would plan a route that
+     * wedges. The exact fix is a fractional {@code body.stand_height} aspect beside
+     * {@code body.height}.
+     */
+    private boolean fits(int x, int y, int z, double surface) {
+        int top = (int) Math.ceil(surface + this.profile.height()) - 1;
+        for (int i = 1; i <= top; i++) {
+            if (this.grid.cell(x, y + i, z) != CellType.PASSABLE) return false;
+        }
+        return true;
     }
 
     /** Memoized {@link NavGrids#isNearDeepDrop} — see {@link #CAREFUL_COST_FACTOR}. */
@@ -425,8 +551,8 @@ public final class Pathfinder {
      * #WALK_COST} — every move must cost at least its one cardinal step or the (horizontal-only)
      * heuristic would overestimate and break A*'s optimality.
      */
-    private static double dropCost(int depth) {
-        return WALK_COST + 0.3 * (depth - 1);
+    private static double dropCost(double depth) {
+        return Math.max(WALK_COST, WALK_COST + 0.3 * (depth - 1));
     }
 
     /** Whether a body of {@code profile.height()} cells fits standing at feet-cell {@code (x,y,z)}. */
@@ -437,11 +563,22 @@ public final class Pathfinder {
         return true;
     }
 
-    /** Standard A* edge relaxation: record-or-improve the neighbour and (re)queue it. */
-    private void relax(long current, Node from, long neighbor, MoveType move, double cost) {
-        if (!this.domain.contains(unpackX(neighbor), unpackY(neighbor), unpackZ(neighbor))) {
+    /**
+     * Standard A* edge relaxation: record-or-improve the neighbour and (re)queue it.
+     *
+     * <p>{@code footing} is where the feet land, absolutely; it is stored on the node as an offset
+     * inside the cell so the reconstructed {@link Waypoint} can tell the follower the true standing
+     * height. Rounding to sixteenths is lossless for every vanilla shape (they are all built on the
+     * sixteenth grid) and keeps a waypoint an exactly comparable value.
+     */
+    private void relax(long current, Node from, long neighbor, double footing, MoveType move,
+                       double cost) {
+        int ny = unpackY(neighbor);
+        if (!this.domain.contains(unpackX(neighbor), ny, unpackZ(neighbor))) {
             return; // outside the fence there is no world, not merely a worse one
         }
+        int surface16 = footing == NO_FOOTING ? 0
+                : Math.max(0, Math.min(15, (int) Math.round((footing - ny) * 16.0)));
         double g = from.g + cost + dread(neighbor);
         Node node = this.nodes.get(neighbor);
         if (node == null) {
@@ -449,11 +586,13 @@ public final class Pathfinder {
             node.g = g;
             node.parent = current;
             node.move = move;
+            node.surface16 = surface16;
             this.nodes.put(neighbor, node);
         } else if (!node.closed && g < node.g) {
             node.g = g;
             node.parent = current;
             node.move = move;
+            node.surface16 = surface16;
         } else {
             return;
         }
@@ -522,7 +661,8 @@ public final class Pathfinder {
         long key = end;
         Node node = this.nodes.get(key);
         while (node.parent != NO_PARENT) {
-            chain.addFirst(new Waypoint(unpackX(key), unpackY(key), unpackZ(key), node.move));
+            chain.addFirst(new Waypoint(unpackX(key), unpackY(key), unpackZ(key), node.move,
+                    node.surface16));
             key = node.parent;
             node = this.nodes.get(key);
         }

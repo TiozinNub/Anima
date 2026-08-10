@@ -103,6 +103,8 @@ public final class NavDump {
                 out.write("\n# unlisted cells inside the box are "
                         + CellType.PASSABLE.name() + "; outside it, "
                         + CellType.OBSTACLE.name() + "\n");
+                out.write("# a " + CellType.STEP.name()
+                        + " carries a fifth field: its surface height in sixteenths\n");
 
                 BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
                 for (int x = min.getX(); x <= max.getX(); x++) {
@@ -121,7 +123,11 @@ public final class NavDump {
                             if (type == CellType.PASSABLE) {
                                 continue;
                             }
-                            out.write(type.code() + " " + x + " " + y + " " + z + "\n");
+                            out.write(type.code() + " " + x + " " + y + " " + z
+                                    + (type == CellType.STEP
+                                            ? " " + Math.round(WorldSnapshot.surfaceAt(level, pos) * 16)
+                                            : "")
+                                    + "\n");
                         }
                     }
                 }

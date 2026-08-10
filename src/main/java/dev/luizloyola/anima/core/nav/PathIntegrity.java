@@ -4,28 +4,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The completion-critical cells of a path <em>edge</em> — the "relevant blocks" the follower
- * watches a few nodes ahead (see {@code Navigator}'s integrity check). Keyed on the move, and for
- * the common case the cells the feet cross, not merely the destination:
+ * Derives the completion-critical cells of a path <em>edge</em> — the "relevant blocks" the
+ * follower watches ahead of the body (see {@code Navigator}'s integrity check). Keyed on the move,
+ * and for the common case it is the cells the feet cross, not just the destination:
  *
  * <ul>
- *   <li><b>{@link MoveType#WALK}</b> (step, diagonal, stride): every cell on the
- *       {@link #lineCells Bresenham line} keeps {@link CellType#GROUND} at {@code y-1} and
- *       {@link CellType#PASSABLE} at {@code y..y+height-1}. Watching only the destination missed
- *       blocks pulled from the <em>middle</em> of a stride: a bridge crossed in 3-cell strides
- *       leaves two of every three deck cells between waypoints.</li>
- *   <li><b>{@link MoveType#SWIM}</b>: the destination feet cell stays {@link CellType#WATER}, body
- *       clear above the waterline.</li>
- *   <li><b>{@link MoveType#LEAP}</b>: the landing plus the flight arc — takeoff headroom and a
- *       clear body-height+1 corridor over every gap column, so a wall built into the arc is
- *       caught.</li>
- *   <li><b>{@link MoveType#DROP}, {@link MoveType#JUMP}</b>: destination standability only; the
- *       drop shaft and the jumped block are left to the reactive stuck/stray net.</li>
+ *   <li><b>Level ground moves</b> ({@link MoveType#WALK} — step, diagonal or stride): every cell on
+ *       the {@link #lineCells Bresenham line} needs {@link CellNeed.Need#FOOTING} and a
+ *       {@link CellNeed.Need#CLEAR} column. Destination-only missed a block pulled from the
+ *       <em>middle</em> of a stride, and the follower walked off it.
+ *   <li><b>Swim moves</b> ({@link MoveType#SWIM}): the destination feet cell stays
+ *       {@link CellNeed.Need#WATER} with a clear body above the waterline (the surface float).
+ *   <li><b>Leaps</b> ({@link MoveType#LEAP}): the landing plus the flight arc — takeoff headroom
+ *       and a clear body-height+1 corridor over every gap column — so a wall in the arc is caught.
+ *   <li><b>Other vertical moves</b> ({@link MoveType#DROP}, {@link MoveType#JUMP}): destination
+ *       standability only; in-flight failures land as stumbles the reactive stuck/stray net already
+ *       recovers from.
  * </ul>
  *
- * <p>Re-derived from waypoint geometry rather than recorded by the search, so it mirrors
- * {@link Pathfinder}'s level-move generators — tolerable because {@code isStandable} is the
- * engine's most stable invariant, and {@code PathIntegrityTest} pins the shape.
+ * <p>Re-derived from waypoint geometry rather than recorded by the search, so it mirrors what
+ * {@link Pathfinder}'s level-move generators require; {@code PathIntegrityTest} pins the shape. If
+ * the move vocabulary grows a case this misses, source the cells from the generators instead.
  */
 public final class PathIntegrity {
     private PathIntegrity() {}
@@ -39,9 +38,9 @@ public final class PathIntegrity {
         List<CellNeed> needs = new ArrayList<>();
         if (to.move() == MoveType.SWIM) {
             // Surface float: feet in water, the rest of the body clear above the waterline.
-            needs.add(new CellNeed(to.x(), to.y(), to.z(), CellType.WATER));
+            needs.add(new CellNeed(to.x(), to.y(), to.z(), CellNeed.Need.WATER));
             for (int i = 1; i < height; i++) {
-                needs.add(new CellNeed(to.x(), to.y() + i, to.z(), CellType.PASSABLE));
+                needs.add(new CellNeed(to.x(), to.y() + i, to.z(), CellNeed.Need.CLEAR));
             }
             return needs;
         }
@@ -62,12 +61,12 @@ public final class PathIntegrity {
             // it does not break the leap, only its cost.
             addStandable(needs, to.x(), to.y(), to.z(), height); // the landing
             int y = from.y();
-            needs.add(new CellNeed(from.x(), y + height, from.z(), CellType.PASSABLE)); // takeoff headroom
+            needs.add(new CellNeed(from.x(), y + height, from.z(), CellNeed.Need.CLEAR)); // takeoff headroom
             int sx = Integer.signum(to.x() - from.x());
             int sz = Integer.signum(to.z() - from.z());
             for (int gx = from.x() + sx, gz = from.z() + sz; gx != to.x() || gz != to.z(); gx += sx, gz += sz) {
                 for (int i = 0; i <= height; i++) {
-                    needs.add(new CellNeed(gx, y + i, gz, CellType.PASSABLE));
+                    needs.add(new CellNeed(gx, y + i, gz, CellNeed.Need.CLEAR));
                 }
             }
             return needs;
@@ -78,11 +77,19 @@ public final class PathIntegrity {
         return needs;
     }
 
-    /** Appends the standability cells of feet-cell {@code (x,y,z)}: floor {@code GROUND}, body clear. */
+    /**
+     * Appends the standability cells of feet-cell {@code (x,y,z)}: footing at the feet, a clear
+     * column above.
+     *
+     * <p>{@link CellNeed.Need#FOOTING} rather than naming the floor's cell and type, because where
+     * the floor lives depends on how it is built — under the feet for a full block, in the feet
+     * cell for a slab — and this derivation has no grid to ask. The demand covers both, and a floor
+     * rebuilt differently that walks the same.
+     */
     private static void addStandable(List<CellNeed> needs, int x, int y, int z, int height) {
-        needs.add(new CellNeed(x, y - 1, z, CellType.GROUND));
-        for (int i = 0; i < height; i++) {
-            needs.add(new CellNeed(x, y + i, z, CellType.PASSABLE));
+        needs.add(new CellNeed(x, y, z, CellNeed.Need.FOOTING));
+        for (int i = 1; i < height; i++) {
+            needs.add(new CellNeed(x, y + i, z, CellNeed.Need.CLEAR));
         }
     }
 

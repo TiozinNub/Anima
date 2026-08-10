@@ -18,7 +18,9 @@ public final class NavGrids {
             int nx = x + (i == 0 ? 1 : i == 1 ? -1 : 0);
             int nz = z + (i == 2 ? 1 : i == 3 ? -1 : 0);
             if (grid.cell(nx, y, nz) != CellType.PASSABLE) {
-                continue; // a wall, not a step-off
+                // A wall, not a step-off — and a partial floor (a slab, a carpet) is footing
+                // rather than a hole.
+                continue;
             }
             int floor = y - 1;
             int limit = y - maxDrop - 1;

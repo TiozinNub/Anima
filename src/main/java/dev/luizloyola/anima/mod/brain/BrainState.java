@@ -115,12 +115,19 @@ public final class BrainState {
         ).apply(b, BrainDriver.BrainSnapshot::new));
     }
 
+    /**
+     * {@code surface} is optional, not required: a walk saved before partial floors existed has no
+     * such field, and vanilla parses with {@code resultOrPartial}, so a required field would drop
+     * every waypoint of every stored path and still load "successfully". The default means feet on
+     * the floor of their cell.
+     */
     private static final Codec<Waypoint> WAYPOINT = RecordCodecBuilder.create(w -> w.group(
             Codec.INT.fieldOf("x").forGetter(Waypoint::x),
             Codec.INT.fieldOf("y").forGetter(Waypoint::y),
             Codec.INT.fieldOf("z").forGetter(Waypoint::z),
-            Codec.STRING.fieldOf("move").forGetter(way -> way.move().name())
-    ).apply(w, (x, y, z, move) -> new Waypoint(x, y, z, MoveType.valueOf(move))));
+            Codec.STRING.fieldOf("move").forGetter(way -> way.move().name()),
+            Codec.INT.optionalFieldOf("surface", 0).forGetter(Waypoint::surface16)
+    ).apply(w, (x, y, z, move, surface) -> new Waypoint(x, y, z, MoveType.valueOf(move), surface)));
 
     /**
      * A walk in progress. The route is carried rather than re-pathed: paths of similar cost are

@@ -10,14 +10,15 @@ import java.util.Map;
  * {@code /anima nav dump} — the counterpart to {@link AsciiWorld}.
  *
  * <p>{@link AsciiWorld} is drawn by hand, so the map is the specification; this one is captured, so
- * the map is <em>evidence</em>: it carries what the live classifier said about real blockstates,
- * the only way a headless test catches it calling a staircase a wall.
+ * the map is <em>evidence</em> of what the live classifier said about real blockstates — the only
+ * way a headless test catches it calling a staircase a wall.
  *
- * <p>Format: {@code # box minX minY minZ maxX maxY maxZ} in the header, then one
- * {@code <code> <x> <y> <z>} line per non-passable cell in world coordinates, {@code #} comments
- * ignored. Unmentioned cells inside the box are {@link CellType#PASSABLE}, everything outside is
- * {@link CellType#OBSTACLE} per the {@link NavGrid} contract. World-space coordinates mean a query
- * recorded from the game replays verbatim, with no origin arithmetic.
+ * <p>Format: {@code # box minX minY minZ maxX maxY maxZ}, then one {@code <code> <x> <y> <z>} line
+ * per non-passable cell in world coordinates; {@code #} comments ignored. A {@link CellType#STEP}
+ * adds a fifth field, its surface in sixteenths — the one code that does not say where its top is.
+ * Unmentioned cells inside the box are {@link CellType#PASSABLE}, everything outside
+ * {@link CellType#OBSTACLE}, per the {@link NavGrid} contract. World coordinates let a query
+ * recorded in-game replay verbatim.
  */
 public final class CapturedWorld implements NavGrid {
     private final int minX;
@@ -27,9 +28,10 @@ public final class CapturedWorld implements NavGrid {
     private final int maxY;
     private final int maxZ;
     private final Map<Long, CellType> cells;
+    private final Map<Long, Double> surfaces;
 
     private CapturedWorld(int minX, int minY, int minZ, int maxX, int maxY, int maxZ,
-                          Map<Long, CellType> cells) {
+                          Map<Long, CellType> cells, Map<Long, Double> surfaces) {
         this.minX = minX;
         this.minY = minY;
         this.minZ = minZ;
@@ -37,12 +39,14 @@ public final class CapturedWorld implements NavGrid {
         this.maxY = maxY;
         this.maxZ = maxZ;
         this.cells = cells;
+        this.surfaces = surfaces;
     }
 
     /** Parses a capture. {@code lines} is the whole file, in order. */
     public static CapturedWorld parse(List<String> lines) {
         int[] box = null;
         Map<Long, CellType> cells = new HashMap<>();
+        Map<Long, Double> surfaces = new HashMap<>();
         int lineNo = 0;
         for (String raw : lines) {
             lineNo++;
@@ -57,17 +61,27 @@ public final class CapturedWorld implements NavGrid {
                 continue;
             }
             String[] parts = line.split("\\s+");
-            if (parts.length != 4 || parts[0].length() != 1) {
-                throw new IllegalArgumentException("line " + lineNo + ": expected '<code> x y z', got: " + line);
+            if (parts.length < 4 || parts.length > 5 || parts[0].length() != 1) {
+                throw new IllegalArgumentException(
+                        "line " + lineNo + ": expected '<code> x y z [surface16]', got: " + line);
             }
             CellType type = CellType.byCode(parts[0].charAt(0));
-            cells.put(Pathfinder.pack(parse(parts[1], lineNo), parse(parts[2], lineNo),
-                    parse(parts[3], lineNo)), type);
+            long key = Pathfinder.pack(parse(parts[1], lineNo), parse(parts[2], lineNo),
+                    parse(parts[3], lineNo));
+            cells.put(key, type);
+            if (type == CellType.STEP) {
+                // A partial floor is the one cell whose type does not say where its top is.
+                if (parts.length != 5) {
+                    throw new IllegalArgumentException(
+                            "line " + lineNo + ": a STEP needs its surface in sixteenths: " + line);
+                }
+                surfaces.put(key, parse(parts[4], lineNo) / 16.0);
+            }
         }
         if (box == null) {
             throw new IllegalArgumentException("capture has no '# box minX minY minZ maxX maxY maxZ' header");
         }
-        return new CapturedWorld(box[0], box[1], box[2], box[3], box[4], box[5], cells);
+        return new CapturedWorld(box[0], box[1], box[2], box[3], box[4], box[5], cells, surfaces);
     }
 
     private static int[] ints(String text, int count, int lineNo) {
@@ -98,6 +112,13 @@ public final class CapturedWorld implements NavGrid {
         }
         CellType type = this.cells.get(Pathfinder.pack(x, y, z));
         return type != null ? type : CellType.PASSABLE;
+    }
+
+    @Override
+    public double surface(int x, int y, int z) {
+        Double recorded = this.surfaces.get(Pathfinder.pack(x, y, z));
+        if (recorded != null) return recorded;
+        return NavGrid.super.surface(x, y, z);
     }
 
     /** Whether the inclusive box {@code [min, max]} lies fully inside this capture. */
