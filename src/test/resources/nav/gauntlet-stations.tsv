@@ -39,7 +39,7 @@ B11	625	-49	124	642	-49	124	true	reach	soft tops: path/farm/soul/honey
 B12	625	-49	136	642	-49	136	true	reach	closed-trapdoor floor
 B13	625	-49	148	642	-49	148	true	reach	2-high tunnel, plain floor
 B14	625	-49	160	642	-49	160	false	block	2-high tunnel, SLAB floor
-B15	625	-49	172	642	-49	172	false	reach	2-high tunnel, CARPET floor
+B15	625	-49	172	642	-49	172	true	reach	2-high tunnel, CARPET floor
 B16	625	-49	184	642	-48	184	false	block	block topped with a SLAB (1.5 - too high)
 B17	625	-49	196	642	-48	196	true	reach	block topped with a CARPET (1.06 - clears)
 B18	625	-49	208	642	-49	208	false	block	wall 2 high, CARPET on top

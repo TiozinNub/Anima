@@ -251,7 +251,7 @@ public final class Pathfinder {
      */
     private boolean isSurfaceSwim(int x, int y, int z) {
         if (this.grid.cell(x, y, z) != CellType.WATER) return false;
-        for (int i = 1; i < this.profile.height(); i++) {
+        for (int i = 1; i <= this.profile.topCell(0.0); i++) {
             if (this.grid.cell(x, y + i, z) != CellType.PASSABLE) return false;
         }
         return true;
@@ -335,7 +335,8 @@ public final class Pathfinder {
                               int dx, int dz) {
         int maxLeap = Math.min(this.profile.maxLeap(), LEAP_COSTS.length - 1);
         if (maxLeap < 1 || this.profile.jumpHeight() < 1) return;
-        if (this.grid.cell(x, y + this.profile.height(), z) != CellType.PASSABLE) return; // takeoff headroom
+        int overhead = this.profile.topCell(from - y) + 1;   // first cell above the head
+        if (this.grid.cell(x, y + overhead, z) != CellType.PASSABLE) return; // takeoff headroom
         for (int gap = 1; gap <= maxLeap; gap++) {
             int gx = x + gap * dx;
             int gz = z + gap * dz;
@@ -344,7 +345,7 @@ public final class Pathfinder {
             // counts as ground for that purpose: you walk onto a slab rather than leaping it, and
             // the corridor check below would have refused the cell anyway.
             if (this.grid.cell(gx, y - 1, gz) == CellType.GROUND) return;
-            for (int i = 0; i <= this.profile.height(); i++) { // height+1: the arc rises a block
+            for (int i = 0; i <= overhead; i++) { // one past the head: the arc rises a block
                 if (this.grid.cell(gx, y + i, gz) != CellType.PASSABLE) return;
             }
             int lx = x + (gap + 1) * dx;
@@ -427,8 +428,9 @@ public final class Pathfinder {
         double rise = to - from;
         if (rise > STEP_UP) {
             if (this.profile.jumpHeight() < 1 || rise > JUMP_UP) return;
-            // Headroom to jump: a clear cell above the head to rise into.
-            if (this.grid.cell(x, y + this.profile.height(), z) != CellType.PASSABLE) return;
+            // Headroom to jump: a clear cell above the head to rise into. Measured from where the
+            // feet actually are — a body already standing half a block up has its head there too.
+            if (this.grid.cell(x, y + this.profile.topCell(from - y) + 1, z) != CellType.PASSABLE) return;
             relax(current, node, pack(nx, ny, nz), to, MoveType.JUMP,
                     JUMP_COST * carefulFactor(x, y, z, nx, ny, nz));
             return;
@@ -522,7 +524,7 @@ public final class Pathfinder {
      * {@code body.height}.
      */
     private boolean fits(int x, int y, int z, double surface) {
-        int top = (int) Math.ceil(surface + this.profile.height()) - 1;
+        int top = this.profile.topCell(surface);
         for (int i = 1; i <= top; i++) {
             if (this.grid.cell(x, y + i, z) != CellType.PASSABLE) return false;
         }
@@ -551,9 +553,9 @@ public final class Pathfinder {
         return Math.max(WALK_COST, WALK_COST + 0.3 * (depth - 1));
     }
 
-    /** Whether a body of {@code profile.height()} cells fits standing at feet-cell {@code (x,y,z)}. */
+    /** Whether this body fits standing flat at feet-cell {@code (x,y,z)} — its own cell included. */
     private boolean hasClearance(int x, int y, int z) {
-        for (int i = 0; i < this.profile.height(); i++) {
+        for (int i = 0; i <= this.profile.topCell(0.0); i++) {
             if (this.grid.cell(x, y + i, z) != CellType.PASSABLE) return false;
         }
         return true;

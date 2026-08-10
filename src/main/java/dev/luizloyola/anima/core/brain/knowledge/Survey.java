@@ -70,7 +70,11 @@ public final class Survey {
     public Survey(AgentProfile profile, Pos from) {
         this.profile = profile;
         this.from = from;
-        this.eyeY = from.y() + profile.i(ProfileAspect.BODY_HEIGHT) * EYE_FRACTION;
+        // Rounded up to whole cells: the eye fraction was tuned against a Person
+        // counted as 2 cells, and a sense's reach is not retuned as a side effect of a NAVIGATION
+        // change. The true eye (1.62 on a 1.8 body — 0.9 of it, not 0.85) is its own slice.
+        this.eyeY = from.y()
+                + Math.ceil(profile.d(ProfileAspect.BODY_HEIGHT)) * EYE_FRACTION;
         this.radius = HorizonScanner.radius(profile);
         this.near = CrescentSampler.radius(profile);
         this.seeThrough = HorizonScanner.seeThroughRadius(profile);

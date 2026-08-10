@@ -34,12 +34,11 @@ public final class PathIntegrity {
      * agent's body height — see the class doc for the per-move rule.
      */
     public static List<CellNeed> edgeNeeds(Waypoint from, Waypoint to, MoveCapabilities profile) {
-        int height = profile.height();
         List<CellNeed> needs = new ArrayList<>();
         if (to.move() == MoveType.SWIM) {
             // Surface float: feet in water, the rest of the body clear above the waterline.
             needs.add(new CellNeed(to.x(), to.y(), to.z(), CellNeed.Need.WATER));
-            for (int i = 1; i < height; i++) {
+            for (int i = 1; i <= profile.topCell(0.0); i++) {
                 needs.add(new CellNeed(to.x(), to.y() + i, to.z(), CellNeed.Need.CLEAR));
             }
             return needs;
@@ -48,7 +47,7 @@ public final class PathIntegrity {
             // Level ground move: watch the standable floor + body under every cell the feet cross,
             // at this waypoint's level (walks/diagonals/strides are all same-level).
             for (int[] cell : lineCells(from.x(), from.z(), to.x(), to.z())) {
-                addStandable(needs, cell[0], to.y(), cell[1], height);
+                addStandable(needs, cell[0], to.y(), cell[1], profile, to.surface16() / 16.0);
             }
             return needs;
         }
@@ -59,13 +58,14 @@ public final class PathIntegrity {
             // column — cardinal and same-level, so those are the cells strictly between the
             // waypoints, all at the takeoff's y. The gap floor is not watched: filling
             // it does not break the leap, only its cost.
-            addStandable(needs, to.x(), to.y(), to.z(), height); // the landing
+            addStandable(needs, to.x(), to.y(), to.z(), profile, to.surface16() / 16.0); // the landing
             int y = from.y();
-            needs.add(new CellNeed(from.x(), y + height, from.z(), CellNeed.Need.CLEAR)); // takeoff headroom
+            int overhead = profile.topCell(from.surface16() / 16.0) + 1;
+            needs.add(new CellNeed(from.x(), y + overhead, from.z(), CellNeed.Need.CLEAR)); // takeoff headroom
             int sx = Integer.signum(to.x() - from.x());
             int sz = Integer.signum(to.z() - from.z());
             for (int gx = from.x() + sx, gz = from.z() + sz; gx != to.x() || gz != to.z(); gx += sx, gz += sz) {
-                for (int i = 0; i <= height; i++) {
+                for (int i = 0; i <= overhead; i++) {
                     needs.add(new CellNeed(gx, y + i, gz, CellNeed.Need.CLEAR));
                 }
             }
@@ -73,7 +73,7 @@ public final class PathIntegrity {
         }
         // Other vertical move (drop, jump): destination standability only. The shaft a drop falls
         // through / the block a jump clears are v1-out-of-scope, left to the reactive stuck/stray net.
-        addStandable(needs, to.x(), to.y(), to.z(), height);
+        addStandable(needs, to.x(), to.y(), to.z(), profile, to.surface16() / 16.0);
         return needs;
     }
 
@@ -86,9 +86,12 @@ public final class PathIntegrity {
      * cell for a slab — and this derivation has no grid to ask. The demand covers both, and a floor
      * rebuilt differently that walks the same.
      */
-    private static void addStandable(List<CellNeed> needs, int x, int y, int z, int height) {
+    private static void addStandable(List<CellNeed> needs, int x, int y, int z,
+                                     MoveCapabilities profile, double surface) {
         needs.add(new CellNeed(x, y, z, CellNeed.Need.FOOTING));
-        for (int i = 1; i < height; i++) {
+        // The waypoint's own surface sizes the column, since where the feet sit inside the cell
+        // decides how far up the body reaches — the arithmetic that admitted this cell.
+        for (int i = 1; i <= profile.topCell(surface); i++) {
             needs.add(new CellNeed(x, y + i, z, CellNeed.Need.CLEAR));
         }
     }

@@ -113,19 +113,40 @@ class PathfinderStepTest {
     }
 
     @Test
-    void aBodyOnAPartialFloorNeedsTheHeadroomItsRaisedFeetAskFor() {
-        // The documented conservatism, pinned: the body is modelled as its whole-cell height, so a
-        // raised surface charges for a cell of headroom it may not use. A slab under a ceiling two
-        // cells up is refused; the same cell without the slab is not. See Pathfinder.fits.
+    void headroomIsSpentByHowHighTheFeetAreNotByRoundingTheBodyUp() {
+        // A 1.8 body answers the same tunnel differently on each floor, so the height is
+        // a real number: feet 1.0 puts the head at 2.8 and it fits, a carpet's 1.0625 puts it at
+        // 2.8625 and still fits, a slab's 1.5 puts it at 3.3 and does not. Counting the body as 2
+        // whole cells charged every raised floor an extra cell and refused a carpeted doorway two
+        // blocks tall. The gauntlet's B13/B15/B14 as arithmetic.
+        AsciiWorld plain = AsciiWorld.of("111").fill(1, 3, 0, 1, 3, 0, CellType.GROUND);
+        AsciiWorld carpeted = AsciiWorld.of("111")
+                .step(1, 1, 0, 1, 1, 0, CARPET)
+                .fill(1, 3, 0, 1, 3, 0, CellType.GROUND);
         AsciiWorld slabbed = AsciiWorld.of("111")
                 .step(1, 1, 0, 1, 1, 0, SLAB)
                 .fill(1, 3, 0, 1, 3, 0, CellType.GROUND);
-        AsciiWorld plain = AsciiWorld.of("111").fill(1, 3, 0, 1, 3, 0, CellType.GROUND);
 
-        assertFalse(find(slabbed, 0, 1, 0, 2, 1, 0).reachedGoal(),
-                "raised feet need the cell above the one a flat-footed body needs");
         assertTrue(find(plain, 0, 1, 0, 2, 1, 0).reachedGoal(),
-                "the same ceiling over an unraised floor is fine");
+                "a 2-high tunnel is a 2-high tunnel");
+        assertTrue(find(carpeted, 0, 1, 0, 2, 1, 0).reachedGoal(),
+                "a carpet costs a sixteenth of a block, not a whole cell of headroom");
+        assertFalse(find(slabbed, 0, 1, 0, 2, 1, 0).reachedGoal(),
+                "half a block up really does put a 1.8 body's head through the ceiling");
+    }
+
+    @Test
+    void aTallerBodyLosesTheHeadroomAShorterOneKeeps() {
+        // The answer follows the BODY, not just the floor: under the identical carpeted ceiling
+        // 1.8 walks through and 2.0 does not, and both round up to the same two cells.
+        AsciiWorld carpeted = AsciiWorld.of("111")
+                .step(1, 1, 0, 1, 1, 0, CARPET)
+                .fill(1, 3, 0, 1, 3, 0, CellType.GROUND);
+        MoveCapabilities tall = new MoveCapabilities(2.0, 1, 3, 3, true);
+
+        assertTrue(find(carpeted, 0, 1, 0, 2, 1, 0).reachedGoal());
+        assertFalse(Pathfinder.find(carpeted, PathRequest.of(0, 1, 0, 2, 1, 0, tall)).reachedGoal(),
+                "two blocks of body plus a carpet does not fit under a ceiling two blocks up");
     }
 
     @Test

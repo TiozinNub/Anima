@@ -205,10 +205,14 @@ public final class ProfileAspect {
 
     // --- body: what this one can physically do -------------------------------------------------
 
-    public static final ProfileAspect BODY_HEIGHT = register("body.height", Kind.INT, 1, 8,
-            "Body height in whole cells — every column this body walks through needs that much "
-                    + "clearance. A Person is 2 (a 1.8 hitbox); a wolf is 1, and squeezes under "
-                    + "things a Person must walk around.");
+    public static final ProfileAspect BODY_HEIGHT = register("body.height", Kind.DOUBLE, 0.25, 8.0,
+            "Body height in BLOCKS — the real hitbox, not a count of cells. A Person is 1.8, a "
+                    + "wolf 0.85. Rounding it up to whole cells cost a fifth of a block of "
+                    + "headroom that the body does not use, so a floor raised even slightly (a "
+                    + "carpet, a pressure plate) read as needing a whole extra cell above it, and "
+                    + "a carpeted doorway two blocks tall was refused. What a column must be clear "
+                    + "for is now derived from this and from how high the floor sits inside its "
+                    + "cell — see MoveCapabilities.topCell.");
     public static final ProfileAspect BODY_JUMP_HEIGHT = register("body.jump_height", Kind.INT, 0, 1,
             "How many cells this body can jump straight up. Only 0 and 1 are modelled; 0 means "
                     + "every step up is a wall, which is how a path around one gets found.");

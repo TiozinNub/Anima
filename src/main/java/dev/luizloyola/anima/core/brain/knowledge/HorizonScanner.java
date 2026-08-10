@@ -419,7 +419,11 @@ public final class HorizonScanner {
         this.bin = bearing;
         this.originX = feet.x();
         this.originZ = feet.z();
-        this.originEyeY = feet.y() + this.profile.i(ProfileAspect.BODY_HEIGHT) * EYE_FRACTION;
+        // Rounded up to whole cells: the eye fraction was tuned against a Person
+        // counted as 2 cells, and a sense's reach is not retuned as a side effect of a NAVIGATION
+        // change. The true eye (1.62 on a 1.8 body — 0.9 of it, not 0.85) is its own slice.
+        this.originEyeY = feet.y()
+                + Math.ceil(this.profile.d(ProfileAspect.BODY_HEIGHT)) * EYE_FRACTION;
         // Minecraft's convention, shared with the being sense's cone: yaw 0° faces +Z.
         double radians = Math.toRadians(HorizonBuffer.bearingOf(bearing));
         this.dirX = -Math.sin(radians);

@@ -9,7 +9,7 @@ package dev.luizloyola.anima.core.nav;
 final class TestBodies {
 
     /** Two cells tall (a 1.8 hitbox), jumps 1, drops 3, leaps 3 (the vanilla sprint limit), swims. */
-    static final MoveCapabilities BIPED = new MoveCapabilities(2, 1, 3, 3, true);
+    static final MoveCapabilities BIPED = new MoveCapabilities(1.8, 1, 3, 3, true);
 
     private TestBodies() {
     }

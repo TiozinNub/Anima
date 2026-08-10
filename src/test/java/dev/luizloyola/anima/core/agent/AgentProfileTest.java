@@ -30,7 +30,7 @@ class AgentProfileTest {
             assertEquals(TestSpecies.BIPED.get(aspect), profile.raw(aspect), aspect.key());
         }
         assertTrue(profile.b(ProfileAspect.BODY_CAN_SWIM));
-        assertEquals(2, profile.i(ProfileAspect.BODY_HEIGHT));
+        assertEquals(1.8, profile.d(ProfileAspect.BODY_HEIGHT), 1.0e-9);
     }
 
     @Test
@@ -70,8 +70,10 @@ class AgentProfileTest {
         // ConfigValues clamps a hand-edited file; a declaration is code and must throw.
         assertThrows(IllegalArgumentException.class,
                 () -> SpeciesProfile.of("wolf").set(ProfileAspect.SENSES_RADIUS, 900));
+        // An INT aspect still refuses a fraction — body.height is a DOUBLE now (a real hitbox,
+        // not a cell count), so the claim needs an aspect that is genuinely whole-numbered.
         assertThrows(IllegalArgumentException.class,
-                () -> SpeciesProfile.of("wolf").set(ProfileAspect.BODY_HEIGHT, 1.5));
+                () -> SpeciesProfile.of("wolf").set(ProfileAspect.WANDER_RADIUS, 1.5));
         assertThrows(IllegalArgumentException.class, () -> SpeciesProfile.of("Wolf"));
         assertThrows(IllegalArgumentException.class, () -> SpeciesProfile.of("my.wolf"));
     }

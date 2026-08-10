@@ -11,7 +11,8 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
  * modifier, but the A* runs OFF the server thread, so {@link #of} reads them once on the calling
  * thread.
  *
- * @param height     body height in whole cells; every occupied column needs this much clearance
+ * @param height     body height in blocks — the real hitbox (1.8 for a Person), not a cell count;
+ *                   {@link #topCell} works out what it costs in cells
  * @param jumpHeight cells it can jump straight up (only 0 and 1 are modelled)
  * @param maxDrop    cells it will willingly fall; anything deeper is a hole to route around
  * @param maxLeap    widest gap (cells) at the same level; 2+ needs a sprint run-up, so the engine
@@ -19,7 +20,7 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
  * @param canSwim    whether it may cross water; false keeps {@link CellType#WATER} impassable.
  *                   Surface crossing only — a dive capability would add depth/breath fields
  */
-public record MoveCapabilities(int height, int jumpHeight, int maxDrop, int maxLeap,
+public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
                                boolean canSwim) {
 
     /**
@@ -34,8 +35,26 @@ public record MoveCapabilities(int height, int jumpHeight, int maxDrop, int maxL
      */
     public static final double STEP_UP = 0.6;
 
+    /**
+     * The topmost cell this body occupies, as an offset from its feet-cell, when its feet rest
+     * {@code surface} of a block into that cell.
+     *
+     * <p>Why the height is a real number, not a count: a 1.8-tall Person reaches one cell above its
+     * feet standing flat or on a carpet (0.0625), two on a bottom slab (0.5), because 0.5 + 1.8
+     * crosses the next boundary. Counting 2 whole cells charged every raised floor an extra cell,
+     * which made a carpeted two-block doorway unwalkable.
+     */
+    public int topCell(double surface) {
+        return (int) Math.ceil(surface + this.height) - 1;
+    }
+
+    /** How many whole cells of clear column this body needs standing flat on a full block. */
+    public int clearCells() {
+        return topCell(0.0) + 1;
+    }
+
     public MoveCapabilities {
-        if (height < 1) throw new IllegalArgumentException("height must be >= 1: " + height);
+        if (height <= 0) throw new IllegalArgumentException("height must be > 0: " + height);
         if (jumpHeight < 0) throw new IllegalArgumentException("jumpHeight must be >= 0: " + jumpHeight);
         if (maxDrop < 0) throw new IllegalArgumentException("maxDrop must be >= 0: " + maxDrop);
         if (maxLeap < 0) throw new IllegalArgumentException("maxLeap must be >= 0: " + maxLeap);
@@ -44,7 +63,7 @@ public record MoveCapabilities(int height, int jumpHeight, int maxDrop, int maxL
     /** Reads one body's capabilities out of its resolved profile, here and now. */
     public static MoveCapabilities of(AgentProfile profile) {
         return new MoveCapabilities(
-                profile.i(ProfileAspect.BODY_HEIGHT),
+                profile.d(ProfileAspect.BODY_HEIGHT),
                 profile.i(ProfileAspect.BODY_JUMP_HEIGHT),
                 profile.i(ProfileAspect.BODY_MAX_DROP),
                 profile.i(ProfileAspect.BODY_MAX_LEAP),
