@@ -22,6 +22,18 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 public record MoveCapabilities(int height, int jumpHeight, int maxDrop, int maxLeap,
                                boolean canSwim) {
 
+    /**
+     * How far up a body walks without jumping — vanilla's step height, which a Person keeps at the
+     * living default of 0.6 (see {@code Person.createAttributes}). Slabs, snow layers, dirt paths
+     * and carpets are all under it, so crossing them is a walk, not a hop.
+     *
+     * <p>Not a record field because no species varies it. It lives here because the search (step
+     * versus jump) and the classifier (whether a floor sunk inside a block can be walked into — a
+     * cauldron rim stands a full block over its bottom, a hopper rim does not) need the same 0.6,
+     * and two copies would drift.
+     */
+    public static final double STEP_UP = 0.6;
+
     public MoveCapabilities {
         if (height < 1) throw new IllegalArgumentException("height must be >= 1: " + height);
         if (jumpHeight < 0) throw new IllegalArgumentException("jumpHeight must be >= 0: " + jumpHeight);

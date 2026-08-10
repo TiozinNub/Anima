@@ -91,12 +91,8 @@ public final class Pathfinder {
 
     private static final long NO_PARENT = Long.MIN_VALUE;
 
-    /**
-     * How far up a body walks without jumping — vanilla's step height, which a Person keeps at the
-     * living default of 0.6 (see {@code Person.createAttributes}). A slab, a snow layer, a dirt
-     * path and a carpet are all under it, so crossing them is a walk and not a hop.
-     */
-    private static final double STEP_UP = 0.6;
+    /** Vanilla's step height — see {@link MoveCapabilities#STEP_UP}, which the classifier shares. */
+    private static final double STEP_UP = MoveCapabilities.STEP_UP;
     /**
      * How far up a jump reaches: vanilla's ~1.25 blocks. Enough for a full block (1.0), and for a
      * full block with a carpet on it (1.0625); not enough for a block topped with a slab (1.5),

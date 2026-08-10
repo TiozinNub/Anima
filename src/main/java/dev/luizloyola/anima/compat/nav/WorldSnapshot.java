@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.compat.nav;
 
 import dev.luizloyola.anima.core.nav.CellType;
+import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import java.util.Arrays;
 import net.minecraft.core.BlockPos;
@@ -331,6 +332,15 @@ public final class WorldSnapshot implements NavGrid {
             // a ladder's cell — the probe answers where FEET COME TO REST, not whether a body can
             // cross. A closed door and a ladder have the very same shape, and telling them apart
             // needs a per-direction reading this vocabulary does not have.
+            return pack(CellType.OBSTACLE, 0);
+        }
+        // Finding a floor is not the same as being able to reach it: the probe drops down the
+        // middle of the cell, so in a bowl-shaped block it lands on the BOTTOM and knows nothing
+        // about the rim. So a sunken floor only counts when nothing else in the cell stands more
+        // than a step above it — a hopper's rim is 0.31 over its bowl and is walked into, a
+        // cauldron's is a full block and is not. Found in-world (gauntlet I1.22/I1.23); the
+        // headless tier cannot see wedging against geometry.
+        if (shape.max(Direction.Axis.Y) - surface > MoveCapabilities.STEP_UP) {
             return pack(CellType.OBSTACLE, 0);
         }
         // A floor that stops inside its own cell. This is the case that used to be OBSTACLE and

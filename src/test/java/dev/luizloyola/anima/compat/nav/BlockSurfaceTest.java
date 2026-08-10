@@ -83,7 +83,10 @@ class BlockSurfaceTest {
 
     @Test
     void aCarpetIsOneSixteenth() {
-        assertStep(Blocks.WHITE_CARPET.defaultBlockState(), 0.0625, "a carpet");
+        // MOSS_CARPET rather than a dyed one: 26.2 collapsed the sixteen coloured carpets into
+        // a ColorCollection, so Blocks.WHITE_CARPET does not exist there. Same block shape, and
+        // one name that resolves on every target beats a Stonecutter branch in a test.
+        assertStep(Blocks.MOSS_CARPET.defaultBlockState(), 0.0625, "a carpet");
     }
 
     @Test
@@ -129,6 +132,28 @@ class BlockSurfaceTest {
                 .setValue(BlockStateProperties.OPEN, true)),
                 "an open door is walkable in fact, and refusing it is the known limit of a "
                         + "per-cell reading rather than an accident");
+    }
+
+    @Test
+    void aWaterloggedSlabIsFootingRatherThanSomethingToSwimIn() {
+        // Half floor, half water: the surface probe wins over the fluid, since a WATER reading
+        // would tell a swimmer to float through solid stone. Not in the gauntlet — a waterlogged
+        // block is a water source, and one on the gallery's open stubs drained across the course.
+        assertStep(Blocks.SMOOTH_STONE_SLAB.defaultBlockState()
+                .setValue(SlabBlock.TYPE, SlabType.BOTTOM)
+                .setValue(BlockStateProperties.WATERLOGGED, true), 0.5, "a waterlogged bottom slab");
+    }
+
+    @Test
+    void aFloorSunkBehindARimIsNotFootingButOneBehindALipIs() {
+        // A cauldron's bottom is a quarter block up and its rim is a whole one; a hopper's bowl is
+        // 0.69 up and its rim only 0.31 over that. The probe finds both bottoms, so without asking
+        // what stands AROUND the floor it found, a body walks at a cauldron and wedges on the rim —
+        // which is what the in-world course caught (I1.22, I1.23) and the headless tier could not.
+        assertEquals(CellType.OBSTACLE, typeOf(Blocks.CAULDRON.defaultBlockState()),
+                "a cauldron's rim is a full block over its bottom: there is no walking in");
+        assertEquals(CellType.OBSTACLE, typeOf(Blocks.COMPOSTER.defaultBlockState()));
+        assertStep(Blocks.HOPPER.defaultBlockState(), 0.6875, "a hopper's bowl");
     }
 
     @Test

@@ -24,23 +24,31 @@ A14	601	-49	160	618	-49	160	false	reach	gap-1 pillars, ALTERNATING height
 A15	601	-49	172	618	-45	172	false	reach	gap-1 pillar STAIRCASE up
 A16	601	-49	184	618	-53	184	false	reach	gap-1 pillar STAIRCASE down
 A17	601	-49	196	618	-49	196	false	reach	DIAGONAL pillar hops
+A18	601	-49	208	618	-49	208	false	block	gap 4 between SLAB-topped banks
 B1	625	-49	4	642	-45	4	true	reach	step UP x4 (full blocks)
 B2	625	-49	16	642	-53	16	true	reach	step DOWN x4 (full blocks)
 B3	625	-49	28	642	-45	28	false	reach	DIAGONAL staircase UP x4
 B4	625	-49	40	642	-53	40	false	reach	DIAGONAL staircase DOWN x4
-B5	625	-49	52	642	-45	52	false	reach	STAIR BLOCKS up x4
-B6	625	-49	64	642	-53	64	false	reach	STAIR BLOCKS down x4
-B7	625	-49	76	642	-47	76	false	reach	HALF-STEP slab ramp (+0.5 x4)
-B8	625	-49	88	642	-49	88	false	reach	one bottom slab (0.5 bump)
+B5	625	-49	52	642	-45	52	true	reach	STAIR BLOCKS up x4
+B6	625	-49	64	642	-53	64	true	reach	STAIR BLOCKS down x4
+B7	625	-49	76	642	-47	76	true	reach	HALF-STEP slab ramp (+0.5 x4)
+B8	625	-49	88	642	-49	88	true	reach	one bottom slab (0.5 bump)
 B9	625	-49	100	642	-49	100	false	block	wall 2 high
-B10	625	-49	112	642	-49	112	false	reach	SNOW LAYER ramp 1..8
-B11	625	-49	124	642	-49	124	false	reach	soft tops: path/farm/soul/honey
-B12	625	-49	136	642	-49	136	false	reach	closed-trapdoor floor
+B10	625	-49	112	642	-49	112	true	reach	SNOW LAYER ramp 1..8
+B11	625	-49	124	642	-49	124	true	reach	soft tops: path/farm/soul/honey
+B12	625	-49	136	642	-49	136	true	reach	closed-trapdoor floor
+B13	625	-49	148	642	-49	148	true	reach	2-high tunnel, plain floor
+B14	625	-49	160	642	-49	160	false	block	2-high tunnel, SLAB floor
+B15	625	-49	172	642	-49	172	false	reach	2-high tunnel, CARPET floor
+B16	625	-49	184	642	-48	184	false	block	block topped with a SLAB (1.5 - too high)
+B17	625	-49	196	642	-48	196	true	reach	block topped with a CARPET (1.06 - clears)
+B18	625	-49	208	642	-49	208	false	block	wall 2 high, CARPET on top
+B19	625	-49	220	642	-49	220	false	block	SLAB floor under a SLAB ceiling
 C1	649	-49	4	666	-49	4	true	reach	1-wide bridge, 14 long
 C2	649	-49	16	666	-49	16	true	reach	1-wide bridge + gap 1
 C3	649	-49	28	666	-49	28	true	reach	2-wide bridge
-C4	649	-49	40	666	-49	40	false	reach	1-wide STAIR-BLOCK bridge
-C5	649	-49	52	666	-49	52	false	reach	1-wide bottom-slab bridge
+C4	649	-49	40	666	-49	40	true	reach	1-wide STAIR-BLOCK bridge
+C5	649	-49	52	666	-49	52	true	reach	1-wide bottom-slab bridge
 C6	649	-49	64	666	-49	64	true	reach	RAILED 1-wide bridge
 C7	649	-49	76	666	-49	76	false	reach	1-wide bridge with a DIAGONAL dogleg
 C8	649	-49	88	666	-45	88	true	reach	1-wide ASCENDING bridge
@@ -62,16 +70,16 @@ E6	697	-49	64	714	-49	64	false	reach	UNDERWATER tunnel, 5 long
 E7	697	-49	76	714	-44	76	false	reach	WATERFALL climb 5
 E8	697	-49	88	714	-44	88	false	reach	swim UP a still 5-block column
 E9	697	-49	100	714	-49	100	true	reach	BLUE ICE run, 12 long
-E10	697	-49	112	714	-49	112	false	reach	LILY PADS across 8 of water
+E10	697	-49	112	714	-49	112	true	reach	LILY PADS across 8 of water
 F1	721	-49	4	738	-49	4	false	block	CLOSED oak door (blocks)
 F2	721	-49	16	738	-49	16	false	reach	OPEN oak door (clear)
 F3	721	-49	28	738	-49	28	false	block	CLOSED fence gate
 F4	721	-49	40	738	-49	40	true	reach	OPEN fence gate
 F5	721	-49	52	738	-49	52	false	block	fence line
 F6	721	-49	64	738	-49	64	false	block	cobblestone wall line
-F7	721	-49	76	738	-49	76	false	reach	iron bars line
+F7	721	-49	76	738	-49	76	true	reach	iron bars line
 F8	721	-49	88	738	-49	88	false	block	iron door + button
-F9	721	-49	100	738	-49	100	false	reach	carpet floor, 8 long
+F9	721	-49	100	738	-49	100	true	reach	carpet floor, 8 long
 F10	721	-49	112	738	-49	112	true	reach	plates / rails / string
 F11	721	-49	124	738	-49	124	true	reach	cobweb, 4 long
 F12	721	-49	136	738	-49	136	false	block	OPEN door that LOOKS CLOSED
@@ -96,77 +104,79 @@ H7	769	-49	76	786	-52	77	false	reach	drop 3, DIAGONAL only
 H8	769	-49	88	786	-55	88	true	reach	staircase down x6
 H9	769	-49	100	786	-55	100	false	reach	drop 6 onto slime
 H10	769	-49	112	786	-57	112	false	reach	drop 8 onto hay
+H11	769	-49	124	786	-52	124	false	reach	drop 3 taken off a bottom SLAB (3.5)
 I1.1	795	-49	4	801	-49	4	true	reach	STAND ON IT: stone
-I1.2	795	-49	9	801	-49	9	false	reach	STAND ON IT: stone_brick_stairs[facing=east,half=bottom]
+I1.2	795	-49	9	801	-49	9	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=bottom]
 I1.3	795	-49	14	801	-49	14	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=top]
-I1.4	795	-49	19	801	-49	19	false	reach	STAND ON IT: smooth_stone_slab[type=bottom]
+I1.4	795	-49	19	801	-49	19	true	reach	STAND ON IT: smooth_stone_slab[type=bottom]
 I1.5	795	-49	24	801	-49	24	true	reach	STAND ON IT: smooth_stone_slab[type=top]
-I1.6	795	-49	29	801	-49	29	false	reach	STAND ON IT: oak_trapdoor[facing=north,half=bottom,open=false]
+I1.6	795	-49	29	801	-49	29	true	reach	STAND ON IT: oak_trapdoor[facing=north,half=bottom,open=false]
 I1.7	795	-49	34	801	-49	34	true	reach	STAND ON IT: oak_trapdoor[facing=north,half=top,open=false]
-I1.8	795	-49	39	801	-49	39	false	reach	STAND ON IT: snow[layers=2]
-I1.9	795	-49	44	801	-49	44	false	reach	STAND ON IT: snow[layers=5]
-I1.10	795	-49	49	801	-49	49	false	reach	STAND ON IT: snow[layers=7]
-I1.11	795	-49	54	801	-49	54	false	reach	STAND ON IT: dirt_path
-I1.12	795	-49	59	801	-49	59	false	reach	STAND ON IT: farmland[moisture=7]
+I1.8	795	-49	39	801	-49	39	true	reach	STAND ON IT: snow[layers=2]
+I1.9	795	-49	44	801	-49	44	true	reach	STAND ON IT: snow[layers=5]
+I1.10	795	-49	49	801	-49	49	true	reach	STAND ON IT: snow[layers=7]
+I1.11	795	-49	54	801	-49	54	true	reach	STAND ON IT: dirt_path
+I1.12	795	-49	59	801	-49	59	true	reach	STAND ON IT: farmland[moisture=7]
 I1.13	795	-49	64	801	-49	64	true	reach	STAND ON IT: soul_sand
 I1.14	795	-49	69	801	-49	69	true	reach	STAND ON IT: mud
-I1.15	795	-49	74	801	-49	74	false	reach	STAND ON IT: honey_block
+I1.15	795	-49	74	801	-49	74	true	reach	STAND ON IT: honey_block
 I1.16	795	-49	79	801	-49	79	true	reach	STAND ON IT: slime_block
 I1.17	795	-49	84	801	-49	84	true	reach	STAND ON IT: blue_ice
 I1.18	795	-49	89	801	-49	89	false	block	STAND ON IT: powder_snow
 I1.19	795	-49	94	801	-49	94	false	block	STAND ON IT: magma_block
-I1.20	795	-49	99	801	-49	99	false	reach	STAND ON IT: chest[facing=east,type=single]
-I1.21	795	-49	104	801	-49	104	false	reach	STAND ON IT: hopper[facing=down]
+I1.20	795	-49	99	801	-49	99	true	reach	STAND ON IT: chest[facing=east,type=single]
+I1.21	795	-49	104	801	-49	104	true	reach	STAND ON IT: hopper[facing=down]
 I1.22	795	-49	109	801	-49	109	false	reach	STAND ON IT: cauldron
 I1.23	795	-49	114	801	-49	114	false	reach	STAND ON IT: composter[level=0]
-I1.24	795	-49	119	801	-49	119	false	reach	STAND ON IT: enchanting_table
-I1.25	795	-49	124	801	-49	124	false	reach	STAND ON IT: anvil[facing=north]
-I1.26	795	-49	129	801	-49	129	false	reach	STAND ON IT: grindstone[face=floor,facing=north]
-I1.27	795	-49	134	801	-49	134	false	reach	STAND ON IT: lectern[facing=north,has_book=false]
-I1.28	795	-49	139	801	-49	139	false	reach	STAND ON IT: stonecutter[facing=north]
-I1.29	795	-49	144	801	-49	144	false	reach	STAND ON IT: daylight_detector[inverted=false,power=0]
-I1.30	795	-49	149	801	-49	149	false	reach	STAND ON IT: end_portal_frame[eye=false,facing=north]
-I1.31	795	-49	154	801	-49	154	false	reach	STAND ON IT: brewing_stand
-I1.32	795	-49	159	801	-49	159	false	reach	STAND ON IT: bell[attachment=floor,facing=north]
+I1.24	795	-49	119	801	-49	119	true	reach	STAND ON IT: enchanting_table
+I1.25	795	-49	124	801	-49	124	true	reach	STAND ON IT: anvil[facing=north]
+I1.26	795	-49	129	801	-49	129	true	reach	STAND ON IT: grindstone[face=floor,facing=north]
+I1.27	795	-49	134	801	-49	134	true	reach	STAND ON IT: lectern[facing=north,has_book=false]
+I1.28	795	-49	139	801	-49	139	true	reach	STAND ON IT: stonecutter[facing=north]
+I1.29	795	-49	144	801	-49	144	true	reach	STAND ON IT: daylight_detector[inverted=false,power=0]
+I1.30	795	-49	149	801	-49	149	true	reach	STAND ON IT: end_portal_frame[eye=false,facing=north]
+I1.31	795	-49	154	801	-49	154	true	reach	STAND ON IT: brewing_stand
+I1.32	795	-49	159	801	-49	159	true	reach	STAND ON IT: bell[attachment=floor,facing=north]
 I1.33	795	-49	164	801	-49	164	false	reach	STAND ON IT: campfire[lit=false,facing=north]
-I1.34	795	-49	169	801	-49	169	false	reach	STAND ON IT: sculk_shrieker[can_summon=false,shrieking=false]
+I1.34	795	-49	169	801	-49	169	true	reach	STAND ON IT: sculk_shrieker[can_summon=false,shrieking=false]
 I1.35	795	-49	174	801	-49	174	true	reach	STAND ON IT: scaffolding[bottom=true,distance=0]
-I1.36	795	-49	179	801	-49	179	false	reach	STAND ON IT: turtle_egg[eggs=1,hatch=0]
+I1.36	795	-49	179	801	-49	179	true	reach	STAND ON IT: turtle_egg[eggs=1,hatch=0]
 I1.37	795	-49	184	801	-49	184	true	reach	STAND ON IT: sea_lantern
+I1.38	795	-49	189	801	-49	189	true	reach	STAND ON IT: snow[layers=8]
 I2.1	811	-49	4	817	-49	4	true	reach	WALK THROUGH IT: air
 I2.2	811	-49	9	817	-49	9	false	block	WALK THROUGH IT: oak_fence
 I2.3	811	-49	14	817	-49	14	false	block	WALK THROUGH IT: cobblestone_wall[up=true]
-I2.4	811	-49	19	817	-49	19	false	reach	WALK THROUGH IT: iron_bars
-I2.5	811	-49	24	817	-49	24	false	reach	WALK THROUGH IT: glass_pane
+I2.4	811	-49	19	817	-49	19	true	reach	WALK THROUGH IT: iron_bars
+I2.5	811	-49	24	817	-49	24	true	reach	WALK THROUGH IT: glass_pane
 I2.6	811	-49	29	817	-49	29	true	reach	WALK THROUGH IT: oak_fence_gate[facing=east,open=true]
 I2.7	811	-49	34	817	-49	34	false	block	WALK THROUGH IT: oak_fence_gate[facing=east,open=false]
 I2.8	811	-49	39	817	-49	39	false	reach	WALK THROUGH IT: oak_trapdoor[facing=west,half=bottom,open=true]
 I2.9	811	-49	44	817	-49	44	false	reach	WALK THROUGH IT: ladder[facing=south]
 I2.10	811	-49	49	817	-49	49	true	reach	WALK THROUGH IT: vine[north=true]
 I2.11	811	-49	54	817	-49	54	true	reach	WALK THROUGH IT: cobweb
-I2.12	811	-49	59	817	-49	59	false	reach	WALK THROUGH IT: white_carpet
-I2.13	811	-49	64	817	-49	64	false	reach	WALK THROUGH IT: moss_carpet
+I2.12	811	-49	59	817	-49	59	true	reach	WALK THROUGH IT: white_carpet
+I2.13	811	-49	64	817	-49	64	true	reach	WALK THROUGH IT: moss_carpet
 I2.14	811	-49	69	817	-49	69	true	reach	WALK THROUGH IT: snow[layers=1]
 I2.15	811	-49	74	817	-49	74	true	reach	WALK THROUGH IT: stone_pressure_plate
 I2.16	811	-49	79	817	-49	79	true	reach	WALK THROUGH IT: light_weighted_pressure_plate
 I2.17	811	-49	84	817	-49	84	true	reach	WALK THROUGH IT: rail[shape=north_south]
 I2.18	811	-49	89	817	-49	89	true	reach	WALK THROUGH IT: tripwire
 I2.19	811	-49	94	817	-49	94	true	reach	WALK THROUGH IT: redstone_wire
-I2.20	811	-49	99	817	-49	99	false	reach	WALK THROUGH IT: repeater[facing=east,delay=1]
-I2.21	811	-49	104	817	-49	104	false	reach	WALK THROUGH IT: comparator[facing=east]
+I2.20	811	-49	99	817	-49	99	true	reach	WALK THROUGH IT: repeater[facing=east,delay=1]
+I2.21	811	-49	104	817	-49	104	true	reach	WALK THROUGH IT: comparator[facing=east]
 I2.22	811	-49	109	817	-49	109	true	reach	WALK THROUGH IT: torch
-I2.23	811	-49	114	817	-49	114	false	reach	WALK THROUGH IT: lantern[hanging=false]
-I2.24	811	-49	119	817	-49	119	false	reach	WALK THROUGH IT: iron_chain[axis=y]
-I2.25	811	-49	124	817	-49	124	false	reach	WALK THROUGH IT: end_rod[facing=up]
-I2.26	811	-49	129	817	-49	129	false	reach	WALK THROUGH IT: flower_pot
-I2.27	811	-49	134	817	-49	134	false	reach	WALK THROUGH IT: decorated_pot[facing=north]
+I2.23	811	-49	114	817	-49	114	true	reach	WALK THROUGH IT: lantern[hanging=false]
+I2.24	811	-49	119	817	-49	119	true	reach	WALK THROUGH IT: iron_chain[axis=y]
+I2.25	811	-49	124	817	-49	124	true	reach	WALK THROUGH IT: end_rod[facing=up]
+I2.26	811	-49	129	817	-49	129	true	reach	WALK THROUGH IT: flower_pot
+I2.27	811	-49	134	817	-49	134	true	reach	WALK THROUGH IT: decorated_pot[facing=north]
 I2.28	811	-49	139	817	-49	139	true	reach	WALK THROUGH IT: lever[face=floor,facing=north]
 I2.29	811	-49	144	817	-49	144	true	reach	WALK THROUGH IT: stone_button[face=floor,facing=north]
 I2.30	811	-49	149	817	-49	149	true	reach	WALK THROUGH IT: short_grass
 I2.31	811	-49	154	817	-49	154	false	block	WALK THROUGH IT: sweet_berry_bush[age=3]
-I2.32	811	-49	159	817	-49	159	false	reach	WALK THROUGH IT: bamboo[age=1,leaves=none,stage=1]
-I2.33	811	-49	164	817	-49	164	false	reach	WALK THROUGH IT: big_dripleaf[facing=east,tilt=none]
+I2.32	811	-49	159	817	-49	159	true	reach	WALK THROUGH IT: bamboo[age=1,leaves=none,stage=1]
+I2.33	811	-49	164	817	-49	164	true	reach	WALK THROUGH IT: big_dripleaf[facing=east,tilt=none]
 I2.34	811	-49	169	817	-49	169	true	reach	WALK THROUGH IT: azalea
-I2.35	811	-49	174	817	-49	174	false	reach	WALK THROUGH IT: pointed_dripstone[thickness=tip,vertical_direction=up]
-I2.36	811	-49	179	817	-49	179	false	reach	WALK THROUGH IT: amethyst_cluster[facing=up,waterlogged=false]
+I2.35	811	-49	174	817	-49	174	true	reach	WALK THROUGH IT: pointed_dripstone[thickness=tip,vertical_direction=up]
+I2.36	811	-49	179	817	-49	179	true	reach	WALK THROUGH IT: amethyst_cluster[facing=up,waterlogged=false]
 I2.37	811	-49	184	817	-49	184	true	reach	WALK THROUGH IT: piston[facing=up,extended=false]
