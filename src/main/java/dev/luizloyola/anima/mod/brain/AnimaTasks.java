@@ -4,6 +4,8 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
+import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.task.BreakBlock;
 import dev.luizloyola.anima.core.brain.task.ConsumeItem;
@@ -13,6 +15,7 @@ import dev.luizloyola.anima.core.brain.task.GoTo;
 import dev.luizloyola.anima.core.brain.task.Idle;
 import dev.luizloyola.anima.core.brain.task.ObtainItem;
 import dev.luizloyola.anima.core.brain.task.SatisfyHunger;
+import dev.luizloyola.anima.core.brain.task.SurveyArea;
 import dev.luizloyola.anima.core.brain.task.WanderStep;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.nav.Gait;
@@ -51,6 +54,29 @@ public final class AnimaTasks {
                     .orElseGet(() -> DataResult.error(
                             () -> "no item spec is registered as \"" + name + "\" — was a mod removed?")),
             ItemSpec::name);
+
+    /**
+     * A kind of place, by the key it registered under — the same handle the knowledge store and
+     * the save file use. An unregistered key errors rather than defaulting: a sweep looking for a
+     * kind this build no longer has would walk a whole box and be unable to say what it was for.
+     */
+    private static final Codec<PoiKind> POI_KIND = Codec.STRING.comapFlatMap(
+            key -> PoiKind.byKey(key)
+                    .map(DataResult::success)
+                    .orElseGet(() -> DataResult.error(
+                            () -> "no POI kind is registered as \"" + key + "\" — was a mod removed?")),
+            PoiKind::key);
+
+    private static final Codec<Pos> POS = RecordCodecBuilder.create(p -> p.group(
+            Codec.INT.fieldOf("x").forGetter(Pos::x),
+            Codec.INT.fieldOf("y").forGetter(Pos::y),
+            Codec.INT.fieldOf("z").forGetter(Pos::z)
+    ).apply(p, Pos::new));
+
+    private static final Codec<Region> REGION = RecordCodecBuilder.create(r -> r.group(
+            POS.fieldOf("min").forGetter(Region::min),
+            POS.fieldOf("max").forGetter(Region::max)
+    ).apply(r, Region::new));
 
     /** Call once from mod init, before anything can load a plan. */
     public static void install() {
@@ -101,6 +127,22 @@ public final class AnimaTasks {
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         Codec.INT.fieldOf("radius").forGetter(WanderStep::radius)
                 ).apply(t, WanderStep::new)));
+
+        // The coverage is the progress: a sweep that came back at its start would re-walk a box
+        // somebody had already walked.
+        // Named rather than chained: inference follows the target type through an xmap, so
+        // building the group inline against SurveyArea makes javac read the task's fields off the
+        // task instead of off its state, in four hundred lines of DFU generics.
+        MapCodec<SurveyArea.State> sweep = RecordCodecBuilder.mapCodec(t -> t.group(
+                REGION.fieldOf("area").forGetter(SurveyArea.State::area),
+                POI_KIND.fieldOf("looking").forGetter(SurveyArea.State::looking),
+                Codec.FLOAT.listOf().fieldOf("known").forGetter(SurveyArea.State::confidence),
+                Codec.INT.listOf().fieldOf("tries").forGetter(SurveyArea.State::tries),
+                Codec.INT.fieldOf("target").forGetter(SurveyArea.State::target)
+        ).apply(t, SurveyArea.State::new));
+        TaskCodecs.register("anima:survey_area", SurveyArea.class, sweep.xmap(
+                state -> new SurveyArea(state.area(), state.looking()).restore(state),
+                SurveyArea::snapshot));
 
         // Nothing to carry: both are pure decomposers whose choices come from the context, and the
         // stream those choices draw from belongs to the body and is saved there.
