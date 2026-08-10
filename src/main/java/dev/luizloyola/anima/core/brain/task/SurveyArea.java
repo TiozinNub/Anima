@@ -324,6 +324,15 @@ public final class SurveyArea implements PrimitiveTask {
         return confidence.length;
     }
 
+    /**
+     * How well the cell containing this position is known, 0..1 — what a debug view shades by.
+     * Zero outside the box.
+     */
+    public double confidenceAt(Pos at) {
+        int cell = cellAt(at);
+        return cell < 0 ? 0.0 : confidence[cell];
+    }
+
     private Pos centreOf(int cell) {
         int cx = cell / deep;
         int cz = cell % deep;

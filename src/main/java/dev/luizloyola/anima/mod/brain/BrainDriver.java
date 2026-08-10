@@ -468,6 +468,14 @@ public final class BrainDriver {
      * Unlike {@link #describe()} it shows the arbiter even while a manual order holds the wheel —
      * where the arbiter is not ticking, so the pressures are frozen and the mode line says so.
      */
+    /**
+     * The task machinery this brain runs, for debug surfaces that want to LOOK at what is running
+     * rather than read a sentence about it — {@link #describe()} is the sentence.
+     */
+    public dev.luizloyola.anima.core.brain.task.TaskExecutor executor() {
+        return arbiter.executor();
+    }
+
     public List<String> describeLines() {
         List<String> lines = new ArrayList<>();
         lines.add(this.auto ? "auto" : "manual — arbiter dormant, pressures frozen");

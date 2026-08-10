@@ -79,6 +79,15 @@ public final class CellOverlayRenderer {
                     }
                 }
             }
+            for (CellOverlayPayload.BoxGroup group : held.overlay().boxes()) {
+                GizmoStyle style = style(group.stroke(), group.strokeWidth(), group.fill());
+                for (CellOverlayPayload.Box box : group.boxes()) {
+                    var drawn = Gizmos.cuboid(region(box), style);
+                    if (group.onTop()) {
+                        drawn.setAlwaysOnTop();
+                    }
+                }
+            }
             for (CellOverlayPayload.Label label : held.overlay().labels()) {
                 BlockPos at = label.at();
                 Gizmos.billboardText(label.text(),
@@ -88,6 +97,18 @@ public final class CellOverlayRenderer {
                         .setAlwaysOnTop();
             }
         }
+    }
+
+    /**
+     * A box as drawable geometry: inclusive on both corners, so a one-cell box is one block and a
+     * box with equal corners on an axis is a flat pane rather than nothing at all. Grown by the
+     * same outset the cell boxes use, so a region edge and a cell edge line up.
+     */
+    private static AABB region(CellOverlayPayload.Box box) {
+        return new AABB(
+                box.min().getX(), box.min().getY(), box.min().getZ(),
+                box.max().getX() + 1.0, box.max().getY() + 1.0, box.max().getZ() + 1.0)
+                .inflate(CELL_OUTSET);
     }
 
     /** A group's paint, rebuilt per frame — three ints into the record gizmos already take. */

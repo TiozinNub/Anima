@@ -200,6 +200,16 @@ public final class TaskExecutor {
         return out;
     }
 
+    /**
+     * The primitive being ticked right now, if the descent has reached one — for debug surfaces
+     * that draw what a body is actually DOING. Empty on a compound not yet expanded, which is a
+     * real state and not an error; {@link #describe()} always has a name.
+     */
+    public Optional<PrimitiveTask> currentPrimitive() {
+        Task node = currentNode();
+        return node instanceof PrimitiveTask primitive ? Optional.of(primitive) : Optional.empty();
+    }
+
     // --- internals -------------------------------------------------------------------------------
 
     /** The node execution is at: the top frame's current subtask, or the root before any expansion. */
