@@ -124,29 +124,33 @@ public final class PathfinderService {
 
     private static PathRequest buildRequest(WorldSnapshot snapshot, BlockPos start, BlockPos goal,
             MoveCapabilities body, DangerField danger) {
-        BlockPos afloat = surfaceStart(snapshot, start, body.canSwim());
+        BlockPos afloat = surfaceStart(snapshot, start, body);
         BlockPos grounded = groundGoal(snapshot, goal, body.canSwim());
         return PathRequest.of(afloat.getX(), afloat.getY(), afloat.getZ(),
                 grounded.getX(), grounded.getY(), grounded.getZ(), body, danger);
     }
 
     /**
-     * Lifts a start cell that is under the water up to the surface of its own column.
+     * Lifts a start cell that is under the water to the surface of its own column — but
+     * <b>only when the body has no node where it is</b>.
      *
-     * <p>The search models water at the surface only, so a submerged cell is neither standable
-     * ground nor a place a swimmer floats: every request comes back "0 waypoints (partial)" and
-     * nothing about that reads as a nav problem. Not a rare corner — a body treading deep water
-     * floats with its eyes at the waterline, so its feet are a block and a half down and the cell
-     * it occupies is submerged.
+     * <p>A submerged body the search cannot expand from stalls silently and for good: every
+     * request returns "0 waypoints (partial)". Not a corner case — a body treading deep water
+     * floats with its eyes near the waterline, so its feet are a block and a half down and the
+     * cell it occupies is submerged.
      *
-     * <p>Planning from the surface is sound: the body is buoyant, so the first leg is the rise it
-     * was going to make anyway. A body under a ceiling of water with no surface above keeps its own
-     * cell and stays unable to plan — the missing capability (submerged routing), not something to
-     * paper over.
+     * <p>Lifting a body that can plan from where it is is wrong: a settler mid-dive re-pathed from
+     * the top of the water and swam back up, surfacing a block short of the floor. One under a
+     * ceiling of water with no surface above keeps its cell and stays unable to plan — that is the
+     * missing capability (submerged routing), not something to paper over.
      */
-    private static BlockPos surfaceStart(WorldSnapshot snapshot, BlockPos start, boolean canSwim) {
-        if (!canSwim || snapshot.cell(start.getX(), start.getY(), start.getZ()) != CellType.WATER) {
+    private static BlockPos surfaceStart(WorldSnapshot snapshot, BlockPos start,
+            MoveCapabilities body) {
+        if (!body.canSwim() || snapshot.cell(start.getX(), start.getY(), start.getZ()) != CellType.WATER) {
             return start;
+        }
+        if (fitsSubmerged(snapshot, start, body)) {
+            return start; // a real node down here: plan from where the body is
         }
         int x = start.getX();
         int z = start.getZ();
@@ -189,6 +193,17 @@ public final class PathfinderService {
      * <p>For a swimmer a goal over open water settles at the <em>surface</em> (first water cell
      * with air above), not the lakebed: surface crossing cannot reach the bed.
      */
+    /** Whether this body fits in the water at {@code cell} — the search's own submerged node test. */
+    private static boolean fitsSubmerged(WorldSnapshot snapshot, BlockPos cell, MoveCapabilities body) {
+        for (int i = 0; i < body.clearCells(); i++) {
+            CellType at = snapshot.cell(cell.getX(), cell.getY() + i, cell.getZ());
+            if (at != CellType.WATER && at != CellType.PASSABLE) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static BlockPos groundGoal(WorldSnapshot snapshot, BlockPos goal, boolean canSwim) {
         int x = goal.getX();
         int z = goal.getZ();
