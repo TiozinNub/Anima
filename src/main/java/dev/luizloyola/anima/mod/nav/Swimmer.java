@@ -148,6 +148,18 @@ public final class Swimmer {
         }
         this.state = stateOf(inWater, deep, intent);
 
+        // Sprint is not a mood in water, it is the gear: vanilla swims at a flat 0.02 either
+        // way and changes the DRAG instead (0.9 sprinting against 0.8), so terminal speed is
+        // 0.02/(1-drag) — 0.2 a tick against 0.1, exactly twice. It is why a Person that never
+        // sprinted crossed water at half a player's pace; vanilla will not even give out the
+        // swimming pose unless you are sprinting.
+        //
+        // Through driveSprint, so the metabolism still has its say, as it does in vanilla. No
+        // double charge: the body bills swimming and sprinting by the metre and picks one.
+        if (inWater) {
+            this.body.driveSprint(this.swimming);
+        }
+
         driveVertical(entity, inWater, deep, intent);
     }
 
