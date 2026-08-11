@@ -119,6 +119,37 @@ class GauntletPathTest {
     }
 
     /**
+     * Stations whose whole subject is the diagonal: a route that uses a LEAP is not measuring what
+     * its title says. J13's zigzag turns back on itself, so every level below a peak held two floor
+     * cells two apart and a body hopped those 1-gaps for 2.4 rather than walking two diagonals for
+     * 6.22 — a whole run reported a chained-LEAP failure under a chained-diagonal name.
+     *
+     * <p>Two defences: A8's rule (use each z once, so no cardinal leap runs down the line), which a
+     * zigzag cannot obey, and J13's roof — a leap needs a body-height+1 corridor for its arc, and a
+     * ceiling two cells up denies it while a 1.8 body walks under untroubled.
+     *
+     * <p>A8 and C7 are absent: their routes take the diagonals and then leap a last
+     * leapable stretch, so demanding no leap anywhere over-specifies somebody else's lane. These
+     * four carry the claim in their titles.
+     */
+    private static final List<String> DIAGONAL_ONLY = List.of("J1", "J2", "J4", "J13");
+
+    @Test
+    void diagonalStationsAreNotQuietlySolvedByLeaping() {
+        for (String id : DIAGONAL_ONLY) {
+            Station s = stations.stream().filter(st -> st.id().equals(id)).findFirst()
+                    .orElseThrow(() -> new AssertionError("no station " + id));
+            // Not `Path path = …`: this file imports java.nio.file.Path for the report writer,
+            // which shadows the one the search returns.
+            List<Waypoint> route = Pathfinder.find(world,
+                    PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+            assertTrue(route.stream().noneMatch(w -> w.move() == MoveType.LEAP),
+                    id + " (" + s.title() + ") is solved by leaping, so it measures leaps rather "
+                            + "than diagonals: " + route);
+        }
+    }
+
+    /**
      * Writes the measured table to {@code build/gauntlet-plans.tsv} — a course has to be readable
      * as a course, not as one line per failed assertion. Also how the {@code plans} column gets
      * (re-)recorded after a deliberate change.
