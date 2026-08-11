@@ -150,6 +150,34 @@ class GauntletPathTest {
     }
 
     /**
+     * Stations whose whole subject is the water. Same disease as {@link #DIAGONAL_ONLY}: H6 passed
+     * for a route that walked the length of its pool's retaining wall and dropped onto the goal pad
+     * without getting wet.
+     *
+     * <p>The assertion is that a leg ends standing IN a water cell, not that the route contains a
+     * {@link MoveType#SWIM} — the move is what the planner calls it, the cell is what the world
+     * says. A surface swimmer's feet cell is the water cell, so this is a direct reading.
+     *
+     * <p>E3 is absent: a two-wide channel is meant to be LEAPT (see
+     * {@code PathfinderSwimTest.stillLeapsNarrowWaterRatherThanSwim}). E5–E8 are absent because
+     * nothing plans them yet; add each one here as its rung lands.
+     */
+    private static final List<String> MUST_GET_WET = List.of("E1", "E2", "E4", "H6");
+
+    @Test
+    void waterStationsAreNotQuietlySolvedOnDryLand() {
+        for (String id : MUST_GET_WET) {
+            Station s = stations.stream().filter(st -> st.id().equals(id)).findFirst()
+                    .orElseThrow(() -> new AssertionError("no station " + id));
+            List<Waypoint> route = Pathfinder.find(world,
+                    PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+            assertTrue(route.stream().anyMatch(w -> world.cell(w.x(), w.y(), w.z()) == CellType.WATER),
+                    id + " (" + s.title() + ") is reached without ever standing in water, so it "
+                            + "measures something other than what its name says: " + route);
+        }
+    }
+
+    /**
      * Writes the measured table to {@code build/gauntlet-plans.tsv} — a course has to be readable
      * as a course, not as one line per failed assertion. Also how the {@code plans} column gets
      * (re-)recorded after a deliberate change.

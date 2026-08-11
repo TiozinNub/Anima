@@ -64,7 +64,7 @@ D8	673	-49	88	690	-49	88	false	block	wall 3 high, no aid
 E1	697	-49	4	714	-49	4	true	reach	wade: water 1 deep, 8 long
 E2	697	-49	16	714	-49	16	true	reach	deep water, 9 long
 E3	697	-49	28	714	-49	28	true	reach	water gap 2
-E4	697	-49	40	714	-57	40	false	reach	drop 8 INTO water
+E4	697	-49	40	714	-57	40	true	reach	drop 8 INTO water
 E5	697	-49	52	714	-48	52	false	reach	climb out onto a 1-block bank
 E6	697	-49	64	714	-49	64	false	reach	UNDERWATER tunnel, 5 long
 E7	697	-49	76	714	-44	76	false	reach	WATERFALL climb 5
