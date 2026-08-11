@@ -150,8 +150,8 @@ public final class Navigator {
      * wide landing. Reset on every new path.
      */
     private int lastLeapPressIndex = -1;
-    /** Set by {@link #tickSwim}, read by the body — see {@link #isCrossingWater()}. */
-    private boolean crossingWater;
+    /** Set by {@link #tickSwim}, read by the {@link Swimmer} — see {@link #waterIntent()}. */
+    private WaterIntent waterIntent = WaterIntent.NONE;
     private double lastTickX;
     private double lastTickZ;
     private int repathsLeft;
@@ -238,15 +238,27 @@ public final class Navigator {
         return this.index;
     }
 
+    /** What the follower is asking of the water this tick — see {@link #waterIntent()}. */
+    public enum WaterIntent {
+        NONE,
+        /** Travelling through water toward another water cell. */
+        CROSS,
+        /** Heading for solid ground — the leg that has to gain height to finish. */
+        EXIT
+    }
+
     /**
-     * Whether the last {@link #tick()} steered a water leg — the follower's own verdict, not a
-     * re-derivation, so {@link #tickSwim} is the only place deciding what counts as swimming.
-     * Reported as a navigational fact so a body can <em>look</em> like it is swimming however it
-     * likes. Cleared at the top of every tick, not by whoever stops moving, so no branch leaves
-     * stale state behind.
+     * What the last {@link #tick()} asked of the water — the follower's own verdict, so one place
+     * decides what a water leg is ({@link #tickSwim} sets it) and no copy of the condition drifts.
+     * Read by {@link Swimmer}: this is about the ROUTE and is the same for a pet as for a person;
+     * what a body presses is not.
+     *
+     * <p>{@link WaterIntent#EXIT} is separate because getting out is the only water move that must
+     * gain height — while nothing said so, that lift came by accident and broke when its source was
+     * fixed. Cleared at the top of every tick, so no branch leaves a stale intent.
      */
-    public boolean isCrossingWater() {
-        return this.crossingWater;
+    public WaterIntent waterIntent() {
+        return this.waterIntent;
     }
 
     /** One-line progress summary for the debug command. */
@@ -269,7 +281,7 @@ public final class Navigator {
      * so a stopped AgentBody never coasts on stale input.
      */
     public void tick() {
-        this.crossingWater = false; // set again only by the branch that actually swims, below
+        this.waterIntent = WaterIntent.NONE; // set again only by the branch that swims, below
         switch (this.state) {
             case PATHING -> tickPathing();
             case FOLLOWING -> tickFollowing();
@@ -571,8 +583,9 @@ public final class Navigator {
      */
     private void tickSwim(Waypoint waypoint, boolean isLast, Vec3 pos,
                           double dx, double dz, double horizontalSq, double dy) {
-        this.crossingWater = true; // the one place that decides it — see isCrossingWater()
         boolean landTarget = waypoint.move() != MoveType.SWIM; // a climb-out step onto solid ground
+        // The one place that decides what a water leg is — see waterIntent().
+        this.waterIntent = landTarget ? WaterIntent.EXIT : WaterIntent.CROSS;
         double radius = isLast ? FINAL_RADIUS : WAYPOINT_RADIUS;
         double vertical = landTarget ? verticalGap(dy) : 0.0;
         if (horizontalSq + vertical * vertical <= radius * radius
@@ -605,12 +618,8 @@ public final class Navigator {
         // Plain walking input: travel's water branch turns it into (slow) horizontal swimming.
         float heading = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F;
         this.person.driveForward(heading);
-        // ...and hold swim-up for a climb-out, which is the one water move that has to gain height.
-        // Harmless if we are still a stroke away from the bank: in water the input is buoyancy, and
-        // the float reflex would be supplying it anyway if our head went under.
-        if (landTarget) {
-            this.person.driveJump();
-        }
+        // The climb-out's lift is not pressed here: every vertical press while wet belongs to the
+        // Swimmer (ticked after this), so narrowing one press cannot silently remove another.
     }
 
     /**

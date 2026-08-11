@@ -16,6 +16,7 @@ import dev.luizloyola.anima.mod.brain.BrainDriver;
 import dev.luizloyola.anima.mod.brain.PoiSensor;
 import dev.luizloyola.anima.mod.brain.BeingSense;
 import dev.luizloyola.anima.mod.nav.Navigator;
+import dev.luizloyola.anima.mod.nav.Swimmer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -124,6 +125,13 @@ public interface AgentBody {
 
     /** The body's rise-one actuator, which it owns and ticks (centring, jump, place). */
     AgentRiser riser();
+
+    /**
+     * What this body does about being in water — buoyancy, wading, and getting out again. Ticked
+     * <em>after</em> the {@link Navigator}, whose {@link Navigator#waterIntent()} it reads and whose
+     * vertical input it has the last word on.
+     */
+    Swimmer swimmer();
 
     /**
      * The mind mounted on this body — the arbiter, its running task tree, and the autonomy switch.

@@ -109,6 +109,7 @@ import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.identity.AgentDirectory;
 import dev.luizloyola.anima.mod.identity.Graves;
+import dev.luizloyola.anima.mod.nav.Swimmer;
 import dev.luizloyola.anima.core.agent.PrivateIdentity;
 
 /**
@@ -741,8 +742,13 @@ public final class AgentCommands {
     private static int navStatus(CommandSourceStack source) {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
+        // The swimmer's state rides along with the follower's, and only when it has something to
+        // say: every water bug this pair produced was the two disagreeing about what the body was
+        // doing, unseen.
+        String water = person.swimmer().state() == Swimmer.State.DRY
+                ? "" : "  [" + person.swimmer().describe() + "]";
         Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
-                + person.navigator().describe()).withStyle(ChatFormatting.AQUA));
+                + person.navigator().describe() + water).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
