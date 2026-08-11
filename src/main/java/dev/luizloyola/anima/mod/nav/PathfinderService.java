@@ -46,6 +46,8 @@ public final class PathfinderService {
     private static final int MAX_REACH = 96;
     /** How far below a clicked goal to look for actual ground (clicks land on faces, not floors). */
     private static final int GOAL_DROP_SCAN = 12;
+    /** How far above a submerged start to look for its own waterline — see {@link #surfaceStart}. */
+    private static final int START_RISE_SCAN = 8;
 
     private static final int WORKER_THREADS = 2;
 
@@ -122,9 +124,39 @@ public final class PathfinderService {
 
     private static PathRequest buildRequest(WorldSnapshot snapshot, BlockPos start, BlockPos goal,
             MoveCapabilities body, DangerField danger) {
+        BlockPos afloat = surfaceStart(snapshot, start, body.canSwim());
         BlockPos grounded = groundGoal(snapshot, goal, body.canSwim());
-        return PathRequest.of(start.getX(), start.getY(), start.getZ(),
+        return PathRequest.of(afloat.getX(), afloat.getY(), afloat.getZ(),
                 grounded.getX(), grounded.getY(), grounded.getZ(), body, danger);
+    }
+
+    /**
+     * Lifts a start cell that is under the water up to the surface of its own column.
+     *
+     * <p>The search models water at the surface only, so a submerged cell is neither standable
+     * ground nor a place a swimmer floats: every request comes back "0 waypoints (partial)" and
+     * nothing about that reads as a nav problem. Not a rare corner — a body treading deep water
+     * floats with its eyes at the waterline, so its feet are a block and a half down and the cell
+     * it occupies is submerged.
+     *
+     * <p>Planning from the surface is sound: the body is buoyant, so the first leg is the rise it
+     * was going to make anyway. A body under a ceiling of water with no surface above keeps its own
+     * cell and stays unable to plan — the missing capability (submerged routing), not something to
+     * paper over.
+     */
+    private static BlockPos surfaceStart(WorldSnapshot snapshot, BlockPos start, boolean canSwim) {
+        if (!canSwim || snapshot.cell(start.getX(), start.getY(), start.getZ()) != CellType.WATER) {
+            return start;
+        }
+        int x = start.getX();
+        int z = start.getZ();
+        for (int y = start.getY(); y < start.getY() + START_RISE_SCAN; y++) {
+            if (snapshot.cell(x, y, z) == CellType.WATER
+                    && snapshot.cell(x, y + 1, z) == CellType.PASSABLE) {
+                return new BlockPos(x, y, z);
+            }
+        }
+        return start;
     }
 
     private static WorldSnapshot sharedSnapshot(ServerLevel level, BlockPos start, BlockPos goal) {
