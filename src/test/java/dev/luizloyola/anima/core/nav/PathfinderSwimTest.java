@@ -87,4 +87,66 @@ class PathfinderSwimTest {
         assertFalse(hasMove(path, MoveType.SWIM),
                 "a cheap dry detour should win over swimming: " + path.waypoints());
     }
+
+    // --- plunges: falling into water, which maxDrop has no say over --------------------------
+
+    /**
+     * An 8-high bank over a pool — past the body's {@code maxDrop} of 3, so only the water makes
+     * it a route.
+     */
+    private static final String[] CLIFF_OVER_POOL = {"8W1"};
+
+    @Test
+    void plungesFromAHeightNoDropWouldSurvive() {
+        Path path = find(AsciiWorld.of(CLIFF_OVER_POOL), 0, 8, 0, 2, 1, 0);
+        assertTrue(path.reachedGoal(), "should jump in and swim out: " + path.waypoints());
+        assertTrue(path.waypoints().stream()
+                        .anyMatch(w -> w.x() == 1 && w.y() == 0 && w.move() == MoveType.SWIM),
+                "the entry should be a SWIM landing at the waterline: " + path.waypoints());
+    }
+
+    @Test
+    void aLandWalkerStillWillNotJumpIn() {
+        MoveCapabilities landOnly = new MoveCapabilities(1.8, 1, 3, 3, false);
+        Path path = find(AsciiWorld.of(CLIFF_OVER_POOL), 0, 8, 0, 2, 1, 0, landOnly);
+        assertFalse(path.reachedGoal(), "water is impassable to a non-swimmer, however deep");
+    }
+
+    /**
+     * The same cliff with a lid over the pool: the fall column is what the probe scans, so a body
+     * cannot plunge through a ceiling into water it can see under one.
+     */
+    @Test
+    void willNotPlungeThroughAnObstructedColumn() {
+        AsciiWorld world = AsciiWorld.of(CLIFF_OVER_POOL)
+                .fill(1, 4, 0, 1, 4, 0, CellType.OBSTACLE);
+        Path path = find(world, 0, 8, 0, 2, 1, 0);
+        assertFalse(path.reachedGoal(), "a blocked column is not a plunge: " + path.waypoints());
+    }
+
+    /**
+     * The plunge's one hard edge, pinned from both sides: a tower exactly as high as the search
+     * bound is dived off, one higher is not — so this test notices the bound being removed or
+     * quietly retuned.
+     *
+     * <p>Built with {@code fill} because the heightmap only draws 1..9.
+     */
+    private static Path plungeFromTowerOfHeight(int height) {
+        AsciiWorld world = AsciiWorld.of("1W1")
+                .fill(0, -1, 0, 0, height - 1, 0, CellType.GROUND);
+        return find(world, 0, height, 0, 2, 1, 0);
+    }
+
+    @Test
+    void plungesFromExactlyTheSearchBound() {
+        Path path = plungeFromTowerOfHeight(32);
+        assertTrue(path.reachedGoal(), "a 32-block plunge is in reach: " + path.waypoints());
+        assertTrue(hasMove(path, MoveType.SWIM));
+    }
+
+    @Test
+    void refusesAPlungeBeyondTheSearchBound() {
+        Path path = plungeFromTowerOfHeight(33);
+        assertFalse(path.reachedGoal(), "33 is past the bound: " + path.waypoints());
+    }
 }

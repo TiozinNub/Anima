@@ -62,6 +62,20 @@ public final class Pathfinder {
      * cost in horizontal distance (cardinal 1, diagonal √2 against a 2.5·√2 price, enter/exit 1).
      */
     private static final double SWIM_COST = 2.5;
+    /**
+     * How far below a bank one probe will look for water to plunge into.
+     *
+     * <p><b>Not a survivability limit</b> like {@link MoveCapabilities#maxDrop}. Entering water
+     * cancels the fall outright, at any height and into any depth, so there is no per-body number
+     * to read: this is a <em>search</em> bound, and without one every probe over a ledge would
+     * read the whole grid column beneath it.
+     *
+     * <p>What stops a body diving off everything it passes is the price — {@link #dropCost} of the
+     * depth, which grows per block, so a walk down beats a dive whenever the walk is short. 32 is
+     * past any drop a settlement sits on while keeping one probe's worst case small; raising it
+     * makes deep dives <em>representable</em>, never cheap.
+     */
+    private static final int MAX_PLUNGE = 32;
 
     /** Neighbour probe order — fixed so the search is deterministic: N, S, W, E, then diagonals. */
     private static final int[][] CARDINALS = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}};
@@ -233,7 +247,7 @@ public final class Pathfinder {
         for (int[] d : CARDINALS) {
             leapNeighbor(current, node, x, y, z, from, d[0], d[1]);
         }
-        swimNeighbors(current, node, x, y, z);
+        swimNeighbors(current, node, x, y, z, from);
     }
 
     /**
@@ -242,14 +256,14 @@ public final class Pathfinder {
      * off the shore into water. All of it lives in this one method so the water moves have a
      * single home.
      */
-    private void swimNeighbors(long current, Node node, int x, int y, int z) {
+    private void swimNeighbors(long current, Node node, int x, int y, int z, double from) {
         if (!this.profile.canSwim()) return;
         if (isSurfaceSwim(x, y, z)) {
             for (int[] d : CARDINALS) swimCross(current, node, x, y, z, d[0], d[1]);
             for (int[] d : DIAGONALS) swimCrossDiagonal(current, node, x, y, z, d[0], d[1]);
             for (int[] d : CARDINALS) swimExit(current, node, x, y, z, d[0], d[1]);
         } else {
-            for (int[] d : CARDINALS) swimEnter(current, node, x, y, z, d[0], d[1]);
+            for (int[] d : CARDINALS) swimEnter(current, node, x, y, z, from, d[0], d[1]);
         }
     }
 
@@ -289,10 +303,23 @@ public final class Pathfinder {
 
     /**
      * Step off the shore into the neighbouring water column: onto a surface level with the bank, or
-     * up to {@code maxDrop} below it, since water negates the fall. The far column must be open at
-     * our level first. Tagged {@link MoveType#SWIM} — the feet land in water.
+     * off a ledge down into one — a <b>plunge</b>. The far column must be open at our level and all
+     * the way down to the waterline, which is the same scan: the cells the probe walks through are
+     * the ones the body falls through.
+     *
+     * <p><b>The plunge is not bounded by {@code maxDrop}</b> — that number is how far this body
+     * will fall onto <em>ground</em>, and water cancels the fall entirely, so charging maxDrop made
+     * a Person refuse the dive every player makes (gauntlet E4, H6). The bound is
+     * {@link #MAX_PLUNGE}, a search bound; the deterrent is the price, {@link #dropCost} of the
+     * depth.
+     *
+     * <p>Depth is measured from the FEET, not from the cell, for the same reason {@code stepTo}
+     * does it: taking off from a slab is half a block further down than the cells suggest.
+     *
+     * <p>Tagged {@link MoveType#SWIM} — the destination feet land in water.
      */
-    private void swimEnter(long current, Node node, int x, int y, int z, int dx, int dz) {
+    private void swimEnter(long current, Node node, int x, int y, int z, double from,
+                           int dx, int dz) {
         int nx = x + dx;
         int nz = z + dz;
         if (isSurfaceSwim(nx, y, nz)) { // water level with the bank: step straight in
@@ -301,12 +328,15 @@ public final class Pathfinder {
         }
         if (!hasClearance(nx, y, nz)) return; // can't even move into the near column
         int waterline = y - 1;
-        int limit = y - this.profile.maxDrop();
+        int limit = y - MAX_PLUNGE;
         while (waterline >= limit && this.grid.cell(nx, waterline, nz) == CellType.PASSABLE) {
             waterline--; // fall through the air above the water
         }
         if (waterline >= limit && isSurfaceSwim(nx, waterline, nz)) {
-            relax(current, node, pack(nx, waterline, nz), FLOATING, MoveType.SWIM, SWIM_COST);
+            // Whichever is dearer: the swim it becomes, or the fall it was. Both are ≥ WALK_COST
+            // over one cardinal cell, so the horizontal heuristic stays admissible.
+            relax(current, node, pack(nx, waterline, nz), FLOATING, MoveType.SWIM,
+                    Math.max(SWIM_COST, dropCost(from - waterline)));
         }
     }
 
