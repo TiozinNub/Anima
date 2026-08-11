@@ -7,11 +7,15 @@ public final class NavGrids {
     private NavGrids() {}
 
     /**
-     * Whether a misstep out of feet-cell {@code (x,y,z)} could be catastrophic: some cardinal
-     * neighbour is open at this level but has no floor within {@code maxDrop} below — a chasm —
-     * or its floor is harmful (lava) or unswimmable-for-now (water). The follower slows down and
-     * steers tighter while this is true of the ground it is crossing; drops within
-     * {@code maxDrop} onto solid ground are everyday moves and do not count.
+     * Whether a misstep out of feet-cell {@code (x,y,z)} could be catastrophic: a cardinal
+     * neighbour open at this level with no floor within {@code maxDrop} below (a chasm), or a
+     * floor that is harmful (lava) or water too deep to stand up in. The follower slows and steers
+     * tighter while it holds; drops within {@code maxDrop} onto solid ground do not
+     * count.
+     *
+     * <p><b>A puddle is not a hazard.</b> Water with a bed directly under it is waded, not fallen
+     * into. Judged by the bed alone, not by whether this body would fit — the helper is given no
+     * body, and one block of water over stone is not a pool.
      */
     public static boolean isNearDeepDrop(NavGrid grid, int maxDrop, int x, int y, int z) {
         for (int i = 0; i < 4; i++) {
@@ -31,8 +35,11 @@ public final class NavGrids {
                 return true; // open all the way past survivable depth
             }
             CellType landing = grid.cell(nx, floor, nz);
-            if (landing == CellType.DANGER || landing == CellType.WATER) {
+            if (landing == CellType.DANGER) {
                 return true;
+            }
+            if (landing == CellType.WATER && grid.cell(nx, floor - 1, nz) != CellType.GROUND) {
+                return true; // deep enough that stepping in is swimming, not wading
             }
         }
         return false;

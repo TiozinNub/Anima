@@ -13,7 +13,9 @@ import java.util.Map;
  *   '#'       wall: solid at every y, never passable
  *   ' '       bottomless hole: passable at every y, nothing to land on
  *   'L'       lava pool: the surface cell (y = 0) is DANGER, solid below, open above
- *   'W'       water pool: like 'L' but WATER
+ *   'W'       OPEN water: two cells deep (y = 0 and y = -1), bed below, open above — deep
+ *             enough that a body must swim, since it cannot stand on the bed with its head out
+ *   'w'       a PUDDLE: one cell deep (y = 0), bed at y = -1 — shallow enough to wade
  * </pre>
  *
  * Anything outside the drawn rows is {@link CellType#OBSTACLE}, per the {@link NavGrid} contract.
@@ -74,7 +76,12 @@ public final class AsciiWorld implements NavGrid {
             case '#': return CellType.GROUND;
             case ' ': return CellType.PASSABLE;
             case 'L': return y == 0 ? CellType.DANGER : y < 0 ? CellType.GROUND : CellType.PASSABLE;
-            case 'W': return y == 0 ? CellType.WATER : y < 0 ? CellType.GROUND : CellType.PASSABLE;
+            // Two cells deep, so a body of any ordinary height has to swim it. Drawn water was one
+            // cell until wading arrived, when every test that meant "open water" got a puddle —
+            // the glyph has to say which of the two it is.
+            case 'W': return y >= -1 && y <= 0 ? CellType.WATER
+                    : y < -1 ? CellType.GROUND : CellType.PASSABLE;
+            case 'w': return y == 0 ? CellType.WATER : y < 0 ? CellType.GROUND : CellType.PASSABLE;
             default:
                 if (c < '1' || c > '9') throw new IllegalArgumentException("bad map char: '" + c + "'");
                 return y < c - '0' ? CellType.GROUND : CellType.PASSABLE;

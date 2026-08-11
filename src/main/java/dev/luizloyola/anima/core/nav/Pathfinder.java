@@ -32,17 +32,19 @@ public final class Pathfinder {
     /** Jumping is slow (stall, arc) — twice a plain step, so ramps beat hop-scotch when both exist. */
     private static final double JUMP_COST = 2.0;
     /**
-     * Leap cost by gap width (index = gap). Each exceeds the covered distance (gap+1, the
-     * admissibility floor) by a risk premium that grows STEEPLY: per block covered 1.2, 1.8 and
-     * 2.4, against a plain walk's 1.0 and the careful factor's 2.2. The old flat premiums
-     * (2.4 / 3.6 / 5.0) priced a 3-block sprint jump under careful walking, making the riskiest
-     * move the cheapest way past an obstacle.
+     * Leap cost by gap width (index = gap). Each exceeds the covered distance (gap+1 — the
+     * admissibility floor) by a risk premium that grows STEEPLY: per block covered these are 1.2,
+     * 1.8 and 2.4, against a plain walk's 1.0 and the careful factor's 2.2. The old, nearly flat
+     * 2.4 / 3.6 / 5.0 priced a 3-gap under careful walking, making the riskiest move in the model
+     * the cheapest way past an obstacle.
      *
-     * <p>The 1-gap price is untouched: leaping a shallow trench must keep beating dipping through
-     * it (2.4 &lt; drop 1.0 + jump 2.0), and hopping a one-wide stream must keep beating wading.
+     * <p>The 1-gap price is untouched: leaping a shallow trench must keep beating
+     * dipping through it (2.4 &lt; drop 1.0 + jump 2.0), and hopping a one-wide stream must keep
+     * beating wading it.
      *
-     * <p>Do not multiply by {@link #carefulFactor}: it is the follower's throttle as time and a leap
-     * is never throttled — charging it priced a one-wide water hop above swimming.
+     * <p>Not multiplied by {@link #terrainFactor} like every other move: that factor is the
+     * follower's throttle expressed as time, and the follower does not throttle a leap — approach
+     * and flight need the full run-up. Charging it priced a one-wide water hop above swimming.
      */
     private static final double[] LEAP_COSTS = {0.0, 2.4, 5.4, 9.6};
     /**
@@ -62,6 +64,14 @@ public final class Pathfinder {
      * cost in horizontal distance (cardinal 1, diagonal √2 against a 2.5·√2 price, enter/exit 1).
      */
     private static final double SWIM_COST = 2.5;
+    /**
+     * Cost multiplier for a step taken through water shallow enough to stand in — wading.
+     *
+     * <p>Between a walk and a swim on purpose: under {@link #SWIM_COST} because a body that keeps
+     * its feet is quicker, and well over a dry walk because pushing through water is real work.
+     * Roughly, four cells of puddle beat a detour of eight and lose to a detour of six.
+     */
+    private static final double WADE_COST_FACTOR = 1.8;
     /**
      * How far below a bank one probe will look for water to plunge into.
      *
@@ -268,16 +278,31 @@ public final class Pathfinder {
     }
 
     /**
-     * Whether feet-cell {@code (x,y,z)} is a floating spot at the water surface — the topmost water
-     * block of a column: feet in water, the {@code height-1} cells above air, so the head is above
-     * the waterline (occupiable, no drowning).
+     * Whether feet-cell {@code (x,y,z)} is a floating spot at the water surface: the feet cell is
+     * water and the rest of the body ({@code height-1} cells above) is air, so the head is above
+     * the waterline — occupiable, and no drowning. The topmost water block of a column.
+     *
+     * <p><b>And nowhere a body could stand instead.</b> You float where you cannot wade, or a
+     * shallow pool answers to both and one cell wears two nodes' worth of cost and parentage — the
+     * same failure {@link #footing} refuses for a {@link CellType#STEP}.
      */
     private boolean isSurfaceSwim(int x, int y, int z) {
         if (this.grid.cell(x, y, z) != CellType.WATER) return false;
+        if (isStandable(x, y, z)) return false; // wadeable: it is ground to this model, not water
         for (int i = 1; i <= this.profile.topCell(0.0); i++) {
             if (this.grid.cell(x, y + i, z) != CellType.PASSABLE) return false;
         }
         return true;
+    }
+
+    /**
+     * Whether a body falling into {@code (x,y,z)} would be caught by water — floating there, or
+     * standing in it with its head out. Either ends a fall, and that is the whole question a plunge
+     * asks: {@link #swimEnter} does not care which of the two it gets, because water cancels the
+     * fall at any depth and one block of it is enough (gauntlet H6 is a plunge into exactly one).
+     */
+    private boolean catchesAFall(int x, int y, int z) {
+        return this.grid.cell(x, y, z) == CellType.WATER && fits(x, y, z, 0.0);
     }
 
     /** One surface stroke to an adjacent water-surface cell at the same level (connected water is flat). */
@@ -332,10 +357,15 @@ public final class Pathfinder {
         while (waterline >= limit && this.grid.cell(nx, waterline, nz) == CellType.PASSABLE) {
             waterline--; // fall through the air above the water
         }
-        if (waterline >= limit && isSurfaceSwim(nx, waterline, nz)) {
-            // Whichever is dearer: the swim it becomes, or the fall it was. Both are ≥ WALK_COST
-            // over one cardinal cell, so the horizontal heuristic stays admissible.
-            relax(current, node, pack(nx, waterline, nz), FLOATING, MoveType.SWIM,
+        if (waterline >= limit && catchesAFall(nx, waterline, nz)) {
+            // The landing keeps whatever footing the cell really has — the bed when the pool is
+            // shallow enough to stand in, FLOATING when it is not. Asking the cell rather than
+            // assuming a float is what stops a plunge into one block of water (H6) from planting a
+            // node that every land move afterwards disagrees with.
+            //
+            // Cost is whichever is dearer: the swim it becomes, or the fall it was. Both are
+            // ≥ WALK_COST over one cardinal cell, so the horizontal heuristic stays admissible.
+            relax(current, node, pack(nx, waterline, nz), footing(nx, waterline, nz), MoveType.SWIM,
                     Math.max(SWIM_COST, dropCost(from - waterline)));
         }
     }
@@ -423,9 +453,11 @@ public final class Pathfinder {
                 // a stride is one long straight move, so anything it can't take in its own stride
                 // must degrade to the unit moves that price the climb properly.
                 if (!walkableFlank(cx, y, cz, from)) return;
-                // Strides are open-ground moves: careful ground (rim lanes, narrow bridges)
-                // takes unit steps at the careful cost instead — precise and correctly priced.
-                if (isCareful(cx, y, cz)) return;
+                // Strides are open-ground moves: careful ground (rim lanes, narrow bridges) and
+                // water take unit steps at their own cost instead — precise and correctly priced.
+                // A stride prices itself by its length alone, so letting one sweep a wet cell would
+                // buy three blocks of wading for the price of walking them.
+                if (isCareful(cx, y, cz) || isWater(cx, y, cz)) return;
             }
         }
         relax(current, node, pack(x + dx, y, z + dz), footing(x + dx, y, z + dz), MoveType.WALK, cost);
@@ -471,12 +503,12 @@ public final class Pathfinder {
             // feet actually are — a body already standing half a block up has its head there too.
             if (this.grid.cell(x, y + this.profile.topCell(from - y) + 1, z) != CellType.PASSABLE) return;
             relax(current, node, pack(nx, ny, nz), to, MoveType.JUMP,
-                    JUMP_COST * carefulFactor(x, y, z, nx, ny, nz));
+                    JUMP_COST * terrainFactor(x, y, z, nx, ny, nz));
             return;
         }
         if (rise >= -STEP_UP) {
             relax(current, node, pack(nx, ny, nz), to, MoveType.WALK,
-                    WALK_COST * carefulFactor(x, y, z, nx, ny, nz));
+                    WALK_COST * terrainFactor(x, y, z, nx, ny, nz));
             return;
         }
         // A fall. The scan bounds the CELL to maxDrop, but a raised takeoff makes the real fall
@@ -485,7 +517,7 @@ public final class Pathfinder {
         double depth = -rise;
         if (depth > this.profile.maxDrop()) return;
         relax(current, node, pack(nx, ny, nz), to, MoveType.DROP,
-                dropCost(depth) * carefulFactor(x, y, z, nx, ny, nz));
+                dropCost(depth) * terrainFactor(x, y, z, nx, ny, nz));
     }
 
     /**
@@ -531,18 +563,18 @@ public final class Pathfinder {
             if (this.profile.jumpHeight() < 1 || rise > JUMP_UP) return;
             if (this.grid.cell(x, y + this.profile.topCell(from - y) + 1, z) != CellType.PASSABLE) return;
             relax(current, node, pack(nx, ny, nz), to, MoveType.JUMP,
-                    Math.max(DIAGONAL_COST, JUMP_COST) * carefulFactor(x, y, z, nx, ny, nz));
+                    Math.max(DIAGONAL_COST, JUMP_COST) * terrainFactor(x, y, z, nx, ny, nz));
             return;
         }
         if (rise >= -STEP_UP) {
             relax(current, node, pack(nx, ny, nz), to, MoveType.WALK,
-                    DIAGONAL_COST * carefulFactor(x, y, z, nx, ny, nz));
+                    DIAGONAL_COST * terrainFactor(x, y, z, nx, ny, nz));
             return;
         }
         double depth = -rise;
         if (depth > this.profile.maxDrop()) return;
         relax(current, node, pack(nx, ny, nz), to, MoveType.DROP,
-                Math.max(DIAGONAL_COST, dropCost(depth)) * carefulFactor(x, y, z, nx, ny, nz));
+                Math.max(DIAGONAL_COST, dropCost(depth)) * terrainFactor(x, y, z, nx, ny, nz));
     }
 
     /**
@@ -582,11 +614,20 @@ public final class Pathfinder {
 
     /**
      * Where the feet come to rest if the body stands with {@code (x,y,z)} as its feet-cell, as an
-     * absolute y — or {@link #NO_FOOTING}. Every move is a pair of footings and the rise between.
+     * absolute y — or {@link #NO_FOOTING} if it cannot stand there at all. The one question the
+     * whole neighbour model is built on: every move is a pair of footings and the rise between
+     * them.
      *
-     * <p>A cell never has footing both ways: nodes are keyed by cell, so one standing place
-     * answering to two cells would be two nodes with two costs and parents. Hence a
-     * {@link CellType#STEP} is its <em>own</em> feet-cell, never a floor for the cell above.
+     * <p>There are exactly two ways to have footing, and a cell is never both. The search keys its
+     * nodes by cell, so a standing place that answered to two cells would be two nodes for one
+     * spot, with two costs and two parents — hence a {@link CellType#STEP} is its <em>own</em>
+     * feet-cell and never a floor for the cell above it.
+     *
+     * <p><b>Shallow water is footing</b>, and putting it here rather than beside the swim moves is
+     * the whole of what makes wading work: every land move is built on this one answer, so a puddle
+     * a body can stand in becomes ordinary ground to all of them at once. A body wades where it can
+     * stand on the bed with its head clear of the surface — the same two questions the dry branch
+     * below asks, of the same two cells, against a different {@link CellType}.
      */
     private double footing(int x, int y, int z) {
         CellType here = this.grid.cell(x, y, z);
@@ -594,12 +635,14 @@ public final class Pathfinder {
             double surface = this.grid.surface(x, y, z);
             return fits(x, y, z, surface) ? y + surface : NO_FOOTING;
         }
-        if (here != CellType.PASSABLE) {
-            return NO_FOOTING; // solid, harmful, water, or off the edge of the world
+        if (here != CellType.PASSABLE && here != CellType.WATER) {
+            return NO_FOOTING; // solid, harmful, or off the edge of the world
         }
         if (this.grid.cell(x, y - 1, z) != CellType.GROUND) {
             return NO_FOOTING; // nothing under us — or a STEP, which is its own feet-cell
         }
+        // fits() demands PASSABLE overhead, so for a water cell it is also the test that the head
+        // is above the waterline: one more cell of water up there and this is swimming, not wading.
         return fits(x, y, z, 0.0) ? y : NO_FOOTING;
     }
 
@@ -641,10 +684,26 @@ public final class Pathfinder {
                 key -> NavGrids.isNearDeepDrop(this.grid, this.profile.maxDrop(), x, y, z));
     }
 
-    /** The cost factor for a unit move between the two feet-cells: careful at either end means
-     *  the follower walks it slowly (and it borders something worth not stumbling into). */
-    private double carefulFactor(int fromX, int fromY, int fromZ, int toX, int toY, int toZ) {
-        return isCareful(fromX, fromY, fromZ) || isCareful(toX, toY, toZ) ? CAREFUL_COST_FACTOR : 1.0;
+    /**
+     * The cost factor for a unit move between two feet-cells — everything about the ground that
+     * makes it slower than open dry ground, in one number. Careful ground at either end means the
+     * follower throttles; wet at either end means the body is pushing through water. They multiply
+     * because they are independent, and one step can be both.
+     */
+    private double terrainFactor(int fromX, int fromY, int fromZ, int toX, int toY, int toZ) {
+        double factor = 1.0;
+        if (isCareful(fromX, fromY, fromZ) || isCareful(toX, toY, toZ)) {
+            factor *= CAREFUL_COST_FACTOR;
+        }
+        if (isWater(fromX, fromY, fromZ) || isWater(toX, toY, toZ)) {
+            factor *= WADE_COST_FACTOR;
+        }
+        return factor;
+    }
+
+    /** Whether this feet-cell is wet — a body standing here is standing IN water. */
+    private boolean isWater(int x, int y, int z) {
+        return this.grid.cell(x, y, z) == CellType.WATER;
     }
 
     /**

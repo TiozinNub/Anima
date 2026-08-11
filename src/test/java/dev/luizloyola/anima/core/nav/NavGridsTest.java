@@ -43,8 +43,14 @@ class NavGridsTest {
     }
 
     @Test
-    void besideWaterIsAnEdgeWhileSwimmingIsUnimplemented() {
+    void besideDeepWaterIsAnEdge() {
         assertTrue(nearDrop(AsciiWorld.of("11W"), 1, 1, 0));
+    }
+
+    /** A puddle is waded, not skirted — see the depth test in {@code NavGrids.isNearDeepDrop}. */
+    @Test
+    void besideAPuddleIsNot() {
+        assertFalse(nearDrop(AsciiWorld.of("11w"), 1, 1, 0));
     }
 
     @Test

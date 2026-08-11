@@ -4,13 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Surface-swimming tests over hand-drawn {@link AsciiWorld} terrains. The {@code 'W'} char draws a
- * water column: {@link CellType#WATER} at feet level {@code y=0}, {@link CellType#GROUND} bed below,
- * air above — so the water surface sits one cell below the {@code y=1} feet of an adjacent {@code
- * '1'} shore, the real waterline geometry (enter steps down one, exit climbs up one).
+ * Swimming and wading over hand-drawn {@link AsciiWorld} terrains. Both water glyphs put their
+ * surface at {@code y=0}, one cell below the {@code y=1} feet of an adjacent {@code '1'} shore,
+ * so entering steps down one and leaving climbs up one. {@code 'W'} is two cells deep and must
+ * be SWUM, {@code 'w'} is one and is WADED, which to this model is walking.
  */
 class PathfinderSwimTest {
 
@@ -86,6 +87,49 @@ class PathfinderSwimTest {
         assertTrue(path.reachedGoal());
         assertFalse(hasMove(path, MoveType.SWIM),
                 "a cheap dry detour should win over swimming: " + path.waypoints());
+    }
+
+    // --- wading: water shallow enough to stand up in is ground, not a crossing ----------------
+
+    @Test
+    @DisplayName("a puddle is walked through, not swum")
+    void shallowWaterIsWalked() {
+        Path path = find(AsciiWorld.of("11wwww11"), 0, 1, 0, 7, 1, 0);
+        assertTrue(path.reachedGoal());
+        assertFalse(hasMove(path, MoveType.SWIM),
+                "one block of water over a bed is somewhere a body stands: " + path.waypoints());
+        // And it really goes through: the feet-cells of the crossing are the water cells.
+        assertTrue(path.waypoints().stream().anyMatch(w -> w.y() == 0 && w.x() >= 2 && w.x() <= 5),
+                "should step down into the water and walk it: " + path.waypoints());
+    }
+
+    /**
+     * Wading is cheaper than swimming but dearer than walking; this is the dearer half. The
+     * failure mode of making water walkable is making it FREE, at which point a settler splashes
+     * through every pond it passes.
+     *
+     * <p>The other half — "a puddle on the way is crossed rather than gone round" — is not
+     * testable against a detour: a detour one row over is a couple of diagonals plus a stride, and
+     * a stride prices itself by length alone, which nothing at 1.8 a cell beats.
+     */
+    @Test
+    @DisplayName("a puddle is cheap, not free — a dry line beside it still wins")
+    void aPuddleIsNotFree() {
+        Path path = find(AsciiWorld.of(
+                "1wwww1",
+                "111111"), 0, 1, 0, 5, 1, 0);
+        assertTrue(path.reachedGoal());
+        assertTrue(path.waypoints().stream().noneMatch(w -> w.y() == 0),
+                "a dry line of the same length should stay dry: " + path.waypoints());
+    }
+
+    @Test
+    @DisplayName("a non-swimmer wades — it is walking, and it never needed to swim")
+    void aLandWalkerCanStillWade() {
+        MoveCapabilities landOnly = new MoveCapabilities(1.8, 1, 3, 3, false);
+        Path path = find(AsciiWorld.of("11wwww11"), 0, 1, 0, 7, 1, 0, landOnly);
+        assertTrue(path.reachedGoal(),
+                "a body that cannot swim can still cross a puddle on foot: " + path.waypoints());
     }
 
     // --- plunges: falling into water, which maxDrop has no say over --------------------------
