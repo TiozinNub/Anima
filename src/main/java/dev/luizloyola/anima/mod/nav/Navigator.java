@@ -9,6 +9,7 @@ import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.mod.brain.DangerFields;
 import dev.luizloyola.anima.core.nav.CellNeed;
 import dev.luizloyola.anima.core.nav.CellType;
+import dev.luizloyola.anima.core.nav.CrowdSteering;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.MoveType;
 import dev.luizloyola.anima.core.nav.NavGrid;
@@ -16,6 +17,7 @@ import dev.luizloyola.anima.core.nav.NavGrids;
 import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.PathIntegrity;
 import dev.luizloyola.anima.core.nav.Waypoint;
+import java.util.ArrayList;
 import java.util.List;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import java.util.concurrent.CancellationException;
@@ -25,6 +27,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
@@ -591,11 +595,19 @@ public final class Navigator {
             this.noMoveTicks = 0;
         }
 
-        // Steering aim: normally the current waypoint — but airborne with it under or BEHIND our
-        // motion, aiming at it would flip the heading 180° and land us back-to-front. The proximity
-        // term catches "directly above it, falling straight"; the dot-product catches "already past
-        // it and moving on". Aim at the next waypoint instead; over the final waypoint, hold the
-        // heading we have.
+        // Steering aim: the current waypoint, except airborne with it under or BEHIND our motion (a
+        // drop drifts a block-plus past the landing cell; a jump arc crosses its centre), where
+        // aiming at it would flip the heading 180° and air-control us backwards. Aim at the next
+        // waypoint instead; over the final one, hold the heading we have.
+        // The crowd is the one place navigation admits other bodies exist (see CrowdSteering),
+        // gathered before the aim because it changes both aim and heading. Footed WALK legs only: a
+        // JUMP or LEAP is aimed at one ledge, a swerve at a careful cliff edge is worse than a
+        // shove, and an airborne body cannot steer.
+        List<CrowdSteering.Neighbour> crowd =
+                this.person.onGround() && waypoint.move() == MoveType.WALK && !careful
+                        ? crowd()
+                        : List.of();
+
         double aimX = dx;
         double aimZ = dz;
         Vec3 velocity = this.person.entity().getDeltaMovement();
@@ -605,7 +617,12 @@ public final class Navigator {
         // A leap in flight is COMMITTED: it aims at its landing and nothing else — aim-next here
         // air-curved chained leaps around corners, scraping (or missing) the landing block.
         boolean committedFlight = waypoint.move() == MoveType.LEAP && !this.person.onGround();
-        if (overTarget && hasNext && !committedFlight) {
+        // Somebody is standing ON the cell we are walking to. Steering around them while still
+        // aiming at that cell is an orbit, not a detour: their body holds us a radius outside both
+        // the arrival radius and the plane-advance. Aiming at the next waypoint makes the swerve a
+        // pass; with no next waypoint, walking up to them (shove and all) is the right answer.
+        boolean blockedTarget = hasNext && isOccupied(crowd, waypoint);
+        if ((overTarget || blockedTarget) && hasNext && !committedFlight) {
             Waypoint next = this.path.waypoints().get(this.index + 1);
             aimX = next.x() + 0.5 - pos.x;
             aimZ = next.z() + 0.5 - pos.z;
@@ -620,6 +637,13 @@ public final class Navigator {
         float heading = coastToLanding || (committedFlight && overTarget)
                 ? this.person.entity().getYRot()
                 : (float) (Mth.atan2(aimZ, aimX) * Mth.RAD_TO_DEG) - 90.0F;
+        // Yaw grows clockwise, a turn to the body's right, so CrowdSteering's signed answer adds
+        // straight on. No guard is needed against the held-facing branches above: the crowd list is
+        // empty unless grounded, and those are all airborne.
+        if (!crowd.isEmpty()) {
+            heading += (float) Math.toDegrees(CrowdSteering.deflection(
+                    pos.x, pos.z, aimX, aimZ, this.person.entity().getBbWidth() / 2.0, crowd));
+        }
         // Gait before forward input: driveForward reads the speed attribute, which sprinting
         // modifies. A span-3+ (2-block gap) leap approach and flight sprint — a walking jump falls
         // ~0.4 short into the gap — though sprint slightly overshoots a 1-wide landing pillar, which
@@ -834,6 +858,51 @@ public final class Navigator {
             this.index++;
             this.stuckTicks = 0;
         }
+    }
+
+    /**
+     * The bodies close enough to be in the way this tick, as the discs {@link CrowdSteering} steers
+     * around. Pushable living things only — what cannot be pushed cannot be pushed <em>around</em>.
+     *
+     * <p>Asked live rather than off the {@code BeingSense}: a shove is decided at sub-block
+     * precision, so a position one sense-beat old is already a body-width wrong, and identity has
+     * no bearing on walking through somebody. The box is barely wider than the one vanilla sweeps
+     * every tick to push with.
+     */
+    private List<CrowdSteering.Neighbour> crowd() {
+        LivingEntity self = this.person.entity();
+        // REACH is surface to surface, so the box has to carry a radius at each end: our own comes
+        // with the bounding box, and 1.0 covers anything up to two blocks wide on the other side.
+        double margin = CrowdSteering.REACH + 1.0;
+        List<Entity> nearby = this.person.level().getEntities(self,
+                self.getBoundingBox().inflate(margin, 0.0, margin),
+                other -> other instanceof LivingEntity living && living.isPushable());
+        if (nearby.isEmpty()) {
+            return List.of();
+        }
+        List<CrowdSteering.Neighbour> crowd = new ArrayList<>(nearby.size());
+        for (Entity other : nearby) {
+            crowd.add(new CrowdSteering.Neighbour(
+                    other.getX(), other.getZ(), other.getBbWidth() / 2.0));
+        }
+        return crowd;
+    }
+
+    /**
+     * Whether one of {@code crowd} is standing on the cell we are walking to — see
+     * {@code blockedTarget}, its only caller. Judged from the cell's middle by a body's own width,
+     * so "on it" is not merely overlapping from the neighbouring cell.
+     */
+    private static boolean isOccupied(List<CrowdSteering.Neighbour> crowd, Waypoint waypoint) {
+        for (CrowdSteering.Neighbour neighbour : crowd) {
+            double offX = neighbour.x() - (waypoint.x() + 0.5);
+            double offZ = neighbour.z() - (waypoint.z() + 0.5);
+            double reach = neighbour.radius() + WAYPOINT_RADIUS;
+            if (offX * offX + offZ * offZ < reach * reach) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Whether residual horizontal momentum has bled off (see {@link #SETTLED_SPEED_SQ}). */
