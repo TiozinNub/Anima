@@ -36,6 +36,23 @@ public interface Mover {
     MoveState state();
 
     /**
+     * Whether the legs are still WAITING ON A ROUTE rather than walking one — the difference
+     * {@link MoveState} hides, surfaced for the callers that cannot afford to ignore
+     * it.
+     *
+     * <p>Route-finding runs off-thread and costs milliseconds; walking is paid in ticks, so a task
+     * that gives a walk "200 ticks to get there" is mixing units. Raise the server's tick rate and
+     * the tick budget shrinks in real time while the search takes exactly as long — errands then
+     * fail as unreachable at 200 ticks per second that succeed at 20 (observed live 2026-08-11).
+     *
+     * <p>So a wait denominated in ticks must not spend its budget while this answers {@code true}.
+     * The default is {@code false}, the correct answer for a mover with no search phase at all.
+     */
+    default boolean routing() {
+        return false;
+    }
+
+    /**
      * Abandon the move in progress; {@link #state()} returns to {@link MoveState#IDLE}. Calling
      * this with no move in progress is a harmless no-op — tasks cancel unconditionally, and their
      * cancel must be idempotent, so the slack is absorbed here rather than guarded at every call

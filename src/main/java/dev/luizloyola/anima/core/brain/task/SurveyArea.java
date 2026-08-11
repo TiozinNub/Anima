@@ -48,21 +48,34 @@ public final class SurveyArea implements PrimitiveTask {
      */
     public static final int CELL = 8;
 
-    /** Confidence a cell needs before the box is considered known. Tuning knob. */
+    /**
+     * Confidence a cell needs before the box is considered known. A third was tried and reverted:
+     * both passes read the same rule, so a threshold loose enough to miss a tree misses it twice.
+     * The speed that argument wanted belongs in {@link #READS_PER_TICK}.
+     */
     public static final double ENOUGH = 0.5;
 
     /**
-     * Block reads one tick of looking may spend. The body is standing still while it does this, so
-     * it can afford more than a walking sense's wallet — but a full survey is on the order of fifty
-     * thousand reads for a Person, and spending that in one tick is a visible stall.
+     * Block reads one tick of looking may spend. A survey is fifty-odd thousand reads for a Person:
+     * at 512 a look cost a hundred ticks of standing still, four times over per slice; at 2048, a
+     * couple of dozen, about a third of a millisecond of main thread per body per tick. The
+     * hand-driven {@code survey} command spends 4096 in one blocking burst; several bodies may be
+     * looking at once.
      */
-    public static final int READS_PER_TICK = 512;
+    public static final int READS_PER_TICK = 2048;
 
     /** Walks at a cell before it is written off as unreachable and stops holding the box open. */
     public static final int WALK_TRIES = 2;
 
     /** Centre to corner of one cell — how much of a cell can lie nearer than its centre does. */
     private static final double CELL_REACH = CELL * Math.sqrt(2) / 2;
+
+    /**
+     * What a look through OBSTRUCTED ground is worth, as a fraction of what the same look would
+     * have been worth in the open. Visibility can only ever DISCOUNT the distance credit, never
+     * inflate it — see the note where it is applied for what happened when it could.
+     */
+    private static final double OBSTRUCTED_VIEW = 0.5;
 
     private final Region area;
     /** What a glimpse would have to be of for a cell to be worth walking into. */
@@ -257,9 +270,13 @@ public final class SurveyArea implements PrimitiveTask {
         // owns that range — so silence about a cell inside it is not evidence. Crediting it anyway
         // declared a box clear with an oak eleven blocks from the surveyor (2026-08-10).
         int blind = CrescentSampler.radius(ctx.profile());
+        BlockProbe probe = ctx.percepts().blocks();
         for (int cell = 0; cell < confidence.length; cell++) {
             if (occupied.contains(cell)) {
                 continue; // something is there; only walking near it will say what.
+            }
+            if (confidence[cell] >= 1.0f) {
+                continue;
             }
             double distance = horizontalDistance(from, centreOf(cell));
             // Measured to the cell's NEAREST corner, not its centre: a cell straddling the blind
@@ -268,7 +285,15 @@ public final class SurveyArea implements PrimitiveTask {
             if (distance > horizon || distance - CELL_REACH <= blind) {
                 continue;
             }
-            confidence[cell] = (float) Math.max(confidence[cell], 1.0 - distance / horizon);
+            // An OBSTRUCTED view is worth less than distance alone suggests; a clear one is worth
+            // no more. Crediting a clear line of sight outright made sweeps instant and blind —
+            // only the near field can INDIVIDUATE what stands on ground, and the box that yielded
+            // fifty trees came back with none, reporting "done".
+            double credit = 1.0 - distance / horizon;
+            if (!probe.sightClearBetween(from, groundOf(centreOf(cell), probe))) {
+                credit *= OBSTRUCTED_VIEW;
+            }
+            confidence[cell] = (float) Math.max(confidence[cell], credit);
         }
         seen.clear();
     }
@@ -350,6 +375,15 @@ public final class SurveyArea implements PrimitiveTask {
             return -1;
         }
         return cx * deep + cz;
+    }
+
+    /**
+     * The cell centre dropped onto whatever stands there — the line of sight has to be tested
+     * against the GROUND, not against a point in the air at the surveyor's own altitude, or a
+     * body on a hilltop reports a clear view of the sky above a valley it cannot see into.
+     */
+    private static Pos groundOf(Pos centre, BlockProbe probe) {
+        return new Pos(centre.x(), probe.surfaceY(centre.x(), centre.z()) + 1, centre.z());
     }
 
     private static double horizontalDistance(Pos from, Pos to) {

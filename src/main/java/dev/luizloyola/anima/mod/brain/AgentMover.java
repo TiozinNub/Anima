@@ -60,6 +60,16 @@ public final class AgentMover implements Mover {
         };
     }
 
+    /**
+     * PATHING, unfolded. {@link #state()} hides it from tasks that only ask whether their order is
+     * still being worked on; a task counting TICKS against an off-thread search needs this instead.
+     */
+    @Override
+    public boolean routing() {
+        return this.person.navigator().state()
+                == dev.luizloyola.anima.mod.nav.Navigator.State.PATHING;
+    }
+
     @Override
     public void stop() {
         this.person.navigator().stop();
