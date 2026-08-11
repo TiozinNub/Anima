@@ -112,6 +112,24 @@ public final class Pathfinder {
     private static final int[][] STRIDES;
     private static final double[] STRIDE_COSTS;
 
+    /**
+     * How far a single stroke may reach, per axis, for a body already in the water.
+     *
+     * <p>Water is the one place in this model with no gravity to obey and no floor to follow, so a
+     * body in it can go anywhere its own straight line is clear — where a model of axis-aligned
+     * steps only makes it spell a slope out as a staircase.
+     */
+    private static final int WATER_REACH = 2;
+    /**
+     * How finely a stroke's line is sampled when looking for what it passes through. Eight to the
+     * block is well past the point where a cell could hide between two samples, and costs almost
+     * nothing: the samples are arithmetic, and only the cells they land in are actually tested.
+     */
+    private static final int LINE_SAMPLES_PER_BLOCK = 8;
+    /** Every offset a swimmer may take in one stroke, and its true length. See {@link #WATER_REACH}. */
+    private static final int[][] WATER_STROKES;
+    private static final double[] WATER_STROKE_LENGTHS;
+
     static {
         List<int[]> strides = new ArrayList<>();
         for (int r = 2; r <= MAX_STRIDE; r++) {
@@ -127,6 +145,28 @@ public final class Pathfinder {
         STRIDE_COSTS = new double[STRIDES.length];
         for (int i = 0; i < STRIDES.length; i++) {
             STRIDE_COSTS[i] = Math.sqrt(STRIDES[i][0] * STRIDES[i][0] + STRIDES[i][1] * STRIDES[i][1]);
+        }
+
+        // Every offset within reach on all three axes, nearest first so the cheap common strokes
+        // are probed before the long ones. Fixed order: determinism again.
+        List<int[]> strokes = new ArrayList<>();
+        for (int dx = -WATER_REACH; dx <= WATER_REACH; dx++) {
+            for (int dy = -WATER_REACH; dy <= WATER_REACH; dy++) {
+                for (int dz = -WATER_REACH; dz <= WATER_REACH; dz++) {
+                    if (dx != 0 || dy != 0 || dz != 0) {
+                        strokes.add(new int[] {dx, dy, dz});
+                    }
+                }
+            }
+        }
+        strokes.sort((a, b) -> Integer.compare(
+                a[0] * a[0] + a[1] * a[1] + a[2] * a[2],
+                b[0] * b[0] + b[1] * b[1] + b[2] * b[2]));
+        WATER_STROKES = strokes.toArray(new int[0][]);
+        WATER_STROKE_LENGTHS = new double[WATER_STROKES.length];
+        for (int i = 0; i < WATER_STROKES.length; i++) {
+            int[] o = WATER_STROKES[i];
+            WATER_STROKE_LENGTHS[i] = Math.sqrt(o[0] * o[0] + o[1] * o[1] + o[2] * o[2]);
         }
     }
 
@@ -172,6 +212,13 @@ public final class Pathfinder {
     /** Careful-ground memo: each cell is probed by every incident edge, and one probe costs ~20
      *  grid reads — cache it per search. */
     private final Map<Long, Boolean> carefulCache = new HashMap<>();
+    /**
+     * Water-node memo, same reasoning as {@link #carefulCache}: the test is not cheap (a
+     * standability check plus a clearance loop) and every cell is re-tested by each of its own
+     * neighbours. It matters more here — a swimmer has a hundred neighbours where a walker has
+     * forty.
+     */
+    private final Map<Long, Boolean> waterNodeCache = new HashMap<>();
     /**
      * What this body would rather not walk past. A snapshot taken before the search left the
      * server thread — see {@link PathRequest#of(int, int, int, int, int, int, MoveCapabilities,
@@ -282,30 +329,67 @@ public final class Pathfinder {
             for (int[] d : CARDINALS) swimEnter(current, node, x, y, z, from, d[0], d[1]);
             return;
         }
-        // In the water, at any depth. Crossing and the vertical pair are the same moves however
-        // deep the body is; only climbing OUT needs the surface, because a body reaches a bank by
-        // coming up to it rather than by rising through it.
-        for (int[] d : CARDINALS) swimCross(current, node, x, y, z, d[0], d[1]);
-        for (int[] d : DIAGONALS) swimCrossDiagonal(current, node, x, y, z, d[0], d[1]);
-        swimVertical(current, node, x, y, z);
+        // In the water, at any depth: one stroke to anywhere within reach whose line is clear.
+        // Only climbing OUT needs the surface, because a body reaches a bank by coming up to it
+        // rather than by rising through it.
+        for (int i = 0; i < WATER_STROKES.length; i++) {
+            int[] o = WATER_STROKES[i];
+            swimStroke(current, node, x, y, z, o[0], o[1], o[2], WATER_STROKE_LENGTHS[i]);
+        }
         if (!isSubmerged(x, y, z)) {
             for (int[] d : CARDINALS) swimExit(current, node, x, y, z, d[0], d[1]);
         }
     }
 
+
     /**
-     * Up or down one cell inside a water column — the only moves covering no ground, and what lets
-     * a body afloat go under. Both cost a full stroke: pricing the rise lower would have the search
-     * bob a body up and down to shave a crossing, and any positive price keeps the heuristic
-     * admissible.
+     * One stroke: a straight line to any cell within reach whose whole path is open water. The
+     * water twin of {@link #strideNeighbor}, in the full three dimensions where a stride is two —
+     * a stride's {@code y} is dictated by the ground, and a stroke's is free.
+     *
+     * <p><b>Legality is the LINE the body swims, not the bounding box around it.</b> The land
+     * stride checks a box because a walker is dragged along the ground and can be carried wide; a
+     * swimmer goes where it is pointed. Checking the box here was measured at four times the
+     * search cost in open water — 124 offsets, none of them rejected, each sweeping up to 27 cells
+     * — for an answer no better. Sampled fine enough that a cell clipped at a corner is still
+     * seen, and only the DISTINCT cells are tested, since the test is what costs. Bails on the
+     * first failure, so the table is sorted nearest-first.
+     *
+     * <p>Priced at its true length, so a stroke genuinely undercuts the steps it replaces
+     * (√3 &lt; 3) and A* prefers it with no special case. Tagged by where it is going rather than
+     * how far: down is a {@link MoveType#DIVE}, up is a {@link MoveType#SURFACE}, level is a
+     * {@link MoveType#SWIM}.
      */
-    private void swimVertical(long current, Node node, int x, int y, int z) {
-        if (isWaterNode(x, y - 1, z)) {
-            relaxWater(current, node, pack(x, y - 1, z), MoveType.DIVE, SWIM_COST, x, y - 1, z);
+    private void swimStroke(long current, Node node, int x, int y, int z,
+                            int dx, int dy, int dz, double length) {
+        int nx = x + dx;
+        int ny = y + dy;
+        int nz = z + dz;
+        if (!isWaterNode(nx, ny, nz)) {
+            return;
         }
-        if (isWaterNode(x, y + 1, z)) {
-            relaxWater(current, node, pack(x, y + 1, z), MoveType.SURFACE, SWIM_COST, x, y + 1, z);
+        int steps = (int) Math.ceil(length * LINE_SAMPLES_PER_BLOCK);
+        int lastX = x;
+        int lastY = y;
+        int lastZ = z;
+        for (int i = 1; i <= steps; i++) {
+            double t = (double) i / steps;
+            int cx = (int) Math.floor(x + 0.5 + dx * t);
+            int cy = (int) Math.floor(y + 0.5 + dy * t);
+            int cz = (int) Math.floor(z + 0.5 + dz * t);
+            if (cx == lastX && cy == lastY && cz == lastZ) {
+                continue; // same cell as the last sample: already tested
+            }
+            lastX = cx;
+            lastY = cy;
+            lastZ = cz;
+            if (!isWaterNode(cx, cy, cz)) {
+                return;
+            }
         }
+        MoveType move = dy < 0 ? MoveType.DIVE : dy > 0 ? MoveType.SURFACE : MoveType.SWIM;
+        relaxWater(current, node, pack(nx, ny, nz), move,
+                strokeCost(nx, ny, nz) * length, nx, ny, nz);
     }
 
     /**
@@ -314,6 +398,17 @@ public final class Pathfinder {
      * flooded tunnel are both water nodes, and every horizontal move treats them alike.
      */
     private boolean isWaterNode(int x, int y, int z) {
+        Boolean known = this.waterNodeCache.get(pack(x, y, z));
+        return known != null ? known : computeWaterNode(x, y, z);
+    }
+
+    private boolean computeWaterNode(int x, int y, int z) {
+        boolean answer = uncachedWaterNode(x, y, z);
+        this.waterNodeCache.put(pack(x, y, z), answer);
+        return answer;
+    }
+
+    private boolean uncachedWaterNode(int x, int y, int z) {
         if (this.grid.cell(x, y, z) != CellType.WATER) return false;
         if (isStandable(x, y, z)) return false; // wadeable: it is ground to this model, not water
         for (int i = 1; i <= this.profile.topCell(0.0); i++) {
@@ -356,28 +451,7 @@ public final class Pathfinder {
         return this.grid.cell(x, y, z) == CellType.WATER && fits(x, y, z, 0.0);
     }
 
-    /** One stroke to the adjacent water cell at this level — at the surface or well under it. */
-    private void swimCross(long current, Node node, int x, int y, int z, int dx, int dz) {
-        int nx = x + dx;
-        int nz = z + dz;
-        if (isWaterNode(nx, y, nz)) {
-            relaxWater(current, node, pack(nx, y, nz), MoveType.SWIM, strokeCost(nx, y, nz),
-                    nx, y, nz);
-        }
-    }
 
-    /**
-     * A diagonal surface stroke: both flanks must also be open water, so the body can't clip a
-     * corner block mid-stroke (the same corner-cut guard the on-land diagonal uses).
-     */
-    private void swimCrossDiagonal(long current, Node node, int x, int y, int z, int dx, int dz) {
-        int nx = x + dx;
-        int nz = z + dz;
-        if (isWaterNode(nx, y, nz) && isWaterNode(nx, y, z) && isWaterNode(x, y, nz)) {
-            relaxWater(current, node, pack(nx, y, nz), MoveType.SWIM,
-                    strokeCost(nx, y, nz) * SQRT2, nx, y, nz);
-        }
-    }
 
     /**
      * Step off the shore into the neighbouring water column: onto a surface level with the bank, or

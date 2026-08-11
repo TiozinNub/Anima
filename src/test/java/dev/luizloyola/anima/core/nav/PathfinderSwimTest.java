@@ -156,8 +156,9 @@ class PathfinderSwimTest {
         assertTrue(path.reachedGoal(), "should go under: " + path.waypoints());
         assertTrue(hasMove(path, MoveType.DIVE), "must dive to get under: " + path.waypoints());
         assertTrue(hasMove(path, MoveType.SURFACE), "and come back up: " + path.waypoints());
-        // The roofed stretch is crossed at y=-1, below the stone lid at y=0.
-        assertTrue(path.waypoints().stream().anyMatch(w -> w.y() == -1),
+        // Below the lid at y=0, but not at any particular depth: a 3D stroke goes straight to the
+        // level it needs, so there is no waypoint on each level it passes through.
+        assertTrue(path.waypoints().stream().anyMatch(w -> w.x() >= 3 && w.x() <= 5 && w.y() < 0),
                 "the crossing itself happens under the roof: " + path.waypoints());
     }
 
