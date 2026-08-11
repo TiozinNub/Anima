@@ -51,18 +51,22 @@ public final class NeedKind {
 
     /**
      * Air — a VIEW over the body's own air supply (see {@link BreathNeed}), and the one need with
-     * no organ behind it: air is already ticked for anything alive, so there is nothing to
+     * no organ behind it: the game already ticks air for anything alive, so there is nothing to
      * transcribe and nothing to keep in step.
      *
-     * <p>The fastest need on the roster by an order of magnitude — a full lungful is fifteen
+     * <p><b>The fastest need on the roster by an order of magnitude</b> — a full lungful is fifteen
      * seconds where hunger takes an in-game day — so {@code gasping} is priced to outbid everything
-     * else, and both urgent levels are unbounded in what they will spend.
+     * else a body could be doing, and both urgent levels are unbounded in what they will spend.
      *
-     * <p>The axis is vanilla's 300-tick bar. A species with a bigger lungful must move both its
-     * {@code getMaxAirSupply} and these level values, and the second cannot pass the axis, so it
-     * wants this need re-declared with an axis of its own rather than a config edit.
+     * <p><b>{@code easy}'s value is the lungful</b>, reported live by the body as its own capacity
+     * (see {@code Person.getMaxAirSupply}), so a modifier granting deeper lungs moves both at once
+     * and neither can drift from the other.
+     *
+     * <p>The axis therefore runs well past a settler's own 300: it bounds what any body may
+     * DECLARE, not what this one holds. The stretch above a body's {@code easy} is pinned at full
+     * pressure like any unanchored end, and is unreachable because air is capped at that capacity.
      */
-    public static final NeedKind BREATH = declare("breath", Kind.INT, 0, 300, "ticks of air")
+    public static final NeedKind BREATH = declare("breath", Kind.INT, 0, 1200, "ticks of air")
             .level("drowning", 0, 1.00, -1)
             .level("gasping", 60, 0.95, -1)
             .level("short", 140, 0.35, 40)
@@ -200,6 +204,16 @@ public final class NeedKind {
     /** This need's levels, in declaration order. Empty for a need that answers for itself. */
     public List<NeedLevel> levels() {
         return levels;
+    }
+
+    /**
+     * One level by name, for the rare caller that means a particular one rather than whichever the
+     * body is at — {@code BREATH.level("easy")}, whose value a body reports as its own lung
+     * capacity. Empty for a name this need never declared, so a rename fails where it is used
+     * instead of silently reading zero.
+     */
+    public Optional<NeedLevel> level(String levelKey) {
+        return levels.stream().filter(level -> level.key().equals(levelKey)).findFirst();
     }
 
     /** The ramp through those levels, or null when there are none. */

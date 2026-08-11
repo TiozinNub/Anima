@@ -31,9 +31,11 @@ public final class BreathNeed implements Gauge {
 
     /**
      * @param air how many ticks of air the body has left, right now
-     * @param fullBreath how many it has when it has just surfaced — read live, and reported by
-     *     {@link #describe()} so a body whose lungful ever stops matching {@link NeedKind#BREATH}'s
-     *     axis is visible in a readout rather than quietly mis-levelled
+     * @param fullBreath how many it has when it has just surfaced — read live, because a lungful is
+     *     per body and may be shifted by a modifier mid-life. Expected to be the same declaration
+     *     {@code BREATH}'s {@code easy} level carries (see that need); reported by
+     *     {@link #describe()} so a body where the two ever came apart says so in a readout instead
+     *     of quietly spending half of every breath at a pressure it should not feel
      * @param profile this body's resolved aspects, as a supplier — bodies build their roster in
      *     field initialisers, before they can answer what species they are
      */

@@ -3,6 +3,10 @@ package dev.luizloyola.anima.core.agent.need;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.AgentModifiers;
+import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.AspectModifier;
+import dev.luizloyola.anima.core.agent.ModifiedProfile;
 import dev.luizloyola.anima.core.agent.TestSpecies;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -83,13 +87,58 @@ class BreathNeedTest {
         assertEquals(1.0, previous, DELTA, "empty is as urgent as this need gets");
     }
 
+    /**
+     * Capacity is per AGENT, not merely per species, and one number rather than two: a body reports
+     * {@code easy}'s own boundary as its lungful, so deepening the lungs moves the comfort anchor
+     * with them. Narrowed back to a settler's 300, a deeper body's full breath would clamp and
+     * report a pressure it should not feel.
+     */
+    @Test
+    @DisplayName("a deeper lungful moves comfort with it — one declaration, not two")
+    void aDeeperLungfulIsComfortableWhenFull() {
+        AgentModifiers deepLungs = new AgentModifiers();
+        deepLungs.apply(AspectModifier.add(
+                "trait:diver", NeedKind.BREATH.level("easy").orElseThrow().valueAspect(), 300));
+        AgentProfile diver = ModifiedProfile.of(TestSpecies.PROFILE, deepLungs);
+
+        int[] air = {600};
+        BreathNeed breath = new BreathNeed(() -> air[0], () -> 600, () -> diver);
+
+        assertEquals(600.0, breath.value(), DELTA);
+        assertEquals("easy", breath.level().key(), "a full lungful is a full lungful, however deep");
+        assertEquals(0.0, breath.pressure(), DELTA,
+                "a diver at 600 of 600 must want nothing; if the axis clamps, this reads ~0.23");
+
+        // And the settler's own reading is untouched by somebody else's lungs.
+        int[] plain = {300};
+        assertEquals(0.0, new BreathNeed(() -> plain[0], () -> 300, () -> TestSpecies.PROFILE)
+                .pressure(), DELTA);
+    }
+
+    @Test
+    @DisplayName("a deeper body still runs out at the same place — the bottom levels do not move")
+    void theUrgentEndStaysWhereItWas() {
+        AgentModifiers deepLungs = new AgentModifiers();
+        deepLungs.apply(AspectModifier.add(
+                "trait:diver", NeedKind.BREATH.level("easy").orElseThrow().valueAspect(), 300));
+        AgentProfile diver = ModifiedProfile.of(TestSpecies.PROFILE, deepLungs);
+
+        int[] air = {60};
+        BreathNeed breath = new BreathNeed(() -> air[0], () -> 600, () -> diver);
+        assertEquals("gasping", breath.level().key(),
+                "three seconds of air is three seconds of air whatever the tank held");
+        assertEquals(0.95, breath.pressure(), DELTA);
+    }
+
     @Test
     @DisplayName("a body reports its real lungful, so a mismatched one is visible in a readout")
     void describeShowsTheBodysOwnFullMark() {
+        // Capacity and the comfort anchor are meant to be one declaration; this body's have come
+        // apart (600 held, comfort at 300), which a readout must make visible rather than absorb.
         BreathNeed odd = new BreathNeed(() -> 150, () -> 600, () -> TestSpecies.PROFILE);
         assertTrue(odd.describe().contains("/600"),
-                "the levels are calibrated against a 300-tick axis; a body with another lungful "
-                        + "must not be able to hide it: " + odd.describe());
+                "a body whose lungful stopped matching its own easy level must say so: "
+                        + odd.describe());
     }
 
     @Test
