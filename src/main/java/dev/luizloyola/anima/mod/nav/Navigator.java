@@ -150,6 +150,8 @@ public final class Navigator {
      * wide landing. Reset on every new path.
      */
     private int lastLeapPressIndex = -1;
+    /** Set by {@link #tickSwim}, read by the body — see {@link #isCrossingWater()}. */
+    private boolean crossingWater;
     private double lastTickX;
     private double lastTickZ;
     private int repathsLeft;
@@ -236,6 +238,17 @@ public final class Navigator {
         return this.index;
     }
 
+    /**
+     * Whether the last {@link #tick()} steered a water leg — the follower's own verdict, not a
+     * re-derivation, so {@link #tickSwim} is the only place deciding what counts as swimming.
+     * Reported as a navigational fact so a body can <em>look</em> like it is swimming however it
+     * likes. Cleared at the top of every tick, not by whoever stops moving, so no branch leaves
+     * stale state behind.
+     */
+    public boolean isCrossingWater() {
+        return this.crossingWater;
+    }
+
     /** One-line progress summary for the debug command. */
     public String describe() {
         StringBuilder text = new StringBuilder(this.state.toString());
@@ -256,6 +269,7 @@ public final class Navigator {
      * so a stopped AgentBody never coasts on stale input.
      */
     public void tick() {
+        this.crossingWater = false; // set again only by the branch that actually swims, below
         switch (this.state) {
             case PATHING -> tickPathing();
             case FOLLOWING -> tickFollowing();
@@ -554,6 +568,7 @@ public final class Navigator {
      */
     private void tickSwim(Waypoint waypoint, boolean isLast, Vec3 pos,
                           double dx, double dz, double horizontalSq, double dy) {
+        this.crossingWater = true; // the one place that decides it — see isCrossingWater()
         boolean landTarget = waypoint.move() != MoveType.SWIM; // a climb-out step onto solid ground
         double radius = isLast ? FINAL_RADIUS : WAYPOINT_RADIUS;
         double vertical = landTarget ? verticalGap(dy) : 0.0;
