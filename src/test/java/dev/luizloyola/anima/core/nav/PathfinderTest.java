@@ -242,6 +242,31 @@ class PathfinderTest {
     }
 
     @Test
+    void walksRoundAChasmRatherThanSprintJumpingIt() {
+        // Purely about cost, and it used to be the leap: leap prices were flat per block (1.25)
+        // while walking beside a drop is careful ground (2.2), so the riskiest move was the
+        // cheapest way past an obstacle.
+        AsciiWorld world = AsciiWorld.of(
+                "1111111",
+                "11   11");
+        Path path = find(world, 0, 1, 1, 6, 1, 1);
+
+        assertTrue(path.reachedGoal());
+        assertFalse(path.waypoints().stream().anyMatch(w -> w.move() == MoveType.LEAP),
+                "a rim she cannot fall off beats a sprint jump over a hole: " + path.waypoints());
+    }
+
+    @Test
+    void stillLeapsWhenThereIsNoWayRound() {
+        // The other half: pricing a leap up must not price it out. Same chasm, no rim.
+        AsciiWorld world = AsciiWorld.of("11   11");
+        Path path = find(world, 0, 1, 0, 6, 1, 0);
+
+        assertTrue(path.reachedGoal(), "a leap is what happens when there is no detour");
+        assertTrue(path.waypoints().stream().anyMatch(w -> w.move() == MoveType.LEAP));
+    }
+
+    @Test
     void prefersLeapingATrenchOverDippingThroughIt() {
         // 1-wide 1-deep trench: leaping it (2.4) beats drop-in + jump-out (3.0).
         Path path = find(AsciiWorld.of("22122"), 0, 2, 0, 4, 2, 0);

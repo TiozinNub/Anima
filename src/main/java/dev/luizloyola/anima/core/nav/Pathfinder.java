@@ -32,11 +32,19 @@ public final class Pathfinder {
     /** Jumping is slow (stall, arc) — twice a plain step, so ramps beat hop-scotch when both exist. */
     private static final double JUMP_COST = 2.0;
     /**
-     * Leap cost by gap width (index = gap). Each exceeds the covered distance (gap+1 — the
-     * admissibility floor) by a risk premium that grows with the gap, so a leap beats dipping
-     * through a trench (drop+jump = 3.0 > 2.4) but a safe flat detour beats a wide leap.
+     * Leap cost by gap width (index = gap). Each exceeds the covered distance (gap+1, the
+     * admissibility floor) by a risk premium that grows STEEPLY: per block covered 1.2, 1.8 and
+     * 2.4, against a plain walk's 1.0 and the careful factor's 2.2. The old flat premiums
+     * (2.4 / 3.6 / 5.0) priced a 3-block sprint jump under careful walking, making the riskiest
+     * move the cheapest way past an obstacle.
+     *
+     * <p>The 1-gap price is untouched: leaping a shallow trench must keep beating dipping through
+     * it (2.4 &lt; drop 1.0 + jump 2.0), and hopping a one-wide stream must keep beating wading.
+     *
+     * <p>Do not multiply by {@link #carefulFactor}: it is the follower's throttle as time and a leap
+     * is never throttled — charging it priced a one-wide water hop above swimming.
      */
-    private static final double[] LEAP_COSTS = {0.0, 2.4, 3.6, 5.0};
+    private static final double[] LEAP_COSTS = {0.0, 2.4, 5.4, 9.6};
     /**
      * Cost multiplier for unit moves whose either endpoint is careful ground (bordering a chasm,
      * lava, or water — {@link NavGrids#isNearDeepDrop}): the follower walks such steps at the
@@ -47,10 +55,11 @@ public final class Pathfinder {
     private static final double CAREFUL_COST_FACTOR = 2.2;
     /**
      * Cost of one cardinal cell of swimming — the swim-vs-detour dial. Well above a walk (1.0) and
-     * around the careful factor (2.2), so a dry route of comparable length wins and water is
-     * crossed only when swimming saves real distance; narrow water is <em>leapt</em> (2.4–5.0).
-     * Must stay ≥ {@link #WALK_COST} to keep the horizontal heuristic admissible: a swim move
-     * covers at most its cost in horizontal distance (diagonal √2 against a 2.5·√2 price).
+     * around the careful factor (2.2), so the search takes a dry route of comparable length and
+     * only crosses water when swimming genuinely saves distance. Narrow water still gets
+     * <em>leapt</em> (a one-wide gap for 2.4) rather than swum. Must stay ≥ {@link #WALK_COST} so
+     * the horizontal Euclidean heuristic stays admissible — every swim move covers at most its
+     * cost in horizontal distance (cardinal 1, diagonal √2 against a 2.5·√2 price, enter/exit 1).
      */
     private static final double SWIM_COST = 2.5;
 
