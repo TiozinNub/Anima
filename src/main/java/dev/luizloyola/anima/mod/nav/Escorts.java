@@ -15,6 +15,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -25,22 +26,31 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * "Follow me" — the standing order that keeps an agent walking after somebody until it is called
- * off. A debug leash: a way to <em>lead</em> a body to the scene you want to watch it in.
+ * off. The debug leash: a way to <em>lead</em> a body to the scene you want to watch it in.
  *
- * <p>Cheats at perception deliberately: the target's real position every few ticks — no line of
- * sight, no being sense, no memory. The real version is a drive over {@code Percepts.beings()}
- * beside {@code WanderInstinct}; this stays the operator's override of it.
+ * <p><b>It cheats at perception, by specification</b> (decision: Luiz): the target's real position,
+ * read every few ticks — no line of sight, no being sense, no memory of where they were last seen.
  *
- * <p>Drives the {@link Navigator} directly, below the brain — the command that installs one
- * switches autonomy off first, since two owners of the legs is the bug. Every look checks the
+ * <p>The real version is a different feature, a pet's or a guard's: follow a
+ * {@link dev.luizloyola.anima.core.brain.sense.Being} to its last SEEN position, bidding against
+ * the other drives rather than taking the legs, beside {@code WanderInstinct} in
+ * {@code core/brain}. Nothing here is a step toward it — the two want opposite things from
+ * perception.
+ *
+ * <p><b>It drives the {@link Navigator} directly, below the brain</b>, so the command that installs
+ * one switches autonomy off first: two owners of the legs is the bug. Every look checks that the
  * navigator's goal is still the one <em>it</em> set; anything else means somebody drove, and the
- * order ends rather than fighting for it.
+ * order ends rather than fighting for the wheel. Hence the escort must be the only thing that stops
+ * these legs.
  *
- * <p>{@code near}/{@code far} are a hysteresis pair, not a range (see {@link Order}): {@code far}
- * is how far the target may get before the body sets off, {@code near} where it aims to end up,
- * measured out from the target. One number for both would start and stop the body on every look.
+ * <p><b>Two distances per order</b> (see {@link Order}): {@code far} is the leash, how far the
+ * target may get before the body sets off; {@code near} is where it aims to end up, measured out
+ * from the target. {@code 3 6} settles three behind you, {@code 0 10} strays ten then walks onto
+ * you. A hysteresis pair, not a range: one number would start and stop a body on every look while
+ * somebody stood on the boundary.
  *
- * <p>Transient, one map per server, gone on stop; not persisted.
+ * <p><b>Transient, one map per server</b>, gone on stop, and not persisted: nobody who
+ * reloads a world wants to find out an hour later that a settler is still trailing them.
  */
 public final class Escorts {
 
@@ -48,11 +58,15 @@ public final class Escorts {
     }
 
     /**
-     * How often an escort looks. Four times a second: no rubber-banding behind a walking player,
-     * and the re-path it can trigger (a fresh {@code WorldSnapshot}, off-thread but not free)
-     * fires at most every five ticks per following agent.
+     * How often an escort looks — and so, the fastest it can re-aim. Six or seven times a second,
+     * because a goal that went stale mid-stride shows up only as a body arriving somewhere odd and
+     * then taking a second, pointless little walk to fix it.
+     *
+     * <p>It bounds the cost as well: each re-aim builds a fresh {@code WorldSnapshot} (server
+     * thread) and runs a search (off it). Three ticks is affordable because a leash carries one or
+     * two bodies; it would not be on a drive every settler ran.
      */
-    private static final int LOOK_INTERVAL_TICKS = 5;
+    private static final int LOOK_INTERVAL_TICKS = 3;
 
     /** Where an order aims to end up when nobody said — close enough to be together. */
     public static final double DEFAULT_NEAR = 3.0;
@@ -61,10 +75,17 @@ public final class Escorts {
     public static final double DEFAULT_FAR = 5.0;
 
     /**
-     * How far the target may drift from the goal already being walked to before the route is worth
-     * recomputing.
+     * The most a target may drift from the goal being walked to before the route is re-aimed. Kept
+     * inside a stride and a half: under this, finishing the leg is cheaper than re-planning it.
      */
-    private static final double DRIFT_REPATH = 3.0;
+    private static final double DRIFT_MAX = 1.5;
+
+    /**
+     * The tightest that tolerance is allowed to get, however narrow the order. Zero would re-aim
+     * on every look, which is a search every {@link #LOOK_INTERVAL_TICKS} ticks for a body that has
+     * shifted a few centimetres.
+     */
+    private static final double DRIFT_MIN = 0.75;
 
     /** Beyond this, hurry — the escort has fallen behind rather than merely trailing. */
     private static final double SPRINT_BEYOND = 12.0;
@@ -269,7 +290,7 @@ public final class Escorts {
             escort.quietUntil = server.getTickCount() + FAIL_BACKOFF_TICKS;
         }
         boolean drifted = escort.issued != null
-                && Math.sqrt(want.distSqr(escort.issued)) > DRIFT_REPATH;
+                && Math.sqrt(want.distSqr(escort.issued)) > driftTolerance(near, far);
         if (!standing && !settled && !drifted) {
             return null; // still walking somewhere near enough to where they are
         }
@@ -279,6 +300,20 @@ public final class Escorts {
         // the escort's whole claim to these legs is that the two agree.
         escort.issued = navigator.goal();
         return null;
+    }
+
+    /**
+     * How far this order lets its goal go stale before re-aiming — {@link #DRIFT_MAX}, tightened
+     * when the order itself is tighter.
+     *
+     * <p>The bound is {@code far - near}: the goal sits {@code near} out from where the target was,
+     * so a target that has moved {@code d} away leaves the body arriving {@code near + d} from it,
+     * inside the leash only while {@code d < far - near}. Past that it arrives outside the leash
+     * and sets off again — the second little walk that gave this away. A {@code 2 4} order
+     * therefore tolerates 1.5m of drift, not 2.5m.
+     */
+    private static double driftTolerance(double near, double far) {
+        return Mth.clamp(far - near, DRIFT_MIN, DRIFT_MAX);
     }
 
     /**
