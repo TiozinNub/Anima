@@ -94,8 +94,18 @@ public final class Swimmer {
      */
     private static final double PANIC_PRESSURE = 0.9;
 
-    /** How far off the route's depth a body may drift before it swims back to it, in blocks. */
-    private static final double DEPTH_BAND = 0.25;
+    /**
+     * How far above the target a descending body stops driving down, in blocks — its braking
+     * distance. Water keeps pulling after the input stops, so aiming AT the target overshoots it.
+     */
+    private static final double BRAKE_MARGIN = 0.55;
+
+    /**
+     * How close to the target cell's floor a body may sink before it swims back up, in blocks.
+     * Small, because the floor is a cell boundary and crossing one rewrites which cell the body is
+     * in — which is the unit every plan is written in.
+     */
+    private static final double FLOOR_MARGIN = 0.15;
 
     private final AgentBody body;
 
@@ -188,16 +198,23 @@ public final class Swimmer {
     }
 
     /**
-     * Swims toward the depth the route asked for, and stops when it is there.
+     * Swims toward the depth the route asked for, and holds the body INSIDE that cell once there.
      *
-     * <p>A hold, not a one-way press: drag sinks a body doing nothing, buoyancy lifts one that has
-     * just stopped diving. Inside the band it coasts.
+     * <p><b>Asymmetric.</b> Water keeps pulling after the input stops, so a band aimed AT the
+     * target sails through it — and once the feet cross into the next cell down, the next re-path
+     * plans from there and dives again toward the new floor, ratcheting down the whole column a
+     * cell at a time (Luiz: "a person still sinks all the way to the bottom"). Nothing about it
+     * looks like a bug from inside a single tick.
+     *
+     * <p>So the body stops driving down with {@link #BRAKE_MARGIN} still to fall, coasts on its
+     * momentum, and presses up within {@link #FLOOR_MARGIN} of the cell floor — the line it must
+     * not cross, because that is where "which cell am I in" changes and every plan is in cells.
      */
     private void holdDepth(LivingEntity entity, double targetY) {
         double off = entity.getY() - targetY;
-        if (off > DEPTH_BAND) {
+        if (off > BRAKE_MARGIN) {
             this.body.driveDown(DIVE_THROTTLE);
-        } else if (off < -DEPTH_BAND) {
+        } else if (off < FLOOR_MARGIN) {
             this.body.driveJump();
         }
     }
