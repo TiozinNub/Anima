@@ -8,6 +8,7 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * What a body does about being in water — the one owner of vertical intent while wet, and the one
@@ -84,7 +85,7 @@ public final class Swimmer {
      * buoyancy at full strength would overshoot the cell the route asked for, and a body that ends
      * a dive one cell below the tunnel it meant to enter is a body wedged under a roof.
      */
-    private static final float DIVE_THROTTLE = 0.6F;
+    private static final float DIVE_THROTTLE = 1.0F;
 
     /**
      * The pressure at which the breath need takes the vertical away from the route: past this, a
@@ -114,6 +115,17 @@ public final class Swimmer {
     private int graceTicks;
     /** Whether the breath need is past {@link #PANIC_PRESSURE} — see {@link #stateOf}. */
     private boolean outOfBreath;
+    /**
+     * Whether the route last put this body under, rather than on top of, the water.
+     *
+     * <p>A latch, not a per-tick reading: the route goes quiet while it re-plans, and a body that
+     * treats silence as "float" undoes its own descent — the intent blanks, buoyancy takes the
+     * vertical back, and the next plan starts from the cell the body was pushed up into. Once a
+     * second, that hovers a settler at the surface of a twenty-block pool forever.
+     *
+     * <p>Set and cleared only on things the route actually says. Silence changes nothing.
+     */
+    private boolean routeHasUsUnder;
 
     public Swimmer(AgentBody body) {
         this.body = body;
@@ -146,6 +158,14 @@ public final class Swimmer {
         } else {
             this.swimming = this.swimming ? this.graceTicks > 0 : plainlySwimming;
         }
+        switch (intent) {
+            case DIVE, CROSS_UNDER -> this.routeHasUsUnder = true;
+            case SURFACE, CROSS, EXIT -> this.routeHasUsUnder = false;
+            default -> { } // none: the route is between plans and has said nothing. Hold.
+        }
+        if (!inWater || this.outOfBreath) {
+            this.routeHasUsUnder = false;
+        }
         this.state = stateOf(inWater, deep, intent);
 
         // Sprint is not a mood in water, it is the gear: vanilla swims at a flat 0.02 either
@@ -161,6 +181,7 @@ public final class Swimmer {
         }
 
         driveVertical(entity, inWater, deep, intent);
+        aimTheHead(entity, intent);
     }
 
     /**
@@ -189,8 +210,6 @@ public final class Swimmer {
         // buoyancy gets no vote. Without the first a dive is a body arguing with itself; without
         // the second the body rises the moment the route stops saying DIVE — which is how a
         // crossing under a roof wedged a settler against its underside.
-        boolean routeHasUsUnder = this.state == State.DIVING
-                || intent == Navigator.WaterIntent.CROSS_UNDER;
         if (routeHasUsUnder) {
             holdDepth(entity, this.body.navigator().waterTargetY());
             return;
@@ -208,6 +227,44 @@ public final class Swimmer {
             this.body.driveJump();
         }
     }
+
+    /**
+     * Points the head where the body is actually going, which out of water is always level and in
+     * water is not.
+     *
+     * <p>The follower pins pitch flat on every steering tick, which is right on land. A swimmer's
+     * gaze is not: rendered level while it sinks it reads as a body being dragged (Luiz: "they
+     * should look up and down while diving"), and vanilla tilts the whole model by the pitch when
+     * it draws a swimmer, so this is not decoration.
+     *
+     * <p>Written after the vertical drive and after the follower's own {@code face}, which would
+     * otherwise flatten it again; eased rather than snapped, so the head turns instead of
+     * flicking.
+     */
+    private void aimTheHead(LivingEntity entity, Navigator.WaterIntent intent) {
+        if (this.state == State.DRY || this.state == State.WADING) {
+            return; // on its feet: the follower's level gaze is the right one
+        }
+        // From the body's own motion, not the waypoint: the waypoint is only ever a stroke
+        // away, so a body going straight down toward a target two blocks below tilted five
+        // degrees and read as level. Where it is MOVING is ninety degrees whether the next stroke
+        // is two blocks or twenty.
+        Vec3 motion = entity.getDeltaMovement();
+        double horizontal = Math.sqrt(motion.x * motion.x + motion.z * motion.z);
+        double wanted = 0.0;
+        if (motion.lengthSqr() > MOVING_ENOUGH_TO_AIM) {
+            // Degrees, positive downward — vanilla's convention, and the sign the renderer tilts by.
+            wanted = Mth.clamp(Math.toDegrees(Math.atan2(-motion.y, horizontal)), -MAX_LOOK, MAX_LOOK);
+        }
+        entity.setXRot((float) Mth.lerp(LOOK_EASE, entity.getXRot(), wanted));
+    }
+
+    /** Steepest the head will angle, short of the ninety degrees that would look like a somersault. */
+    private static final double MAX_LOOK = 85.0;
+    /** Below this speed (squared) there is no direction worth pointing at, so the head stays level. */
+    private static final double MOVING_ENOUGH_TO_AIM = 0.0004;
+    /** How much of the way to the wanted angle a single tick moves — a turn of the head, not a flick. */
+    private static final double LOOK_EASE = 0.25;
 
     /**
      * Swims toward the depth the route asked for, and holds the body INSIDE that cell once there.
@@ -241,7 +298,8 @@ public final class Swimmer {
                 case EXIT -> State.CLIMBING_OUT;
                 case DIVE -> this.outOfBreath ? State.SURFACING : State.DIVING;
                 case SURFACE -> State.SURFACING;
-                default -> State.CROSSING;
+                // none while still holding a depth is the re-path gap, not a change of plan.
+                default -> this.routeHasUsUnder ? State.DIVING : State.CROSSING;
             };
         }
         return deep ? State.TREADING : State.WADING;

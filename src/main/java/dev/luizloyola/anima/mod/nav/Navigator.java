@@ -740,11 +740,16 @@ public final class Navigator {
         }
 
         // Plain walking input: travel's water branch turns it into (slow) horizontal swimming.
-        // Skipped when there is no horizontal distance to cover, because atan2(0,0) is a heading
-        // like any other and would send a diving body wandering off north down the column.
+        //
+        // A leg with no horizontal distance is ZEROED, not skipped: skipping latches the last leg's
+        // forward input, and vanilla's fluid travel normalises the whole (x, y, z) vector before
+        // scaling, so a body told to swim straight down still pushed forward and sank at a third of
+        // the rate it should have.
         if (horizontalSq > NO_MOVE_EPSILON) {
             float heading = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F;
             this.person.driveForward(heading);
+        } else {
+            this.person.driveForward(this.person.entity().getYRot(), 0.0F);
         }
         // The climb-out's lift is not pressed here: every vertical press while wet belongs to the
         // Swimmer (ticked after this), so narrowing one press cannot silently remove another.

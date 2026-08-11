@@ -198,6 +198,33 @@ class PathfinderSwimTest {
                 "nothing in the way, so no reason to be under it: " + path.waypoints());
     }
 
+    /**
+     * Twenty cells of water with a rim to set off from. Filled rather than drawn because the
+     * glyphs stop at two cells.
+     */
+    private static AsciiWorld deepPool() {
+        return AsciiWorld.of("1WWW1").fill(1, -19, 0, 3, -2, 0, CellType.WATER);
+    }
+
+    @Test
+    @DisplayName("dives to the floor of a deep pool, not just under the surface")
+    void reachesTheBottomOfADeepPool() {
+        Path path = find(deepPool(), 0, 1, 0, 2, -19, 0);
+        assertTrue(path.reachedGoal(), "should get all the way down: " + path.waypoints());
+        assertEquals(-19, path.last().y(), "the route has to END on the floor");
+        assertTrue(hasMove(path, MoveType.DIVE));
+    }
+
+    /** The way down has to be paid for out of the same lungful as the way back to air. */
+    @Test
+    @DisplayName("a shallow lungful will not reach a deep floor")
+    void abandonsADiveItCannotAffordTheBreathFor() {
+        MoveCapabilities shortOfBreath = new MoveCapabilities(1.8, 1, 3, 3, true, 6);
+        Path path = find(deepPool(), 0, 1, 0, 2, -19, 0, shortOfBreath);
+        assertFalse(path.reachedGoal(),
+                "six cells of air is not nineteen of water: " + path.waypoints());
+    }
+
     // --- plunges: falling into water, which maxDrop has no say over --------------------------
 
     /**
