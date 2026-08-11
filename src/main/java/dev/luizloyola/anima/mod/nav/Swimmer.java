@@ -5,6 +5,8 @@ import dev.luizloyola.anima.mod.body.AgentBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
@@ -55,11 +57,11 @@ public final class Swimmer {
     }
 
     /**
-     * Blocks of water a body must have under it before being in it counts as swimming. Two, by
-     * arithmetic: on the bed of a two-deep pool a person-shaped head is under (1.8 &lt; 2.0); in
-     * one-deep there is a clear block above and a body walks.
+     * How far {@link #deepEnoughToSwimIn} will follow a column of water before it stops counting.
+     * Any water taller than a body is deep enough, so the answer arrives within a cell or two of
+     * the body every time; this only bounds the scan over an ocean.
      */
-    private static final int SWIMMABLE_DEPTH = 2;
+    private static final int COLUMN_SCAN = 8;
 
     /**
      * How far above the waterline a treading body keeps its eyes — enough that the whole head is
@@ -166,7 +168,7 @@ public final class Swimmer {
         // the second the body rises the moment the route stops saying DIVE — which is how a
         // crossing under a roof wedged a settler against its underside.
         boolean routeHasUsUnder = this.state == State.DIVING
-                || (this.state == State.CROSSING && fullySubmerged(entity));
+                || intent == Navigator.WaterIntent.CROSS_UNDER;
         if (routeHasUsUnder) {
             holdDepth(entity, this.body.navigator().waterTargetY());
             return;
@@ -200,11 +202,6 @@ public final class Swimmer {
         }
     }
 
-    /** Whether the body is under water all the way to the top of its box — not merely wet. */
-    private static boolean fullySubmerged(LivingEntity entity) {
-        return entity.getFluidHeight(FluidTags.WATER) >= entity.getBbHeight() - 0.1;
-    }
-
     /** A description of {@link #swimming} and the water, not a second opinion about either. */
     private State stateOf(boolean inWater, boolean deep, Navigator.WaterIntent intent) {
         if (!inWater) {
@@ -222,30 +219,44 @@ public final class Swimmer {
     }
 
     /**
-     * Whether the water under this body is deep enough to swim in — asked of the WORLD by counting
-     * the column.
+     * Whether the water HERE is deep enough to swim in — the height of the water itself, bed to
+     * surface, not what happens to be under the feet.
      *
-     * <p>Every question a body can ask about ITSELF is circular and was tried and taken back out:
-     * {@code onGround} is false for the tick or two of dropping off a bank, and "are my eyes under
-     * water" is answered by the pose being decided — the swimming box puts the eye at 0.4, wet
-     * enough in a one-deep stream that the reflex keeps pressing and the pose holds itself up.
-     * Fluid height cannot exceed the body's own box either, so it shrinks with the pose.
+     * <p>Every question the body can ask about ITSELF is circular, and each was tried and taken
+     * out: {@code onGround} is false for the tick or two of dropping off a bank into a stream;
+     * "are my eyes under water" is answered by the pose that is being decided (the swimming box
+     * puts the eye at 0.4, low enough to stay wet in a one-deep stream, so the reflex keeps
+     * pressing and the pose holds itself up); fluid height cannot exceed the body's own box, so it
+     * shrinks with the pose too.
      *
-     * <p>The scan starts a cell low in case the body is bobbing over the surface, and stops as soon
-     * as it has its answer.
+     * <p>Nor does where the body sits in the column matter: the first version counted water
+     * DOWNWARD from the feet, so a body swimming a flooded tunnel one cell off the bed found one
+     * cell of water, decided it was a puddle and walked the rest along the bottom (Luiz: "in the
+     * water tunnel case, they just walk on the floor, inside water"). Compared against the
+     * STANDING height deliberately: the swimming box is shorter, and measuring against it would be
+     * the same circle by another route.
      */
     private static boolean deepEnoughToSwimIn(LivingEntity entity) {
         BlockPos.MutableBlockPos cell = entity.blockPosition().mutable();
-        if (!entity.level().getFluidState(cell).is(FluidTags.WATER)) {
-            cell.move(Direction.DOWN);
+        if (!isWater(entity, cell)) {
+            cell.move(Direction.DOWN); // bobbing in the air over the surface
         }
-        for (int depth = 0; depth < SWIMMABLE_DEPTH; depth++) {
-            if (!entity.level().getFluidState(cell).is(FluidTags.WATER)) {
-                return false;
-            }
-            cell.move(Direction.DOWN);
+        if (!isWater(entity, cell)) {
+            return false;
         }
-        return true;
+        int column = 1;
+        for (int i = 0; i < COLUMN_SCAN && isWater(entity, cell.move(Direction.DOWN)); i++) {
+            column++;
+        }
+        cell.set(entity.blockPosition());
+        for (int i = 0; i < COLUMN_SCAN && isWater(entity, cell.move(Direction.UP)); i++) {
+            column++;
+        }
+        return column >= Mth.ceil(entity.getDimensions(Pose.STANDING).height());
+    }
+
+    private static boolean isWater(LivingEntity entity, BlockPos cell) {
+        return entity.level().getFluidState(cell).is(FluidTags.WATER);
     }
 
     /** What this body is doing about the water, as of the last {@link #tick()}. */
@@ -263,9 +274,14 @@ public final class Swimmer {
         return this.swimming;
     }
 
-    /** One line for a readout: what it is doing, and whether that counts as swimming. */
+    /**
+     * One line for a readout: what it is doing, plus a note when the latch and the state
+     * disagree. They disagree while the grace runs out — the body has left the water or the
+     * follower has stopped steering, but it still counts as swimming for a few ticks.
+     */
     public String describe() {
-        return this.state + (this.swimming && this.state != State.CROSSING
-                && this.state != State.CLIMBING_OUT ? " (still swimming)" : "");
+        boolean swimmingState = this.state == State.CROSSING || this.state == State.CLIMBING_OUT
+                || this.state == State.DIVING || this.state == State.SURFACING;
+        return this.state + (this.swimming && !swimmingState ? " (still swimming)" : "");
     }
 }

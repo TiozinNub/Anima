@@ -255,8 +255,13 @@ public final class Navigator {
     /** What the follower is asking of the water this tick — see {@link #waterIntent()}. */
     public enum WaterIntent {
         NONE,
-        /** Travelling through water toward another water cell. */
+        /** Travelling across the surface of water, head in the air. */
         CROSS,
+        /**
+         * Travelling through water with the head under it. Separate from {@link #CROSS} because
+         * here the body must not float: buoyancy would undo the depth the route chose.
+         */
+        CROSS_UNDER,
         /** Going down a water column, which is the one water move a body must be pushed into. */
         DIVE,
         /** Going up one, toward the air. */
@@ -622,7 +627,7 @@ public final class Navigator {
         this.waterIntent = switch (waypoint.move()) {
             case DIVE -> WaterIntent.DIVE;
             case SURFACE -> WaterIntent.SURFACE;
-            case SWIM -> WaterIntent.CROSS;
+            case SWIM -> isUnderWater(waypoint) ? WaterIntent.CROSS_UNDER : WaterIntent.CROSS;
             default -> WaterIntent.EXIT;
         };
         double radius = isLast ? FINAL_RADIUS : WAYPOINT_RADIUS;
@@ -674,6 +679,21 @@ public final class Navigator {
         }
         // The climb-out's lift is not pressed here: every vertical press while wet belongs to the
         // Swimmer (ticked after this), so narrowing one press cannot silently remove another.
+    }
+
+    /**
+     * Whether a waypoint's own cell is one where the body's head would be under water.
+     *
+     * <p>Asked of the GRID the route was planned on: the body cannot tell, because every measure it
+     * has of itself moves with the swimming pose, and the pose is downstream of this. Trying anyway
+     * pinned a surface swimmer half a block under its own lake and let buoyancy undo a dive.
+     */
+    private boolean isUnderWater(Waypoint waypoint) {
+        if (this.grid == null) {
+            return false;
+        }
+        int head = waypoint.y() + capabilities().topCell(0.0);
+        return this.grid.cell(waypoint.x(), head, waypoint.z()) == CellType.WATER;
     }
 
     /**
