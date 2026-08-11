@@ -50,6 +50,26 @@ public final class NeedKind {
             .build();
 
     /**
+     * Air — a VIEW over the body's own air supply (see {@link BreathNeed}), and the one need with
+     * no organ behind it: air is already ticked for anything alive, so there is nothing to
+     * transcribe and nothing to keep in step.
+     *
+     * <p>The fastest need on the roster by an order of magnitude — a full lungful is fifteen
+     * seconds where hunger takes an in-game day — so {@code gasping} is priced to outbid everything
+     * else, and both urgent levels are unbounded in what they will spend.
+     *
+     * <p>The axis is vanilla's 300-tick bar. A species with a bigger lungful must move both its
+     * {@code getMaxAirSupply} and these level values, and the second cannot pass the axis, so it
+     * wants this need re-declared with an axis of its own rather than a config edit.
+     */
+    public static final NeedKind BREATH = declare("breath", Kind.INT, 0, 300, "ticks of air")
+            .level("drowning", 0, 1.00, -1)
+            .level("gasping", 60, 0.95, -1)
+            .level("short", 140, 0.35, 40)
+            .level("easy", 300, 0.00, 0)
+            .build();
+
+    /**
      * How much company this body has had lately — the first gauge that is genuinely its own number
      * rather than a view, and bidirectional: see {@link Company}. Neither end of its axis is
      * comfortable, so both pin at full pressure and the V falls out of the ordinary ramp.
