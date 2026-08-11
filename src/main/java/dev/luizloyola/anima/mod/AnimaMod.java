@@ -51,6 +51,9 @@ public final class AnimaMod implements ModInitializer {
         StoreGuard.install();
         // Registered here so a bare install, or a consumer that paints nothing, still has it.
         dev.luizloyola.anima.mod.debug.CellOverlays.init();
+        // The follow-me leash's tick. Here rather than in a consumer: `/anima follow` is on the
+        // library's own root, so the order must be drivable with Anima alone.
+        dev.luizloyola.anima.mod.nav.Escorts.init();
         AnimaCommands.register(CONFIG);
         LOGGER.info("Anima loaded — the machinery is ready for whoever wants a mind.");
     }

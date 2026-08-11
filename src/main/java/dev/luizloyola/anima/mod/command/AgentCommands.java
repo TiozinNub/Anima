@@ -109,6 +109,7 @@ import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.identity.AgentDirectory;
 import dev.luizloyola.anima.mod.identity.Graves;
+import dev.luizloyola.anima.mod.nav.Escorts;
 import dev.luizloyola.anima.mod.nav.Swimmer;
 import dev.luizloyola.anima.core.agent.PrivateIdentity;
 
@@ -219,6 +220,46 @@ public final class AgentCommands {
                                 .then(Commands.literal("status")
                                         .executes(ctx -> navStatus(ctx.getSource())))
                                 .then(NavDump.node());
+    }
+
+    /**
+     * "Follow me" — a standing order to walk after somebody until it is called off. Bare it means
+     * follow ME; a target can be a player or anything an entity selector picks out (another agent,
+     * a cow), because the escort only ever asks a target where it is.
+     *
+     * <p><b>{@code follow <target> <near> <far>}</b> reads as one sentence: get this close, once
+     * they are this far. Omitted, they are {@value Escorts#DEFAULT_NEAR} and
+     * {@value Escorts#DEFAULT_FAR}; given, both are required, since {@code near} alone would leave
+     * the leash to a default nobody typed.
+     *
+     * <p><b>Installing one takes the legs</b>: the running task is cancelled and autonomy switched
+     * off, because the arbiter and the escort cannot both own the navigator. {@code brain auto
+     * true} therefore ENDS the follow — the escort stands down the moment anything else drives
+     * (see {@link Escorts}) — and {@code follow stop} does not re-enable autonomy, matching every
+     * other manual order here.
+     *
+     * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
+     * so a shared subcommand must be built once per root that mounts it.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> follow() {
+        return Commands.literal("follow")
+                                .executes(ctx -> followMe(ctx.getSource()))
+                                // Literals, so they beat a player named stop/list — reach one of
+                                // those with a selector (@p[name=stop]), the way `select` does.
+                                .then(Commands.literal("stop")
+                                        .executes(ctx -> followStop(ctx.getSource())))
+                                .then(Commands.literal("list")
+                                        .executes(ctx -> followList(ctx.getSource())))
+                                .then(Commands.argument("target", EntityArgument.entity())
+                                        .executes(ctx -> followTarget(ctx.getSource(),
+                                                EntityArgument.getEntity(ctx, "target"),
+                                                Escorts.DEFAULT_NEAR, Escorts.DEFAULT_FAR))
+                                        .then(Commands.argument("near", DoubleArgumentType.doubleArg(0.0))
+                                                .then(Commands.argument("far", DoubleArgumentType.doubleArg(0.0))
+                                                        .executes(ctx -> followTarget(ctx.getSource(),
+                                                                EntityArgument.getEntity(ctx, "target"),
+                                                                DoubleArgumentType.getDouble(ctx, "near"),
+                                                                DoubleArgumentType.getDouble(ctx, "far"))))));
     }
 
     /**
@@ -747,9 +788,127 @@ public final class AgentCommands {
         // doing, unseen.
         String water = person.swimmer().state() == Swimmer.State.DRY
                 ? "" : "  [" + person.swimmer().describe() + "]";
+        // A standing follow order explains a navigator that keeps taking goals nobody typed, so it
+        // rides on this line rather than behind `follow`.
+        AgentId id = person.agentId();
+        Entity leading = id == null ? null : Escorts.following(source.getServer(), id);
+        String escort = leading == null ? "" : "  following " + leading.getName().getString();
         Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
-                + person.navigator().describe() + water).withStyle(ChatFormatting.AQUA));
+                + person.navigator().describe() + water + escort).withStyle(ChatFormatting.AQUA));
         return 1;
+    }
+
+    /** Bare {@code follow}: the player who typed it is the one to follow. */
+    private static int followMe(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            Replies.fail(source, Component.literal(
+                    "Follow whom? Bare `follow` means \"follow me\", which only a player can say"
+                            + " — name a target: /anima follow <player>."));
+            return 0;
+        }
+        return followTarget(source, player, Escorts.DEFAULT_NEAR, Escorts.DEFAULT_FAR);
+    }
+
+    /**
+     * Installs the standing order that the resolved agent walks after {@code target}, ending up
+     * {@code near} blocks from them and setting off again once they are {@code far} away. Takes the
+     * legs first (see {@link AgentCommands#follow()}): a running task is cancelled and autonomy
+     * switched off, or the arbiter would drive over the escort within the half-second.
+     */
+    private static int followTarget(CommandSourceStack source, Entity target,
+            double near, double far) {
+        AgentBody person = resolveBody(source);
+        if (person == null) return 0;
+        AgentId id = person.agentId();
+        if (id == null) {
+            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
+            return 0;
+        }
+        String name = person.entity().getName().getString();
+        if (target == person.entity()) {
+            Replies.fail(source, Component.literal(name + " can't follow " + name + "."));
+            return 0;
+        }
+        if (target.level() != person.entity().level()) {
+            Replies.fail(source, Component.literal(target.getName().getString()
+                    + " is in another dimension — there is nothing to walk toward."));
+            return 0;
+        }
+        // A leash shorter than the distance it aims for is a body that arrives and is immediately
+        // told to set off again. Rejected rather than silently widened: a number quietly not being
+        // yours is worse than a retype.
+        if (far < near) {
+            Replies.fail(source, Component.literal(String.format(Locale.ROOT,
+                    "far (%.1f) must be at least near (%.1f) — the order reads \"get within near, "
+                            + "once they are far away\", so a shorter leash never lets them settle.",
+                    far, near)));
+            return 0;
+        }
+        person.brain().cancel();
+        boolean autoDisabled = person.brain().isAuto();
+        if (autoDisabled) {
+            person.brain().setAuto(false);
+        }
+        ServerPlayer asked = source.getPlayer();
+        Escorts.follow(source.getServer(), id, target, near, far,
+                asked == null ? null : asked.getUUID());
+        Replies.send(source, () -> Component.literal(String.format(Locale.ROOT,
+                        "%s is following %s — settling %.1fm away, setting off again past %.1fm.%s",
+                        name, target.getName().getString(), near, far,
+                        autoDisabledSuffix(autoDisabled)))
+                .withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
+    /** Calls the resolved agent's follow order off — the legs stop where they are. */
+    private static int followStop(CommandSourceStack source) {
+        AgentBody person = resolveBody(source);
+        if (person == null) return 0;
+        AgentId id = person.agentId();
+        if (id == null) {
+            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
+            return 0;
+        }
+        String name = person.entity().getName().getString();
+        if (!Escorts.stop(source.getServer(), id)) {
+            Replies.send(source, () -> Component.literal(name + " wasn't following anybody.")
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        // Autonomy stays where the order left it, like every other manual override here — but say
+        // so, because a body standing perfectly still is what a stuck brain looks like.
+        String manual = person.brain().isAuto() ? ""
+                : " (still on manual — /anima brain auto true)";
+        Replies.send(source, () -> Component.literal(name + " stopped following." + manual)
+                .withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
+    /** Every standing follow order on the server — the readout for "who is trailing whom". */
+    private static int followList(CommandSourceStack source) {
+        MinecraftServer server = source.getServer();
+        Map<AgentId, Escorts.Order> orders = Escorts.all(server);
+        if (orders.isEmpty()) {
+            Replies.send(source, () -> Component.literal("Nobody is following anybody.")
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        Replies.send(source, () -> Component.literal(orders.size() + " following:")
+                .withStyle(ChatFormatting.AQUA));
+        orders.forEach((agent, order) -> {
+            AgentBody body = AgentBodies.findLoaded(server, agent);
+            Entity target = Escorts.following(server, agent);
+            String who = body == null ? label(server, agent) + " (unloaded)"
+                    : body.entity().getName().getString();
+            String whom = target == null ? "somebody gone" : target.getName().getString();
+            String gap = body == null || target == null
+                    || target.level() != body.entity().level() ? ""
+                    : String.format(Locale.ROOT, "  %.1fm",
+                            Math.sqrt(body.entity().distanceToSqr(target)));
+            Replies.send(source, () -> Component.literal(String.format(Locale.ROOT,
+                    "  %s -> %s%s  [%.1f–%.1f]", who, whom, gap, order.near(), order.far())));
+        });
+        return orders.size();
     }
 
     /** Runs a {@link GoTo} task on the resolved Person through the brain's executor — same walk
