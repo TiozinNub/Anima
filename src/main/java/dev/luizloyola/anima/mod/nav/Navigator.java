@@ -165,6 +165,10 @@ public final class Navigator {
     private WaterIntent waterIntent = WaterIntent.NONE;
     /** Feet height the current water leg is aiming at — see {@link #waterTargetY()}. */
     private double waterTargetY;
+    /** Whether the last footed steering tick was in careful mode — see {@link #careful()}. */
+    private boolean careful;
+    /** The arrival radius the last footed steering tick used — see {@link #arrivalRadius()}. */
+    private double arrivalRadius;
     private double lastTickX;
     private double lastTickY;
     private double lastTickZ;
@@ -294,6 +298,63 @@ public final class Navigator {
         return this.waterTargetY;
     }
 
+    /**
+     * Whether the last footed steering tick was in careful mode: the ground crossed borders a deep
+     * drop, so forward input is throttled and the waypoint radius tightened.
+     *
+     * <p>Reported rather than re-derived, like {@link #waterIntent()} — {@link #isCareful} folds
+     * several conditions together, a leap landing among them. Cleared at the top of every
+     * {@link #tick()}, so a tick that never reached the footed branch reports {@code false} and a
+     * zero {@link #arrivalRadius()}.
+     */
+    public boolean careful() {
+        return this.careful;
+    }
+
+    /**
+     * How close the last footed steering tick had to get to count as arrived — one of the four
+     * radii, by whether this is the final waypoint and whether {@link #careful()} is on; zero when
+     * the last tick decided nothing. Explains both stopping short of a goal (a wide radius on an
+     * intermediate corner) and refusing to stop at all (a careful 0.25 next to a drop).
+     */
+    public double arrivalRadius() {
+        return this.arrivalRadius;
+    }
+
+    /** Ticks spent on the current waypoint, against {@link #stuckLimit()} — the slow stuck path. */
+    public int stuckTicks() {
+        return this.stuckTicks;
+    }
+
+    /** Ticks on one waypoint before the follower declares itself stuck and re-paths. */
+    public int stuckLimit() {
+        return STUCK_LIMIT;
+    }
+
+    /** Consecutive driven-but-motionless ticks, against {@link #noMoveLimit()} — the fast one. */
+    public int noMoveTicks() {
+        return this.noMoveTicks;
+    }
+
+    /** Driven-but-motionless ticks before the follower gives up on the current plan. */
+    public int noMoveLimit() {
+        return NO_MOVE_LIMIT;
+    }
+
+    /**
+     * Re-paths this order has left before it FAILS, out of {@link #maxRepaths()}. The retry budget
+     * only — proactive (terrain-changed) re-paths do not spend it, so a body re-planning around
+     * somebody's building work shows a full budget while one fighting the same ledge drains.
+     */
+    public int repathsLeft() {
+        return this.repathsLeft;
+    }
+
+    /** The retry budget one {@link #pathTo} order starts with. */
+    public int maxRepaths() {
+        return MAX_REPATHS;
+    }
+
     /** One-line progress summary for the debug command. */
     public String describe() {
         StringBuilder text = new StringBuilder(this.state.toString());
@@ -315,6 +376,10 @@ public final class Navigator {
      */
     public void tick() {
         this.waterIntent = WaterIntent.NONE; // set again only by the branch that swims, below
+        // A tick that never reaches the footed branch must report deciding nothing, not the last
+        // tick's decision. See careful() / arrivalRadius().
+        this.careful = false;
+        this.arrivalRadius = 0.0;
         switch (this.state) {
             case PATHING -> tickPathing();
             case FOLLOWING -> tickFollowing();
@@ -479,6 +544,10 @@ public final class Navigator {
         // 1-wide block is its lip — "arrived" next to a drop must mean standing well inside.
         double radius = isLast ? (careful ? CAREFUL_FINAL_RADIUS : FINAL_RADIUS)
                 : careful ? CAREFUL_RADIUS : WAYPOINT_RADIUS;
+        // Publish both for the debug view. Assigned where they are decided, not recomputed by the
+        // reader — see careful().
+        this.careful = careful;
+        this.arrivalRadius = radius;
         // Arrival is one 3-D distance, horizontal offset and vertical gap against the radius, so
         // "close enough" can't be a block above or below the waypoint. The final waypoint also
         // needs ground under the feet — a leap can sail over the goal, and cutting input airborne

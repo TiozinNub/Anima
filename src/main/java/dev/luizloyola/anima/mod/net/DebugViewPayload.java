@@ -30,10 +30,7 @@ import net.minecraft.resources.Identifier;
 public record DebugViewPayload(
         int entityId,
         int layers,
-        List<Step> path,
-        int pathIndex,
-        Optional<BlockPos> goal,
-        String nav,
+        Route route,
         List<String> brain,
         List<Belief> beliefs,
         List<PeerMark> peers,
@@ -44,15 +41,121 @@ public record DebugViewPayload(
             new Type<>(Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "debug_view"));
 
     /**
-     * One leg of the walked path: the cell, and how they mean to get into it. The renderer colours
-     * by move type.
+     * One leg of the walked path: the cell, how they mean to get into it, and how high inside that
+     * cell the feet come to rest. The renderer colours by move type — a leap and a stroll are
+     * identical as bare coordinates.
+     *
+     * @param surface16 feet height above the cell floor in sixteenths. It travels because a slab,
+     *     stair, snow layer or dirt path puts the feet part-way up their cell, and a line pinned to
+     *     the cell floor runs through the block being walked on: a staircase drew as a flat ramp.
      */
-    public record Step(BlockPos pos, int move) {
+    public record Step(BlockPos pos, int move, int surface16) {
         public static final StreamCodec<RegistryFriendlyByteBuf, Step> CODEC =
                 StreamCodec.composite(
                         BlockPos.STREAM_CODEC, Step::pos,
                         ByteBufCodecs.VAR_INT, Step::move,
+                        ByteBufCodecs.VAR_INT, Step::surface16,
                         Step::new);
+    }
+
+    /**
+     * Everything the PATH layer draws: the plan, where they are along it, and the two running
+     * arguments the follower is having with the world.
+     *
+     * <p>Grouped into a sub-record because {@code StreamCodec.composite} tops out at twelve fields
+     * and the nav facts alone would have eaten most of them.
+     *
+     * @param steps the waypoints, in order, excluding the start cell
+     * @param index which waypoint is being walked toward — the boundary between the legs behind
+     *     and the legs ahead
+     * @param goal the requested goal cell, not the last waypoint when the route falls short (see
+     *     {@link #reachedGoal})
+     * @param nav {@code Navigator.describe()} — the one-line state summary
+     * @param reachedGoal whether the last waypoint is the goal. Its own fact rather than prose
+     *     inside {@link #nav}, because a green box on a goal the route never reaches asserts an
+     *     arrival that is not planned.
+     */
+    public record Route(List<Step> steps, int index, Optional<BlockPos> goal, String nav,
+                        boolean reachedGoal, Progress progress, Water water) {
+        /** No route to draw — what an off layer and the clear snapshot both carry. */
+        public static final Route NONE = new Route(
+                List.of(), 0, Optional.empty(), "", false, Progress.NONE, Water.NONE);
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, Route> CODEC =
+                StreamCodec.composite(
+                        Step.CODEC.apply(ByteBufCodecs.list()), Route::steps,
+                        ByteBufCodecs.VAR_INT, Route::index,
+                        ByteBufCodecs.optional(BlockPos.STREAM_CODEC), Route::goal,
+                        ByteBufCodecs.STRING_UTF8, Route::nav,
+                        ByteBufCodecs.BOOL, Route::reachedGoal,
+                        Progress.CODEC, Route::progress,
+                        Water.CODEC, Route::water,
+                        Route::new);
+    }
+
+    /**
+     * How the walk is actually going: the two stall detectors, the retry budget, and the arrival
+     * decision in force this tick.
+     *
+     * <p><b>The limits travel with the counts.</b> They are private constants of the follower, and
+     * a denominator the client kept its own copy of would be a second opinion about when a body
+     * gives up, drifting silently the day one of them is tuned.
+     *
+     * @param radius the arrival radius the last footed steering tick used; {@code 0} when that tick
+     *     made no such decision (swimming, braking, not following)
+     */
+    public record Progress(int stuckTicks, int stuckLimit, int noMoveTicks, int noMoveLimit,
+                           int repathsLeft, int maxRepaths, boolean careful, float radius) {
+        /** Nothing being followed, so nothing to report. */
+        public static final Progress NONE = new Progress(0, 0, 0, 0, 0, 0, false, 0.0F);
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, Progress> CODEC =
+                StreamCodec.composite(
+                        ByteBufCodecs.VAR_INT, Progress::stuckTicks,
+                        ByteBufCodecs.VAR_INT, Progress::stuckLimit,
+                        ByteBufCodecs.VAR_INT, Progress::noMoveTicks,
+                        ByteBufCodecs.VAR_INT, Progress::noMoveLimit,
+                        ByteBufCodecs.VAR_INT, Progress::repathsLeft,
+                        ByteBufCodecs.VAR_INT, Progress::maxRepaths,
+                        ByteBufCodecs.BOOL, Progress::careful,
+                        ByteBufCodecs.FLOAT, Progress::radius,
+                        Progress::new);
+    }
+
+    /**
+     * What the route is asking of the water and what the body is doing about it — the pairing that
+     * goes wrong, side by side.
+     *
+     * <p>While a water leg is steering, the ROUTE holds the feet at {@link #targetY} and buoyancy
+     * is overruled. Drawing that height is the only way to see a hold that is sinking: a re-path
+     * re-anchoring one cell lower each time reads as a body drifting to the bottom of a pool for
+     * no reason.
+     *
+     * <p>Both states travel as NAMES, not ordinals: nothing on the client switches on them, and a
+     * name keeps this record from being versioned in lockstep with two enums across the layer
+     * boundary, and keeps {@code Navigator} and {@code Swimmer} out of an
+     * {@code @Environment(CLIENT)} renderer's imports.
+     *
+     * @param intent {@code Navigator.WaterIntent} — blank when the last tick was not a water leg,
+     *     which is the renderer's gate for drawing any of this
+     * @param swimmer {@code Swimmer.describe()}, including its note for when the swim latch and
+     *     the derived state disagree
+     */
+    public record Water(String intent, float targetY, String swimmer) {
+        /** Dry, or no body to ask. */
+        public static final Water NONE = new Water("", 0.0F, "");
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, Water> CODEC =
+                StreamCodec.composite(
+                        ByteBufCodecs.STRING_UTF8, Water::intent,
+                        ByteBufCodecs.FLOAT, Water::targetY,
+                        ByteBufCodecs.STRING_UTF8, Water::swimmer,
+                        Water::new);
+
+        /** Whether the last tick was steered as a water leg — the gate on drawing the hold. */
+        public boolean active() {
+            return !this.intent.isBlank();
+        }
     }
 
     /**
@@ -207,18 +310,16 @@ public record DebugViewPayload(
     }
 
     /**
-     * {@code StreamCodec.composite} tops out at TWELVE fields on every target this builds for, and
-     * this is the eleventh. The next fact a layer needs travels grouped into a sub-record, the way
-     * {@link Sight} groups the eyes.
+     * {@code StreamCodec.composite} tops out at TWELVE fields on every target this builds for.
+     * Folding the four path fields into {@link Route} took this from eleven back to eight, and the
+     * rule that bought the room stands: a layer's facts travel grouped into a sub-record the way
+     * {@link Sight} groups the eyes, not as loose fields here.
      */
     public static final StreamCodec<RegistryFriendlyByteBuf, DebugViewPayload> CODEC =
             StreamCodec.composite(
                     ByteBufCodecs.VAR_INT, DebugViewPayload::entityId,
                     ByteBufCodecs.VAR_INT, DebugViewPayload::layers,
-                    Step.CODEC.apply(ByteBufCodecs.list()), DebugViewPayload::path,
-                    ByteBufCodecs.VAR_INT, DebugViewPayload::pathIndex,
-                    ByteBufCodecs.optional(BlockPos.STREAM_CODEC), DebugViewPayload::goal,
-                    ByteBufCodecs.STRING_UTF8, DebugViewPayload::nav,
+                    Route.CODEC, DebugViewPayload::route,
                     ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list()), DebugViewPayload::brain,
                     Belief.CODEC.apply(ByteBufCodecs.list()), DebugViewPayload::beliefs,
                     PeerMark.CODEC.apply(ByteBufCodecs.list()), DebugViewPayload::peers,
@@ -228,7 +329,7 @@ public record DebugViewPayload(
 
     /** The "draw nothing" snapshot — every layer off, no entity to anchor to. */
     public static DebugViewPayload clear() {
-        return new DebugViewPayload(-1, 0, List.of(), 0, Optional.empty(), "", List.of(),
+        return new DebugViewPayload(-1, 0, Route.NONE, List.of(),
                 List.of(), List.of(), Sight.NONE, List.of());
     }
 

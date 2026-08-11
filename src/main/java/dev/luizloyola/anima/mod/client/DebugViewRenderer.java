@@ -53,6 +53,11 @@ public final class DebugViewRenderer {
     private static final int LEAP_COLOR = 0xFFFF4D4D;
     private static final int SWIM_COLOR = 0xFF4DD2FF;
     private static final int GOAL_COLOR = 0xFF57F287;
+    /** A goal the plan does not reach — the same box, in a colour that is not an arrival. */
+    private static final int UNREACHED_COLOR = 0xFFFF6B6B;
+    /** The arrival ring at its ordinary width, and at the tightened careful one. */
+    private static final int RADIUS_COLOR = 0x99B0C4FF;
+    private static final int CAREFUL_COLOR = 0xFFFFB74D;
 
     private static final int TREE_COLOR = 0xFF3FBF5F;
     private static final int WATER_COLOR = 0xFF3F8FFF;
@@ -87,8 +92,25 @@ public final class DebugViewRenderer {
     private static final float CURRENT_LEG_WIDTH = 5.0F;
     private static final float THIN = 1.5F;
 
-    /** Waypoint lines float just above the floor of their cell. */
+    /** Waypoint lines float just above the surface their feet rest on — see {@link #centre}. */
     private static final double PATH_Y = 0.15;
+
+    /** Segments in the arrival ring: a circle a metre across, read from a few blocks away. */
+    private static final int RING_SEGMENTS = 20;
+
+    /** Half-width of the depth-hold frame drawn around a swimming body's target height. */
+    private static final double WATER_HOLD_HALF = 0.7;
+
+    /**
+     * The stall ramp, separate from the needs {@link Severity} colours: a navigator's
+     * counters are fractions of a hard limit, not pressures, and sharing the ramp would put a
+     * second meaning on those colours.
+     */
+    private static final int STALL_CALM_COLOR = 0xFF9A9A9A;
+    private static final int STALL_WARM_COLOR = 0xFFFFE066;
+    private static final int STALL_HOT_COLOR = 0xFFFF4D4D;
+    private static final float STALL_WARM_FRACTION = 0.5F;
+    private static final float STALL_HOT_FRACTION = 0.8F;
 
     /** Text sizes, matching vanilla's own debug renderers (title line vs detail lines). */
     private static final float TITLE_SCALE = 0.48F;
@@ -169,9 +191,9 @@ public final class DebugViewRenderer {
         int[] line = {0};
 
         if (DebugLayer.PATH.in(view.layers())) {
-            drawPath(view, person, partialTick);
-            if (person != null && !view.nav().isBlank()) {
-                overhead(person, partialTick, line[0]++, view.nav(), NAV_TEXT_COLOR, TITLE_SCALE);
+            drawPath(view.route(), person, partialTick);
+            if (person != null) {
+                drawRouteText(view.route(), person, partialTick, line);
             }
         }
         if (DebugLayer.BRAIN.in(view.layers()) && person != null) {
@@ -284,19 +306,29 @@ public final class DebugViewRenderer {
      * coloured by how they mean to enter it. Legs already behind are drawn faint rather than
      * dropped — seeing where they came from is half of reading a path that went wrong.
      */
-    private static void drawPath(DebugViewPayload view, @Nullable Entity person, float partialTick) {
-        List<DebugViewPayload.Step> path = view.path();
-        view.goal().ifPresent(goal ->
-                Gizmos.cuboid(goal, GizmoStyle.stroke(GOAL_COLOR, THIN)).setAlwaysOnTop());
+    private static void drawPath(DebugViewPayload.Route route, @Nullable Entity person,
+                                 float partialTick) {
+        List<DebugViewPayload.Step> path = route.steps();
+        // The goal box says whether the plan actually gets there: green for a planned arrival, the
+        // unreached colour plus a faded line from where the plan really ends for one that does not.
+        route.goal().ifPresent(goal -> {
+            boolean reached = route.reachedGoal();
+            Gizmos.cuboid(goal, GizmoStyle.stroke(reached ? GOAL_COLOR : UNREACHED_COLOR, THIN))
+                    .setAlwaysOnTop();
+            if (!reached && !path.isEmpty()) {
+                Gizmos.line(centre(path.get(path.size() - 1)), centre(goal),
+                        fade(UNREACHED_COLOR, true), THIN);
+            }
+        });
         if (path.isEmpty()) {
             return;
         }
-        int index = Mth.clamp(view.pathIndex(), 0, path.size());
+        int index = Mth.clamp(route.index(), 0, path.size());
         // Behind them: waypoint to waypoint, faded. Not chained through the current
         // position — those cells are left behind, and hanging them off the feet would draw a long
         // line backwards to the start of the path.
         for (int i = 1; i < index; i++) {
-            leg(centre(path.get(i - 1).pos()), path.get(i), true, false);
+            leg(centre(path.get(i - 1)), path.get(i), true, false);
         }
         if (index >= path.size()) {
             return; // arrived: the whole plan is behind them
@@ -307,19 +339,164 @@ public final class DebugViewRenderer {
         // before this one so the leg still has a direction to show.
         Vec3 from = person != null
                 ? person.getPosition(partialTick).add(0.0, PATH_Y, 0.0)
-                : centre(path.get(index > 0 ? index - 1 : index).pos());
+                : centre(path.get(index > 0 ? index - 1 : index));
         leg(from, path.get(index), false, true);
         for (int i = index + 1; i < path.size(); i++) {
-            leg(centre(path.get(i - 1).pos()), path.get(i), false, false);
+            leg(centre(path.get(i - 1)), path.get(i), false, false);
+        }
+        drawArrival(route.progress(), path.get(index));
+        drawWaterHold(route.water(), person, partialTick, path.get(index));
+    }
+
+    /**
+     * The arrival decision, drawn where it is made: a ring on the waypoint being walked to, at the
+     * radius the follower will actually accept, coloured by whether careful mode has tightened it.
+     *
+     * <p>Stopping short of a goal (a wide radius on a corner) and refusing to settle on one (a
+     * careful 0.25 next to a drop) are the same shrug in the world and two different rings here.
+     */
+    private static void drawArrival(DebugViewPayload.Progress progress,
+                                    DebugViewPayload.Step step) {
+        if (progress.radius() <= 0.0F) {
+            return; // that tick decided nothing — see Navigator.arrivalRadius()
+        }
+        ring(centre(step), progress.radius(),
+                progress.careful() ? CAREFUL_COLOR : RADIUS_COLOR, THIN);
+    }
+
+    /**
+     * The depth the route is holding a swimming body at — a horizontal frame at {@code targetY}
+     * through the body's own column, so "above it" and "below it" read at a glance.
+     *
+     * <p>Under water the leg, not buoyancy, is the authority on height: a hold that sinks a cell
+     * per re-path looks like a body drifting to the bottom of a pool until you see the number.
+     */
+    private static void drawWaterHold(DebugViewPayload.Water water, @Nullable Entity person,
+                                      float partialTick, DebugViewPayload.Step step) {
+        if (!water.active()) {
+            return;
+        }
+        Vec3 at = person != null ? person.getPosition(partialTick) : centre(step);
+        double y = water.targetY();
+        Vec3 a = new Vec3(at.x - WATER_HOLD_HALF, y, at.z - WATER_HOLD_HALF);
+        Vec3 b = new Vec3(at.x + WATER_HOLD_HALF, y, at.z - WATER_HOLD_HALF);
+        Vec3 c = new Vec3(at.x + WATER_HOLD_HALF, y, at.z + WATER_HOLD_HALF);
+        Vec3 d = new Vec3(at.x - WATER_HOLD_HALF, y, at.z + WATER_HOLD_HALF);
+        Gizmos.line(a, b, SWIM_COLOR, THIN);
+        Gizmos.line(b, c, SWIM_COLOR, THIN);
+        Gizmos.line(c, d, SWIM_COLOR, THIN);
+        Gizmos.line(d, a, SWIM_COLOR, THIN);
+    }
+
+    /**
+     * A horizontal circle, flat on the world.
+     *
+     * <p>The arrival test it stands for is 3-D (horizontal offset and the vertical gap combined
+     * against the radius), so this is its projection: a body inside the ring but a block above the
+     * waypoint has not arrived. Flat anyway, because a sphere at 0.25 blocks reads as a blob.
+     */
+    private static void ring(Vec3 at, double radius, int color, float width) {
+        Vec3 previous = at.add(radius, 0.0, 0.0);
+        for (int i = 1; i <= RING_SEGMENTS; i++) {
+            double angle = 2 * Math.PI * i / RING_SEGMENTS;
+            Vec3 next = at.add(radius * Math.cos(angle), 0.0, radius * Math.sin(angle));
+            Gizmos.line(previous, next, color, width);
+            previous = next;
         }
     }
 
     /** One leg of the path: the line into {@code step}, coloured by how they mean to enter it. */
     private static void leg(Vec3 from, DebugViewPayload.Step step, boolean walked, boolean current) {
-        Vec3 to = centre(step.pos());
+        Vec3 to = centre(step);
         int color = fade(moveColor(step.move()), walked);
         Gizmos.line(from, to, color, current ? CURRENT_LEG_WIDTH : PATH_WIDTH);
         Gizmos.point(to, color, current ? 0.18F : 0.10F);
+    }
+
+    /**
+     * The route's readout, stacked over their head: the status line, then only the details that
+     * have something to say.
+     *
+     * <p>Conditional on purpose — a HUD that prints four rows of zeroes teaches the eye to skip
+     * the rows, which is the eye you do not want when one of them starts climbing.
+     */
+    private static void drawRouteText(DebugViewPayload.Route route, Entity person,
+                                      float partialTick, int[] line) {
+        if (!route.nav().isBlank()) {
+            overhead(person, partialTick, line[0]++, route.nav(), NAV_TEXT_COLOR, TITLE_SCALE);
+        }
+        DebugViewPayload.Progress progress = route.progress();
+        String stalls = stalls(progress);
+        if (!stalls.isEmpty()) {
+            overhead(person, partialTick, line[0]++, stalls, stallColor(progress), DETAIL_SCALE);
+        }
+        if (progress.radius() > 0.0F) {
+            overhead(person, partialTick, line[0]++,
+                    String.format(Locale.ROOT, "%sr=%.2f",
+                            progress.careful() ? "careful " : "", progress.radius()),
+                    progress.careful() ? CAREFUL_COLOR : NAV_TEXT_COLOR, DETAIL_SCALE);
+        }
+        if (route.water().active()) {
+            overhead(person, partialTick, line[0]++,
+                    String.format(Locale.ROOT, "%s y=%.2f · %s",
+                            route.water().intent(), route.water().targetY(),
+                            route.water().swimmer()),
+                    SWIM_COLOR, DETAIL_SCALE);
+        }
+    }
+
+    /**
+     * The stall line: the two detectors and the retry budget, and nothing at all while a walk is
+     * going fine.
+     *
+     * <p>Retries appear only once one has been SPENT: proactive re-paths do not spend the budget,
+     * so any drain at all means the follower itself keeps losing the plan.
+     */
+    private static String stalls(DebugViewPayload.Progress progress) {
+        StringBuilder text = new StringBuilder();
+        if (progress.stuckTicks() > 0) {
+            text.append("stuck ").append(progress.stuckTicks())
+                    .append('/').append(progress.stuckLimit());
+        }
+        if (progress.noMoveTicks() > 0) {
+            if (!text.isEmpty()) {
+                text.append(" · ");
+            }
+            text.append("still ").append(progress.noMoveTicks())
+                    .append('/').append(progress.noMoveLimit());
+        }
+        if (progress.repathsLeft() < progress.maxRepaths()) {
+            if (!text.isEmpty()) {
+                text.append(" · ");
+            }
+            text.append("retries ").append(progress.repathsLeft())
+                    .append('/').append(progress.maxRepaths());
+        }
+        return text.toString();
+    }
+
+    /**
+     * How close the walk is to giving up, as a colour: the worst of the two stall fractions, warm
+     * past half and red past {@link #STALL_HOT_FRACTION}. A spent retry warms it on its own and
+     * the last one turns it red.
+     *
+     * <p>Both retry tests are written against a budget actually SPENT ({@code left < max}) rather
+     * than a bare count, so they survive tuning: {@code left <= 1} would paint a body that never
+     * lost its plan red the day {@code MAX_REPATHS} became one.
+     */
+    private static int stallColor(DebugViewPayload.Progress progress) {
+        boolean spent = progress.repathsLeft() < progress.maxRepaths();
+        float worst = Math.max(
+                fraction(progress.stuckTicks(), progress.stuckLimit()),
+                fraction(progress.noMoveTicks(), progress.noMoveLimit()));
+        if (worst >= STALL_HOT_FRACTION || (spent && progress.repathsLeft() <= 1)) {
+            return STALL_HOT_COLOR;
+        }
+        return worst >= STALL_WARM_FRACTION || spent ? STALL_WARM_COLOR : STALL_CALM_COLOR;
+    }
+
+    private static float fraction(int value, int limit) {
+        return limit <= 0 ? 0.0F : (float) value / limit;
     }
 
     /**
@@ -699,7 +876,23 @@ public final class DebugViewRenderer {
         return (alpha << 24) | (argb & 0x00FFFFFF);
     }
 
-    /** The centre of a cell, lifted just off its floor — where a waypoint line is drawn through. */
+    /**
+     * Where a waypoint's line is drawn through: the centre of the cell, at the height the feet
+     * actually come to rest, lifted clear of it.
+     *
+     * <p>A waypoint's feet are {@code surface16/16} of a block up inside their own cell whenever
+     * the floor stops part-way (a slab, a stair, a snow layer, a dirt path), and a line pinned to
+     * the cell floor buries itself in the block being walked on: a staircase drew as a flat ramp
+     * beside the steps it described.
+     */
+    private static Vec3 centre(DebugViewPayload.Step step) {
+        BlockPos pos = step.pos();
+        return new Vec3(pos.getX() + 0.5,
+                pos.getY() + step.surface16() / 16.0 + PATH_Y,
+                pos.getZ() + 0.5);
+    }
+
+    /** The centre of a bare cell, lifted just off its floor — for a cell with no waypoint on it. */
     private static Vec3 centre(BlockPos pos) {
         return new Vec3(pos.getX() + 0.5, pos.getY() + PATH_Y, pos.getZ() + 0.5);
     }

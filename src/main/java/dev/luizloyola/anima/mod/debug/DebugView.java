@@ -181,34 +181,69 @@ public final class DebugView {
         if (person == null) {
             return DebugViewPayload.clear();
         }
-        Navigator navigator = person.navigator();
-        boolean wantsPath = layers.contains(DebugLayer.PATH);
-        Path path = wantsPath ? navigator.path() : null;
-
-        List<DebugViewPayload.Step> steps = new ArrayList<>();
-        if (path != null) {
-            for (Waypoint waypoint : path.waypoints()) {
-                steps.add(new DebugViewPayload.Step(
-                        new BlockPos(waypoint.x(), waypoint.y(), waypoint.z()),
-                        waypoint.move().ordinal()));
-            }
-        }
-        Optional<BlockPos> goal = wantsPath
-                ? Optional.ofNullable(navigator.goal())
-                : Optional.empty();
-
         return new DebugViewPayload(
                 person.entity().getId(),
                 DebugLayer.mask(layers),
-                steps,
-                wantsPath ? navigator.pathIndex() : 0,
-                goal,
-                wantsPath ? navigator.describe() : "",
+                layers.contains(DebugLayer.PATH) ? route(person) : DebugViewPayload.Route.NONE,
                 layers.contains(DebugLayer.BRAIN) ? person.brain().describeLines() : List.of(),
                 layers.contains(DebugLayer.MEMORY) ? beliefs(server, person) : List.of(),
                 layers.contains(DebugLayer.PEERS) ? peers(person) : List.of(),
                 sight(server, person, layers.contains(DebugLayer.HORIZON)),
                 layers.contains(DebugLayer.NEEDS) ? needs(person) : List.of());
+    }
+
+    /**
+     * Where they are going, how, and how it is going — read off the navigator in one pass.
+     *
+     * <p>Every number is the follower's own: the stall counters, retry budget, careful mode and
+     * arrival radius are the state it decides with, and a recomputed copy would agree right up
+     * until the tick it matters.
+     *
+     * <p>The limits travel beside the counts they bound — see {@link DebugViewPayload.Progress}.
+     */
+    private static DebugViewPayload.Route route(AgentBody person) {
+        Navigator navigator = person.navigator();
+        Path path = navigator.path();
+        List<DebugViewPayload.Step> steps = new ArrayList<>();
+        if (path != null) {
+            for (Waypoint waypoint : path.waypoints()) {
+                steps.add(new DebugViewPayload.Step(
+                        new BlockPos(waypoint.x(), waypoint.y(), waypoint.z()),
+                        waypoint.move().ordinal(),
+                        waypoint.surface16()));
+            }
+        }
+        DebugViewPayload.Progress progress = new DebugViewPayload.Progress(
+                navigator.stuckTicks(), navigator.stuckLimit(),
+                navigator.noMoveTicks(), navigator.noMoveLimit(),
+                navigator.repathsLeft(), navigator.maxRepaths(),
+                navigator.careful(), (float) navigator.arrivalRadius());
+        return new DebugViewPayload.Route(
+                steps,
+                navigator.pathIndex(),
+                Optional.ofNullable(navigator.goal()),
+                navigator.describe(),
+                // No path is not "reached the goal" — the flag only means anything about a route
+                // that exists, and an absent one must not draw as an arrival.
+                path != null && path.reachedGoal(),
+                progress,
+                water(person, navigator));
+    }
+
+    /**
+     * The water half: what the route is asking of it, and what the body is doing about it.
+     *
+     * <p>Both states go on the wire as their own names rather than as ordinals — see
+     * {@link DebugViewPayload.Water}. An intent of none ships as the empty string, which is the
+     * renderer's gate: a dry tick draws none of this rather than drawing a depth hold of zero.
+     */
+    private static DebugViewPayload.Water water(AgentBody person, Navigator navigator) {
+        Navigator.WaterIntent intent = navigator.waterIntent();
+        if (intent == Navigator.WaterIntent.NONE) {
+            return DebugViewPayload.Water.NONE;
+        }
+        return new DebugViewPayload.Water(
+                intent.name(), (float) navigator.waterTargetY(), person.swimmer().describe());
     }
 
     /**
