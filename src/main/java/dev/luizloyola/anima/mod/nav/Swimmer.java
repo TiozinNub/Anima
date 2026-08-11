@@ -71,6 +71,19 @@ public final class Swimmer {
     private static final double HEAD_CLEARANCE = 0.3;
 
     /**
+     * How much of a swimming body rides clear of the surface — its back, and no more.
+     *
+     * <p>Vanilla's float threshold is 0.4, which against the 0.6 swimming box leaves a third of
+     * the body out and reads as skimming across a lake (Luiz: "skids along over the surface"); it
+     * is meant for bodies of every shape and errs high.
+     */
+    private static final double BACK_ABOVE_WATER = 0.1;
+    /** Slack around the ride depth, so a swimmer settles rather than buzzing about the waterline. */
+    private static final double RIDE_BAND = 0.08;
+    /** How hard a swimmer pulls itself down to its ride depth — a sink, not a dive. */
+    private static final float RIDE_THROTTLE = 0.35F;
+
+    /**
      * How long a swimmer stays one after the last tick that plainly was, in ticks.
      *
      * <p>Not belt-and-braces: the swimming box is 0.6 tall, so a small rise takes all of it out of
@@ -215,11 +228,23 @@ public final class Swimmer {
             return;
         }
         if (deep) {
-            double setPoint = entity.isVisuallySwimming()
-                    ? entity.getFluidJumpThreshold()          // 0.6 box, riding the surface
-                    : entity.getEyeHeight() - HEAD_CLEARANCE; // upright, treading, head out
-            if (entity.getFluidHeight(FluidTags.WATER) > setPoint) {
-                this.body.driveJump();
+            double submerged = entity.getFluidHeight(FluidTags.WATER);
+            if (entity.isVisuallySwimming()) {
+                // Held from both sides, unlike treading: a swimmer sank only by being left
+                // to gravity, and a fast crossing is over before gravity does anything, so once
+                // sprinting and long strokes made it quick it planed across the top of the lake
+                // (Luiz: "skids along over the surface"). Pulling it down is diving to a
+                // shallower mark.
+                double ride = entity.getBbHeight() - BACK_ABOVE_WATER;
+                if (submerged > ride + RIDE_BAND) {
+                    this.body.driveJump();
+                } else if (submerged < ride - RIDE_BAND) {
+                    this.body.driveDown(RIDE_THROTTLE);
+                }
+                return;
+            }
+            if (submerged > entity.getEyeHeight() - HEAD_CLEARANCE) {
+                this.body.driveJump(); // upright, treading: keep the head out
                 return;
             }
         }

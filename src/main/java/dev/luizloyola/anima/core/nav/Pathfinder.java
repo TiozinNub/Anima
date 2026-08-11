@@ -262,7 +262,7 @@ public final class Pathfinder {
         Node origin = new Node();
         origin.surface16 = surface16At(request.startX(), request.startY(), request.startZ());
         this.nodes.put(start, origin);
-        this.open.push(start, heuristic(request.startX(), request.startZ()));
+        this.open.push(start, heuristic(request.startX(), request.startY(), request.startZ()));
 
         long best = start;
         double bestScore = partialScore(request.startX(), request.startY(), request.startZ());
@@ -922,7 +922,7 @@ public final class Pathfinder {
         } else {
             return;
         }
-        this.open.push(neighbor, g + heuristic(unpackX(neighbor), unpackZ(neighbor)));
+        this.open.push(neighbor, g + heuristic(unpackX(neighbor), ny, unpackZ(neighbor)));
     }
 
     /**
@@ -955,17 +955,36 @@ public final class Pathfinder {
     private static final double DREAD_COST = 8.0;
 
     /**
-     * Euclidean distance on the horizontal plane. Admissible because <em>every move costs at least
-     * its horizontal Euclidean length</em> (walk 1, diagonal √2, strides their length, jump 2,
-     * drops ≥ 1). Octile was tight for unit moves only — a (1,2) stride at √5 undercuts its 1+0.414
-     * — so strides forced the switch. Vertical distance is ignored: a 3-deep drop covers 3 blocks
-     * for one step's cost.
+     * Euclidean distance on the horizontal plane, or the height still to be made up, whichever is
+     * larger. The horizontal half stays admissible because <em>every move costs at least its
+     * horizontal Euclidean length</em> (walk 1, diagonal √2, strides exactly their length, jump
+     * 2 ≥ 1, drops ≥ 1). (Octile was the tight bound for unit moves only; a (1,2) stride at √5
+     * undercuts its 1+0.414 estimate, so strides forced the switch.)
+     *
+     * <p><b>Height is the LARGER of the two, never the sum.</b> A 3-deep drop covers three vertical
+     * blocks for one step's cost, so summing would overestimate — but each is a lower bound on its
+     * own, and the greater of two lower bounds is still one. Useful because with no vertical
+     * term a goal straight down reads as distance ZERO from everywhere above it, and the search
+     * fans out through the whole body of water.
+     *
+     * <p>The two rates are what the cheapest move of each kind charges per block of height. Down,
+     * a long plunge, whose {@link #dropCost} tends to 0.3 a block from above and never reaches it.
+     * UP, a step onto a partial floor: a whole walk for {@link MoveCapabilities#STEP_UP} of a
+     * block, so 1.67, and 1.5 keeps a margin under it. A cheaper way down or up would move these
+     * with it.
      */
-    private double heuristic(int x, int z) {
+    private double heuristic(int x, int y, int z) {
         double dx = x - this.goalX;
         double dz = z - this.goalZ;
-        return Math.sqrt(dx * dx + dz * dz);
+        double horizontal = Math.sqrt(dx * dx + dz * dz);
+        int dy = y - this.goalY;
+        return Math.max(horizontal, dy > 0 ? dy * CHEAPEST_DESCENT : -dy * CHEAPEST_CLIMB);
     }
+
+    /** Least a move can cost per block it descends — {@link #dropCost}'s asymptote, never met. */
+    private static final double CHEAPEST_DESCENT = 0.3;
+    /** Least a move can cost per block it climbs, with a margin under the real floor of 1.67. */
+    private static final double CHEAPEST_CLIMB = 1.5;
 
     /**
      * How close a cell is to the goal <em>for choosing the partial-path endpoint</em> — full 3-D
