@@ -556,15 +556,18 @@ public final class Navigator {
     }
 
     /**
-     * One tick of swimming — entering water, crossing at the surface, or climbing out. Only
-     * <em>steers</em>; staying afloat is the body's constant reflex
-     * ({@link AgentBody#floatInWater}), so the follower never models buoyancy.
+     * One tick of swimming — entering water, crossing at the surface, or climbing out. This steers,
+     * and on the climb-out it also <em>lifts</em>; floating in between is the body's own reflex
+     * ({@code floatInWater}).
      *
-     * <p>The feet hang around the surface cell, so a SWIM waypoint arrives horizontally while a
-     * climb-out waypoint wants them planted and settled. {@link #tickFollowing}'s grounded edge
-     * logic never applies here ({@code onGround()} is false); progress stays bounded by
-     * {@link #STUCK_LIMIT} and the no-move stall check, applied here because its fast path is
-     * grounded-gated.
+     * <p>The lift is not optional and used to arrive by accident: a float reflex pressing swim-up
+     * on every wet tick was also pushing the body over the lip of every bank, and narrowing it to
+     * "only when the head is under" left plunge stations E4 and H6 unable to get out of their own
+     * pools. Pressed for the whole approach — standable ground is no edge to time against.
+     *
+     * <p>A SWIM waypoint's arrival is horizontal, a climb-out wants the feet planted and settled.
+     * No grounded edge logic applies while floating; {@link #STUCK_LIMIT} and the no-move check
+     * (grounded-gated elsewhere, applied here) bound progress.
      */
     private void tickSwim(Waypoint waypoint, boolean isLast, Vec3 pos,
                           double dx, double dz, double horizontalSq, double dy) {
@@ -599,10 +602,15 @@ public final class Navigator {
             this.noMoveTicks = 0;
         }
 
-        // Plain walking input is exactly right: travel's water branch turns it into (slow)
-        // horizontal swimming.
+        // Plain walking input: travel's water branch turns it into (slow) horizontal swimming.
         float heading = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F;
         this.person.driveForward(heading);
+        // ...and hold swim-up for a climb-out, which is the one water move that has to gain height.
+        // Harmless if we are still a stroke away from the bank: in water the input is buoyancy, and
+        // the float reflex would be supplying it anyway if our head went under.
+        if (landTarget) {
+            this.person.driveJump();
+        }
     }
 
     /**
