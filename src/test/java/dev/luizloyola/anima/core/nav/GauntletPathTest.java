@@ -150,19 +150,35 @@ class GauntletPathTest {
     }
 
     /**
-     * Stations whose whole subject is the water. Same disease as {@link #DIAGONAL_ONLY}: H6 passed
-     * for a route that walked the length of its pool's retaining wall and dropped onto the goal pad
-     * without getting wet.
+     * Stations whose whole subject is the water. Same disease as {@link #DIAGONAL_ONLY}: H6 read a
+     * clean pass for a route that walked the length of its pool's RETAINING WALL and dropped onto
+     * the goal pad without getting wet.
      *
-     * <p>The assertion is that a leg ends standing IN a water cell, not that the route contains a
-     * {@link MoveType#SWIM} — the move is what the planner calls it, the cell is what the world
-     * says. A surface swimmer's feet cell is the water cell, so this is a direct reading.
+     * <p>The assertion is that the body ends a leg standing IN a water cell, not merely that the
+     * route contains a {@link MoveType#SWIM} — the move is what the planner calls it, the cell is
+     * what the world says, and it was the world that was wrong. A surface swimmer's feet cell is
+     * the water cell, so this is a direct reading.
      *
      * <p>E3 is absent: a two-wide channel is meant to be LEAPT (see
-     * {@code PathfinderSwimTest.stillLeapsNarrowWaterRatherThanSwim}). E5–E8 are absent because
+     * {@code PathfinderSwimTest.stillLeapsNarrowWaterRatherThanSwim}). E5 and E8 are absent because
      * nothing plans them yet; add each one here as its rung lands.
      */
-    private static final List<String> MUST_GET_WET = List.of("E1", "E2", "E4", "H6");
+    private static final List<String> MUST_GET_WET =
+            List.of("E1", "E2", "E4", "E6", "E7", "H6");
+
+    /**
+     * E6's only way through is under, so a route that never puts the body's head below the surface
+     * is not an answer however wet it gets. The station is roofed for that reason: an earlier cut
+     * stopped the lid at the waterline and was strolled over.
+     */
+    @Test
+    void theUnderwaterTunnelIsActuallySwumUnder() {
+        Station s = stations.stream().filter(st -> st.id().equals("E6")).findFirst().orElseThrow();
+        List<Waypoint> route = Pathfinder.find(world,
+                PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+        assertTrue(route.stream().anyMatch(w -> w.move() == MoveType.DIVE),
+                "E6 is reached without ever going under: " + route);
+    }
 
     @Test
     void waterStationsAreNotQuietlySolvedOnDryLand() {

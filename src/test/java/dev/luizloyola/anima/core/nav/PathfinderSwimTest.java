@@ -132,6 +132,71 @@ class PathfinderSwimTest {
                 "a body that cannot swim can still cross a puddle on foot: " + path.waypoints());
     }
 
+    // --- submerged travel: under the surface, on a breath budget ------------------------------
+
+    /**
+     * A flooded tunnel: open water at either end, roofed in the middle so the only way through is
+     * under. Filled rather than drawn — a heightmap cannot say there is stone on top of water.
+     */
+    private static AsciiWorld floodedTunnel(int roofedCells) {
+        int last = roofedCells + 4;
+        return AsciiWorld.of("1" + "W".repeat(last) + "1")
+                // A third cell of water, because the tunnel has to be a body tall to be a tunnel:
+                // roofed water two cells deep leaves one cell under the lid and nothing fits in it.
+                .fill(1, -2, 0, last, -2, 0, CellType.WATER)
+                // The lid: the surface cells in the middle become stone, so the water under them is
+                // the only way past and a body there has its head under.
+                .fill(3, 0, 0, 2 + roofedCells, 0, 0, CellType.OBSTACLE);
+    }
+
+    @Test
+    @DisplayName("dives under a roofed stretch and comes back up the other side")
+    void swimsUnderAnObstruction() {
+        Path path = find(floodedTunnel(3), 0, 1, 0, 8, 1, 0);
+        assertTrue(path.reachedGoal(), "should go under: " + path.waypoints());
+        assertTrue(hasMove(path, MoveType.DIVE), "must dive to get under: " + path.waypoints());
+        assertTrue(hasMove(path, MoveType.SURFACE), "and come back up: " + path.waypoints());
+        // The roofed stretch is crossed at y=-1, below the stone lid at y=0.
+        assertTrue(path.waypoints().stream().anyMatch(w -> w.y() == -1),
+                "the crossing itself happens under the roof: " + path.waypoints());
+    }
+
+    /**
+     * The budget has to be able to say no. Same terrain, same body shape — only the breath
+     * differs.
+     */
+    @Test
+    @DisplayName("a tunnel longer than the body's breath is refused")
+    void willNotDiveFurtherThanItsBreath() {
+        AsciiWorld longTunnel = floodedTunnel(10);
+        assertTrue(find(longTunnel, 0, 1, 0, 15, 1, 0).reachedGoal(),
+                "a rested body has breath for ten cells");
+
+        MoveCapabilities shortOfBreath = new MoveCapabilities(1.8, 1, 3, 3, true, 4);
+        Path path = find(longTunnel, 0, 1, 0, 15, 1, 0, shortOfBreath);
+        assertFalse(path.reachedGoal(),
+                "four cells of air is not ten cells of tunnel: " + path.waypoints());
+    }
+
+    @Test
+    @DisplayName("a body with no breath to spend will not put its head under at all")
+    void noBudgetMeansNoDiving() {
+        MoveCapabilities surfaceOnly = new MoveCapabilities(1.8, 1, 3, 3, true, 0);
+        Path path = find(floodedTunnel(3), 0, 1, 0, 8, 1, 0, surfaceOnly);
+        assertFalse(path.reachedGoal(), "nothing to spend, so nowhere to go: " + path.waypoints());
+        assertFalse(hasMove(path, MoveType.DIVE));
+    }
+
+    /** Submerged strokes are priced over surface ones, so a body that could stay on top does. */
+    @Test
+    @DisplayName("open water is still crossed on the surface, not under it")
+    void staysOnTopWhenItCan() {
+        Path path = find(AsciiWorld.of("11WWWW11"), 0, 1, 0, 7, 1, 0);
+        assertTrue(path.reachedGoal());
+        assertFalse(hasMove(path, MoveType.DIVE),
+                "nothing in the way, so no reason to be under it: " + path.waypoints());
+    }
+
     // --- plunges: falling into water, which maxDrop has no say over --------------------------
 
     /**

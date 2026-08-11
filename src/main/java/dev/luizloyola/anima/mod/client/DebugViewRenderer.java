@@ -652,7 +652,9 @@ public final class DebugViewRenderer {
             case JUMP -> JUMP_COLOR;
             case DROP -> DROP_COLOR;
             case LEAP -> LEAP_COLOR;
-            case SWIM -> SWIM_COLOR;
+            // The vertical pair draw as swimming: they ARE swimming, and a debug line that is
+            // one cell long has its own shape to say so without needing a colour of its own.
+            case SWIM, DIVE, SURFACE -> SWIM_COLOR;
         };
     }
 

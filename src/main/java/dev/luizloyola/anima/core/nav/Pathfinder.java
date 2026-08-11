@@ -65,6 +65,14 @@ public final class Pathfinder {
      */
     private static final double SWIM_COST = 2.5;
     /**
+     * Cost of one cardinal cell swum with the head under water.
+     *
+     * <p>Over {@link #SWIM_COST}: the budget in {@link #relaxWater} is what makes a long dive
+     * impossible, and this is what makes a short one a last resort, so a body that could go round
+     * on the surface does.
+     */
+    private static final double SUBMERGED_COST = 3.2;
+    /**
      * Cost multiplier for a step taken through water shallow enough to stand in — wading.
      *
      * <p>Between a walk and a swim on purpose: under {@link #SWIM_COST} because a body that keeps
@@ -154,6 +162,8 @@ public final class Pathfinder {
         MoveType move = MoveType.WALK;
         /** Feet height above this cell's floor, in sixteenths — see {@link Waypoint#surface16}. */
         int surface16;
+        /** Cells travelled with the head under water to reach here — see {@link #relaxWater}. */
+        int submergedRun;
         boolean closed;
     }
 
@@ -268,13 +278,59 @@ public final class Pathfinder {
      */
     private void swimNeighbors(long current, Node node, int x, int y, int z, double from) {
         if (!this.profile.canSwim()) return;
-        if (isSurfaceSwim(x, y, z)) {
-            for (int[] d : CARDINALS) swimCross(current, node, x, y, z, d[0], d[1]);
-            for (int[] d : DIAGONALS) swimCrossDiagonal(current, node, x, y, z, d[0], d[1]);
-            for (int[] d : CARDINALS) swimExit(current, node, x, y, z, d[0], d[1]);
-        } else {
+        if (!isWaterNode(x, y, z)) {
             for (int[] d : CARDINALS) swimEnter(current, node, x, y, z, from, d[0], d[1]);
+            return;
         }
+        // In the water, at any depth. Crossing and the vertical pair are the same moves however
+        // deep the body is; only climbing OUT needs the surface, because a body reaches a bank by
+        // coming up to it rather than by rising through it.
+        for (int[] d : CARDINALS) swimCross(current, node, x, y, z, d[0], d[1]);
+        for (int[] d : DIAGONALS) swimCrossDiagonal(current, node, x, y, z, d[0], d[1]);
+        swimVertical(current, node, x, y, z);
+        if (!isSubmerged(x, y, z)) {
+            for (int[] d : CARDINALS) swimExit(current, node, x, y, z, d[0], d[1]);
+        }
+    }
+
+    /**
+     * Up or down one cell inside a water column — the only moves covering no ground, and what lets
+     * a body afloat go under. Both cost a full stroke: pricing the rise lower would have the search
+     * bob a body up and down to shave a crossing, and any positive price keeps the heuristic
+     * admissible.
+     */
+    private void swimVertical(long current, Node node, int x, int y, int z) {
+        if (isWaterNode(x, y - 1, z)) {
+            relaxWater(current, node, pack(x, y - 1, z), MoveType.DIVE, SWIM_COST, x, y - 1, z);
+        }
+        if (isWaterNode(x, y + 1, z)) {
+            relaxWater(current, node, pack(x, y + 1, z), MoveType.SURFACE, SWIM_COST, x, y + 1, z);
+        }
+    }
+
+    /**
+     * Whether feet-cell {@code (x,y,z)} is somewhere a swimmer can BE — water it fits inside and
+     * cannot stand up in. Says nothing about how deep: the surface of a lake and the middle of a
+     * flooded tunnel are both water nodes, and every horizontal move treats them alike.
+     */
+    private boolean isWaterNode(int x, int y, int z) {
+        if (this.grid.cell(x, y, z) != CellType.WATER) return false;
+        if (isStandable(x, y, z)) return false; // wadeable: it is ground to this model, not water
+        for (int i = 1; i <= this.profile.topCell(0.0); i++) {
+            CellType above = this.grid.cell(x, y + i, z);
+            if (above != CellType.PASSABLE && above != CellType.WATER) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Whether a body with its feet here has its head under — one read, of the cell the head is in.
+     *
+     * <p>About the HEAD and not about the depth of the pool: this is the whole of
+     * what makes a stretch of water cost breath rather than merely time.
+     */
+    private boolean isSubmerged(int x, int y, int z) {
+        return this.grid.cell(x, y + this.profile.topCell(0.0), z) == CellType.WATER;
     }
 
     /**
@@ -287,12 +343,7 @@ public final class Pathfinder {
      * same failure {@link #footing} refuses for a {@link CellType#STEP}.
      */
     private boolean isSurfaceSwim(int x, int y, int z) {
-        if (this.grid.cell(x, y, z) != CellType.WATER) return false;
-        if (isStandable(x, y, z)) return false; // wadeable: it is ground to this model, not water
-        for (int i = 1; i <= this.profile.topCell(0.0); i++) {
-            if (this.grid.cell(x, y + i, z) != CellType.PASSABLE) return false;
-        }
-        return true;
+        return isWaterNode(x, y, z) && !isSubmerged(x, y, z);
     }
 
     /**
@@ -305,12 +356,13 @@ public final class Pathfinder {
         return this.grid.cell(x, y, z) == CellType.WATER && fits(x, y, z, 0.0);
     }
 
-    /** One surface stroke to an adjacent water-surface cell at the same level (connected water is flat). */
+    /** One stroke to the adjacent water cell at this level — at the surface or well under it. */
     private void swimCross(long current, Node node, int x, int y, int z, int dx, int dz) {
         int nx = x + dx;
         int nz = z + dz;
-        if (isSurfaceSwim(nx, y, nz)) {
-            relax(current, node, pack(nx, y, nz), FLOATING, MoveType.SWIM, SWIM_COST);
+        if (isWaterNode(nx, y, nz)) {
+            relaxWater(current, node, pack(nx, y, nz), MoveType.SWIM, strokeCost(nx, y, nz),
+                    nx, y, nz);
         }
     }
 
@@ -321,8 +373,9 @@ public final class Pathfinder {
     private void swimCrossDiagonal(long current, Node node, int x, int y, int z, int dx, int dz) {
         int nx = x + dx;
         int nz = z + dz;
-        if (isSurfaceSwim(nx, y, nz) && isSurfaceSwim(nx, y, z) && isSurfaceSwim(x, y, nz)) {
-            relax(current, node, pack(nx, y, nz), FLOATING, MoveType.SWIM, SWIM_COST * SQRT2);
+        if (isWaterNode(nx, y, nz) && isWaterNode(nx, y, z) && isWaterNode(x, y, nz)) {
+            relaxWater(current, node, pack(nx, y, nz), MoveType.SWIM,
+                    strokeCost(nx, y, nz) * SQRT2, nx, y, nz);
         }
     }
 
@@ -701,6 +754,35 @@ public final class Pathfinder {
         return factor;
     }
 
+    /** What one stroke into this cell costs: dearer with the head under than at the surface. */
+    private double strokeCost(int x, int y, int z) {
+        return isSubmerged(x, y, z) ? SUBMERGED_COST : SWIM_COST;
+    }
+
+    /**
+     * {@link #relax} for a move that ends in water, carrying the breath clock with it.
+     *
+     * <p>How long a body has been under is not a property of the cell it ends in, so it rides on
+     * the node: each submerged cell adds one, anything else resets to zero, and a run past
+     * {@link MoveCapabilities#maxSubmerged} is not offered. That budget is read off the breath
+     * gauge when the request is made, so the same tunnel is open to a rested body and shut to one
+     * that just came up from another.
+     *
+     * <p><b>An approximation, in the safe direction.</b> A* closes a cell the first time it pops
+     * it, so a cell first reached by a long dive keeps that dive's clock even if a later, dearer
+     * route would have arrived with more air — refusing a route the body could have made rather
+     * than planning one that drowns it. An exact answer means putting the air into the node KEY and
+     * searching a state space a few hundred times larger.
+     */
+    private void relaxWater(long current, Node from, long neighbor, MoveType move, double cost,
+            int nx, int ny, int nz) {
+        int run = isSubmerged(nx, ny, nz) ? from.submergedRun + 1 : 0;
+        if (run > this.profile.maxSubmerged()) {
+            return; // further under than this body has breath to come back from
+        }
+        relax(current, from, neighbor, FLOATING, move, cost, run);
+    }
+
     /** Whether this feet-cell is wet — a body standing here is standing IN water. */
     private boolean isWater(int x, int y, int z) {
         return this.grid.cell(x, y, z) == CellType.WATER;
@@ -734,6 +816,13 @@ public final class Pathfinder {
      */
     private void relax(long current, Node from, long neighbor, double footing, MoveType move,
                        double cost) {
+        // A move that ends anywhere but under water puts the breath clock back to zero, which for
+        // every land move is the truth: the body has its head in the air again.
+        relax(current, from, neighbor, footing, move, cost, 0);
+    }
+
+    private void relax(long current, Node from, long neighbor, double footing, MoveType move,
+                       double cost, int submergedRun) {
         int ny = unpackY(neighbor);
         if (!this.domain.contains(unpackX(neighbor), ny, unpackZ(neighbor))) {
             return; // outside the fence there is no world, not merely a worse one
@@ -748,12 +837,14 @@ public final class Pathfinder {
             node.parent = current;
             node.move = move;
             node.surface16 = surface16;
+            node.submergedRun = submergedRun;
             this.nodes.put(neighbor, node);
         } else if (!node.closed && g < node.g) {
             node.g = g;
             node.parent = current;
             node.move = move;
             node.surface16 = surface16;
+            node.submergedRun = submergedRun;
         } else {
             return;
         }

@@ -7,21 +7,33 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
  * What the body a path is computed for can physically do, as plain data: the neighbour model is
  * parameterized by this rather than hard-coding any particular creature.
  *
- * <p><b>A snapshot.</b> These five are {@link ProfileAspect}s and can shift under a
+ * <p><b>A snapshot.</b> These are {@link ProfileAspect}s and can shift under a
  * modifier, but the A* runs OFF the server thread, so {@link #of} reads them once on the calling
  * thread.
  *
  * @param height     body height in blocks — the real hitbox (1.8 for a Person), not a cell count;
  *                   {@link #topCell} works out what it costs in cells
  * @param jumpHeight cells it can jump straight up (only 0 and 1 are modelled)
- * @param maxDrop    cells it will willingly fall; anything deeper is a hole to route around
+ * @param maxDrop    cells it will willingly fall <em>onto ground</em>; water cancels a fall, and
+ *                   the search prices plunges by depth instead
  * @param maxLeap    widest gap (cells) at the same level; 2+ needs a sprint run-up, so the engine
  *                   also demands an aligned approach cell
  * @param canSwim    whether it may cross water; false keeps {@link CellType#WATER} impassable.
- *                   Surface crossing only — a dive capability would add depth/breath fields
+ *                   Wading is not swimming — standable water is ground to the search
+ * @param maxSubmerged cells it may travel with its head under water. Body STATE, not shape: read
+ *                   off the breath gauge when the request was made. Zero refuses submerged travel
  */
 public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
-                               boolean canSwim) {
+                               boolean canSwim, int maxSubmerged) {
+
+    /**
+     * A body that will not put its head under — the shape numbers plus swimming, and no breath to
+     * spend. Most callers ask only about shape, and zero submerged travel cannot drown anybody.
+     */
+    public MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
+                            boolean canSwim) {
+        this(height, jumpHeight, maxDrop, maxLeap, canSwim, 0);
+    }
 
     /**
      * How far up a body walks without jumping — vanilla's step height, which a Person keeps at the
@@ -58,15 +70,24 @@ public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int m
         if (jumpHeight < 0) throw new IllegalArgumentException("jumpHeight must be >= 0: " + jumpHeight);
         if (maxDrop < 0) throw new IllegalArgumentException("maxDrop must be >= 0: " + maxDrop);
         if (maxLeap < 0) throw new IllegalArgumentException("maxLeap must be >= 0: " + maxLeap);
+        if (maxSubmerged < 0) {
+            throw new IllegalArgumentException("maxSubmerged must be >= 0: " + maxSubmerged);
+        }
     }
 
     /** Reads one body's capabilities out of its resolved profile, here and now. */
     public static MoveCapabilities of(AgentProfile profile) {
+        return of(profile, 0);
+    }
+
+    /** As {@link #of(AgentProfile)}, with the submerged budget its breath currently affords. */
+    public static MoveCapabilities of(AgentProfile profile, int maxSubmerged) {
         return new MoveCapabilities(
                 profile.d(ProfileAspect.BODY_HEIGHT),
                 profile.i(ProfileAspect.BODY_JUMP_HEIGHT),
                 profile.i(ProfileAspect.BODY_MAX_DROP),
                 profile.i(ProfileAspect.BODY_MAX_LEAP),
-                profile.b(ProfileAspect.BODY_CAN_SWIM));
+                profile.b(ProfileAspect.BODY_CAN_SWIM),
+                maxSubmerged);
     }
 }

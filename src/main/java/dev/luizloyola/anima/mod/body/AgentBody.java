@@ -162,6 +162,15 @@ public interface AgentBody {
     /** Jump, if able and on the ground. */
     void driveJump();
 
+    /**
+     * Movement control: swim down this tick, at {@code throttle} of full effort (0..1).
+     *
+     * <p>The one input that only means anything in water: everything else is horizontal or a jump,
+     * and buoyancy answers both while wet, so without this a body cannot be asked to go under.
+     * Outside water, doing nothing is correct.
+     */
+    void driveDown(float throttle);
+
     /** Turn to look at the centre of {@code cell}. */
     void faceBlock(BlockPos cell);
 

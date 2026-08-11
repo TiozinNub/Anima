@@ -2,6 +2,8 @@ package dev.luizloyola.anima.mod.nav;
 
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.agent.need.Gauge;
+import dev.luizloyola.anima.core.agent.need.NeedKind;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.mod.brain.DangerFields;
@@ -109,6 +111,15 @@ public final class Navigator {
      */
     private static final int NO_MOVE_LIMIT = 15;
     private static final double NO_MOVE_EPSILON = 0.01;
+    /**
+     * Ticks of air one submerged cell costs: the breath gauge's ticks converted into the cells the
+     * search counts. A stroke is appreciably slower than a walking step.
+     */
+    private static final double TICKS_PER_SUBMERGED_CELL = 5.0;
+    /** Fraction of a lungful a route leaves unspent — see {@link #submergedBudget()}. */
+    private static final double BREATH_RESERVE = 0.4;
+    /** The budget for a body with no breath gauge: one that does not drown, so nothing to ration. */
+    private static final int NO_BREATH_LIMIT = 4096;
     /** Re-path budget per {@link #pathTo} request: stuck or short-of-goal retries, then FAILED. */
     private static final int MAX_REPATHS = 3;
     /**
@@ -152,7 +163,10 @@ public final class Navigator {
     private int lastLeapPressIndex = -1;
     /** Set by {@link #tickSwim}, read by the {@link Swimmer} — see {@link #waterIntent()}. */
     private WaterIntent waterIntent = WaterIntent.NONE;
+    /** Feet height the current water leg is aiming at — see {@link #waterTargetY()}. */
+    private double waterTargetY;
     private double lastTickX;
+    private double lastTickY;
     private double lastTickZ;
     private int repathsLeft;
     /**
@@ -243,6 +257,10 @@ public final class Navigator {
         NONE,
         /** Travelling through water toward another water cell. */
         CROSS,
+        /** Going down a water column, which is the one water move a body must be pushed into. */
+        DIVE,
+        /** Going up one, toward the air. */
+        SURFACE,
         /** Heading for solid ground — the leg that has to gain height to finish. */
         EXIT
     }
@@ -259,6 +277,16 @@ public final class Navigator {
      */
     public WaterIntent waterIntent() {
         return this.waterIntent;
+    }
+
+    /**
+     * The feet height the current water leg is aiming at — meaningless unless
+     * {@link #waterIntent()} is saying something. Depth is the one thing a swimming body cannot
+     * work out for itself: its reflexes answer "up", which in a flooded tunnel is the roof. The
+     * route holds the vertical while it steers, the reflex takes it back when it stops.
+     */
+    public double waterTargetY() {
+        return this.waterTargetY;
     }
 
     /** One-line progress summary for the debug command. */
@@ -583,11 +611,28 @@ public final class Navigator {
      */
     private void tickSwim(Waypoint waypoint, boolean isLast, Vec3 pos,
                           double dx, double dz, double horizontalSq, double dy) {
-        boolean landTarget = waypoint.move() != MoveType.SWIM; // a climb-out step onto solid ground
-        // The one place that decides what a water leg is — see waterIntent().
-        this.waterIntent = landTarget ? WaterIntent.EXIT : WaterIntent.CROSS;
+        // The one place that decides what a water leg is — see waterIntent(). A vertical pair
+        // reads off the waypoint's own move: they are the two legs whose whole content is a change
+        // of depth, and the body cannot infer either from a horizontal heading.
+        boolean landTarget = switch (waypoint.move()) {
+            case SWIM, DIVE, SURFACE -> false;
+            default -> true; // a climb-out step onto solid ground
+        };
+        this.waterTargetY = waypoint.feetY();
+        this.waterIntent = switch (waypoint.move()) {
+            case DIVE -> WaterIntent.DIVE;
+            case SURFACE -> WaterIntent.SURFACE;
+            case SWIM -> WaterIntent.CROSS;
+            default -> WaterIntent.EXIT;
+        };
         double radius = isLast ? FINAL_RADIUS : WAYPOINT_RADIUS;
-        double vertical = landTarget ? verticalGap(dy) : 0.0;
+        // A DIVE or a SURFACE is the same column one cell along, so a horizontal arrival marks it
+        // reached the instant it becomes current — which it did, and the body swam the rest of a
+        // tunnel route at the surface, into the roof. Their arrival is the VERTICAL distance alone;
+        // a floating waypoint keeps the opposite rule, and a climb-out wants the feet down.
+        boolean verticalLeg = waypoint.move() == MoveType.DIVE
+                || waypoint.move() == MoveType.SURFACE;
+        double vertical = landTarget ? verticalGap(dy) : verticalLeg ? Math.abs(dy) : 0.0;
         if (horizontalSq + vertical * vertical <= radius * radius
                 && (!landTarget || this.person.onGround())) {
             if (isLast && landTarget && !isSettled()) {
@@ -602,9 +647,14 @@ public final class Navigator {
             retryOrFail();
             return;
         }
+        // In water, DEPTH is progress: the grounded path's horizontal-only measure calls a body
+        // stuck the moment it starts down a column, and fifteen such ticks re-path — which is how a
+        // good route through a flooded tunnel came back FAILED.
         double movedSq = (pos.x - this.lastTickX) * (pos.x - this.lastTickX)
+                + (pos.y - this.lastTickY) * (pos.y - this.lastTickY)
                 + (pos.z - this.lastTickZ) * (pos.z - this.lastTickZ);
         this.lastTickX = pos.x;
+        this.lastTickY = pos.y;
         this.lastTickZ = pos.z;
         if (movedSq < NO_MOVE_EPSILON * NO_MOVE_EPSILON) {
             if (++this.noMoveTicks > NO_MOVE_LIMIT) {
@@ -616,8 +666,12 @@ public final class Navigator {
         }
 
         // Plain walking input: travel's water branch turns it into (slow) horizontal swimming.
-        float heading = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F;
-        this.person.driveForward(heading);
+        // Skipped when there is no horizontal distance to cover, because atan2(0,0) is a heading
+        // like any other and would send a diving body wandering off north down the column.
+        if (horizontalSq > NO_MOVE_EPSILON) {
+            float heading = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F;
+            this.person.driveForward(heading);
+        }
         // The climb-out's lift is not pressed here: every vertical press while wet belongs to the
         // Swimmer (ticked after this), so narrowing one press cannot silently remove another.
     }
@@ -670,6 +724,9 @@ public final class Navigator {
             double segX = next.x() - current.x();
             double segZ = next.z() - current.z();
             double segLen = Math.sqrt(segX * segX + segZ * segZ);
+            if (segLen <= 0.0) {
+                return; // the next leg is straight up or down: there is no plane to be past
+            }
             // Decompose the offset against the outgoing segment: FORWARD overshoot is the glide this
             // advance exists for (up to 2.5); LATERAL drift means we are BESIDE the waypoint, and
             // claiming it skips the sidestep that aligns for a cardinal jump. A single round radius
@@ -891,7 +948,25 @@ public final class Navigator {
      * that would otherwise ask per waypoint.
      */
     private MoveCapabilities capabilities() {
-        return MoveCapabilities.of(this.person.profile());
+        return MoveCapabilities.of(this.person.profile(), submergedBudget());
+    }
+
+    /**
+     * How many cells this body may swim with its head under, on the breath it has RIGHT NOW.
+     *
+     * <p>Read live rather than from the species: plan a tunnel on a full lungful and it is a
+     * tunnel, plan it having just come up from another and it is a drowning. A body with no breath
+     * gauge dives freely — its consumer has declared it does not drown.
+     *
+     * <p>The reserve is not politeness: a plan claims cells, not tick counts, and the body can be
+     * shoved or re-routed on the way.
+     */
+    private int submergedBudget() {
+        Gauge breath = this.person.needs().gauge(NeedKind.BREATH).orElse(null);
+        if (breath == null) {
+            return NO_BREATH_LIMIT;
+        }
+        return (int) (breath.value() * (1.0 - BREATH_RESERVE) / TICKS_PER_SUBMERGED_CELL);
     }
 
     // ── continuity ───────────────────────────────────────────────────────────────────────────

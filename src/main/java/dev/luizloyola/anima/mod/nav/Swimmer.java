@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.nav;
 
+import dev.luizloyola.anima.core.agent.need.NeedKind;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -42,6 +43,13 @@ public final class Swimmer {
         TREADING,
         /** Deep water, steering a swim leg — riding the waterline. */
         CROSSING,
+        /**
+         * Going down, against buoyancy — the only state in which the body's own reflex
+         * to keep its head up is overruled.
+         */
+        DIVING,
+        /** Coming up, whether because the route says so or because the air is running out. */
+        SURFACING,
         /** Steering onto a bank: the one water move that has to gain height. */
         CLIMBING_OUT
     }
@@ -69,11 +77,31 @@ public final class Swimmer {
      */
     private static final int GRACE_TICKS = 10;
 
+    /**
+     * How hard a diving body swims down. Under full effort deliberately: a descent that fought
+     * buoyancy at full strength would overshoot the cell the route asked for, and a body that ends
+     * a dive one cell below the tunnel it meant to enter is a body wedged under a roof.
+     */
+    private static final float DIVE_THROTTLE = 0.6F;
+
+    /**
+     * The pressure at which the breath need takes the vertical away from the route: past this, a
+     * dive becomes a surfacing whatever the route says, because a plan is drawn against the air
+     * the body had when it was made. Set at the gauge's own urgent band, not a tick count, so
+     * retuning what "gasping" means retunes this with it.
+     */
+    private static final double PANIC_PRESSURE = 0.9;
+
+    /** How far off the route's depth a body may drift before it swims back to it, in blocks. */
+    private static final double DEPTH_BAND = 0.25;
+
     private final AgentBody body;
 
     private State state = State.DRY;
     private boolean swimming;
     private int graceTicks;
+    /** Whether the breath need is past {@link #PANIC_PRESSURE} — see {@link #stateOf}. */
+    private boolean outOfBreath;
 
     public Swimmer(AgentBody body) {
         this.body = body;
@@ -88,6 +116,8 @@ public final class Swimmer {
         Navigator.WaterIntent intent = this.body.navigator().waterIntent();
         boolean inWater = entity.isInWater();
         boolean deep = inWater && deepEnoughToSwimIn(entity);
+        this.outOfBreath = inWater && this.body.needs().gauge(NeedKind.BREATH)
+                .map(breath -> breath.pressure() >= PANIC_PRESSURE).orElse(false);
 
         // The latch, and the only piece of memory here. Harder to enter than to stay in, because a
         // single live condition flickers where two do not.
@@ -131,6 +161,16 @@ public final class Swimmer {
      */
     private void driveVertical(LivingEntity entity, boolean inWater, boolean deep,
             Navigator.WaterIntent intent) {
+        // While the route is taking this body under the surface it owns the vertical and
+        // buoyancy gets no vote. Without the first a dive is a body arguing with itself; without
+        // the second the body rises the moment the route stops saying DIVE — which is how a
+        // crossing under a roof wedged a settler against its underside.
+        boolean routeHasUsUnder = this.state == State.DIVING
+                || (this.state == State.CROSSING && fullySubmerged(entity));
+        if (routeHasUsUnder) {
+            holdDepth(entity, this.body.navigator().waterTargetY());
+            return;
+        }
         if (deep) {
             double setPoint = entity.isVisuallySwimming()
                     ? entity.getFluidJumpThreshold()          // 0.6 box, riding the surface
@@ -145,13 +185,38 @@ public final class Swimmer {
         }
     }
 
+    /**
+     * Swims toward the depth the route asked for, and stops when it is there.
+     *
+     * <p>A hold, not a one-way press: drag sinks a body doing nothing, buoyancy lifts one that has
+     * just stopped diving. Inside the band it coasts.
+     */
+    private void holdDepth(LivingEntity entity, double targetY) {
+        double off = entity.getY() - targetY;
+        if (off > DEPTH_BAND) {
+            this.body.driveDown(DIVE_THROTTLE);
+        } else if (off < -DEPTH_BAND) {
+            this.body.driveJump();
+        }
+    }
+
+    /** Whether the body is under water all the way to the top of its box — not merely wet. */
+    private static boolean fullySubmerged(LivingEntity entity) {
+        return entity.getFluidHeight(FluidTags.WATER) >= entity.getBbHeight() - 0.1;
+    }
+
     /** A description of {@link #swimming} and the water, not a second opinion about either. */
     private State stateOf(boolean inWater, boolean deep, Navigator.WaterIntent intent) {
         if (!inWater) {
             return State.DRY;
         }
         if (this.swimming) {
-            return intent == Navigator.WaterIntent.EXIT ? State.CLIMBING_OUT : State.CROSSING;
+            return switch (intent) {
+                case EXIT -> State.CLIMBING_OUT;
+                case DIVE -> this.outOfBreath ? State.SURFACING : State.DIVING;
+                case SURFACE -> State.SURFACING;
+                default -> State.CROSSING;
+            };
         }
         return deep ? State.TREADING : State.WADING;
     }
