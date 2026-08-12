@@ -50,6 +50,39 @@ public final class Ramp {
         return sorted[sorted.length - 1];
     }
 
+    /**
+     * Which side of comfortable {@code value} sits on: {@code -1} below, {@code 0} inside,
+     * {@code +1} above.
+     *
+     * <p>Pressure alone cannot answer this: a two-sided need presses at both ends, and lonely and
+     * crowded are the same number with opposite errands.
+     *
+     * <p>Comfortable is the stretch between the outermost corners whose declared pressure is zero.
+     * A need restful at one end only (hunger) answers {@code -1} below it and {@code 0} at it.
+     */
+    public int side(AgentProfile profile, double value) {
+        double[][] corners = corners(profile);
+        double low = Double.NaN;
+        double high = Double.NaN;
+        for (double[] corner : corners) {
+            if (corner[1] > 0.0) {
+                continue;
+            }
+            if (Double.isNaN(low)) {
+                low = corner[0];
+            }
+            high = corner[0];
+        }
+        if (Double.isNaN(low)) {
+            return 0; // nothing about this need is ever restful; there is no side to be on
+        }
+        double clamped = Math.max(axisMin, Math.min(axisMax, value));
+        if (clamped < low) {
+            return -1;
+        }
+        return clamped > high ? 1 : 0;
+    }
+
     /** How badly this body wants something done about it at that value, {@code 0..1}. */
     public double pressureAt(AgentProfile profile, double value) {
         double[][] corners = corners(profile);

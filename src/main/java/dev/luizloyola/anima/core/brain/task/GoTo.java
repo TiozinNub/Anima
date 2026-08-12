@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.nav.Gait;
@@ -25,6 +26,14 @@ import java.util.Locale;
  * {@link Gait#WALK}.
  */
 public final class GoTo implements PrimitiveTask {
+
+    /**
+     * How long the eyes rest on a destination before the legs get on with it — half a second.
+     * Long enough to read as a glance rather than a flicker, short enough that the body is looking
+     * where it walks by the time it has taken a step.
+     */
+    public static final int GLANCE_TICKS = 10;
+
     private final int x;
     private final int y;
     private final int z;
@@ -55,6 +64,11 @@ public final class GoTo implements PrimitiveTask {
         if (!issued) {
             issued = true;
             ctx.actuators().mover().moveTo(x, y, z, gait);
+            // Look where you are about to go: eyes reaching the destination before the legs is what
+            // reads as intent. A claim, so anything that actually needs the head outranks it, and it
+            // lapses on its own rather than having to be called off.
+            ctx.actuators().gazer().lookAt(x + 0.5, y + 1.0, z + 0.5, Gazer.Priority.NAV,
+                    GLANCE_TICKS);
             return TaskStatus.RUNNING; // see class doc: issue, don't read
         }
         MoveState state = ctx.actuators().mover().state();

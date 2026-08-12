@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.DangerField;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
@@ -76,15 +77,20 @@ public final class WanderStep implements CompoundTask {
         @Override
         public List<Task> decompose(BrainContext ctx) {
             RandomGenerator random = ctx.random();
-            boolean walks = random.nextDouble() < WALK_CHANCE;
+            Pos here = ctx.percepts().position();
+            List<Being> beings = ctx.percepts().beings();
+            // The draw happens either way, before anything can change its mind: the wander stream
+            // is one continuous sequence per body and its draw order is part of this class's
+            // contract. Crowding overrides the ANSWER, never the roll.
+            boolean rolled = random.nextDouble() < WALK_CHANCE;
+            boolean walks = rolled || Comfort.crowded(here, beings);
             int pause = IDLE_MIN + random.nextInt(IDLE_RANGE);
             if (!walks) {
                 return List.of(new Idle(pause));
             }
-            Pos here = ctx.percepts().position();
-            DangerField field = DangerField.of(ctx.danger(), ctx.percepts().beings(),
+            DangerField field = DangerField.of(ctx.danger(), beings,
                     ctx.knowledge(), ctx.percepts().time(), DangerField.FADE_TICKS);
-            Pos target = roll(here, field, random);
+            Pos target = roll(here, beings, field, ctx, random);
             int tx = target.x();
             int ty = target.y();
             int tz = target.z();
@@ -95,16 +101,22 @@ public final class WanderStep implements CompoundTask {
         }
 
         /**
-         * Where to potter off to — a plain roll when there is nothing to think about, the least
-         * frightening of a few rolls when there is. "Do not go that way" has to mean something
-         * while a body is calm, or the memory of a fright only ever changes how it runs and never
-         * where it chooses to be. Best-of-a-few rather than a search: holding out for a perfectly
-         * safe cell would mean never moving.
+         * Where to potter off to — a plain roll when there is nothing to think about, the most
+         * comfortable of a few rolls when there is.
+         *
+         * <p>A remembered fright must change where a calm body chooses to be, not only how it runs;
+         * elbow room and wanting company are the same kind of opinion (see {@link Comfort}). Not a
+         * search: a body holding out for a perfect cell would stand still.
+         *
+         * <p>The leg it picks is never re-aimed — a beat is five to fifteen seconds, and biasing
+         * the next roll converges just as fast and cannot thrash.
          */
-        private Pos roll(Pos here, DangerField field, RandomGenerator random) {
+        private Pos roll(Pos here, List<Being> beings, DangerField field, BrainContext ctx,
+                RandomGenerator random) {
+            boolean weighing = Comfort.worthWeighing(beings, field);
             Pos best = null;
-            double bestDanger = Double.MAX_VALUE;
-            int rolls = field.isEmpty() ? 1 : CAUTIOUS_ROLLS;
+            double bestCost = Double.MAX_VALUE;
+            int rolls = weighing ? CAUTIOUS_ROLLS : 1;
             for (int i = 0; i < rolls; i++) {
                 int dx;
                 int dz;
@@ -113,9 +125,12 @@ public final class WanderStep implements CompoundTask {
                     dz = random.nextInt(2 * radius + 1) - radius;
                 } while (dx == 0 && dz == 0);
                 Pos candidate = new Pos(here.x() + dx, here.y(), here.z() + dz);
-                double danger = field.isEmpty() ? 0.0 : field.at(candidate);
-                if (danger < bestDanger) {
-                    bestDanger = danger;
+                double cost = weighing
+                        ? Comfort.cost(candidate, beings, field, ctx.percepts().needs(),
+                                ctx.profile())
+                        : 0.0;
+                if (cost < bestCost) {
+                    bestCost = cost;
                     best = candidate;
                 }
             }
