@@ -21,6 +21,7 @@ public final class TestSpecies {
             .set(ProfileAspect.WANDER_RADIUS, 8)
             .set(ProfileAspect.SENSES_RADIUS, 24)
             .set(ProfileAspect.SENSES_SNEAK_RANGE_MULT, 0.75)
+            .set(ProfileAspect.SENSES_INVISIBLE_RANGE_MULT, 0.1)
             .set(ProfileAspect.SENSES_CONE_DEGREES, 150)
             .set(ProfileAspect.SENSES_VERTICAL_DEGREES, 60)
             .set(ProfileAspect.SENSES_HEARING_RADIUS, 12)

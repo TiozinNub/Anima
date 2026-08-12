@@ -70,6 +70,8 @@
   "anima.config.aspect.senses.radius.desc": "How far away, in blocks, another being can be perceived at all.",
   "anima.config.aspect.senses.sneak_range_mult": "Sneak range multiplier",
   "anima.config.aspect.senses.sneak_range_mult.desc": "Shrinks the range at which a sneaking being is noticed. Sneaking shortens how far away you are spotted; it never makes you invisible.",
+  "anima.config.aspect.senses.invisible_range_mult": "Invisible range multiplier",
+  "anima.config.aspect.senses.invisible_range_mult.desc": "Shrinks the range at which an invisible being is noticed \u2014 the sneak multiplier above, turned right down. An invisible body should have to be almost within reach before it is seen at all; it can still be heard the whole time. 0 means invisibility is total to this body's eyes.",
   "anima.config.aspect.senses.cone_degrees": "Field of view",
   "anima.config.aspect.senses.cone_degrees.desc": "Horizontal field of view in degrees. Beings outside it go unseen until they make noise; 360 sees in every direction.",
   "anima.config.aspect.senses.vertical_degrees": "Vertical field",

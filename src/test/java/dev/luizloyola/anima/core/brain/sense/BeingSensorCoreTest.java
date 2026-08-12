@@ -593,4 +593,21 @@ class BeingSensorCoreTest {
             return !hidden.contains(id);
         }
     }
+
+    /** Something that was never there is dropped outright, rather than remembered for a while. */
+    @Test
+    void forgettingSkipsTheLinger() {
+        BeingId ghost = world.addPerson("Ghost", new Pos(0, 64, 5), 5.0, Being.Activity.IDLE);
+        tickN(1);
+        assertEquals(1, sensor.beings().size(), "spotted first, so there is something to drop");
+
+        // A spectator is not out of sight, it is not in the world: a ghost left to linger would
+        // still count as company and still get looked at.
+        assertTrue(sensor.forget(ghost));
+        List<BeingEvent> events = tickN(1);
+        assertTrue(sensor.beings().isEmpty(), "still perceived after being forgotten");
+        assertTrue(events.stream().anyMatch(e -> e.type() == BeingEvent.Type.LOST),
+                "the ending is announced like any other, so a journal reads 'lost'");
+        assertFalse(sensor.forget(ghost), "forgetting twice is a no-op, not a second LOST");
+    }
 }

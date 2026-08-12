@@ -174,6 +174,17 @@ public final class BeingSense {
         BlockPos feet = person.blockPosition();
         long now = person.level().getGameTime();
         Pos feetPos = new Pos(feet.getX(), feet.getY(), feet.getZ());
+        // Anything that has stopped being IN the WORLD goes now, before anything reads the sense;
+        // everything else fades through the linger. A spectator dropped late is a ghost carried for
+        // fifteen seconds that still counts as company and still gets looked at. Swept over what is
+        // already tracked, never over the world.
+        bodies.entrySet().removeIf(tracked -> {
+            if (!absent(tracked.getValue())) {
+                return false;
+            }
+            sensor.forget(tracked.getKey());
+            return true;
+        });
         List<BeingEvent> events = sensor.tick(feetPos, person.entity().getYHeadRot(),
                 person.entity().getXRot(), now, world);
         for (BeingEvent event : events) {
@@ -347,21 +358,22 @@ public final class BeingSense {
         }
 
         /**
-         * Whether this body is close enough to be made out — the sight half of the range rule, in
-         * one method because discovery and the re-check each carried their own copy of "how far is
-         * far".
+         * Whether this body is close enough to be made out — the sight half of the range rule,
+         * asked here by discovery and by the re-check alike, because two copies of "how far is
+         * far" drift apart.
          *
-         * <p>Crouching applies this species' own {@code senses.sneak_range_mult}: sneaking shortens
-         * how far away you are noticed and never makes you invisible (decision: Luiz). Invisibility
-         * applies vanilla's {@code getVisibilityPercent} minus the sneak factor we already model —
-         * {@code 0.7 × armour cover}, floored at a tenth — so a naked invisible body is noticed at
-         * under two blocks, an armoured one at seven tenths of the usual reach.
+         * <p>Two factors shorten the reach, and they multiply: crouching applies this species'
+         * {@code senses.sneak_range_mult} (sneaking shortens how far off you are noticed, it never
+         * makes you invisible), invisibility its much smaller
+         * {@code senses.invisible_range_mult} (decision: Luiz).
          *
-         * <p><b>Read off {@code isInvisible()}, never off a list of effects:</b> it is a synced flag
-         * that {@code setInvisible} also sets for a command, a datapack or another mod, where
-         * enumerating effects would answer only for the one we thought of.
+         * <p><b>Read off {@code isInvisible()}, never off a list of effects</b> — the synced flag
+         * vanilla sets from the potion, and {@code setInvisible} sets for a command, a datapack or
+         * another mod. Vanilla's own {@code getVisibilityPercent}, which gives an armoured
+         * invisible body away at seven tenths of range, is not copied: it is tuned for
+         * a mob deciding whom to attack.
          *
-         * <p>Sight only: an unseen body can still be HEARD, since the ear runs off events.
+         * <p>Sight only — an unseen body can still be HEARD, since the ear runs off events.
          */
         private boolean noticeable(LivingEntity body) {
             double reach = profile.i(ProfileAspect.SENSES_RADIUS);
@@ -369,7 +381,7 @@ public final class BeingSense {
                 reach *= profile.d(ProfileAspect.SENSES_SNEAK_RANGE_MULT);
             }
             if (body.isInvisible()) {
-                reach *= INVISIBLE_REACH * Math.max(MIN_ARMOUR_TELL, body.getArmorCoverPercentage());
+                reach *= profile.d(ProfileAspect.SENSES_INVISIBLE_RANGE_MULT);
             }
             return body.distanceTo(person.entity()) <= reach;
         }
@@ -389,27 +401,31 @@ public final class BeingSense {
     }
 
     /**
-     * How much of the usual reach an invisible body is noticed within, before armour is counted —
-     * vanilla's own figure from {@code LivingEntity#getVisibilityPercent}.
+     * Whether this body is <b>not in the world</b> as far as any sense is concerned — its own
+     * question rather than a clause inside {@link #perceivable}, because it is the strongest answer
+     * there is.
+     *
+     * <p>Everything else that ends a perception is a body doing something — dying, walking off,
+     * stepping behind a wall — and gets object permanence. A spectator was never there, so it gets
+     * none of the machinery: no sneak multiplier, no line of sight, no linger, no remembered last
+     * position, no ear, and the track is dropped the tick it becomes one rather than fading.
+     *
+     * <p>The leak this closed: discovery filtered spectators but the re-check of an already tracked
+     * body did not, so a player seen in survival and then switched to spectator stayed a live
+     * reading forever.
      */
-    private static final double INVISIBLE_REACH = 0.7;
-
-    /** And vanilla's floor on it: even wearing nothing at all, you are not perfectly gone. */
-    private static final float MIN_ARMOUR_TELL = 0.1F;
+    static boolean absent(LivingEntity body) {
+        return body instanceof Player player && player.isSpectator();
+    }
 
     /**
-     * Whether this body can be perceived at all, asked in the one place: discovery filtered
-     * spectators and the re-check of an already-tracked body did not, so a player switched to
-     * spectator stayed a live reading forever — watched, greeted and feared, and invisible as a bug
-     * until bodies began turning their heads.
-     *
-     * <p>A spectator is not stealthy, it is <em>absent</em>: no sneak multiplier, no linger, no
-     * remembered last position.
+     * Whether this body is one that can be perceived at all — asked in the one place, by the eye
+     * ({@link Oracle}) and the ear ({@code BeingEar}) alike, because two copies of a rule drift and
+     * this one already had. Being hard to see is not in it: crouching and invisibility are about
+     * how far off you would notice, and live in {@link Oracle#noticeable}.
      */
-    private static boolean perceivable(LivingEntity body) {
-        return body.isAlive()
-                && !(body instanceof ArmorStand)
-                && !(body instanceof Player player && player.isSpectator());
+    static boolean perceivable(LivingEntity body) {
+        return body.isAlive() && !(body instanceof ArmorStand) && !absent(body);
     }
 
     private static boolean personShaped(LivingEntity body) {

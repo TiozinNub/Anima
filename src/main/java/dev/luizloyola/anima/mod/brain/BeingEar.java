@@ -67,9 +67,10 @@ public final class BeingEar implements GameEventListener {
     @Override
     public boolean handleGameEvent(ServerLevel level, Holder<GameEvent> event,
                                    GameEvent.Context context, Vec3 pos) {
+        // One rule for what can be perceived at all, shared with the eye — it drifted once when
+        // two places each kept a copy (see BeingSense#absent).
         if (!(context.sourceEntity() instanceof LivingEntity body)
-                || body == person || !body.isAlive() || body instanceof ArmorStand
-                || (body instanceof Player player && player.isSpectator())) {
+                || body == person || !BeingSense.perceivable(body)) {
             return false;
         }
         // The ear is sized to the loudest social range, so every ordinary sound is narrowed back

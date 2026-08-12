@@ -99,6 +99,13 @@ public final class ProfileAspect {
     public static final ProfileAspect SENSES_SNEAK_RANGE_MULT = register("senses.sneak_range_mult", Kind.DOUBLE, 0.1, 1.0,
             "Multiplier on that radius against a sneaking body. Sneaking shrinks how far away "
                     + "you are noticed by this one; it never makes you invisible to it.");
+    public static final ProfileAspect SENSES_INVISIBLE_RANGE_MULT = register("senses.invisible_range_mult", Kind.DOUBLE, 0.0, 1.0,
+            "Multiplier on that radius against an invisible body — the sneak rule above, turned "
+                    + "up. Invisibility should leave a body noticeable only from very close, so "
+                    + "this is small: a tenth of a settler's eyesight is a couple of paces. It "
+                    + "multiplies with sneaking, so creeping while invisible is better than "
+                    + "either. 0 means invisibility is total to this body's EYES — its ears still "
+                    + "work, because an invisible body still makes noise.");
     public static final ProfileAspect SENSES_CONE_DEGREES = register("senses.cone_degrees", Kind.INT, 30, 360,
             "Horizontal field of view (degrees). Prey animals have eyes on the sides of their "
                     + "heads and this is where that becomes true; 360 is omniscience.");

@@ -234,6 +234,30 @@ public final class BeingSensorCore {
      * expression instead: the exact point for a cover test, a cone for a hide search, a compass
      * direction when told to somebody else — as for hearing and remembered knowledge.
      */
+    /**
+     * Drop a track outright, now — for something that is not out of sight but <b>not there</b>.
+     *
+     * <p>Losing somebody otherwise takes the linger, because a body behind a wall is still real. A
+     * spectator is not: remembering one is a ghost that still counts as company, still frightens,
+     * still gets looked at.
+     *
+     * <p>Announced as {@link BeingEvent.Type#LOST} like any other ending (a herd's members stay
+     * silent — the herd speaks for them).
+     *
+     * @return whether there was anything to forget
+     */
+    public boolean forget(BeingId id) {
+        Track track = tracks.remove(id);
+        if (track == null) {
+            return false;
+        }
+        track.awareness = Being.Awareness.REMEMBERED;
+        if (track.herd == null) {
+            pending.add(BeingEvent.lost(being(track)));
+        }
+        return true;
+    }
+
     public void attacked(BeingReading who, long now, boolean voice) {
         heard(who, now, voice);
         Track track = tracks.get(who.id());
