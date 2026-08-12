@@ -7,6 +7,7 @@ import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Drop;
 import dev.luizloyola.anima.core.brain.sense.FoodLookup;
+import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.Inventory;
@@ -44,6 +45,8 @@ public final class FakePercepts implements Percepts {
     public List<Drop> drops = List.of();
     /** The game clock — settable; tests that price staleness advance it. */
     public long time;
+    /** What the legs last found out about being shut in — settable; defaults to nothing known. */
+    public Confinement confinement = Confinement.NONE;
     private final Map<String, FoodValue> foodById = new HashMap<>();
     private final Map<String, FoodValue> cookedById = new HashMap<>();
 
@@ -121,5 +124,10 @@ public final class FakePercepts implements Percepts {
                 return Optional.ofNullable(cookedById.get(stack.id()));
             }
         };
+    }
+
+    @Override
+    public Confinement confinement() {
+        return confinement;
     }
 }

@@ -64,6 +64,8 @@ public final class TestSpecies {
             .set(ProfileAspect.BODY_MAX_DROP, 3)
             .set(ProfileAspect.BODY_MAX_LEAP, 3)
             .set(ProfileAspect.BODY_CAN_SWIM, true)
+            .set(ProfileAspect.BODY_CAN_DIG, true)
+            .set(ProfileAspect.ESCAPE_PRESSURE, 0.9)
             // A settler's neck, and round dwell numbers: 40 and 120 make a scan's roll land on
             // exact ticks, so a suite can assert when the next look is due without a tolerance.
             .set(ProfileAspect.GAZE_TURN_DEGREES, 12.0)

@@ -11,6 +11,7 @@ import dev.luizloyola.anima.core.brain.task.BreakBlock;
 import dev.luizloyola.anima.core.brain.task.ConsumeItem;
 import dev.luizloyola.anima.core.brain.task.FleeStep;
 import dev.luizloyola.anima.core.brain.task.GatherNearbyDrops;
+import dev.luizloyola.anima.core.brain.task.EscapeStep;
 import dev.luizloyola.anima.core.brain.task.GoTo;
 import dev.luizloyola.anima.core.brain.task.Idle;
 import dev.luizloyola.anima.core.brain.task.ObtainItem;
@@ -87,6 +88,13 @@ public final class AnimaTasks {
                 GAIT.fieldOf("gait").forGetter(GoTo::gait),
                 Codec.BOOL.fieldOf("issued").forGetter(GoTo::issued)
         ).apply(t, (x, y, z, gait, issued) -> new GoTo(x, y, z, gait).resume(issued))));
+
+        // No state of its own: an escape step is re-decided from where the body now stands, which
+        // is the same reason it is one step rather than a compiled plan (see EscapeStep).
+        TaskCodecs.register("anima:escape", EscapeStep.class,
+                com.mojang.serialization.MapCodec.unit(EscapeStep::new));
+        TaskCodecs.register("anima:stuck", EscapeStep.Stuck.class,
+                com.mojang.serialization.MapCodec.unit(EscapeStep.Stuck::new));
 
         TaskCodecs.register("anima:idle", Idle.class, RecordCodecBuilder.mapCodec(t -> t.group(
                 Codec.INT.fieldOf("ticks").forGetter(Idle::ticks),

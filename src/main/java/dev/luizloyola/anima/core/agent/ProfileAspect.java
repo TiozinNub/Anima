@@ -228,6 +228,17 @@ public final class ProfileAspect {
             "Whether this body may enter and cross water. False keeps water impassable, so a "
                     + "land-only body routes around it. Surface crossing only — diving would "
                     + "need a depth and a breath of its own.");
+    public static final ProfileAspect BODY_CAN_DIG = register("body.can_dig", Kind.BOOL, 0, 1,
+            "Whether this body has an arm to cut its way out of somewhere with. False does not "
+                    + "mean it stops noticing that it is shut in — it means the only thing it can "
+                    + "do about it is say so, which is the right answer for something with paws "
+                    + "and the one a silent body would get wrong.");
+    public static final ProfileAspect ESCAPE_PRESSURE = register("escape.pressure", Kind.DOUBLE,
+            0.0, 1.0,
+            "How hard being shut in presses on this body. High by default: a body that cannot "
+                    + "leave the room it is in has nothing better to be doing, and every other "
+                    + "drive it has is about somewhere it cannot get to. Below flee on purpose — "
+                    + "the thing chewing on you outranks the wall.");
 
     // --- gaze: where this body's eyes go, and how fast --------------------------------------
 

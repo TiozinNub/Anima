@@ -15,6 +15,7 @@ import dev.luizloyola.anima.core.brain.act.Riser;
 import dev.luizloyola.anima.core.brain.board.AgentClaims;
 import dev.luizloyola.anima.core.brain.instinct.EatInstinct;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
+import dev.luizloyola.anima.core.brain.instinct.EscapeInstinct;
 import dev.luizloyola.anima.core.brain.instinct.FleeInstinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
@@ -279,9 +280,10 @@ public final class BrainDriver {
             }
         };
         // Flee is first on purpose: the arbiter breaks pressure ties in list order, so an exact
-        // flee/eat tie must resolve to fleeing.
+        // flee/eat tie must resolve to fleeing. Escape sits straight behind it — everything below
+        // is a want about somewhere the body cannot currently get to.
         this.arbiter = new Arbiter(List.of(
-                new FleeInstinct(), new EatInstinct(),
+                new FleeInstinct(), new EscapeInstinct(), new EatInstinct(),
                 this.wanderDrive),
                 celebrating);
     }

@@ -4,6 +4,7 @@ import dev.luizloyola.anima.compat.inv.CookedForms;
 import dev.luizloyola.anima.compat.inv.FoodValues;
 import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
+import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.Drop;
@@ -172,5 +173,18 @@ public final class AgentPercepts implements Percepts {
     @Override
     public long time() {
         return this.person.level().getGameTime();
+    }
+
+    /**
+     * Whether this body can get out of where it is, as the legs last found it.
+     *
+     * <p>Read off the {@link dev.luizloyola.anima.mod.nav.Navigator} because the answer is a
+     * by-product of a route search and only the navigator runs one — so it is as fresh as the last
+     * attempt to go anywhere, and a body that stopped trying notices on its next.
+     */
+    @Override
+    public Confinement confinement() {
+        return new Confinement(this.person.navigator().sealed(),
+                this.person.navigator().reachableCells());
     }
 }

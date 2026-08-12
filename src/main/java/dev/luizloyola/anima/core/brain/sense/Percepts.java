@@ -88,4 +88,15 @@ public interface Percepts {
      * pricing ({@code memory.age(time())}) compares like with like.
      */
     long time();
+
+    /**
+     * Whether this body can get out of where it is — see {@link Confinement}.
+     *
+     * <p>A percept rather than something a drive works out: the answer comes from a route search's
+     * own exhaustion, and only the legs ever run one. What arrives is the most recent search's
+     * reading. The default is "nothing known".
+     */
+    default Confinement confinement() {
+        return Confinement.NONE;
+    }
 }
