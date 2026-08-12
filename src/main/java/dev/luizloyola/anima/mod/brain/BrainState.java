@@ -18,6 +18,7 @@ import dev.luizloyola.anima.core.brain.knowledge.Column;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiSensorCore;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.brain.sense.Setbacks;
 import dev.luizloyola.anima.core.nav.MoveType;
 import dev.luizloyola.anima.core.nav.Waypoint;
 import dev.luizloyola.anima.mod.nav.Navigator;
@@ -209,6 +210,25 @@ public final class BrainState {
             Codec.INT.fieldOf("y").forGetter(Pos::y),
             Codec.INT.fieldOf("z").forGetter(Pos::z)
     ).apply(p, Pos::new));
+
+    /**
+     * Where a body has lately been beaten.
+     *
+     * <p>The tick is ABSOLUTE, not an age: entries fade from when they happened rather than
+     * getting a fresh lease from the save, so a world left overnight comes back already expired.
+     *
+     * <p>Kinds round-trip by name; an unknown one errors rather than silently re-filing, as the
+     * journal's category codec does.
+     */
+    public static final Codec<List<Setbacks.Setback>> SETBACKS = RecordCodecBuilder
+            .<Setbacks.Setback>create(s -> s.group(
+                    SENSE_POS.fieldOf("at").forGetter(Setbacks.Setback::at),
+                    Codec.STRING.fieldOf("kind").forGetter(entry -> entry.kind().name()),
+                    Codec.LONG.fieldOf("tick").forGetter(Setbacks.Setback::tick),
+                    Codec.INT.fieldOf("strength").forGetter(Setbacks.Setback::strength)
+            ).apply(s, (at, kind, tick, strength) ->
+                    new Setbacks.Setback(at, Setbacks.Kind.valueOf(kind), tick, strength)))
+            .listOf();
 
     private static final Codec<ClaimIndex.Claim> CLAIM = RecordCodecBuilder.create(c -> c.group(
             Codec.STRING.fieldOf("kind").forGetter(claim -> claim.kind().key()),

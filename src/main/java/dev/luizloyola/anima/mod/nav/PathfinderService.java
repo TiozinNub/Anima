@@ -3,6 +3,7 @@ package dev.luizloyola.anima.mod.nav;
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.sense.DangerField;
+import dev.luizloyola.anima.core.brain.sense.SetbackField;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.Path;
@@ -90,9 +91,9 @@ public final class PathfinderService {
      *     not reach back into a body to ask who it is.
      */
     public static Dispatched request(ServerLevel level, @Nullable AgentId who, BlockPos start,
-            BlockPos goal, MoveCapabilities body, DangerField danger) {
+            BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks) {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
-        PathRequest pathRequest = buildRequest(snapshot, start, goal, body, danger, who);
+        PathRequest pathRequest = buildRequest(snapshot, start, goal, body, danger, who, setbacks);
         String handle = who == null ? "?" : who.shortText();
         CompletableFuture<Path> result = CompletableFuture.supplyAsync(() -> {
             Path path = Pathfinder.find(snapshot, pathRequest);
@@ -104,9 +105,10 @@ public final class PathfinderService {
 
     /** The same pipeline as {@link #request}, entirely on the calling (server) thread. */
     public static Dispatched computeNow(ServerLevel level, @Nullable AgentId who, BlockPos start,
-            BlockPos goal, MoveCapabilities body, DangerField danger) {
+            BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks) {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
-        Path path = Pathfinder.find(snapshot, buildRequest(snapshot, start, goal, body, danger, who));
+        Path path = Pathfinder.find(snapshot,
+                buildRequest(snapshot, start, goal, body, danger, who, setbacks));
         return new Dispatched(CompletableFuture.completedFuture(path), snapshot);
     }
 
@@ -124,12 +126,14 @@ public final class PathfinderService {
     }
 
     private static PathRequest buildRequest(WorldSnapshot snapshot, BlockPos start, BlockPos goal,
-            MoveCapabilities body, DangerField danger, @Nullable AgentId who) {
+            MoveCapabilities body, DangerField danger, @Nullable AgentId who,
+            SetbackField setbacks) {
         BlockPos afloat = surfaceStart(snapshot, start, body);
         BlockPos grounded = groundGoal(snapshot, goal, body.canSwim());
         return PathRequest.of(afloat.getX(), afloat.getY(), afloat.getZ(),
                         grounded.getX(), grounded.getY(), grounded.getZ(), body, danger)
-                .varying(variety(who));
+                .varying(variety(who))
+                .avoiding(setbacks);
     }
 
     /**

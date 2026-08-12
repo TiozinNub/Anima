@@ -5,6 +5,9 @@ import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.need.Gauge;
 import dev.luizloyola.anima.core.agent.need.NeedKind;
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
+import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.brain.sense.SetbackField;
+import dev.luizloyola.anima.core.brain.sense.Setbacks;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.mod.brain.DangerFields;
@@ -429,6 +432,12 @@ public final class Navigator {
         if (this.sealed) {
             text.append(" [sealed in ").append(this.reachableCells).append(" cells]");
         }
+        // Same argument as the sealed reading: a fact about this body's situation, not the order —
+        // and it explains a route going the long way round.
+        if (!this.person.setbacks().isEmpty()) {
+            text.append(" [trouble: ")
+                    .append(this.person.setbacks().describe(level().getGameTime())).append(']');
+        }
         return text.toString();
     }
 
@@ -466,11 +475,20 @@ public final class Navigator {
         BlockPos start = startCell();
         PathfinderService.Dispatched dispatched = OFF_THREAD
                 ? PathfinderService.request(level(), who, start, this.goal,
-                        capabilities(), DangerFields.of(this.person))
+                        capabilities(), DangerFields.of(this.person), troubles())
                 : PathfinderService.computeNow(level(), who, start, this.goal,
-                        capabilities(), DangerFields.of(this.person));
+                        capabilities(), DangerFields.of(this.person), troubles());
         this.grid = dispatched.snapshot();
         this.pending = dispatched.result();
+    }
+
+    /**
+     * Where this body has lately been beaten, priced for right now — the reading that makes a retry
+     * a different question. Taken here, on the server thread, for the same reason the danger field
+     * is: the worker must never reach back into a body to ask it anything.
+     */
+    private SetbackField troubles() {
+        return this.person.setbacks().field(level().getGameTime());
     }
 
     /**
@@ -1174,6 +1192,15 @@ public final class Navigator {
      */
     private void retryOrFail(MoveFailure why) {
         this.failure = why;
+        // Put the trouble on the record before re-asking, so the retry is a different question.
+        // Without it the same request from the same spot produced the same route into the same
+        // obstruction.
+        Setbacks.Kind kind = kindOf(why);
+        if (kind != null) {
+            BlockPos here = this.person.blockPosition();
+            this.person.setbacks().record(new Pos(here.getX(), here.getY(), here.getZ()), kind,
+                    level().getGameTime());
+        }
         if (this.repathsLeft-- > 0) {
             requestPath();
         } else {
@@ -1222,6 +1249,22 @@ public final class Navigator {
      * let anyone editing a few blocks near the path drive a reachable goal to FAILED.
      * {@link #PROACTIVE_REPATH_COOLDOWN} still bounds the rate.
      */
+    /**
+     * Which failures are worth remembering as a fact about a PLACE. The three that are all say
+     * something about the cell the body stands in; the two that are not would poison the record
+     * filed under its own feet — {@link MoveFailure#UNREACHABLE} is a verdict on the GOAL (a
+     * destination inside a wall is not the doorstep's fault) and {@link MoveFailure#INTERRUPTED} is
+     * a verdict on the server.
+     */
+    private static Setbacks.@Nullable Kind kindOf(MoveFailure why) {
+        return switch (why) {
+            case WEDGED -> Setbacks.Kind.WEDGED;
+            case STALLED -> Setbacks.Kind.STALLED;
+            case STRAYED -> Setbacks.Kind.STRAYED;
+            default -> null;
+        };
+    }
+
     private void proactiveRepath(CellNeed changed) {
         // PATHFIND log: the "recalculate - missing floor 5, 10, 10" line — which cell stopped matching
         // the plan, so a route that keeps re-planning has a visible cause.

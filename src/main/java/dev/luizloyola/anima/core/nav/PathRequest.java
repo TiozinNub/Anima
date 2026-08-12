@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.nav;
 
 import dev.luizloyola.anima.core.brain.sense.DangerField;
+import dev.luizloyola.anima.core.brain.sense.SetbackField;
 
 /**
  * One pathfinding question: from the start cell (where the agent's feet are) to the goal cell,
@@ -14,7 +15,7 @@ public record PathRequest(
         int startX, int startY, int startZ,
         int goalX, int goalY, int goalZ,
         MoveCapabilities profile, DangerField danger, NavDomain domain, int maxNodes,
-        long variety) {
+        long variety, SetbackField setbacks) {
 
     /**
      * Default search budget. At ~8 neighbour probes per expansion this bounds worst-case work per
@@ -31,6 +32,19 @@ public record PathRequest(
         if (domain == null) {
             domain = NavDomain.EVERYWHERE;
         }
+        if (setbacks == null) {
+            setbacks = SetbackField.NONE;
+        }
+    }
+
+    /**
+     * The same route, computed by a body that remembers where it has lately been beaten — a retry
+     * is a different question, not the same one again. A SNAPSHOT like the danger field: server
+     * thread, immutable for the worker.
+     */
+    public PathRequest avoiding(SetbackField setbacks) {
+        return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
+                profile, danger, domain, maxNodes, variety, setbacks);
     }
 
     /** A route for a body with nothing to be afraid of — every test, and most of the world. */
@@ -46,7 +60,7 @@ public record PathRequest(
      */
     public PathRequest within(NavDomain domain) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
-                profile, danger, domain, maxNodes, variety);
+                profile, danger, domain, maxNodes, variety, setbacks);
     }
 
     /**
@@ -64,7 +78,7 @@ public record PathRequest(
      */
     public PathRequest varying(long variety) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
-                profile, danger, domain, maxNodes, variety);
+                profile, danger, domain, maxNodes, variety, setbacks);
     }
 
     /**
@@ -77,6 +91,6 @@ public record PathRequest(
                                  int goalX, int goalY, int goalZ, MoveCapabilities profile,
                                  DangerField danger) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ, profile, danger,
-                NavDomain.EVERYWHERE, DEFAULT_MAX_NODES, 0L);
+                NavDomain.EVERYWHERE, DEFAULT_MAX_NODES, 0L, SetbackField.NONE);
     }
 }

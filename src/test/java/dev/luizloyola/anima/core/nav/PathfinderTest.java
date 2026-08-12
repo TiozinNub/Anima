@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.nav;
 
 import dev.luizloyola.anima.core.brain.sense.DangerField;
+import dev.luizloyola.anima.core.brain.sense.SetbackField;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -347,7 +348,7 @@ class PathfinderTest {
         AsciiWorld world = AsciiWorld.of(row.toString(), row.toString(), row.toString());
         Path path = Pathfinder.find(world,
                 new PathRequest(0, 1, 1, 39, 1, 1, TestBodies.BIPED, DangerField.NONE,
-                        NavDomain.EVERYWHERE, 8, 0L));
+                        NavDomain.EVERYWHERE, 8, 0L, SetbackField.NONE));
         assertFalse(path.reachedGoal());
         assertFalse(path.isEmpty());
         assertTrue(path.last().x() > 0, "partial path should head toward the goal");

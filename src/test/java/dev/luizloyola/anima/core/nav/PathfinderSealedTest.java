@@ -82,7 +82,7 @@ class PathfinderSealedTest {
         assertTrue(find(room, 2, 1, 2, 20, 1, 20).sealed(), "with room to finish, it is a proof");
 
         PathRequest pinched = new PathRequest(2, 1, 2, 20, 1, 20, TestBodies.BIPED,
-                null, null, 4, 0L);
+                null, null, 4, 0L, null);
         Path path = Pathfinder.find(room, pinched);
         assertFalse(path.sealed(), "it stopped counting, it did not run out of world");
     }

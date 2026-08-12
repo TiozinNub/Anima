@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.nav;
 
 import dev.luizloyola.anima.core.brain.sense.DangerField;
+import dev.luizloyola.anima.core.brain.sense.SetbackField;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -232,6 +233,12 @@ public final class Pathfinder {
     private final DangerField danger;
 
     /**
+     * Where this body has lately been beaten — {@link PathRequest#setbacks()}. A snapshot taken
+     * before the search left the server thread, exactly like the danger field beside it.
+     */
+    private final SetbackField setbacks;
+
+    /**
      * Where the body may stand at all — {@link PathRequest#domain()}. Enforced here at the one
      * funnel every move generator feeds, on the FEET cell of the offered node: a fenced search
      * cannot so much as consider a cell outside it. (A leap still arcs over cells it never
@@ -255,6 +262,7 @@ public final class Pathfinder {
         this.grid = grid;
         this.profile = request.profile();
         this.danger = request.danger();
+        this.setbacks = request.setbacks();
         this.domain = request.domain();
         this.variety = request.variety();
         this.goalX = request.goalX();
@@ -648,6 +656,16 @@ public final class Pathfinder {
         int x1 = Math.max(x, x + dx);
         int z0 = Math.min(z, z + dz);
         int z1 = Math.max(z, z + dz);
+        // The worst trouble this stride passes THROUGH. A cell surcharge only bites where the
+        // search stands, and a stride does not stand in the cells it crosses — so without this a
+        // body strides straight over the doorway that wedged it. (The worst rather than the sum:
+        // crossing one bad cell should cost about what standing in it would.)
+        //
+        // Not done for dread: a fright is a large, smooth field, so the endpoints of any stride
+        // near one are already paying, whereas a setback is a single cell — precisely what a
+        // stride can straddle uncharged. Leaps are left alone too, and that is not an omission:
+        // a leap genuinely arcs over the cells between.
+        double crossed = 0.0;
         for (int cx = x0; cx <= x1; cx++) {
             for (int cz = z0; cz <= z1; cz++) {
                 if (cx == x && cz == z) continue; // where we stand — standable by construction
@@ -660,9 +678,13 @@ public final class Pathfinder {
                 // A stride prices itself by its length alone, so letting one sweep a wet cell would
                 // buy three blocks of wading for the price of walking them.
                 if (isCareful(cx, y, cz) || isWater(cx, y, cz)) return;
+                if (cx != x + dx || cz != z + dz) { // the destination is charged by relax itself
+                    crossed = Math.max(crossed, grudge(pack(cx, y, cz)));
+                }
             }
         }
-        relax(current, node, pack(x + dx, y, z + dz), footing(x + dx, y, z + dz), MoveType.WALK, cost);
+        relax(current, node, pack(x + dx, y, z + dz), footing(x + dx, y, z + dz), MoveType.WALK,
+                cost + crossed);
     }
 
     /**
@@ -984,7 +1006,7 @@ public final class Pathfinder {
         // Scaled by the ground, then surcharged for fear: roughness is how tiring the crossing is,
         // so it multiplies the crossing, while dread is a flat toll for setting foot at all. The
         // heuristic survives both because neither can make a move cost less than its length.
-        double g = from.g + cost * (1.0 + roughness(neighbor)) + dread(neighbor);
+        double g = from.g + cost * (1.0 + roughness(neighbor)) + dread(neighbor) + grudge(neighbor);
         Node node = this.nodes.get(neighbor);
         if (node == null) {
             node = new Node();
@@ -1023,6 +1045,24 @@ public final class Pathfinder {
             return 0.0;
         }
         return DREAD_COST * danger.at(unpackX(cell), unpackY(cell), unpackZ(cell));
+    }
+
+    /**
+     * How much this body would rather not go back to a place that has already beaten it — nothing
+     * at all for a body that has not lately been having trouble, which is nearly all of them.
+     *
+     * <p>Separate from {@link #dread} because they price different things: fear is about what might
+     * happen, this is about what already did. They add rather than compete.
+     *
+     * <p>Like fear, it never makes a cell impassable: the surcharge is finite, so a body with no
+     * alternative pays and goes. The point is to make the OTHER doorway win when there is
+     * one. It only ever raises a cost, so the heuristic stays admissible exactly as dread does.
+     */
+    private double grudge(long cell) {
+        if (this.setbacks.isEmpty()) {
+            return 0.0;
+        }
+        return SETBACK_COST * this.setbacks.at(unpackX(cell), unpackY(cell), unpackZ(cell));
     }
 
     /**
@@ -1093,6 +1133,20 @@ public final class Pathfinder {
      * nothing (a route that happens to pass wide is not worth bending).
      */
     private static final double DREAD_COST = 8.0;
+
+    /**
+     * How many steps of detour one unit of remembered trouble is worth.
+     *
+     * <p>Under {@link #DREAD_COST} deliberately, and the gap is the argument: a creeper might kill
+     * you, whereas a doorway that wedged you once merely wasted a second. Against the field's
+     * inverse-square falloff this reads as about six steps on the exact spot that beat you, a step
+     * and a half two blocks off, a quarter of a step five blocks off — a lean, not a wall.
+     *
+     * <p>Sized to lose to a genuine detour: where the only way through is the way that beat us the
+     * body tries again along much the same line, and the strength counter is what makes the second
+     * and third attempts push harder.
+     */
+    private static final double SETBACK_COST = 6.0;
 
     /**
      * Euclidean distance on the horizontal plane, or the height still to be made up, whichever is

@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.agent.Pronouns;
 import dev.luizloyola.anima.core.agent.need.Needs;
 import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.sense.DangerTable;
+import dev.luizloyola.anima.core.brain.sense.Setbacks;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.nav.Gait;
@@ -120,6 +121,13 @@ public interface AgentBody {
      * Owned and ticked by the body: perception is something a body <em>does</em>.
      */
     BeingSense beingSense();
+
+    /**
+     * Where this body has lately been beaten — a short, fading memory of trouble, so a retry is a
+     * different attempt. Owned by the body rather than by whatever asked for the walk: a cell that
+     * keeps defeating these legs has to outlive the order that discovered it.
+     */
+    Setbacks setbacks();
 
     /** The body's block-breaking actuator, which it owns and ticks (crack, drops, exhaustion). */
     AgentBlockBreaker blockBreaker();
