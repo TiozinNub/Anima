@@ -2,30 +2,32 @@ package dev.luizloyola.anima.core.brain.attention;
 
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
+import dev.luizloyola.anima.core.brain.sense.DangerTable;
+import dev.luizloyola.anima.core.brain.sense.Percepts;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.random.RandomGenerator;
 
 /**
- * What a body looks at when nothing needs its eyes — the pure half of the gaze organ, and the one
- * place that answers "why is it staring at that".
+ * What a body looks at — the pure half of the gaze organ. Every {@link Salience.Source} offers
+ * priced {@link Salience.Candidate}s; this class picks one, holds it long enough to be a look, and
+ * remembers recent looks so a body attends rather than stares.
  *
- * <p>Today one source: an <b>idle scan</b>, a bearing held for a few seconds and rolled again,
- * which is the floor of looking alive. Everything else arrives as another <em>source</em> scored
- * against it, so this is shaped as a picker with a single candidate.
+ * <p>Below {@link #SCAN_SCORE} the body idly looks around instead — a competitor, not a fallback
+ * branch. Scoring runs every {@link #DECIDE_INTERVAL} ticks and tracking
+ * ({@link Salience.Source#track}) every tick, so the expensive half is paid at a tenth of the rate.
+ * The output is a world point, never a bearing.
  *
- * <p><b>The output is a world point, not a bearing.</b> It is what an eye aims at and what every
- * future source produces, and it makes the scan behave correctly for free: a body walking past the
- * spot it was idling beside turns its head to keep it, and drops it behind the shoulder. A bearing
- * would have made the head a compass needle glued to the body.
- *
- * <p><b>Not persisted, deliberately</b> — the justified exception to "anything outliving its tick
- * is saved": all of this state is re-rolled from live position within a couple of seconds, and no
- * behaviour, memory or plan reads it.
- *
- * <p><b>The randomness is not the brain's.</b> The organ hands in the body's entity random rather
- * than the saved {@code AgentRandom}: sharing that stream would let the number of head turns decide
- * which way the next wander rolled, and the brain's stream is saved and restored precisely so "the
- * roam it was going to pick is the roam it picks".
+ * <p>Not persisted — the justified exception to the rule that anything outliving its
+ * tick is saved: the state re-derives from live perception within a second or two and nothing reads
+ * it. The randomness is the caller's generator, not the brain's saved {@code AgentRandom}; sharing
+ * it would let head turns decide the next wander roll.
  */
 public final class Attention {
 
@@ -52,45 +54,256 @@ public final class Attention {
     public static final double SCAN_DISTANCE = 12.0;
 
     /**
-     * Somewhere to look, for a while: a world point, when it stops being the answer, and why —
-     * the {@code reason} is what a debug readout prints, so a stare can be told from a bug.
+     * What idly looking around is worth. Every source is priced against this; below it, the body
+     * would rather just look about.
      */
-    public record Focus(double x, double y, double z, long until, String reason) {
+    public static final double SCAN_SCORE = 0.12;
+
+    /** The scan's key. One key for all of them: they are the same act, not a series of things. */
+    public static final String SCAN_KEY = "scan";
+
+    /** How often the full scoring pass runs. Twice a second is faster than anyone changes their mind. */
+    public static final int DECIDE_INTERVAL = 10;
+
+    /**
+     * How long after looking away something is worth a full look again — thirty seconds, ramping.
+     * This is what stops a stare: otherwise the best thing in sight wins every decision for as
+     * long as it is there.
+     */
+    public static final int REFRACTORY_TICKS = 600;
+
+    /**
+     * How much better a rival must be to take the eyes off what they are on — a quarter again. The
+     * arbiter's stickiness, for the same reason: near-equal candidates should not flick the head.
+     */
+    public static final double PREEMPT = 0.25;
+
+    /** How many keys the novelty memory holds before the stalest are dropped. */
+    private static final int MEMORY_LIMIT = 64;
+
+    /** How many of the last decision's candidates are kept for the readout. */
+    private static final int OFFERS_KEPT = 3;
+
+    private static final List<Salience.Source> SOURCES = new ArrayList<>();
+
+    static {
+        // Anima's own, in the order it would like them asked. Both are mechanism: neither knows
+        // what a Person is.
+        register(new BeingSource());
+        register(new ThingSource());
+    }
+
+    /**
+     * Teach every body in the world one more thing worth looking at — the extension point of this
+     * feature: a consumer's own vocabulary is priced here and competes with everything else rather
+     * than becoming a branch in a picker. Canonical per instance; call it at mod init.
+     */
+    public static synchronized void register(Salience.Source source) {
+        for (Salience.Source existing : SOURCES) {
+            if (existing.name().equals(source.name())) {
+                throw new IllegalStateException("attention source \"" + source.name()
+                        + "\" is already registered — two mods disagree about what it means");
+            }
+        }
+        SOURCES.add(source);
+    }
+
+    /** Every registered source, in registration order. */
+    public static synchronized List<Salience.Source> sources() {
+        return List.copyOf(SOURCES);
+    }
+
+    /**
+     * Somewhere to look, for a while. {@code reason} is what a debug readout prints, so a stare can
+     * be told from a bug.
+     *
+     * @param snap whether the head should whip round rather than turn. A startle, and nothing else
+     */
+    public record Focus(String key, double x, double y, double z, long until, double score,
+                        boolean snap, String reason) {
 
         public boolean live(long now) {
             return now < until;
         }
+
+        /** The same look, at where the thing has moved to — see {@link Salience.Source#track}. */
+        public Focus movedTo(Salience.Candidate candidate) {
+            return new Focus(key, candidate.x(), candidate.y(), candidate.z(), until,
+                    candidate.score(), snap, candidate.reason());
+        }
     }
 
     private Focus focus;
+    private long decidedAt = Long.MIN_VALUE;
 
     /**
-     * Where to look this tick, rolling a new focus whenever the last one has run out. Returns the
-     * Same focus on every tick of its dwell: the easing and the turning belong to the organ, which
-     * needs something to ease toward.
+     * What the last decision was between — the best few things on offer and what they were worth.
+     * Kept because a body scanning past somebody in front of it reads identically whether the
+     * picker never saw them or priced them at nothing; carried permanently, formatted only when
+     * asked.
+     */
+    private final List<Salience.Candidate> offers = new ArrayList<>(OFFERS_KEPT);
+
+    /** When each key was last looked away from — the whole of what makes a look wear off. */
+    private final Map<String, Long> lastLookedAt = new HashMap<>();
+
+    /**
+     * Where to look this tick. Returns the same focus every tick of its dwell, its point kept
+     * current if the thing moves.
      *
-     * @param eyeX where this body's eyes are, world X — the origin a scan is projected from
+     * @param eyeX where this body's eyes are, world X — the origin every candidate is scored from
      * @param eyeY eye height, world Y
      * @param eyeZ eye position, world Z
      * @param bodyYawDegrees which way the body is squared up (Minecraft convention: 0° is +Z), the
-     *     axis the scan arc is measured from — a scan is relative to the shoulders, never to the
-     *     head, or each roll would compound the last and the body would slowly spin
-     * @param now the game tick, the same clock the dwell is counted in
+     *     axis a scan's arc is measured from — off the shoulders, never off the head, or each roll
+     *     would compound the last and the body would slowly spin
+     * @param now the game tick
+     * @param percepts what this body perceives; {@code knowledge} what it remembers;
+     *     {@code danger} what frightens it
+     * @param profile what this body is like: its reach, its neck, how long it rests its eyes
      * @param random this body's stream of chance — not the brain's (see the class note)
-     * @param profile what this body is like; the dwell is a species' business
      */
     public Focus tick(double eyeX, double eyeY, double eyeZ, double bodyYawDegrees, long now,
-            RandomGenerator random, AgentProfile profile) {
-        if (this.focus != null && this.focus.live(now)) {
-            return this.focus;
+            Percepts percepts, AgentKnowledge knowledge, DangerTable danger, AgentProfile profile,
+            RandomGenerator random) {
+        Salience.Scene scene = new Salience.Scene(eyeX, eyeY, eyeZ, bodyYawDegrees, now, percepts,
+                knowledge, danger, profile, Collections.unmodifiableMap(this.lastLookedAt));
+        keepUp(scene, now);
+        if (this.focus == null || now - this.decidedAt >= DECIDE_INTERVAL) {
+            this.decidedAt = now;
+            decide(scene, now, random);
         }
-        this.focus = scan(eyeX, eyeY, eyeZ, bodyYawDegrees, now, random, profile);
         return this.focus;
     }
 
     /** Whatever is currently being looked at, or {@code null} — for readouts, never a decision. */
     public Focus current() {
         return this.focus;
+    }
+
+    /** What the last decision was between — see {@link #offers}. Readouts only. */
+    public String verdict() {
+        if (this.offers.isEmpty()) {
+            return "nothing offered";
+        }
+        StringBuilder out = new StringBuilder();
+        for (Salience.Candidate candidate : this.offers) {
+            if (out.length() > 0) {
+                out.append(", ");
+            }
+            out.append(String.format(Locale.ROOT, "%s %.2f", candidate.reason(),
+                    candidate.score()));
+        }
+        return out.toString();
+    }
+
+    /**
+     * Keeps this candidate if it is among the best few offered — an insertion sort over three
+     * entries, cheaper than sorting everything a busy scene proposes.
+     */
+    private void remember(Salience.Candidate candidate) {
+        int at = 0;
+        while (at < this.offers.size() && this.offers.get(at).score() >= candidate.score()) {
+            at++;
+        }
+        if (at >= OFFERS_KEPT) {
+            return;
+        }
+        this.offers.add(at, candidate);
+        while (this.offers.size() > OFFERS_KEPT) {
+            this.offers.remove(this.offers.size() - 1);
+        }
+    }
+
+    /**
+     * Drop the current look so the next tick chooses afresh — a look chosen before an interruption
+     * aims at where the body used to be standing.
+     */
+    public void clear() {
+        this.focus = null;
+    }
+
+    /**
+     * Keep the eyes on what they are on: follow it if it moved, drop it if it is gone or its dwell
+     * has run out. Every tick, and cheap — this is the half that has to be smooth.
+     */
+    private void keepUp(Salience.Scene scene, long now) {
+        if (this.focus == null) {
+            return;
+        }
+        if (!SCAN_KEY.equals(this.focus.key())) {
+            for (Salience.Source source : sources()) {
+                if (!source.owns(this.focus.key())) {
+                    continue;
+                }
+                Optional<Salience.Candidate> where = source.track(scene, this.focus.key());
+                if (where.isPresent()) {
+                    this.focus = this.focus.movedTo(where.get());
+                } else {
+                    // Gone: out of perception, dead, picked up. Looking at where it was would be a
+                    // thousand-yard stare.
+                    forget(now);
+                }
+                break;
+            }
+        }
+        if (this.focus != null && !this.focus.live(now)) {
+            forget(now);
+        }
+    }
+
+    /** One full scoring pass: the best candidate, against what the eyes are already on. */
+    private void decide(Salience.Scene scene, long now, RandomGenerator random) {
+        Salience.Candidate best = null;
+        this.offers.clear();
+        for (Salience.Source source : sources()) {
+            for (Salience.Candidate candidate : source.propose(scene)) {
+                if (best == null || candidate.score() > best.score()) {
+                    best = candidate;
+                }
+                remember(candidate);
+            }
+        }
+        if (best == null || best.score() < SCAN_SCORE) {
+            // Nothing beats idly looking around — a verdict about the scene, not a failure.
+            if (this.focus == null) {
+                this.focus = scan(scene, now, random);
+            }
+            return;
+        }
+        if (this.focus == null) {
+            this.focus = adopt(best, now);
+            return;
+        }
+        if (best.key().equals(this.focus.key())) {
+            return; // already looking at it; its dwell is not restarted by looking harder
+        }
+        if (best.snap() || best.score() > this.focus.score() * (1.0 + PREEMPT)) {
+            forget(now);
+            this.focus = adopt(best, now);
+        }
+    }
+
+    private Focus adopt(Salience.Candidate candidate, long now) {
+        return new Focus(candidate.key(), candidate.x(), candidate.y(), candidate.z(),
+                now + candidate.dwell(), candidate.score(), candidate.snap(), candidate.reason());
+    }
+
+    /**
+     * Stop looking at whatever it is, and remember when — which is what makes it less interesting
+     * for a while ({@link Salience.Scene#novelty}).
+     */
+    private void forget(long now) {
+        if (this.focus != null && !SCAN_KEY.equals(this.focus.key())) {
+            if (this.lastLookedAt.size() >= MEMORY_LIMIT) {
+                // The stalest has been un-interesting longest; dropping it is what forgetting does.
+                this.lastLookedAt.entrySet().stream()
+                        .min(Map.Entry.comparingByValue())
+                        .ifPresent(oldest -> this.lastLookedAt.remove(oldest.getKey()));
+            }
+            this.lastLookedAt.put(this.focus.key(), now);
+        }
+        this.focus = null;
     }
 
     /**
@@ -105,37 +318,27 @@ public final class Attention {
         return Math.min(SCAN_ARC_DEGREES, profile.i(ProfileAspect.GAZE_MAX_TWIST_DEGREES));
     }
 
-    /**
-     * Drop the current focus, so the next {@link #tick} rolls a fresh one. What the organ calls
-     * when something outranked the idle look for a while: coming back to a scan that was chosen
-     * before the interruption would aim at where the body used to be standing.
-     */
-    public void clear() {
-        this.focus = null;
-    }
-
     /** One roll of the idle scan: a bearing off the shoulders, a small tilt, a point out there. */
-    private Focus scan(double eyeX, double eyeY, double eyeZ, double bodyYawDegrees, long now,
-            RandomGenerator random, AgentProfile profile) {
-        int arc = arc(profile);
+    private static Focus scan(Salience.Scene scene, long now, RandomGenerator random) {
+        int arc = arc(scene.profile());
         boolean forward = random.nextDouble() < SCAN_FORWARD_CHANCE;
         double offset = forward ? 0.0 : random.nextInt(2 * arc + 1) - arc;
         double pitch = random.nextInt(2 * SCAN_PITCH_DEGREES + 1) - SCAN_PITCH_DEGREES;
-        double yaw = Math.toRadians(bodyYawDegrees + offset);
+        double yaw = Math.toRadians(scene.bodyYaw() + offset);
         double tilt = Math.toRadians(pitch);
         // Minecraft's convention, the same one the sense cones are measured in: yaw 0° faces +Z,
         // and a POSITIVE pitch looks down (BeingSensorCore#inCone).
         double horizontal = SCAN_DISTANCE * Math.cos(tilt);
-        double x = eyeX - Math.sin(yaw) * horizontal;
-        double z = eyeZ + Math.cos(yaw) * horizontal;
-        double y = eyeY - SCAN_DISTANCE * Math.sin(tilt);
-        int min = profile.i(ProfileAspect.GAZE_SCAN_MIN_TICKS);
-        int max = profile.i(ProfileAspect.GAZE_SCAN_MAX_TICKS);
+        double x = scene.eyeX() - Math.sin(yaw) * horizontal;
+        double z = scene.eyeZ() + Math.cos(yaw) * horizontal;
+        double y = scene.eyeY() - SCAN_DISTANCE * Math.sin(tilt);
+        int min = scene.profile().i(ProfileAspect.GAZE_SCAN_MIN_TICKS);
+        int max = scene.profile().i(ProfileAspect.GAZE_SCAN_MAX_TICKS);
         // A species may declare the pair crossed over: bounds travel with each aspect, but nothing
         // can express "and above the other one". Taking the wider reading beats throwing inside a
         // tick.
         int dwell = max <= min ? Math.max(1, min) : min + random.nextInt(max - min);
-        return new Focus(x, y, z, now + dwell,
+        return new Focus(SCAN_KEY, x, y, z, now + dwell, SCAN_SCORE, false,
                 forward ? "scan ahead" : String.format(Locale.ROOT, "scan %+.0f°", offset));
     }
 }

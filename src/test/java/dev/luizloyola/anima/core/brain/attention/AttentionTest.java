@@ -10,6 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.TestSpecies;
+import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
+import dev.luizloyola.anima.core.brain.sense.DangerTable;
+import dev.luizloyola.anima.core.brain.task.FakePercepts;
 import java.util.Random;
 import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.DisplayName;
@@ -30,9 +33,14 @@ class AttentionTest {
     private static final double EYE_Y = 65.6;
     private static final double EYE_Z = -40.5;
 
+    /**
+     * An empty scene (no bodies, no drops, no remembered places), so every test is of the scan,
+     * not of what stood nearby.
+     */
     private static Attention.Focus tick(Attention attention, double bodyYaw, long now,
             RandomGenerator random) {
-        return attention.tick(EYE_X, EYE_Y, EYE_Z, bodyYaw, now, random, PROFILE);
+        return attention.tick(EYE_X, EYE_Y, EYE_Z, bodyYaw, now, new FakePercepts(),
+                new AgentKnowledge(), DangerTable.NEUTRAL, PROFILE, random);
     }
 
     @Test

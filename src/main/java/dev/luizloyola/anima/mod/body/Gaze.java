@@ -56,6 +56,9 @@ public final class Gaze implements Gazer {
      */
     private static final double LOOK_AHEAD = 12.0;
 
+    /** How much faster a startled head turns than a considered one. */
+    private static final float SNAP_TURN_MULT = 4.0F;
+
     private final AgentBody body;
 
     /** The idle picker — pure, and the whole of what this organ decides for itself. */
@@ -113,6 +116,11 @@ public final class Gaze implements Gazer {
     public void tick() {
         LivingEntity entity = this.body.entity();
         long now = this.body.level().getGameTime();
+        if (this.body.agentId() == null) {
+            // A body one tick old: its memory of places is keyed by an identity nobody has decided
+            // yet, and one tick of not looking anywhere is not something an observer could catch.
+            return;
+        }
         Claim winner = null;
         Priority rank = null;
         for (int i = this.claims.length - 1; i >= 0; i--) {
@@ -132,19 +140,20 @@ public final class Gaze implements Gazer {
             // it does not survive the interruption.
             this.attention.clear();
             this.reason = rank == Priority.WORK ? "work" : "walking";
-            aimAt(entity, winner.at(), bodyFree);
+            aimAt(entity, winner.at(), bodyFree, false);
             return;
         }
         Vec3 eye = this.body.eyePosition();
-        // Off the SHOULDERS, not off the head: a scan measured from where the head already points
-        // compounds every roll, and the body slowly revolves on the spot.
+        // Off the SHOULDERS, not the head: a scan measured from where the head already points
+        // compounds every roll, and the body revolves on the spot. The brain's own eyes and memory,
+        // so the organ never looks at something the mind does not believe is there.
         Attention.Focus focus = this.attention.tick(eye.x, eye.y, eye.z, entity.yBodyRot, now,
-                this.random, this.body.profile());
+                this.body.brain().percepts(), this.body.brain().knowledge(), this.body.danger(),
+                this.body.profile(), this.random);
         this.reason = focus.reason();
-        if (!aimAt(entity, new Vec3(focus.x(), focus.y(), focus.z()), bodyFree)) {
-            // Out of reach of the neck and the shoulders will not help (the legs own them) — so
-            // there is no looking at it, and holding the focus would mean staring at the twist
-            // limit until it expired. Roll again next tick.
+        if (!aimAt(entity, new Vec3(focus.x(), focus.y(), focus.z()), bodyFree, focus.snap())) {
+            // Past the neck's twist and the shoulders are the legs' — holding the focus would mean
+            // staring at the twist limit until it expired. Choose again next tick.
             this.attention.clear();
         }
     }
@@ -156,7 +165,7 @@ public final class Gaze implements Gazer {
      * @return whether the target is one this body can actually look at; {@code false} when it sits
      *     past the neck's twist and the shoulders are not ours to turn after it
      */
-    private boolean aimAt(LivingEntity entity, Vec3 target, boolean bodyFree) {
+    private boolean aimAt(LivingEntity entity, Vec3 target, boolean bodyFree, boolean snap) {
         this.aim = target;
         Vec3 eye = this.body.eyePosition();
         Aim aimed = Aim.of(target.x - eye.x, target.y - eye.y, target.z - eye.z,
@@ -165,7 +174,10 @@ public final class Gaze implements Gazer {
                 // against the body, and while walking those two are not the same number.
                 entity.yBodyRot,
                 entity.getXRot(),
-                (float) this.body.profile().d(ProfileAspect.GAZE_TURN_DEGREES),
+                // A startle is the one look allowed to be a snap rather than a turn; everything
+                // else eases, or every glance reads as a twitch.
+                (float) this.body.profile().d(ProfileAspect.GAZE_TURN_DEGREES)
+                        * (snap ? SNAP_TURN_MULT : 1.0F),
                 this.body.profile().i(ProfileAspect.GAZE_MAX_TWIST_DEGREES),
                 bodyFree, this.turning);
         this.turning = aimed.turning();
@@ -186,13 +198,18 @@ public final class Gaze implements Gazer {
         return aimed.reachable();
     }
 
-    /** What this body is looking at and why — the debug readout, never a decision. */
+    /**
+     * What this body is looking at, why, and what it turned down for it — a debug readout, never a
+     * decision. The runner-up cannot be seen from outside: scanning past somebody reads the same
+     * whether the picker never noticed them or priced them at nothing.
+     */
     public String describe() {
+        String verdict = this.attention.verdict();
         if (this.aim == null) {
-            return "gaze: " + this.reason;
+            return "gaze: " + this.reason + " | " + verdict;
         }
-        return String.format(Locale.ROOT, "gaze: %s (%.1f, %.1f, %.1f)",
-                this.reason, this.aim.x, this.aim.y, this.aim.z);
+        return String.format(Locale.ROOT, "gaze: %s (%.1f, %.1f, %.1f) | %s",
+                this.reason, this.aim.x, this.aim.y, this.aim.z, verdict);
     }
 
     private record Claim(Vec3 at, long until) {

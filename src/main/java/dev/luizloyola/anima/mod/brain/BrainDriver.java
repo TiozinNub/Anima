@@ -463,6 +463,15 @@ public final class BrainDriver {
         return this.context.percepts();
     }
 
+    /**
+     * The brain's memory of places — the same store, for the same reason as {@link #percepts()}.
+     * Resolved lazily, so ask only from a body whose identity has settled (anything ticking after
+     * {@code AgentBody.tick()} has).
+     */
+    public AgentKnowledge knowledge() {
+        return this.context.knowledge();
+    }
+
     /** The brain's one-line status, for the debug commands: which side is driving, then its report. */
     public String describe() {
         return this.auto
