@@ -36,6 +36,18 @@ public interface Mover {
     MoveState state();
 
     /**
+     * Why the most recent order ended badly — meaningful only while {@link #state()} reads
+     * {@link MoveState#FAILED}, and {@link MoveFailure#NONE} at every other moment.
+     *
+     * <p>Split off {@link MoveState} because the two are read by different questions at different
+     * rates: "is my order still being worked on" every tick, "why did it die" once, by the few
+     * callers that can act on the answer. The default keeps every existing implementation correct.
+     */
+    default MoveFailure failure() {
+        return MoveFailure.NONE;
+    }
+
+    /**
      * Whether the legs are still WAITING ON A ROUTE rather than walking one — the difference
      * {@link MoveState} hides, surfaced for the callers that cannot afford to ignore
      * it.

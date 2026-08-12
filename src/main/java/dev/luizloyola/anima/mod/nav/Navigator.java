@@ -4,6 +4,7 @@ import dev.luizloyola.anima.compat.nav.WorldSnapshot;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.need.Gauge;
 import dev.luizloyola.anima.core.agent.need.NeedKind;
+import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.mod.brain.DangerFields;
@@ -151,6 +152,8 @@ public final class Navigator {
     private State state = State.IDLE;
     private @Nullable BlockPos goal;
     private @Nullable Path path;
+    /** Why the last order died; see {@link #failure()}. Cleared by a new order and by a good path. */
+    private MoveFailure failure = MoveFailure.NONE;
     /** The snapshot the current path was planned over; the follower reads it for edge awareness. */
     private @Nullable NavGrid grid;
     private int index;
@@ -232,11 +235,21 @@ public final class Navigator {
         this.proactiveRepathCooldown = 0;
         this.gait = Gait.WALK;
         this.state = State.IDLE;
+        this.failure = MoveFailure.NONE;
         this.person.stopMoving();
     }
 
     public State state() {
         return this.state;
+    }
+
+    /**
+     * Why the last order died — {@link MoveFailure#NONE} unless {@link #state()} is FAILED. Set
+     * where the cause is known, not inferred from the counters afterwards: the retries in between
+     * have reset them by the time the machine reaches FAILED.
+     */
+    public MoveFailure failure() {
+        return this.failure;
     }
 
     /** The current goal cell, or {@code null} when idle. Survives ARRIVED/FAILED for inspection. */
@@ -370,6 +383,10 @@ public final class Navigator {
                     .append(this.path.waypoints().size())
                     .append(this.path.reachedGoal() ? ")" : ", partial)");
         }
+        // FAILED alone sent people to the journal for a line already knowable here.
+        if (this.state == State.FAILED && this.failure != MoveFailure.NONE) {
+            text.append(" (").append(this.failure.describe()).append(')');
+        }
         return text.toString();
     }
 
@@ -400,25 +417,17 @@ public final class Navigator {
         this.noMoveTicks = 0;
         this.lastLeapPressIndex = -1;
         this.state = State.PATHING;
+        // Read on the server thread: the search seeds and logs from an id and must never reach back
+        // into a body from a worker. Null until roughly the body's first tick, inside which a path
+        // can still be requested.
+        AgentId who = this.person.agentId();
         PathfinderService.Dispatched dispatched = OFF_THREAD
-                ? PathfinderService.request(level(), traceId(), this.person.blockPosition(), this.goal,
+                ? PathfinderService.request(level(), who, this.person.blockPosition(), this.goal,
                         capabilities(), DangerFields.of(this.person))
-                : PathfinderService.computeNow(level(), this.person.blockPosition(), this.goal,
+                : PathfinderService.computeNow(level(), who, this.person.blockPosition(), this.goal,
                         capabilities(), DangerFields.of(this.person));
         this.grid = dispatched.snapshot();
         this.pending = dispatched.result();
-    }
-
-    /**
-     * Who to stamp on the pathfinder's trace line. Resolved here, on the server thread, because
-     * the search logs from a worker and must not reach back into a body to ask.
-     *
-     * <p>{@code ?} covers the window before identity resolves — {@link AgentBody#agentId()} is
-     * null until roughly the body's first tick, and a path can be requested inside it.
-     */
-    private String traceId() {
-        AgentId id = this.person.agentId();
-        return id == null ? "?" : id.shortText();
     }
 
     /** Polls the in-flight request; the future completes on a worker, so only ever read it here. */
@@ -434,6 +443,7 @@ public final class Navigator {
         } catch (CompletionException | CancellationException e) {
             // Worker died or the server is stopping mid-request; either way there is no path.
             this.state = State.FAILED;
+            this.failure = MoveFailure.INTERRUPTED;
             log("failed", "search aborted");
         }
     }
@@ -448,13 +458,19 @@ public final class Navigator {
         // retrying from the same spot would just repeat it, so fail rather than loop.
         if (result.isEmpty() || (!result.reachedGoal() && endsWhereWeStand(result))) {
             this.state = State.FAILED;
-            log("failed", "no path to " + this.goal.toShortString());
+            this.failure = MoveFailure.STRANDED;
+            log("failed", "no path to " + this.goal.toShortString() + " — "
+                    + MoveFailure.STRANDED.describe());
             return;
         }
         this.path = result;
         this.index = 0;
         this.stuckTicks = 0;
         this.state = State.FOLLOWING;
+        // This field answers "why is it FAILED right now", not "what has gone wrong lately": the
+        // retry that produced this path set it on the way through, and leaving it would have a
+        // walk in progress carrying a stale reason.
+        this.failure = MoveFailure.NONE;
         // PATHFIND log: the "target(10,10,10) - success 10 nodes" line — waypoint count, marked
         // partial when the route only reaches the nearest cell to an otherwise unreachable goal.
         log("target(" + this.goal.toShortString() + ")", "success " + result.waypoints().size()
@@ -533,7 +549,7 @@ public final class Navigator {
                 && (horizontalSq > STRAY_HORIZONTAL * STRAY_HORIZONTAL
                         || dy > aboveTolerance || dy < -STRAY_VERTICAL)) {
             log("stray", "at " + this.person.blockPosition().toShortString());
-            retryOrFail();
+            retryOrFail(MoveFailure.STRAYED);
             return;
         }
 
@@ -574,7 +590,7 @@ public final class Navigator {
             // One cell should never take this long: something the snapshot didn't know is in the
             // way (or we fell somewhere unplanned). Re-path from wherever we actually are.
             log("stuck", "waypoint timeout at " + this.person.blockPosition().toShortString());
-            retryOrFail();
+            retryOrFail(MoveFailure.STALLED);
             return;
         }
 
@@ -588,7 +604,7 @@ public final class Navigator {
         if (this.person.onGround() && movedSq < NO_MOVE_EPSILON * NO_MOVE_EPSILON) {
             if (++this.noMoveTicks > NO_MOVE_LIMIT) {
                 log("stuck", "not moving at " + this.person.blockPosition().toShortString());
-                retryOrFail();
+                retryOrFail(MoveFailure.WEDGED);
                 return;
             }
         } else {
@@ -742,7 +758,7 @@ public final class Navigator {
         }
 
         if (++this.stuckTicks > STUCK_LIMIT) {
-            retryOrFail();
+            retryOrFail(MoveFailure.STALLED);
             return;
         }
         // In water, DEPTH is progress: the grounded path's horizontal-only measure calls a body
@@ -756,7 +772,7 @@ public final class Navigator {
         this.lastTickZ = pos.z;
         if (movedSq < NO_MOVE_EPSILON * NO_MOVE_EPSILON) {
             if (++this.noMoveTicks > NO_MOVE_LIMIT) {
-                retryOrFail();
+                retryOrFail(MoveFailure.WEDGED);
                 return;
             }
         } else {
@@ -1001,17 +1017,23 @@ public final class Navigator {
             this.state = State.ARRIVED;
         } else {
             // Finished a partial path: the goal was beyond the snapshot (or momentarily walled).
-            // From this new position a fresh snapshot may reach further — long trips work as
-            // successive legs of this.
-            retryOrFail();
+            // From here a fresh snapshot may reach further — long trips work as successive legs of
+            // this, so UNREACHABLE is only the verdict once the budget is spent.
+            retryOrFail(MoveFailure.UNREACHABLE);
         }
     }
 
-    private void retryOrFail() {
+    /**
+     * Re-plan from where we stand, or give up if this order has spent its budget. {@code why} is
+     * recorded on every call, so the cause reported is the one that <em>last</em> beat this order:
+     * strayed twice and then wedged fails wedged.
+     */
+    private void retryOrFail(MoveFailure why) {
+        this.failure = why;
         if (this.repathsLeft-- > 0) {
             requestPath();
         } else {
-            log("failed", "gave up after retries");
+            log("failed", "gave up after retries — " + why.describe());
             this.path = null;
             this.state = State.FAILED;
             this.person.stopMoving();
@@ -1135,20 +1157,22 @@ public final class Navigator {
     // ── continuity ───────────────────────────────────────────────────────────────────────────
 
     /**
-     * A walk in progress, as data. Named for the walk, not the state machine — {@code State}
-     * already owns that word.
+     * A walk in progress, as data. Named for the walk rather than the state machine, whose
+     * {@code State} enum already owns that word.
      *
-     * <p>The path is carried rather than recomputed: routes of similar cost are chosen among, so
+     * <p>The path is carried rather than recomputed: it is chosen among many of similar cost, so
      * re-pathing gives <em>a</em> route rather than <em>the</em> route, and the index and stuck
-     * counters only mean anything against the path they were counted on.
+     * counters only mean anything against the path they were counted on. The nav grid is
+     * absent — it is a captured read of a world that is itself restored.
      *
-     * <p>The nav grid is absent on purpose — a captured read of a world that is itself restored
-     * rebuilds identically.
+     * <p>The failure rides along like the state, so a reloaded body does not report FAILED with no
+     * reason — "an agent must not be able to tell a reboot happened".
      */
     public record Walk(String state, @Nullable BlockPos goal, List<Waypoint> waypoints,
                         boolean reachedGoal, int index, String gait, int stuckTicks,
                         int noMoveTicks, int groundedTicks, int lastLeapPressIndex,
-                        int repathsLeft, int integrityCheckedIndex, int proactiveRepathCooldown) {
+                        int repathsLeft, int integrityCheckedIndex, int proactiveRepathCooldown,
+                        String failure) {
     }
 
     /** What this navigator would need to carry on the same walk. */
@@ -1158,7 +1182,7 @@ public final class Navigator {
                 this.path != null && this.path.reachedGoal(),
                 this.index, this.gait.name(), this.stuckTicks, this.noMoveTicks,
                 this.groundedTicks, this.lastLeapPressIndex, this.repathsLeft,
-                this.integrityCheckedIndex, this.proactiveRepathCooldown);
+                this.integrityCheckedIndex, this.proactiveRepathCooldown, this.failure.name());
     }
 
     /**
@@ -1179,5 +1203,6 @@ public final class Navigator {
         this.repathsLeft = saved.repathsLeft();
         this.integrityCheckedIndex = saved.integrityCheckedIndex();
         this.proactiveRepathCooldown = saved.proactiveRepathCooldown();
+        this.failure = MoveFailure.valueOf(saved.failure());
     }
 }

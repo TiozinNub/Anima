@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.nav.Gait;
 import java.util.Locale;
@@ -29,6 +30,12 @@ public final class GoTo implements PrimitiveTask {
     private final int z;
     private final Gait gait;
     private boolean issued;
+    /**
+     * Why the walk died, captured on the tick it is observed. Not persisted, and it does not need
+     * to be: the executor asks for it in the same tick this task returns FAILED, so it never
+     * outlives the tick that set it.
+     */
+    private MoveFailure failure = MoveFailure.NONE;
 
     /** An ordinary walk to {@code (x, y, z)} — see the class doc on gait. */
     public GoTo(int x, int y, int z) {
@@ -57,13 +64,29 @@ public final class GoTo implements PrimitiveTask {
             case ARRIVED:
                 return TaskStatus.SUCCESS;
             case FAILED:
+                // Read the reason HERE, not from failureDetail(): that call takes no context, and
+                // by then the legs may already have been re-ordered by whatever ran next.
+                this.failure = ctx.actuators().mover().failure();
                 return TaskStatus.FAILED;
             case IDLE:
             default:
                 // The mover was stopped out from under us — someone else took the legs; the
-                // task cannot claim success.
+                // task cannot claim success. The legs never report this themselves (a stopped
+                // Navigator is IDLE, not FAILED), so the reading is made here.
+                this.failure = MoveFailure.STOPPED;
                 return TaskStatus.FAILED;
         }
+    }
+
+    /**
+     * The walk's ending, named — the reason channel into the journal, so four different causes no
+     * longer print the same "goto (x, y, z) failed".
+     */
+    @Override
+    public String failureDetail() {
+        return failure == MoveFailure.NONE
+                ? describe() + " failed"
+                : describe() + " failed — " + failure.describe();
     }
 
     @Override

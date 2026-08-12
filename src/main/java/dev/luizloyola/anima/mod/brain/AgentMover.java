@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.brain;
 
+import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.act.Mover;
 import dev.luizloyola.anima.core.nav.Gait;
@@ -58,6 +59,16 @@ public final class AgentMover implements Mover {
             case ARRIVED -> MoveState.ARRIVED;
             case FAILED -> MoveState.FAILED;
         };
+    }
+
+    /**
+     * The Navigator's own verdict on why the last order died, passed through unchanged. The legs
+     * record the cause where it is known (each give-up site names its own); nothing here re-derives
+     * it.
+     */
+    @Override
+    public MoveFailure failure() {
+        return this.person.navigator().failure();
     }
 
     /**

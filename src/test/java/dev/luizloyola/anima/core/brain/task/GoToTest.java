@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.nav.Gait;
 import org.junit.jupiter.api.Test;
@@ -72,6 +73,63 @@ class GoToTest {
         task.tick(ctx);
         mover.setState(MoveState.IDLE);
         assertEquals(TaskStatus.FAILED, task.tick(ctx));
+    }
+
+    /**
+     * The legs' verdict reaches the journal line the executor prints for a failure. Four different
+     * diseases used to print the same sentence.
+     */
+    @Test
+    void theFailureReasonReachesTheFailureDetail() {
+        GoTo task = new GoTo(3, 70, -4);
+        task.tick(ctx);
+        mover.setState(MoveState.FAILED);
+        mover.setFailure(MoveFailure.STRANDED);
+        assertEquals(TaskStatus.FAILED, task.tick(ctx));
+        assertEquals("goto (3, 70, -4) failed — stranded", task.failureDetail());
+    }
+
+    /** Every verdict reads as itself, so no two failures print the same line. */
+    @Test
+    void eachFailureReadsAsItself() {
+        for (MoveFailure why : MoveFailure.values()) {
+            if (why == MoveFailure.NONE) {
+                continue;
+            }
+            FakeContext fresh = new FakeContext();
+            GoTo task = new GoTo(1, 2, 3);
+            task.tick(fresh);
+            fresh.mover.setState(MoveState.FAILED);
+            fresh.mover.setFailure(why);
+            assertEquals(TaskStatus.FAILED, task.tick(fresh));
+            assertTrue(task.failureDetail().endsWith(" — " + why.describe()), why.name());
+        }
+    }
+
+    /**
+     * A mover that cannot tell its failures apart (the port's default) must not print a dangling
+     * dash — the detail falls back to the plain form the default {@code failureDetail} gives.
+     */
+    @Test
+    void aFailureWithNoRecordedReasonPrintsThePlainDetail() {
+        GoTo task = new GoTo(3, 70, -4);
+        task.tick(ctx);
+        mover.setState(MoveState.FAILED);
+        assertEquals(TaskStatus.FAILED, task.tick(ctx));
+        assertEquals("goto (3, 70, -4) failed", task.failureDetail());
+    }
+
+    /**
+     * The legs never report {@link MoveFailure#STOPPED} themselves — a stopped Navigator is IDLE,
+     * not FAILED — so the reading is the task's, and it has to be made rather than inherited.
+     */
+    @Test
+    void anIdleMoverAfterIssuingReadsAsTheLegsBeingTaken() {
+        GoTo task = new GoTo(3, 70, -4);
+        task.tick(ctx);
+        mover.setState(MoveState.IDLE);
+        assertEquals(TaskStatus.FAILED, task.tick(ctx));
+        assertEquals("goto (3, 70, -4) failed — legs taken", task.failureDetail());
     }
 
     @Test

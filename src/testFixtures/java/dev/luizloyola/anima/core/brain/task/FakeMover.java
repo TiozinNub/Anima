@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.act.Mover;
 import dev.luizloyola.anima.core.nav.Gait;
@@ -23,9 +24,15 @@ public final class FakeMover implements Mover {
     public int lastZ;
     public Gait lastGait;
     private MoveState state = MoveState.IDLE;
+    private MoveFailure failure = MoveFailure.NONE;
 
     public void setState(MoveState state) {
         this.state = state;
+    }
+
+    /** Script what {@link #failure()} reports from now on — the legs' verdict, for a FAILED state. */
+    public void setFailure(MoveFailure failure) {
+        this.failure = failure;
     }
 
     @Override
@@ -42,6 +49,11 @@ public final class FakeMover implements Mover {
     @Override
     public MoveState state() {
         return state;
+    }
+
+    @Override
+    public MoveFailure failure() {
+        return failure;
     }
 
     @Override

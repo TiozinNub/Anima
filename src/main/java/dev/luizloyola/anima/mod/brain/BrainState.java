@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.luizloyola.anima.core.brain.Arbiter;
+import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.task.CompoundTask;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.TaskExecutor;
@@ -149,11 +150,15 @@ public final class BrainState {
             Codec.INT.fieldOf("repaths").forGetter(Navigator.Walk::repathsLeft),
             Codec.INT.fieldOf("integrity").forGetter(Navigator.Walk::integrityCheckedIndex),
             Codec.INT.fieldOf("repathCooldown")
-                    .forGetter(Navigator.Walk::proactiveRepathCooldown)
+                    .forGetter(Navigator.Walk::proactiveRepathCooldown),
+            // Optional with a none default so walks saved before the reason channel existed load
+            // as what they actually were: a failure nobody had recorded a cause for.
+            Codec.STRING.optionalFieldOf("failure", MoveFailure.NONE.name())
+                    .forGetter(Navigator.Walk::failure)
     ).apply(n, (state, goal, waypoints, reached, index, gait, stuck, noMove, grounded, lastLeap,
-                repaths, integrity, cooldown) -> new Navigator.Walk(state, goal.orElse(null),
-                    waypoints, reached, index, gait, stuck, noMove, grounded, lastLeap, repaths,
-                    integrity, cooldown)));
+                repaths, integrity, cooldown, failure) -> new Navigator.Walk(state,
+                    goal.orElse(null), waypoints, reached, index, gait, stuck, noMove, grounded,
+                    lastLeap, repaths, integrity, cooldown, failure)));
 
     /** One journal line. Categories round-trip by name; an unknown one errors rather than
      *  silently re-filing a line under the wrong subsystem. */
