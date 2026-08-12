@@ -99,12 +99,33 @@ public final class SurveyArea implements PrimitiveTask {
     private final List<SenseEvent> seen = new ArrayList<>();
 
     public SurveyArea(Region area, PoiKind looking) {
+        this(area, looking, java.util.Set.of());
+    }
+
+    /**
+     * A sweep that starts already knowing some of its ground: {@code settled} holds the MIN CORNERS
+     * of cells somebody has proved empty, which begin at full confidence and are neither walked nor
+     * looked at. Corners rather than indices, so a caller whose grid is offset from this one gets
+     * no discount rather than a wrong one.
+     */
+    public SurveyArea(Region area, PoiKind looking, java.util.Set<Pos> settled) {
         this.area = area;
         this.looking = looking;
         this.wide = cellsAcross(area.max().x() - area.min().x() + 1);
         this.deep = cellsAcross(area.max().z() - area.min().z() + 1);
         this.confidence = new float[wide * deep];
         this.tries = new int[wide * deep];
+        for (int cell = 0; cell < confidence.length; cell++) {
+            if (settled.contains(cornerOf(cell))) {
+                confidence[cell] = 1.0f;
+            }
+        }
+    }
+
+    /** The min corner of a cell, in world coordinates — the handle a caller names it by. */
+    public Pos cornerOf(int cell) {
+        return new Pos(area.min().x() + (cell / deep) * CELL, area.min().y(),
+                area.min().z() + (cell % deep) * CELL);
     }
 
     private static int cellsAcross(int blocks) {
