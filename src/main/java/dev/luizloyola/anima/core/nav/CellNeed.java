@@ -21,6 +21,12 @@ public record CellNeed(int x, int y, int z, Need need) {
         /** Nothing has moved into this part of the body's column. */
         CLEAR,
         /** Still swimmable: the lane has not been drained or filled. */
-        WATER
+        WATER,
+        /**
+         * The body still fits here, wet or dry — {@link #CLEAR}'s twin for the stretch of a route
+         * that runs under the surface. A swimmer's own column is water, so demanding air of it
+         * re-planned on the first tick of every submerged leg.
+         */
+        ROOM
     }
 }

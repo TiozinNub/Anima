@@ -200,22 +200,25 @@ public final class Swimmer {
     /**
      * The whole of the vertical input while wet.
      *
-     * <p>Buoyancy is a controller with a set point, not a held key: swim-up nudges a fixed amount
-     * every tick it is pressed, so pressing it whenever the body is wet swung 0.755 of a block and
-     * reversed 432 times in 608 ticks on gauntlet E2 — against a set point, 0.301 and never out of
-     * the water.
+     * <p><b>Buoyancy is a controller with a set point, not a held key.</b> Swim-up adds a fixed
+     * nudge every tick it is pressed, so pressing it whenever the body is wet climbs it clear of
+     * the water and drops it back: 0.755 of a block of swing on gauntlet E2, reversing 432 times
+     * in 608 ticks, against 0.301 and never leaving the water with a set point.
      *
-     * <p>One set point cannot serve both shapes. Swimming, the box is 0.6 and the game's own 0.4 is
-     * right; upright, 0.4 floats a 1.8 body like a cork, while pressing whenever the eyes are wet
-     * sinks it until only the top of the head shows. Upright the set point is eye height less
-     * {@link #HEAD_CLEARANCE}.
+     * <p><b>One set point cannot serve both shapes.</b> Swimming, the box is 0.6 and the game's
+     * own 0.4 is right; upright, 0.4 floats a 1.8 body like a cork, while pressing whenever the
+     * eyes are wet sinks it until only the top of the head shows. Upright the set point is the eye
+     * height less {@link #HEAD_CLEARANCE}.
      *
-     * <p>Nothing presses in shallow water: the gate keeps the reflex from lifting a wader off the
-     * bed, which then feeds itself because the swimming box puts the eye low enough to stay wet.
+     * <p><b>Nothing presses in shallow water.</b> The reflex would lift a wader off the bed and
+     * swim it across a stream — which feeds itself, because the swimming box puts the eye low
+     * enough to stay wet.
      *
-     * <p>The climb-out is a separate press. It used to ride on the always-on reflex, and narrowing
-     * that correctly left both plunge stations unable to leave their own pools. Pressed for the
-     * whole approach because there is no edge to time it against — the water lets go gradually.
+     * <p><b>The climb-out is a separate press, ahead of both controllers.</b> It used to arrive by
+     * accident from the over-eager reflex, and narrowing that reflex left both plunge stations
+     * unable to leave their pools. It is pressed for the whole approach because there is no edge
+     * to time it against (the water lets go gradually), and it must sit above the ride-depth
+     * controller, which a body riding high onto a bank is guaranteed to argue with.
      */
     private void driveVertical(LivingEntity entity, boolean inWater, boolean deep,
             Navigator.WaterIntent intent) {
@@ -225,6 +228,17 @@ public final class Swimmer {
         // crossing under a roof wedged a settler against its underside.
         if (routeHasUsUnder) {
             holdDepth(entity, this.body.navigator().waterTargetY());
+            return;
+        }
+        // Same for the other direction: while the route steers this body OUT it owns the
+        // vertical. Below sits the ride-depth controller, and a body pulling itself onto a bank
+        // rides high by definition, so the lip was the one moment it was guaranteed to fire
+        // against the climb — pressed to a pool wall the body could not gain the last two thirds
+        // of a block and sat there long enough to count as wedged. It only showed once the
+        // per-tick re-paths of submerged legs stopped resetting the wedge counters, so fixing
+        // those (see PathIntegrity) took the cover away rather than causing this.
+        if (inWater && intent == Navigator.WaterIntent.EXIT) {
+            this.body.driveJump();
             return;
         }
         if (deep) {
@@ -245,11 +259,7 @@ public final class Swimmer {
             }
             if (submerged > entity.getEyeHeight() - HEAD_CLEARANCE) {
                 this.body.driveJump(); // upright, treading: keep the head out
-                return;
             }
-        }
-        if (inWater && intent == Navigator.WaterIntent.EXIT) {
-            this.body.driveJump();
         }
     }
 

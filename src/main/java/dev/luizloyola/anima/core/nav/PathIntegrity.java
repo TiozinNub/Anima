@@ -13,8 +13,9 @@ import java.util.List;
  *       the {@link #lineCells Bresenham line} needs {@link CellNeed.Need#FOOTING} and a
  *       {@link CellNeed.Need#CLEAR} column. Destination-only missed a block pulled from the
  *       <em>middle</em> of a stride, and the follower walked off it.
- *   <li><b>Swim moves</b> ({@link MoveType#SWIM}): the destination feet cell stays
- *       {@link CellNeed.Need#WATER} with a clear body above the waterline (the surface float).
+ *   <li><b>Water moves</b> ({@link MoveType#inWater()}): the destination feet cell stays
+ *       {@link CellNeed.Need#WATER} with {@link CellNeed.Need#ROOM} above — room, not air, because
+ *       a diving body's own column is water.
  *   <li><b>Leaps</b> ({@link MoveType#LEAP}): the landing plus the flight arc — takeoff headroom
  *       and a clear body-height+1 corridor over every gap column — so a wall in the arc is caught.
  *   <li><b>Other vertical moves</b> ({@link MoveType#DROP}, {@link MoveType#JUMP}): destination
@@ -35,11 +36,13 @@ public final class PathIntegrity {
      */
     public static List<CellNeed> edgeNeeds(Waypoint from, Waypoint to, MoveCapabilities profile) {
         List<CellNeed> needs = new ArrayList<>();
-        if (to.move() == MoveType.SWIM) {
-            // Surface float: feet in water, the rest of the body clear above the waterline.
+        if (to.move().inWater()) {
+            // Feet in water, and room for the rest of the body — above a swimmer that is water as
+            // often as air, so the column asks for ROOM and not CLEAR. Demanding air failed every
+            // DIVE and every submerged crossing on its own first tick, re-planning the same route.
             needs.add(new CellNeed(to.x(), to.y(), to.z(), CellNeed.Need.WATER));
             for (int i = 1; i <= profile.topCell(0.0); i++) {
-                needs.add(new CellNeed(to.x(), to.y() + i, to.z(), CellNeed.Need.CLEAR));
+                needs.add(new CellNeed(to.x(), to.y() + i, to.z(), CellNeed.Need.ROOM));
             }
             return needs;
         }

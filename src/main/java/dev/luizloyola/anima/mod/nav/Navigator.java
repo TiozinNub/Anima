@@ -507,10 +507,14 @@ public final class Navigator {
         double horizontalSq = dx * dx + dz * dz;
         double dy = aboveWaypoint(pos, waypoint);
 
-        // In the water, or about to step in (the last on-shore tick of an entry waypoint): swim
-        // physics takes over, skipping all the grounded edge logic below — which is also the
+        // In the water (or about to step in — the last on-shore tick of an entry waypoint), swim
+        // physics takes over: none of the grounded edge logic below runs, which is also the
         // careful-mode exemption for entering water.
-        if (this.person.entity().isInWater() || waypoint.move() == MoveType.SWIM) {
+        //
+        // Every water leg, not only the entry one: a DIVE or SURFACE held while still dry means the
+        // body is on the lip of the bank, and the answer is to keep steering at the column — the
+        // grounded branch called the water below a stray and re-planned the identical route.
+        if (isWet() || waypoint.move().inWater()) {
             tickSwim(waypoint, isLast, pos, dx, dz, horizontalSq, dy);
             return;
         }
@@ -728,10 +732,7 @@ public final class Navigator {
         // The one place that decides what a water leg is — see waterIntent(). A vertical pair
         // reads off the waypoint's own move: they are the two legs whose whole content is a change
         // of depth, and the body cannot infer either from a horizontal heading.
-        boolean landTarget = switch (waypoint.move()) {
-            case SWIM, DIVE, SURFACE -> false;
-            default -> true; // a climb-out step onto solid ground
-        };
+        boolean landTarget = !waypoint.move().inWater(); // else a climb-out step onto solid ground
         this.waterTargetY = waypoint.feetY();
         this.waterIntent = switch (waypoint.move()) {
             case DIVE -> WaterIntent.DIVE;
@@ -747,8 +748,12 @@ public final class Navigator {
         boolean verticalLeg = waypoint.move() == MoveType.DIVE
                 || waypoint.move() == MoveType.SURFACE;
         double vertical = landTarget ? verticalGap(dy) : verticalLeg ? Math.abs(dy) : 0.0;
+        // A water waypoint is somewhere the body has to BE: standing dry on the bank above the
+        // right column is not being there — see atWaypointHeight, where the same omission stranded
+        // a Person on a pool rim. It bites hardest on the SWIM leg, whose arrival is horizontal
+        // alone.
         if (horizontalSq + vertical * vertical <= radius * radius
-                && (!landTarget || this.person.onGround())) {
+                && (landTarget ? this.person.onGround() : isWet())) {
             if (isLast && landTarget && !isSettled()) {
                 this.person.stopMoving();
                 return;
@@ -831,7 +836,7 @@ public final class Navigator {
                 continue;
             }
             if (feet.getX() == w.x() && feet.getZ() == w.z()
-                    && atWaypointHeight(y - w.feetY(), w.move())) {
+                    && atWaypointHeight(y - w.feetY(), w.move(), isWet())) {
                 this.index = Math.min(j + 1, last);
                 this.stuckTicks = 0;
                 return;
@@ -867,7 +872,7 @@ public final class Navigator {
             // conflated the two.
             double forward = (offX * segX + offZ * segZ) / segLen;
             double lateral = Math.abs(offX * segZ - offZ * segX) / segLen;
-            if (!atWaypointHeight(aboveWaypoint(pos, current), current.move())
+            if (!atWaypointHeight(aboveWaypoint(pos, current), current.move(), isWet())
                     || forward <= 0.0 || forward > 2.5 || lateral > 0.6) {
                 return;
             }
@@ -946,16 +951,37 @@ public final class Navigator {
     }
 
     /**
-     * Whether a body {@code dy} above a waypoint counts as "at its height" for claiming/advancing it.
-     * A footed move uses the tight standing band ({@link #verticalGap} &lt; 0.5); a {@link
-     * MoveType#SWIM} waypoint uses the wider {@link #SWIM_BAND} so the surface bob doesn't flicker it
+     * Whether a body {@code dy} above a waypoint counts as "at its height" for claiming/advancing
+     * it: a footed move uses the tight standing band ({@link #verticalGap} &lt; 0.5), a {@link
+     * MoveType#SWIM} waypoint the wider {@link #SWIM_BAND}, so the surface bob doesn't flicker it
      * in and out of range.
+     *
+     * <p><b>A water waypoint additionally wants the body to be in the water.</b> Without that, a
+     * Person dry on a pool rim — reckoned into the water column beside her, and so inside
+     * {@link #SWIM_BAND} of it — claimed the swim waypoint, was handed a DIVE two blocks under
+     * solid ground, and failed the walk after four retries. The band is only true of a body already
+     * floating, and being wet is the same question {@link #tickFollowing} asks to steer a leg as a
+     * swim.
      */
-    private static boolean atWaypointHeight(double dy, MoveType move) {
+    static boolean atWaypointHeight(double dy, MoveType move, boolean wet) {
+        if (move.inWater() && !wet) {
+            return false;
+        }
         if (move == MoveType.SWIM) {
             return dy >= -SWIM_BAND && dy <= SWIM_BAND;
         }
+        // A DIVE or a SURFACE keeps the tight band: the depth hold parks the body well inside its
+        // target cell, and widening it here would let a descent claim a cell it is still a block
+        // short of — one more way down a column a body already ratchets down too easily.
         return verticalGap(dy) < 0.5;
+    }
+
+    /**
+     * Whether the body is in the water — the one fact separating being IN a water cell from standing
+     * on the bank above one, which every measure taken from the cells alone will confuse.
+     */
+    private boolean isWet() {
+        return this.person.entity().isInWater();
     }
 
     /**
@@ -1098,6 +1124,7 @@ public final class Navigator {
         return switch (need) {
             case CLEAR -> here == CellType.PASSABLE;
             case WATER -> here == CellType.WATER;
+            case ROOM -> here == CellType.PASSABLE || here == CellType.WATER;
             case FOOTING -> here == CellType.STEP
                     || (here == CellType.PASSABLE
                             && WorldSnapshot.classifyAt(level, pos.move(Direction.DOWN)) == CellType.GROUND);
@@ -1113,6 +1140,7 @@ public final class Navigator {
             case FOOTING -> "missing floor";
             case CLEAR -> "blocked";
             case WATER -> "drained";
+            case ROOM -> "filled in";
         };
         return phrase + " at " + need.x() + ", " + need.y() + ", " + need.z();
     }

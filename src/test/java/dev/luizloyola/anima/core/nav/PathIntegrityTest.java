@@ -51,12 +51,28 @@ class PathIntegrityTest {
     }
 
     @Test
-    void swimEdgeNeedsWaterFeetAndClearBodyAbove() {
+    void swimEdgeNeedsWaterFeetAndRoomForTheBodyAbove() {
         List<CellNeed> needs = PathIntegrity.edgeNeeds(
                 new Waypoint(1, 63, 8, MoveType.SWIM), new Waypoint(2, 63, 8, MoveType.SWIM), PERSON);
         assertEquals(List.of(
                 new CellNeed(2, 63, 8, CellNeed.Need.WATER),
-                new CellNeed(2, 64, 8, CellNeed.Need.CLEAR)), needs);
+                new CellNeed(2, 64, 8, CellNeed.Need.ROOM)), needs);
+    }
+
+    /**
+     * A dive is a water move. Asking a submerged cell for a FLOOR — what every non-swim vertical
+     * move asks — condemned the plan on the tick it was made: re-plan, identical route, repeat.
+     */
+    @Test
+    void diveAndSurfaceAreWatchedAsWaterAndNeverAskedForAFloor() {
+        for (MoveType move : List.of(MoveType.DIVE, MoveType.SURFACE)) {
+            List<CellNeed> needs = PathIntegrity.edgeNeeds(
+                    new Waypoint(2, 63, 8, MoveType.SWIM), new Waypoint(2, 61, 8, move), PERSON);
+            assertEquals(List.of(
+                    new CellNeed(2, 61, 8, CellNeed.Need.WATER),
+                    new CellNeed(2, 62, 8, CellNeed.Need.ROOM)), needs,
+                    move + " must be watched as water, not as a drop onto a floor");
+        }
     }
 
     @Test
