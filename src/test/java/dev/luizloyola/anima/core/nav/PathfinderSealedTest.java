@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -149,6 +150,57 @@ class PathfinderSealedTest {
                 "it never looked under the water; it cannot claim there is no way out down there");
         assertTrue(find(pool, 1, 1, 1, 20, 1, 20, TestBodies.BIPED).sealed(),
                 "with air to spend it searched the pool too, and the pool is a dead end");
+    }
+
+    // ── asking on purpose ────────────────────────────────────────────────────────────────────
+
+    /**
+     * No goal involved. Inferring the verdict from the last walk a body attempted fails in exactly
+     * the case it is for: a body cutting its way out asks only for cells inside its own prison,
+     * and every one of those routes succeeds.
+     */
+    @Test
+    void theSurveyProvesConfinementWithoutBeingGivenAGoal() {
+        AsciiWorld room = AsciiWorld.of(
+                "#####",
+                "#111#",
+                "#111#",
+                "#111#",
+                "#####");
+        Confinement verdict = Pathfinder.survey(room,
+                PathRequest.of(2, 1, 2, 2, 1, 2, TestBodies.BIPED));
+        assertTrue(verdict.sealed());
+        assertEquals(9, verdict.cells());
+    }
+
+    /** The same capture guard the routing verdict uses, reached by the same pairing. */
+    @Test
+    void theSurveyClaimsNothingWhenTheGroundRunsPastTheCapture() {
+        AsciiWorld ground = AsciiWorld.of(
+                "11111",
+                "11111",
+                "11111");
+        Confinement verdict = Pathfinder.survey(window(ground, 0, -4, 0, 4, 4, 2),
+                PathRequest.of(2, 1, 1, 2, 1, 1, TestBodies.BIPED));
+        assertFalse(verdict.sealed(), "the wall was the edge of the capture");
+    }
+
+    /** A cell the body has just opened is genuinely new ground, and must still read "shut in". */
+    @Test
+    void movingWithinThePrisonDoesNotReadAsGettingOut() {
+        AsciiWorld room = AsciiWorld.of(
+                "#####",
+                "#111#",
+                "#111#",
+                "#111#",
+                "#####");
+        for (int x = 1; x <= 3; x++) {
+            for (int z = 1; z <= 3; z++) {
+                assertTrue(Pathfinder.survey(room,
+                                PathRequest.of(x, 1, z, x, 1, z, TestBodies.BIPED)).sealed(),
+                        "still shut in, standing at (" + x + ", 1, " + z + ")");
+            }
+        }
     }
 
     /**

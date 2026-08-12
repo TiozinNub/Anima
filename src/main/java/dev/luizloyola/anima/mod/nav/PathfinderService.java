@@ -2,6 +2,7 @@ package dev.luizloyola.anima.mod.nav;
 
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.DangerField;
 import dev.luizloyola.anima.core.brain.sense.SetbackField;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
@@ -110,6 +111,21 @@ public final class PathfinderService {
         Path path = Pathfinder.find(snapshot,
                 buildRequest(snapshot, start, goal, body, danger, who, setbacks));
         return new Dispatched(CompletableFuture.completedFuture(path), snapshot);
+    }
+
+    /**
+     * Whether this body can leave where it stands. Snapshot and search on the SERVER thread: the
+     * asker is a drive reading a percept mid-tick, with nowhere to put a future.
+     *
+     * <p>Affordable only because {@code AgentPercepts.confinement} gates it behind a recent
+     * stranded report and caches the answer; a shut-in body's region is a handful of cells, so the
+     * expansion ends at once and the capture reuses the tick's shared snapshot.
+     */
+    public static Confinement surveyFrom(ServerLevel level, BlockPos start, MoveCapabilities body) {
+        WorldSnapshot snapshot = sharedSnapshot(level, start, start);
+        BlockPos afloat = surfaceStart(snapshot, start, body);
+        return Pathfinder.survey(snapshot, PathRequest.of(afloat.getX(), afloat.getY(),
+                afloat.getZ(), afloat.getX(), afloat.getY(), afloat.getZ(), body));
     }
 
     /**

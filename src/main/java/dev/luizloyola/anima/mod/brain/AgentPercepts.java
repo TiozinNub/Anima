@@ -4,7 +4,11 @@ import dev.luizloyola.anima.compat.inv.CookedForms;
 import dev.luizloyola.anima.compat.inv.FoodValues;
 import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
+import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.sense.Confinement;
+import dev.luizloyola.anima.core.nav.MoveCapabilities;
+import dev.luizloyola.anima.mod.nav.PathfinderService;
+import net.minecraft.server.level.ServerLevel;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.Drop;
@@ -55,6 +59,17 @@ public final class AgentPercepts implements Percepts {
     /** Where perceived beings come from: the sensor is the body owner's to run, not the percept's
      *  to reach for. Handed in so this adapter never has to know what kind of sensor it is. */
     private final Supplier<List<Being>> beings;
+    /**
+     * How long a confinement answer is kept before it is asked again — see {@link #confinement()}.
+     * One survey a second: cheap enough to pay unconditionally, prompt enough that a body which has
+     * just cut its way out stops digging rather than carrying on out of habit.
+     */
+    private static final int CONFINEMENT_TICKS = 20;
+
+    /** The last confinement answer and when it was taken; {@code null} until first asked. */
+    private @Nullable Confinement confinement;
+    private int confinementAskedAt;
+
     /** {@code person.tickCount} at which {@link #dropsCache} was last filled. */
     private int dropsQueriedAt;
     /** Last drop scan, reused within the budget window; {@code null} until the first query. */
@@ -176,15 +191,33 @@ public final class AgentPercepts implements Percepts {
     }
 
     /**
-     * Whether this body can get out of where it is, as the legs last found it.
+     * Whether this body can get out of where it is — asked, not overheard.
      *
-     * <p>Read off the {@link dev.luizloyola.anima.mod.nav.Navigator} because the answer is a
-     * by-product of a route search and only the navigator runs one — so it is as fresh as the last
-     * attempt to go anywhere, and a body that stopped trying notices on its next.
+     * <p>Reading it off the navigator's last search was wrong exactly where it matters: a body
+     * cutting its way out asks for one cell at a time inside its own prison, every such route
+     * succeeds, and the drive that was digging switched off after every tread. A gate on
+     * {@link MoveFailure#STRANDED} failed the same way — a settler sealed in a mound idled for
+     * minutes without ever attempting a walk, so it never reported anything. Noticing you are
+     * trapped cannot be conditional on having something to do; see
+     * {@code docs/superpowers/specs/2026-08-11-stuck-and-escape-design.md}.
+     *
+     * <p>So: its own survey on a plain timer ({@link #CONFINEMENT_TICKS}), never waiting for a
+     * reason to ask. The cost is FIXED — one bounded survey per body per second. If it shows up in a
+     * profile, the levers are that constant and the capture box, not a cleverer gate.
      */
     @Override
     public Confinement confinement() {
-        return new Confinement(this.person.navigator().sealed(),
-                this.person.navigator().reachableCells());
+        int now = this.person.entity().tickCount;
+        if (this.confinement != null && now - this.confinementAskedAt < CONFINEMENT_TICKS) {
+            return this.confinement;
+        }
+        this.confinementAskedAt = now;
+        if (!(this.person.level() instanceof ServerLevel level)) {
+            this.confinement = Confinement.NONE;
+            return this.confinement;
+        }
+        this.confinement = PathfinderService.surveyFrom(level, this.person.blockPosition(),
+                MoveCapabilities.of(this.person.profile()));
+        return this.confinement;
     }
 }

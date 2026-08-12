@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.nav;
 
+import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.DangerField;
 import dev.luizloyola.anima.core.brain.sense.SetbackField;
 import java.util.ArrayDeque;
@@ -273,6 +274,49 @@ public final class Pathfinder {
     /** Never returns {@code null}. */
     public static Path find(NavGrid grid, PathRequest request) {
         return new Pathfinder(grid, request).search(request);
+    }
+
+    /**
+     * Asks, of nowhere in particular: can this body leave where it is standing?
+     *
+     * <p>The same expansion as {@link #find} with the goal taken away, so it never stops early — it
+     * runs until there is nothing left to reach or the budget is spent, then applies the same four
+     * guards. The request's goal is ignored; only its start, body and budget matter.
+     *
+     * <p><b>Asked, never overheard.</b> As a by-product of whatever walk the body last
+     * attempted it is wrong exactly where it is needed: a body cutting its way out asks for one
+     * cell at a time inside its own prison, and every one of those searches reaches its goal in a
+     * step or two without ever trying to leave.
+     *
+     * <p>Cheap and rare: a body that is shut in has a tiny region by definition, so the expansion
+     * ends almost immediately, and a body that is not is not asking. See
+     * {@code AgentPercepts.confinement} for the gate and the cache.
+     */
+    public static Confinement survey(NavGrid grid, PathRequest request) {
+        return new Pathfinder(grid, request).surveyFrom(request);
+    }
+
+    private Confinement surveyFrom(PathRequest request) {
+        long start = pack(request.startX(), request.startY(), request.startZ());
+        Node origin = new Node();
+        origin.surface16 = surface16At(request.startX(), request.startY(), request.startZ());
+        this.nodes.put(start, origin);
+        this.open.push(start, 0.0);
+
+        int expanded = 0;
+        boolean exhausted = true;
+        while (!this.open.isEmpty()) {
+            long current = this.open.pop();
+            Node node = this.nodes.get(current);
+            if (node.closed) continue;
+            node.closed = true;
+            if (++expanded >= request.maxNodes()) {
+                exhausted = false;
+                break;
+            }
+            expandNeighbors(current, node);
+        }
+        return new Confinement(exhausted && sealedIn(request), expanded);
     }
 
     private Path search(PathRequest request) {
