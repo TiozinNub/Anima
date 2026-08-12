@@ -387,6 +387,16 @@ public final class WorldSnapshot implements NavGrid {
         return index < 0 ? 0.0 : surface(this.cells[index]);
     }
 
+    /**
+     * A snapshot is a WINDOW: the one grid where "outside" and "walled" differ (see
+     * {@link dev.luizloyola.anima.core.nav.NavGrid#inBounds}). Past the box {@link #cell} reads
+     * OBSTACLE — a search stopped there was stopped by the capture, not the terrain.
+     */
+    @Override
+    public boolean inBounds(int x, int y, int z) {
+        return index(x, y, z) >= 0;
+    }
+
     /** The cell's slot in {@link #cells}, or {@code -1} for anything outside the box. */
     private int index(int x, int y, int z) {
         int ix = x - this.minX;

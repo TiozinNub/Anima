@@ -242,6 +242,15 @@ public final class Pathfinder {
     /** Whose taste in ground this search uses — {@link PathRequest#variety()}, 0 for nobody's. */
     private final long variety;
 
+    /**
+     * Set when a plunge probe walked off the bottom of the grid still looking for water — the one
+     * move whose reach (up to {@link #MAX_PLUNGE}) is far past any sane margin, so it reports its
+     * own encounter with the edge rather than forcing {@link #sealedIn} to allow for it everywhere.
+     */
+    private boolean boundsRefused;
+    /** Set when a submerged move was refused for want of breath — see {@link #sealedIn}. */
+    private boolean breathRefused;
+
     private Pathfinder(NavGrid grid, PathRequest request) {
         this.grid = grid;
         this.profile = request.profile();
@@ -278,6 +287,11 @@ public final class Pathfinder {
         double bestG = 0.0;
 
         int expanded = 0;
+        // Set explicitly rather than derived from the loop condition afterwards: a last pop that
+        // empties the heap on the very tick the budget runs out leaves the open set empty without
+        // the region having been enumerated, and reading `open.isEmpty()` at the end would call
+        // that a proof. Budget-limited is the conservative answer, so the break says so.
+        boolean exhausted = true;
         while (!this.open.isEmpty()) {
             long current = this.open.pop();
             Node node = this.nodes.get(current);
@@ -287,7 +301,9 @@ public final class Pathfinder {
             node.closed = true;
 
             if (current == goal) {
-                return reconstruct(current, true);
+                // +1: this node was closed above but the counter is only bumped further down, and
+                // the count means "cells closed".
+                return reconstruct(current, true, false, expanded + 1);
             }
             double score = partialScore(unpackX(current), unpackY(current), unpackZ(current));
             if (score < bestScore || (score == bestScore && node.g < bestG)) {
@@ -296,11 +312,55 @@ public final class Pathfinder {
                 bestG = node.g;
             }
             if (++expanded >= request.maxNodes()) {
+                exhausted = false;
                 break;
             }
             expandNeighbors(current, node);
         }
-        return reconstruct(best, false);
+        return reconstruct(best, false, exhausted && sealedIn(request), expanded);
+    }
+
+    /**
+     * Whether an exhausted search proved the body is shut in — <b>the world was the only thing
+     * that stopped it</b>. Four things can fence a search, and only one is a wall:
+     *
+     * <ul>
+     *   <li><b>The request</b> — a {@link NavDomain} is a fence the CALLER put up; exhausting
+     *       inside it says nothing about the world outside it.
+     *   <li><b>The capture</b> — a {@link WorldSnapshot} is a window, everything past its edge
+     *       reads OBSTACLE, and a big enough search walls a body into the box. Hence the margin
+     *       below, and hence {@link NavGrid#inBounds}.
+     *   <li><b>The body's air</b> — a route refused for want of breath is a limit of the lungs,
+     *       not of the rock: that body is drowning, and telling it to dig is the wrong rescue.
+     *   <li><b>The world</b> — walls, deep drops, lava, water it cannot swim. This one only.
+     * </ul>
+     *
+     * <p>The margin is what a single move can CARRY the body, not how far a probe READS, and every
+     * move but one is bounded by these numbers. The exception is the plunge, which looks up to
+     * {@link #MAX_PLUNGE} down for water and says so itself — see {@link #boundsRefused}.
+     */
+    private boolean sealedIn(PathRequest request) {
+        if (!this.domain.isEverywhere() || this.boundsRefused || this.breathRefused) {
+            return false;
+        }
+        int margin = Math.max(Math.max(MAX_STRIDE + 1, this.profile.maxLeap() + 2),
+                Math.max(this.profile.maxDrop() + 2,
+                        this.profile.clearCells() + this.profile.jumpHeight() + 1));
+        for (Map.Entry<Long, Node> entry : this.nodes.entrySet()) {
+            if (!entry.getValue().closed) {
+                continue; // opened but never reached: it was never anywhere the body could stand
+            }
+            long cell = entry.getKey();
+            int x = unpackX(cell);
+            int y = unpackY(cell);
+            int z = unpackZ(cell);
+            if (!this.grid.inBounds(x - margin, y, z) || !this.grid.inBounds(x + margin, y, z)
+                    || !this.grid.inBounds(x, y - margin, z) || !this.grid.inBounds(x, y + margin, z)
+                    || !this.grid.inBounds(x, y, z - margin) || !this.grid.inBounds(x, y, z + margin)) {
+                return false; // this region reaches the edge of what we captured; no claim to make
+            }
+        }
+        return true;
     }
 
     /** Probes every move the agent could make out of {@code current} and relaxes the reached cells. */
@@ -492,6 +552,12 @@ public final class Pathfinder {
         int limit = y - MAX_PLUNGE;
         while (waterline >= limit && this.grid.cell(nx, waterline, nz) == CellType.PASSABLE) {
             waterline--; // fall through the air above the water
+        }
+        if (!this.grid.inBounds(nx, waterline, nz)) {
+            // The column ran off the bottom of what we captured: whatever is down there — water to
+            // dive into, or more rock — this search cannot say, and must not pretend the silence
+            // was a floor. See sealedIn.
+            this.boundsRefused = true;
         }
         if (waterline >= limit && catchesAFall(nx, waterline, nz)) {
             // The landing keeps whatever footing the cell really has — the bed when the pool is
@@ -861,7 +927,10 @@ public final class Pathfinder {
             int nx, int ny, int nz) {
         int run = isSubmerged(nx, ny, nz) ? from.submergedRun + 1 : 0;
         if (run > this.profile.maxSubmerged()) {
-            return; // further under than this body has breath to come back from
+            // Further under than this body has breath to come back from. Remembered, because a
+            // search fenced by its own lungs must not come back claiming the rock shut it in.
+            this.breathRefused = true;
+            return;
         }
         relax(current, from, neighbor, FLOATING, move, cost, run);
     }
@@ -1100,7 +1169,7 @@ public final class Pathfinder {
     }
 
     /** Walks the parent chain from {@code end} back to the start and emits it forward. */
-    private Path reconstruct(long end, boolean reachedGoal) {
+    private Path reconstruct(long end, boolean reachedGoal, boolean sealed, int reachableCells) {
         Deque<Waypoint> chain = new ArrayDeque<>();
         long key = end;
         Node node = this.nodes.get(key);
@@ -1110,7 +1179,7 @@ public final class Pathfinder {
             key = node.parent;
             node = this.nodes.get(key);
         }
-        return new Path(new ArrayList<>(chain), reachedGoal);
+        return new Path(new ArrayList<>(chain), reachedGoal, sealed, reachableCells);
     }
 
     // Positions are packed into a long with BlockPos.asLong's layout (x: 26 bits, z: 26, y: 12) —

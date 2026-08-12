@@ -168,6 +168,9 @@ public final class Navigator {
     private @Nullable Path path;
     /** Why the last order died; see {@link #failure()}. Cleared by a new order and by a good path. */
     private MoveFailure failure = MoveFailure.NONE;
+    /** What the last search said about being shut in; see {@link #sealed()}. */
+    private boolean sealed;
+    private int reachableCells;
     /** The snapshot the current path was planned over; the follower reads it for edge awareness. */
     private @Nullable NavGrid grid;
     private int index;
@@ -264,6 +267,26 @@ public final class Navigator {
      */
     public MoveFailure failure() {
         return this.failure;
+    }
+
+    /**
+     * Whether the last search <em>proved</em> this body cannot leave the region it stands in: it
+     * ran out of anywhere to go, and only the world stopped it (see {@code Pathfinder.sealedIn}).
+     * Stronger than {@link MoveFailure#STRANDED}. That is what the legs observed about one order.
+     *
+     * <p>Not persisted: the next search retakes it within a tick or two of a reload. That changes
+     * the moment anything ACTS on it rather than printing it.
+     */
+    public boolean sealed() {
+        return this.sealed;
+    }
+
+    /**
+     * How many cells the body could reach. A statement about the whole of its world only while
+     * {@link #sealed()} — otherwise merely how far the last search got.
+     */
+    public int reachableCells() {
+        return this.reachableCells;
     }
 
     /** The current goal cell, or {@code null} when idle. Survives ARRIVED/FAILED for inspection. */
@@ -401,6 +424,11 @@ public final class Navigator {
         if (this.state == State.FAILED && this.failure != MoveFailure.NONE) {
             text.append(" (").append(this.failure.describe()).append(')');
         }
+        // Printed whatever the state: a fact about the terrain, not about the order — a body that
+        // just walked to the far corner of its cell is still shut in.
+        if (this.sealed) {
+            text.append(" [sealed in ").append(this.reachableCells).append(" cells]");
+        }
         return text.toString();
     }
 
@@ -534,6 +562,10 @@ public final class Navigator {
     }
 
     private void acceptPath(Path result) {
+        // Taken from every result, before the branches: a route found is "not sealed" by
+        // construction, so assigning unconditionally is how the verdict clears.
+        this.sealed = result.sealed();
+        this.reachableCells = result.reachableCells();
         if (result.reachedGoal() && result.isEmpty()) {
             this.state = State.ARRIVED; // already standing on the goal
             log("arrived", "already at " + this.goal.toShortString());
@@ -545,7 +577,8 @@ public final class Navigator {
             this.state = State.FAILED;
             this.failure = MoveFailure.STRANDED;
             log("failed", "no path to " + this.goal.toShortString() + " — "
-                    + MoveFailure.STRANDED.describe());
+                    + MoveFailure.STRANDED.describe()
+                    + (result.sealed() ? ", sealed in " + result.reachableCells() + " cells" : ""));
             return;
         }
         this.path = result;

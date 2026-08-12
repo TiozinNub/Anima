@@ -27,4 +27,20 @@ public interface NavGrid {
     default double surface(int x, int y, int z) {
         return cell(x, y, z) == CellType.GROUND ? 1.0 : 0.0;
     }
+
+    /**
+     * Whether this grid actually has data for a cell, as opposed to answering
+     * {@link CellType#OBSTACLE} because it has none.
+     *
+     * <p>{@link #cell} cannot tell the two apart by design — the search must treat unknown space as
+     * unwalkable — but one question needs to: whether a search that ran out of anywhere to go was
+     * stopped by <em>the world</em> or by the edge of the capture.
+     *
+     * <p>The default says every cell is known, correct for a fixed test grid. A grid that is a
+     * WINDOW onto a larger world (the compat layer's snapshot) must override it, or a confinement
+     * verdict over it is a claim about the capture, not the terrain.
+     */
+    default boolean inBounds(int x, int y, int z) {
+        return true;
+    }
 }
