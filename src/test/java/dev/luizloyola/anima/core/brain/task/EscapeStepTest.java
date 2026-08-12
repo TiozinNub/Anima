@@ -204,10 +204,26 @@ class EscapeStepTest {
         }
         ctx.percepts.position = new Pos(0, FakeProbe.GROUND_Y + 6, 0);
         assertEquals("lower yourself", chosen());
+
+        // The whole descent in one act: feet five above the landing, three of which it can fall,
+        // so two blocks come out from under it, top down.
         List<Task> plan = plan();
-        assertEquals(1, plan.size());
-        assertTrue(plan.get(0) instanceof BreakBlock cut
-                && cut.target().equals(new Pos(0, FakeProbe.GROUND_Y + 5, 0)));
+        assertEquals(2, plan.size());
+        for (int i = 0; i < 2; i++) {
+            assertTrue(plan.get(i) instanceof BreakBlock cut
+                    && cut.target().equals(new Pos(0, FakeProbe.GROUND_Y + 5 - i, 0)),
+                    "cut " + i + " should be one lower than the last");
+        }
+    }
+
+    /** One break per grant let wander steal the wheel mid-descent: a settler chewed a mound's whole rim away. */
+    @Test
+    void theDescentIsOneCommittedActNotOneBlock() {
+        for (int y = FakeProbe.GROUND_Y + 1; y <= FakeProbe.GROUND_Y + 9; y++) {
+            blocks.set(0, y, 0, BlockKind.OTHER);
+        }
+        ctx.percepts.position = new Pos(0, FakeProbe.GROUND_Y + 10, 0);
+        assertEquals(6, plan().size(), "nine above the landing, three of which it can fall");
     }
 
     @Test

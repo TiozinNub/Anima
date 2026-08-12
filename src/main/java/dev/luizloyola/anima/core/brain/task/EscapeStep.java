@@ -304,20 +304,26 @@ public final class EscapeStep implements CompoundTask {
     private final class LowerYourself implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
-            return canDig(ctx) && lowering(ctx);
+            return canDig(ctx) && !descent(ctx).isEmpty();
         }
 
         @Override
         public double estimateCost(BrainContext ctx) {
             // Dearer than a cut of the same size: going down is a commitment a stair is not.
-            return 4.0;
+            return 4.0 + descent(ctx).size();
         }
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
+            List<Pos> cuts = descent(ctx);
             Pos here = ctx.percepts().position();
-            narrate(ctx, "escape", "breaking the floor to get down from " + here.y());
-            return List.of(new BreakBlock(here.x(), here.y() - 1, here.z()));
+            narrate(ctx, "escape", "digging down " + cuts.size() + " to get off "
+                    + here.x() + ", " + here.y() + ", " + here.z());
+            List<Task> tasks = new ArrayList<>(cuts.size());
+            for (Pos cut : cuts) {
+                tasks.add(new BreakBlock(cut.x(), cut.y(), cut.z()));
+            }
+            return tasks;
         }
 
         @Override
@@ -326,36 +332,45 @@ public final class EscapeStep implements CompoundTask {
         }
 
         /**
-         * Whether taking the floor out would actually help.
+         * Every block to take out from under us, top down, to leave a drop this body can simply
+         * take — or empty when that is not what is wrong here.
+         *
+         * <p><b>The whole descent, not one block of it.</b> One break per grant ends the task and
+         * hands the wheel back, and whatever runs next walks the body away: watched live
+         * (2026-08-12) chewing an entire mound perimeter one rim block at a time without ever
+         * completing a descent.
          *
          * <p>The measure is the ground AROUND the body, not the column under it: there is a landing
          * under every floor everywhere, so an earlier cut that asked "is there something to land
          * on" applied on perfectly flat meadow. What matters is how far this body is above the
-         * ground it is trying to reach.
-         *
-         * <p>So: stranded higher than it can drop, standing on something removable, with something
-         * solid directly under THAT so the removal lowers it by exactly one. Repeat and the gap
-         * closes a block at a time — also how a body un-builds a mast it pillared up (see
-         * {@code Riser}: un-building is mining).
+         * ground it is trying to reach; a fall it could take should be taken.
          */
-        private boolean lowering(BrainContext ctx) {
+        private List<Pos> descent(BrainContext ctx) {
             Pos here = ctx.percepts().position();
-            if (!cuttable(ctx, here.x(), here.y() - 1, here.z())
-                    || !solidFloor(ctx, here.x(), here.y() - 2, here.z())) {
-                return false; // nothing to remove, or nothing to land on once it is gone
-            }
             MoveCapabilities body = MoveCapabilities.of(ctx.profile());
             BlockProbe blocks = ctx.percepts().blocks();
             int lowest = Integer.MAX_VALUE;
             for (int[] d : CARDINALS) {
                 int surface = blocks.surfaceY(here.x() + d[0], here.z() + d[1]);
                 if (surface == Integer.MIN_VALUE) {
-                    return false; // a column we cannot read is not a landing we can aim at
+                    return List.of(); // a column we cannot read is not a landing we can aim at
                 }
                 lowest = Math.min(lowest, surface);
             }
-            int fall = here.y() - (lowest + 1);
-            return fall > body.maxDrop();
+            int drop = here.y() - (lowest + 1);
+            if (drop <= body.maxDrop()) {
+                return List.of(); // it can just step off; mining down would be the long way
+            }
+            List<Pos> cuts = new ArrayList<>();
+            for (int i = 1; i <= drop - body.maxDrop(); i++) {
+                int y = here.y() - i;
+                if (!cuttable(ctx, here.x(), y, here.z())
+                        || !solidFloor(ctx, here.x(), y - 1, here.z())) {
+                    break; // nothing to take out here, or nothing to land on once it is gone
+                }
+                cuts.add(new Pos(here.x(), y, here.z()));
+            }
+            return cuts;
         }
     }
 
@@ -386,7 +401,8 @@ public final class EscapeStep implements CompoundTask {
             narrate(ctx, "shut in", "cannot get out of "
                     + ctx.percepts().confinement().cells() + " cells at ("
                     + here.x() + ", " + here.y() + ", " + here.z() + ")"
-                    + (canDig(ctx) ? " and cannot cut a way out" : " and has nothing to dig with"));
+                    + (canDig(ctx) ? " and cannot cut a way out from where it stands"
+                            : " and has nothing to dig with"));
             return List.of(new Stuck());
         }
 
