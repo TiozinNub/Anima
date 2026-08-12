@@ -229,6 +229,27 @@ public final class ProfileAspect {
                     + "land-only body routes around it. Surface crossing only — diving would "
                     + "need a depth and a breath of its own.");
 
+    // --- gaze: where this body's eyes go, and how fast --------------------------------------
+
+    public static final ProfileAspect GAZE_TURN_DEGREES = register("gaze.turn_degrees", Kind.DOUBLE, 1.0, 90.0,
+            "How far (degrees) this body's head turns in one tick — its reflexes, in the only "
+                    + "unit they are visible in. A bird's head arrives instantly; a cow's swings "
+                    + "round. High enough and every glance is a snap, which is what a startle "
+                    + "should look like and what nothing else should.");
+    public static final ProfileAspect GAZE_MAX_TWIST_DEGREES = register("gaze.max_twist_degrees", Kind.INT, 10, 90,
+            "How far (degrees) the head turns from the shoulders before the shoulders come "
+                    + "along. Also what a body will simply not look at while it is walking, since "
+                    + "the legs own which way it is squared up: past this, the look is dropped "
+                    + "rather than owl-necked. An owl's is most of a circle; a cow's is barely "
+                    + "worth having.");
+    public static final ProfileAspect GAZE_SCAN_MIN_TICKS = register("gaze.scan_min_ticks", Kind.INT, 5, 1200,
+            "Shortest an idle look is held before this body looks somewhere else. The pair with "
+                    + "the aspect below IS this body's idle attention span.");
+    public static final ProfileAspect GAZE_SCAN_MAX_TICKS = register("gaze.scan_max_ticks", Kind.INT, 5, 2400,
+            "Longest an idle look is held. Should exceed gaze.scan_min_ticks; a pair crossed over "
+                    + "is read as the wider of the two rather than refused, since a silly dwell "
+                    + "should look silly instead of stopping a body mid-tick.");
+
     private final String key;
     private final Kind kind;
     private final double min;

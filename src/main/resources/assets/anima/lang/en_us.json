@@ -50,6 +50,7 @@
   "anima.needs.param.tolerance": "Effort budget",
   "anima.config.category.social": "Social",
   "anima.config.category.body": "Body",
+  "anima.config.category.gaze": "Gaze",
   "anima.config.aspect.mind.stickiness": "Incumbency bonus",
   "anima.config.aspect.mind.stickiness.desc": "Bonus added to whatever the Person is already doing, so small swings in pressure don't leave them dithering between two urges.",
   "anima.config.aspect.mind.preempt": "Interrupt threshold",
@@ -127,5 +128,13 @@
   "anima.config.aspect.body.max_leap": "Leap distance",
   "anima.config.aspect.body.max_leap.desc": "The widest gap this body can jump across. 1 is a walking jump; 2 and 3 need a sprint run-up. 3 is vanilla's sprint-jump limit.",
   "anima.config.aspect.body.can_swim": "Can swim",
-  "anima.config.aspect.body.can_swim.desc": "Whether this body will enter and cross water. Off keeps water impassable, so it routes around instead. Surface crossing only."
+  "anima.config.aspect.body.can_swim.desc": "Whether this body will enter and cross water. Off keeps water impassable, so it routes around instead. Surface crossing only.",
+  "anima.config.aspect.gaze.turn_degrees": "Head speed",
+  "anima.config.aspect.gaze.turn_degrees.desc": "How far this body's head turns in a single tick — its reflexes, in the only unit you can see them in. A bird's head arrives instantly; a cow's swings round. Turn it up far enough and every glance becomes a snap.",
+  "anima.config.aspect.gaze.max_twist_degrees": "Neck twist",
+  "anima.config.aspect.gaze.max_twist_degrees.desc": "How far the head turns from the shoulders before the shoulders come along too. It is also what this body simply will not look at while walking, since its legs decide which way it is squared up — anything further round is let go rather than stared at over one shoulder.",
+  "anima.config.aspect.gaze.scan_min_ticks": "Shortest look",
+  "anima.config.aspect.gaze.scan_min_ticks.desc": "The least time this body rests its eyes on one thing when nothing needs its attention. With the longest look below, this pair is its idle attention span.",
+  "anima.config.aspect.gaze.scan_max_ticks": "Longest look",
+  "anima.config.aspect.gaze.scan_max_ticks.desc": "The most time this body rests its eyes on one thing before looking elsewhere. Keep it above the shortest look; the other way round is read as the wider of the two rather than refused."
 }

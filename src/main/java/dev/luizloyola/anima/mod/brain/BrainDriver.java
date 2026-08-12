@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.board.WorkSource;
 import dev.luizloyola.anima.core.brain.act.ActuatorAccess;
 import dev.luizloyola.anima.core.brain.act.BlockBreaker;
 import dev.luizloyola.anima.core.brain.act.BlockPlacer;
+import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.act.ItemConsumer;
 import dev.luizloyola.anima.core.brain.act.Mover;
 import dev.luizloyola.anima.core.brain.act.Riser;
@@ -144,6 +145,11 @@ public final class BrainDriver {
             @Override
             public Riser riser() {
                 return person.riser(); // body-owned and body-ticked, like the breaker
+            }
+
+            @Override
+            public Gazer gazer() {
+                return person.gaze(); // body-owned and body-ticked, like the breaker
             }
         };
         this.context = new BrainContext() {

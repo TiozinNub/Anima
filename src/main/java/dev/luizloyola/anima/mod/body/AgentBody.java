@@ -6,6 +6,7 @@ import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.Metabolism;
 import dev.luizloyola.anima.core.agent.Pronouns;
 import dev.luizloyola.anima.core.agent.need.Needs;
+import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.log.AgentJournal;
@@ -134,6 +135,13 @@ public interface AgentBody {
     Swimmer swimmer();
 
     /**
+     * Where this body's eyes go — the one owner of its head, and its idle attention. Ticked
+     * <em>after</em> the {@link Navigator} and the arm actuators (their claims this tick are its
+     * input) but <em>before</em> the {@link Swimmer}, which has the last word on a wet pitch.
+     */
+    Gaze gaze();
+
+    /**
      * The mind mounted on this body — the arbiter, its running task tree, and the autonomy switch.
      * Owned and ticked by the body, like the senses.
      */
@@ -171,8 +179,18 @@ public interface AgentBody {
      */
     void driveDown(float throttle);
 
-    /** Turn to look at the centre of {@code cell}. */
-    void faceBlock(BlockPos cell);
+    /**
+     * Look at the centre of {@code cell} — the arm's form of a gaze claim, shared by every arm
+     * actuator.
+     *
+     * <p>No longer implemented per body: turning the head itself made every arm actuator a second
+     * owner of it and froze a body the moment it stopped. It is a {@link Gazer.Priority#WORK} claim
+     * held for {@link Gaze#WORK_HOLD_TICKS}, so a one-shot act gets a glance, not a twitch.
+     */
+    default void faceBlock(BlockPos cell) {
+        gaze().lookAt(cell.getX() + 0.5, cell.getY() + 0.5, cell.getZ() + 0.5,
+                Gazer.Priority.WORK, Gaze.WORK_HOLD_TICKS);
+    }
 
     /** Path to {@code target} at the body's default gait. */
     void navigateTo(Vec3 target);

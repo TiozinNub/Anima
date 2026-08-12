@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.SpeciesKnobs;
+import dev.luizloyola.anima.core.agent.need.NeedKind;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -16,6 +17,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -56,6 +58,19 @@ class ConfigLabelsTest {
 
     private static boolean generated(ProfileAspect aspect) {
         return aspect.key().startsWith(GENERATED_PREFIX);
+    }
+
+    /**
+     * Anima's own needs, mentioned here for the side effect of loading them.
+     *
+     * <p>A need registers its levels' aspects from {@link NeedKind}'s initialiser, so until
+     * something touches that class there is no {@code needs.*} aspect and the {@code needs}
+     * category label looks like an orphan. Without this line the run passes or fails on test
+     * ORDER — and it failed.
+     */
+    @BeforeAll
+    static void loadAnimasOwnNeeds() {
+        assertNotNull(NeedKind.HUNGER);
     }
 
     @Test

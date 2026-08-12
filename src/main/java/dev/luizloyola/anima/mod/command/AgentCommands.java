@@ -793,8 +793,12 @@ public final class AgentCommands {
         AgentId id = person.agentId();
         Entity leading = id == null ? null : Escorts.following(source.getServer(), id);
         String escort = leading == null ? "" : "  following " + leading.getName().getString();
+        // Where the eyes are, on the same line and for the same reason as the swimmer: a head
+        // aimed somewhere reasonable and a head aimed nowhere look identical for the first second.
+        String looking = "  [" + person.gaze().describe() + "]";
         Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
-                + person.navigator().describe() + water + escort).withStyle(ChatFormatting.AQUA));
+                + person.navigator().describe() + water + escort + looking)
+                .withStyle(ChatFormatting.AQUA));
         return 1;
     }
 

@@ -24,4 +24,13 @@ public interface ActuatorAccess {
 
     /** The legs, gaining one block of height — see {@link Riser}. */
     Riser riser();
+
+    /**
+     * The eyes — see {@link Gazer}. Defaults to {@link Gazer#NONE}, unlike the ports above: a body
+     * that cannot look is only a blind one (every headless rig in the test fixtures), where a mover
+     * that cannot move would be a broken body.
+     */
+    default Gazer gazer() {
+        return Gazer.NONE;
+    }
 }
