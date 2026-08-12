@@ -120,9 +120,10 @@ public final class PathfinderService {
      * hot line pastes straight into {@code select}.
      */
     private static void trace(String who, BlockPos start, BlockPos goal, Path path) {
-        AnimaMod.LOGGER.info("path [{}] {} -> {}: {} waypoints{}",
+        AnimaMod.LOGGER.info("path [{}] {} -> {}: {} waypoints{} [reached {} cells{}]",
                 who, start.toShortString(), goal.toShortString(),
-                path.waypoints().size(), path.reachedGoal() ? "" : " (partial)");
+                path.waypoints().size(), path.reachedGoal() ? "" : " (partial)",
+                path.reachableCells(), path.sealed() ? ", SEALED" : "");
     }
 
     private static PathRequest buildRequest(WorldSnapshot snapshot, BlockPos start, BlockPos goal,

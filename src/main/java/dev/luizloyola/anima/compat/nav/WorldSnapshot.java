@@ -5,6 +5,7 @@ import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import java.util.Arrays;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
@@ -98,9 +99,19 @@ public final class WorldSnapshot implements NavGrid {
     private final int sizeX;
     private final int sizeY;
     private final int sizeZ;
+    /**
+     * The level's own vertical limits, remembered so {@link #inBounds} can tell the two kinds of
+     * "no data" apart — see there. Captured with the box because a snapshot outlives the tick that
+     * made it and must not reach back into a level to ask.
+     */
+    private final int worldMinY;
+    private final int worldMaxY;
     private final byte[] cells;
 
-    private WorldSnapshot(int minX, int minY, int minZ, int sizeX, int sizeY, int sizeZ, byte[] cells) {
+    private WorldSnapshot(int minX, int minY, int minZ, int sizeX, int sizeY, int sizeZ,
+            int worldMinY, int worldMaxY, byte[] cells) {
+        this.worldMinY = worldMinY;
+        this.worldMaxY = worldMaxY;
         this.minX = minX;
         this.minY = minY;
         this.minZ = minZ;
@@ -128,8 +139,8 @@ public final class WorldSnapshot implements NavGrid {
         // fresh array would read PASSABLE, the one thing unknown space must never be.
         Arrays.fill(cells, pack(CellType.OBSTACLE, 0));
 
-        WorldSnapshot snapshot =
-                new WorldSnapshot(min.getX(), minY, min.getZ(), sizeX, sizeY, sizeZ, cells);
+        WorldSnapshot snapshot = new WorldSnapshot(min.getX(), minY, min.getZ(),
+                sizeX, sizeY, sizeZ, level.getMinY(), level.getMaxY(), cells);
         snapshot.bake(level, min, max);
         return snapshot;
     }
@@ -388,13 +399,20 @@ public final class WorldSnapshot implements NavGrid {
     }
 
     /**
-     * A snapshot is a WINDOW: the one grid where "outside" and "walled" differ (see
-     * {@link dev.luizloyola.anima.core.nav.NavGrid#inBounds}). Past the box {@link #cell} reads
-     * OBSTACLE — a search stopped there was stopped by the capture, not the terrain.
+     * A snapshot is a WINDOW, so this is the one grid where "outside" and "walled" differ — see
+     * {@link dev.luizloyola.anima.core.nav.NavGrid#inBounds}. Past the captured box {@link #cell}
+     * reads OBSTACLE, and a search that ran out of room there was stopped by the capture, not the
+     * terrain.
+     *
+     * <p><b>The bottom of the world is not the edge of the capture.</b> {@link #capture} clamps its
+     * box to the level's limits, so reading below a body near bedrock as "outside" would put every
+     * such body's region against an edge and no confinement could be proved — a settler sealed in a
+     * stone box on a superflat world had one reachable cell and a verdict that would not fire. The
+     * probe is clamped before it is asked.
      */
     @Override
     public boolean inBounds(int x, int y, int z) {
-        return index(x, y, z) >= 0;
+        return index(x, Mth.clamp(y, this.worldMinY, this.worldMaxY), z) >= 0;
     }
 
     /** The cell's slot in {@link #cells}, or {@code -1} for anything outside the box. */
