@@ -19,6 +19,7 @@ import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.PathIntegrity;
 import dev.luizloyola.anima.core.nav.Waypoint;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import java.util.concurrent.CancellationException;
@@ -30,6 +31,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
@@ -98,6 +100,18 @@ public final class Navigator {
      * where we stand. Must stay ABOVE the engine's longest stride — a (3,3) step puts the next
      * waypoint 3√2 ≈ 4.25 away, plus the 0.4 advance radius.
      */
+    /**
+     * How far below the feet {@link #bearsWeight} looks for the block holding them up. A hair: the
+     * body already rests on it, and deeper would find the storey below through a gap.
+     */
+    private static final double SUPPORT_PROBE = 1.0E-3;
+    /**
+     * Shrink applied to a footprint before its columns are read off, so a box whose edge lands
+     * exactly on a cell boundary does not claim the cell beyond it. Smaller than any position the
+     * engine produces is meaningful to, and larger than the float noise that puts an edge at
+     * {@code x.9999999} instead of {@code y.0}.
+     */
+    private static final double FOOTPRINT_SLACK = 1.0E-4;
     private static final double STRAY_HORIZONTAL = 5.0;
     private static final double STRAY_VERTICAL = 1.5;
     /**
@@ -421,13 +435,84 @@ public final class Navigator {
         // into a body from a worker. Null until roughly the body's first tick, inside which a path
         // can still be requested.
         AgentId who = this.person.agentId();
+        BlockPos start = startCell();
         PathfinderService.Dispatched dispatched = OFF_THREAD
-                ? PathfinderService.request(level(), who, this.person.blockPosition(), this.goal,
+                ? PathfinderService.request(level(), who, start, this.goal,
                         capabilities(), DangerFields.of(this.person))
-                : PathfinderService.computeNow(level(), who, this.person.blockPosition(), this.goal,
+                : PathfinderService.computeNow(level(), who, start, this.goal,
                         capabilities(), DangerFields.of(this.person));
         this.grid = dispatched.snapshot();
         this.pending = dispatched.result();
+    }
+
+    /**
+     * The cell to plan from: the column actually holding this body up.
+     *
+     * <p>{@code blockPosition()} is the column the CENTRE is over, and a 0.6-wide body straddles a
+     * boundary within 0.3 of one, so at a rim or a lip its weight rests on a column the centre
+     * never touches. That cell is an <b>orphan</b> with no node of its own: over the test pool the
+     * route from the rim to the water below planned <i>walk east onto the deck, then swim back
+     * west</i>.
+     *
+     * <p>So of the columns the footprint overlaps, take the first with something solid immediately
+     * under that part of the box; the centre column is tried first. Airborne or afloat it is the
+     * right answer anyway, and {@code PathfinderService.surfaceStart} still applies on top.
+     */
+    private BlockPos startCell() {
+        BlockPos feet = this.person.blockPosition();
+        LivingEntity entity = this.person.entity();
+        if (!this.person.onGround()) {
+            return feet;
+        }
+        AABB box = entity.getBoundingBox();
+        for (int[] column : columnsUnder(box)) {
+            if (bearsWeight(entity, box, column[0], column[2])) {
+                return column[0] == feet.getX() && column[2] == feet.getZ()
+                        ? feet // the centre column really is bearing it: the usual answer, unchanged
+                        : new BlockPos(column[0], feet.getY(), column[2]);
+            }
+        }
+        return feet; // grounded on nothing this can name (an entity, a shape we mis-clip): leave it
+    }
+
+    /**
+     * The columns a standing body's footprint overlaps, nearest its centre first — one, two or
+     * four, since a 0.6-wide box spans at most two cells per axis. Entries are
+     * {@code {x, unused, z}}, readable with position indices.
+     *
+     * <p>Deflated first, so a box whose edge lands on a cell boundary claims the cell it is IN, not
+     * the one it touches — the opposite of {@code AgentPercepts.cellsTouchedBy}, because this list
+     * decides where the body <em>is</em>.
+     */
+    static List<int[]> columnsUnder(AABB box) {
+        AABB inner = box.deflate(FOOTPRINT_SLACK, 0.0, FOOTPRINT_SLACK);
+        double centerX = (box.minX + box.maxX) / 2.0;
+        double centerZ = (box.minZ + box.maxZ) / 2.0;
+        List<int[]> columns = new ArrayList<>(4);
+        for (int x = Mth.floor(inner.minX); x <= Mth.floor(inner.maxX); x++) {
+            for (int z = Mth.floor(inner.minZ); z <= Mth.floor(inner.maxZ); z++) {
+                columns.add(new int[]{x, 0, z});
+            }
+        }
+        columns.sort(Comparator.comparingDouble(
+                c -> square(c[0] + 0.5 - centerX) + square(c[2] + 0.5 - centerZ)));
+        return columns;
+    }
+
+    private static double square(double v) {
+        return v * v;
+    }
+
+    /**
+     * Whether the part of {@code box} inside column {@code (x, z)} has something solid directly
+     * beneath it — the physical question, asked of the engine, so it cannot drift from what the
+     * body is actually resting on the way a second opinion about block shapes would.
+     */
+    private static boolean bearsWeight(LivingEntity entity, AABB box, int x, int z) {
+        AABB under = new AABB(
+                Math.max(box.minX, x), box.minY - SUPPORT_PROBE, Math.max(box.minZ, z),
+                Math.min(box.maxX, x + 1.0), box.minY, Math.min(box.maxZ, z + 1.0));
+        return !entity.level().noCollision(entity, under);
     }
 
     /** Polls the in-flight request; the future completes on a worker, so only ever read it here. */

@@ -1,20 +1,22 @@
 package dev.luizloyola.anima.mod.nav;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.nav.MoveType;
 import java.util.List;
+import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.Test;
 
 /**
- * When a body may claim to have <em>reached</em> a waypoint by height — {@link
- * Navigator#atWaypointHeight}, the rule the skip and the plane-advance both consult.
+ * The two places the follower reasons about <em>where a body is</em> rather than where its centre
+ * is: {@link Navigator#atWaypointHeight} and {@link Navigator#columnsUnder}.
  *
- * <p>Water is the interesting half: a floating body bobs a whole block, so a water waypoint takes a
- * wide band rather than the tight standing band a footed move uses. That band alone is also
- * satisfied by a body standing on the BANK a block above the surface — which is how a dry Person on
- * a pool rim claimed the water cell below her, was handed a dive, and failed the walk.
+ * <p>A floating body bobs a whole block, so a water waypoint takes a wide band, not the tight
+ * standing band of a footed move — and a body on the BANK one block above the surface satisfies it
+ * too. Caught live: a dry Person claimed the water cell below her, was handed a dive under solid
+ * ground, and the walk failed after four retries.
  */
 class NavigatorReachTest {
 
@@ -48,6 +50,48 @@ class NavigatorReachTest {
             assertFalse(Navigator.atWaypointHeight(A_BOB_TOO_FAR, MoveType.WALK, wet),
                     "a walker well above its ledge has not reached it, wet or dry");
         }
+    }
+
+    /** A Person's footprint, centred on {@code (x, z)} — 0.6 wide, so it spans at most two cells. */
+    private static AABB footprint(double x, double z) {
+        return new AABB(x - 0.3, -40.0, z - 0.3, x + 0.3, -38.2, z + 0.3);
+    }
+
+    private static List<String> columns(AABB box) {
+        return Navigator.columnsUnder(box).stream().map(c -> c[0] + "," + c[2]).toList();
+    }
+
+    @Test
+    void aBodyWellInsideACellStandsInThatCellAlone() {
+        assertEquals(List.of("1110,106"), columns(footprint(1110.5, 106.5)));
+    }
+
+    /**
+     * Gloria on the pool rim: centre over water at x=1110, 0.08 of her box on the deck at x=1111.
+     * The deck holds her up, so its column must be in the list at all.
+     */
+    @Test
+    void aBodyOverhangingALipOffersBothColumnsCentreFirst() {
+        assertEquals(List.of("1110,106", "1111,106"), columns(footprint(1110.7825, 106.664)));
+    }
+
+    @Test
+    void aBodyOverACornerOffersFourColumnsNearestFirst() {
+        List<String> found = columns(footprint(1110.95, 106.95));
+        assertEquals(4, found.size(), "a corner straddles two cells on each axis");
+        assertEquals("1110,106", found.get(0), "the centre column is always tried first");
+        assertTrue(found.containsAll(List.of("1111,106", "1110,107", "1111,107")));
+        assertEquals("1111,107", found.get(3), "the diagonal is the farthest and so the last resort");
+    }
+
+    /**
+     * Flush against a boundary: the box edge lands exactly on x=1111.0, touched but not stood in.
+     * Claiming it would move an agent a cell sideways on a rounding error — why the footprint is
+     * shrunk first.
+     */
+    @Test
+    void aBoxThatMerelyGrazesTheNextCellDoesNotClaimIt() {
+        assertEquals(List.of("1110,106"), columns(footprint(1110.7, 106.5)));
     }
 
     /**
