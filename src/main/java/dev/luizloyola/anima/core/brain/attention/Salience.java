@@ -23,11 +23,9 @@ import java.util.Optional;
 public final class Salience {
 
     /**
-     * Everything a source is allowed to know: where the eyes are, what the body perceives, what it
-     * remembers, what frightens it, and what it has been looking at lately.
+     * Everything a source is allowed to know.
      *
-     * @param eyeX where the eyes are, world X — every candidate is scored against this, not
-     *     against the feet, because a look is a line from an eye
+     * @param eyeX where the eyes are, world X — candidates are scored against this, not the feet
      * @param eyeY eye height
      * @param eyeZ eye position, world Z
      * @param bodyYaw which way the shoulders are squared (Minecraft convention: 0° is +Z)
@@ -36,26 +34,37 @@ public final class Salience {
      * @param knowledge what it remembers of places
      * @param danger how frightening it finds a species — what turns a noise into a startle
      * @param profile what this body is like; a source reads reach and aperture from here rather
-     *     than inventing a radius, so a wolf's attention is a wolf's
-     * @param lastLookedAt when each key was last looked away from, for {@link #novelty}
+     *     than inventing a radius
+     * @param seen what this body has looked at lately, and how often — for {@link #novelty}
      */
     public record Scene(double eyeX, double eyeY, double eyeZ, double bodyYaw, long now,
                         Percepts percepts, AgentKnowledge knowledge, DangerTable danger,
-                        AgentProfile profile, Map<String, Long> lastLookedAt) {
+                        AgentProfile profile, Map<String, Seen> seen) {
 
         /**
-         * How fresh a look at {@code key} would be: 1 for something never looked at, climbing back
-         * to 1 over {@link Attention#REFRACTORY_TICKS} after the last look at it ended.
+         * How fresh a look at {@code key} would be, given the thing is doing {@code state}: 1 for
+         * something never looked at, climbing back to 1 over a refractory that GROWS each time this
+         * body looks at the same thing doing the same thing.
          *
-         * <p>This is what stops a stare — without it the highest-scoring thing in sight would win
-         * every decision for as long as it is there.
+         * <p>A flat refractory stops a stare but not a body returning to the same neighbour every
+         * five seconds all afternoon, so boredom accumulates: the wait doubles, trebles, quadruples
+         * up to {@link Attention#HABITUATION_CAP}, settling at a glance about once every half
+         * minute.
+         *
+         * <p><b>Doing something else resets it</b> — a body is bored of the sight, not the person.
          */
-        public double novelty(String key) {
-            Long last = lastLookedAt.get(key);
+        public double novelty(String key, String state) {
+            Seen last = seen.get(key);
             if (last == null) {
                 return 1.0;
             }
-            return Math.min(1.0, Math.max(0.0, (now - last) / (double) Attention.REFRACTORY_TICKS));
+            // A change resets the accumulated boredom but not the clock: otherwise anything
+            // twitching between two states would be fully novel on every flip.
+            double repeats = last.state().equals(state)
+                    ? Math.min(Attention.HABITUATION_CAP, 1 + last.looks())
+                    : 1.0;
+            return Math.min(1.0,
+                    Math.max(0.0, (now - last.at()) / (Attention.REFRACTORY_TICKS * repeats)));
         }
 
         /** Straight-line distance from the eyes to a world point. */
@@ -77,12 +86,22 @@ public final class Salience {
     }
 
     /**
+     * What this body remembers about looking at one thing.
+     *
+     * @param at the tick the last look at it ended
+     * @param looks how many looks in a row landed on it doing the same thing — the boredom
+     * @param state what it was doing when last looked at; a different answer now means the count
+     *     starts over, because a body tires of a sight rather than of a thing
+     */
+    public record Seen(long at, int looks, String state) {
+    }
+
+    /**
      * One thing worth looking at, priced.
      *
      * @param key what this candidate is, stably across ticks — {@code being:<uuid>},
-     *     {@code drop:12,64,-8}. The handle novelty is remembered by and pursuit re-finds it by, so
-     *     two proposals of the same thing must agree on it or a body will look at its own last
-     *     glance forever
+     *     {@code drop:12,64,-8}. Two proposals of the same thing must agree on it, or a body will
+     *     look at its own last glance forever
      * @param x where to look, world X (a point, not a cell — eyes aim at points)
      * @param y where to look, world Y
      * @param z where to look, world Z
@@ -91,9 +110,12 @@ public final class Salience {
      * @param dwell how long to hold it, in ticks
      * @param snap whether the head should whip round rather than turn — a startle, and nothing else
      * @param reason one phrase for the readout, in the body's own terms ("a noise", "Alice")
+     * @param state what this thing is DOING, as a short string that changes when the sight does.
+     *     Only boredom reads it (see {@link Scene#novelty}); something that never changes passes a
+     *     constant
      */
     public record Candidate(String key, double x, double y, double z, double score, int dwell,
-                            boolean snap, String reason) {
+                            boolean snap, String reason, String state) {
     }
 
     /** Something with an opinion about what is worth looking at. Stateless; see the class note. */

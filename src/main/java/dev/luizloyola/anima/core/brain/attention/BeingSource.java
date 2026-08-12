@@ -108,7 +108,8 @@ public final class BeingSource implements Salience.Source {
         double x = being.pos().x() + 0.5;
         double y = being.pos().y() + height;
         double z = being.pos().z() + 0.5;
-        double score = base * scene.nearness(scene.distanceTo(x, y, z)) * scene.novelty(key(being));
+        double score = base * scene.nearness(scene.distanceTo(x, y, z))
+                * scene.novelty(key(being), state(being));
         if (being.locomotion() != Being.Locomotion.STILL) {
             score *= MOVING_BONUS;
         }
@@ -116,7 +117,18 @@ public final class BeingSource implements Salience.Source {
             score *= WATCHING_BONUS;
         }
         return new Salience.Candidate(key(being), x, y, z, score,
-                unseen ? STARTLE_TICKS : LOOK_TICKS, unseen, describe(being, unseen));
+                unseen ? STARTLE_TICKS : LOOK_TICKS, unseen, describe(being, unseen),
+                state(being));
+    }
+
+    /**
+     * What this body is DOING, as the observer can tell — the sight rather than the thing, which is
+     * what boredom is about (see {@link Salience.Scene#novelty}). Every axis the sense renders goes
+     * in, so a neighbour who stands up, walks off or looks back is worth seeing again.
+     */
+    private static String state(Being being) {
+        return being.awareness() + "/" + being.locomotion() + "/" + being.activity()
+                + (being.watching() ? "/watching" : "");
     }
 
     /**

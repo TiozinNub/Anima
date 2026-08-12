@@ -307,25 +307,25 @@ public final class BeingSense {
     private final class Oracle implements BeingWorld {
         @Override
         public List<BeingReading> candidates() {
+            // The broadphase is the WIDEST this body could notice anything at; what shortens the
+            // reach for a particular body (crouching, invisibility) is applied per candidate in
+            // noticeable(), because it is a property of the body being looked at and not of the box.
             double radius = profile.i(ProfileAspect.SENSES_RADIUS);
-            double sneakRadius = radius * profile.d(ProfileAspect.SENSES_SNEAK_RANGE_MULT);
             List<LivingEntity> found = person.level().getEntitiesOfClass(
                     LivingEntity.class,
                     // A full cube: the vertical SHAPE of vision belongs to the cone band, not
                     // the query (caught by repro: a half-height box silently capped sight at
                     // ±12 blocks no matter what the band allowed).
                     person.entity().getBoundingBox().inflate(radius, radius, radius),
-                    e -> e != person && e.isAlive() && !(e instanceof ArmorStand)
-                            && !(e instanceof Player p && p.isSpectator()));
+                    e -> e != person && perceivable(e));
             bodies.keySet().removeIf(id -> {
                 LivingEntity body = bodies.get(id);
                 return body == null || body.isRemoved();
             });
             List<BeingReading> readings = new ArrayList<>(found.size());
             for (LivingEntity body : found) {
-                double distance = body.distanceTo(person.entity());
-                if (distance > radius || (body.isCrouching() && distance > sneakRadius)) {
-                    continue; // sneaking shrinks how far away you get noticed (decision: Luiz)
+                if (!noticeable(body)) {
+                    continue;
                 }
                 BeingReading reading = read(body);
                 if (reading != null) {
@@ -339,18 +339,39 @@ public final class BeingSense {
         @Override
         public @Nullable BeingReading reading(BeingId id) {
             LivingEntity body = bodies.get(id);
-            if (body == null || body.isRemoved() || !body.isAlive()
-                    || body.level() != person.level()) {
-                return null;
-            }
-            double radius = profile.i(ProfileAspect.SENSES_RADIUS);
-            double distance = body.distanceTo(person.entity());
-            if (distance > radius
-                    || (body.isCrouching()
-                            && distance > radius * profile.d(ProfileAspect.SENSES_SNEAK_RANGE_MULT))) {
+            if (body == null || body.isRemoved() || body.level() != person.level()
+                    || !perceivable(body) || !noticeable(body)) {
                 return null;
             }
             return read(body);
+        }
+
+        /**
+         * Whether this body is close enough to be made out — the sight half of the range rule, in
+         * one method because discovery and the re-check each carried their own copy of "how far is
+         * far".
+         *
+         * <p>Crouching applies this species' own {@code senses.sneak_range_mult}: sneaking shortens
+         * how far away you are noticed and never makes you invisible (decision: Luiz). Invisibility
+         * applies vanilla's {@code getVisibilityPercent} minus the sneak factor we already model —
+         * {@code 0.7 × armour cover}, floored at a tenth — so a naked invisible body is noticed at
+         * under two blocks, an armoured one at seven tenths of the usual reach.
+         *
+         * <p><b>Read off {@code isInvisible()}, never off a list of effects:</b> it is a synced flag
+         * that {@code setInvisible} also sets for a command, a datapack or another mod, where
+         * enumerating effects would answer only for the one we thought of.
+         *
+         * <p>Sight only: an unseen body can still be HEARD, since the ear runs off events.
+         */
+        private boolean noticeable(LivingEntity body) {
+            double reach = profile.i(ProfileAspect.SENSES_RADIUS);
+            if (body.isCrouching()) {
+                reach *= profile.d(ProfileAspect.SENSES_SNEAK_RANGE_MULT);
+            }
+            if (body.isInvisible()) {
+                reach *= INVISIBLE_REACH * Math.max(MIN_ARMOUR_TELL, body.getArmorCoverPercentage());
+            }
+            return body.distanceTo(person.entity()) <= reach;
         }
 
         @Override
@@ -365,6 +386,30 @@ public final class BeingSense {
                     ? LevelProbe.bodyVisible(person.level(), person.entity().getEyePosition(), body)
                     : LevelProbe.centerVisible(person.level(), person.entity().getEyePosition(), body);
         }
+    }
+
+    /**
+     * How much of the usual reach an invisible body is noticed within, before armour is counted —
+     * vanilla's own figure from {@code LivingEntity#getVisibilityPercent}.
+     */
+    private static final double INVISIBLE_REACH = 0.7;
+
+    /** And vanilla's floor on it: even wearing nothing at all, you are not perfectly gone. */
+    private static final float MIN_ARMOUR_TELL = 0.1F;
+
+    /**
+     * Whether this body can be perceived at all, asked in the one place: discovery filtered
+     * spectators and the re-check of an already-tracked body did not, so a player switched to
+     * spectator stayed a live reading forever — watched, greeted and feared, and invisible as a bug
+     * until bodies began turning their heads.
+     *
+     * <p>A spectator is not stealthy, it is <em>absent</em>: no sneak multiplier, no linger, no
+     * remembered last position.
+     */
+    private static boolean perceivable(LivingEntity body) {
+        return body.isAlive()
+                && !(body instanceof ArmorStand)
+                && !(body instanceof Player player && player.isSpectator());
     }
 
     private static boolean personShaped(LivingEntity body) {

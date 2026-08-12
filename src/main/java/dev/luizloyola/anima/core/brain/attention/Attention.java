@@ -7,6 +7,7 @@ import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -73,6 +74,14 @@ public final class Attention {
     public static final int REFRACTORY_TICKS = 600;
 
     /**
+     * How many times over a body may wait before it cares about the same unchanging sight again.
+     * Six: the first gap is a few seconds, and a settler with nothing else to look at settles into
+     * glancing at a motionless neighbour about twice a minute. Capped rather than unbounded so a
+     * body once alone with somebody does not stop looking at them forever.
+     */
+    public static final double HABITUATION_CAP = 6.0;
+
+    /**
      * How much better a rival must be to take the eyes off what they are on — a quarter again. The
      * arbiter's stickiness, for the same reason: near-equal candidates should not flick the head.
      */
@@ -120,7 +129,7 @@ public final class Attention {
      * @param snap whether the head should whip round rather than turn. A startle, and nothing else
      */
     public record Focus(String key, double x, double y, double z, long until, double score,
-                        boolean snap, String reason) {
+                        boolean snap, String reason, String state) {
 
         public boolean live(long now) {
             return now < until;
@@ -128,8 +137,10 @@ public final class Attention {
 
         /** The same look, at where the thing has moved to — see {@link Salience.Source#track}. */
         public Focus movedTo(Salience.Candidate candidate) {
+            // The state travels with it, so a thing that starts moving while watched is the sight
+            // the body will be bored of.
             return new Focus(key, candidate.x(), candidate.y(), candidate.z(), until,
-                    candidate.score(), snap, candidate.reason());
+                    candidate.score(), snap, candidate.reason(), candidate.state());
         }
     }
 
@@ -144,8 +155,8 @@ public final class Attention {
      */
     private final List<Salience.Candidate> offers = new ArrayList<>(OFFERS_KEPT);
 
-    /** When each key was last looked away from — the whole of what makes a look wear off. */
-    private final Map<String, Long> lastLookedAt = new HashMap<>();
+    /** What this body has looked at lately — the whole of what makes a look wear off. */
+    private final Map<String, Salience.Seen> seen = new HashMap<>();
 
     /**
      * Where to look this tick. Returns the same focus every tick of its dwell, its point kept
@@ -167,7 +178,7 @@ public final class Attention {
             Percepts percepts, AgentKnowledge knowledge, DangerTable danger, AgentProfile profile,
             RandomGenerator random) {
         Salience.Scene scene = new Salience.Scene(eyeX, eyeY, eyeZ, bodyYawDegrees, now, percepts,
-                knowledge, danger, profile, Collections.unmodifiableMap(this.lastLookedAt));
+                knowledge, danger, profile, Collections.unmodifiableMap(this.seen));
         keepUp(scene, now);
         if (this.focus == null || now - this.decidedAt >= DECIDE_INTERVAL) {
             this.decidedAt = now;
@@ -286,7 +297,8 @@ public final class Attention {
 
     private Focus adopt(Salience.Candidate candidate, long now) {
         return new Focus(candidate.key(), candidate.x(), candidate.y(), candidate.z(),
-                now + candidate.dwell(), candidate.score(), candidate.snap(), candidate.reason());
+                now + candidate.dwell(), candidate.score(), candidate.snap(), candidate.reason(),
+                candidate.state());
     }
 
     /**
@@ -295,13 +307,16 @@ public final class Attention {
      */
     private void forget(long now) {
         if (this.focus != null && !SCAN_KEY.equals(this.focus.key())) {
-            if (this.lastLookedAt.size() >= MEMORY_LIMIT) {
+            if (this.seen.size() >= MEMORY_LIMIT) {
                 // The stalest has been un-interesting longest; dropping it is what forgetting does.
-                this.lastLookedAt.entrySet().stream()
-                        .min(Map.Entry.comparingByValue())
-                        .ifPresent(oldest -> this.lastLookedAt.remove(oldest.getKey()));
+                this.seen.entrySet().stream()
+                        .min(Comparator.comparingLong(entry -> entry.getValue().at()))
+                        .ifPresent(oldest -> this.seen.remove(oldest.getKey()));
             }
-            this.lastLookedAt.put(this.focus.key(), now);
+            Salience.Seen last = this.seen.get(this.focus.key());
+            // Same sight again is another turn of the boredom screw; a new state starts the count.
+            int looks = last != null && last.state().equals(this.focus.state()) ? last.looks() + 1 : 1;
+            this.seen.put(this.focus.key(), new Salience.Seen(now, looks, this.focus.state()));
         }
         this.focus = null;
     }
@@ -339,6 +354,6 @@ public final class Attention {
         // tick.
         int dwell = max <= min ? Math.max(1, min) : min + random.nextInt(max - min);
         return new Focus(SCAN_KEY, x, y, z, now + dwell, SCAN_SCORE, false,
-                forward ? "scan ahead" : String.format(Locale.ROOT, "scan %+.0f°", offset));
+                forward ? "scan ahead" : String.format(Locale.ROOT, "scan %+.0f°", offset), "");
     }
 }

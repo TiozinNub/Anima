@@ -79,8 +79,10 @@ public final class ThingSource implements Salience.Source {
             // worth a glance from here.
             return;
         }
-        double score = weight * scene.nearness(distance) * scene.novelty(key);
-        into.add(new Salience.Candidate(key, x, y, z, score, LOOK_TICKS, false, reason));
+        // Nothing here changes, so the state is a constant and boredom only accumulates: a body
+        // glances at the same log ever less often.
+        double score = weight * scene.nearness(distance) * scene.novelty(key, "");
+        into.add(new Salience.Candidate(key, x, y, z, score, LOOK_TICKS, false, reason, ""));
     }
 
     private static String key(Pos cell) {

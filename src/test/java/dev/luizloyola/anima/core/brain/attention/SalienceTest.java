@@ -174,4 +174,61 @@ class SalienceTest {
                 "a body that cannot see what just made a noise has one thing worth looking at");
         assertTrue(startled.snap());
     }
+
+    @Test
+    @DisplayName("boredom accumulates: the same motionless neighbour is worth less each time")
+    void lookingAgainAndAgainGetsHarder() {
+        // Reported: a body looks too often at the same entity, worst when it is the only one to
+        // look at. A flat refractory guarantees that, because the wait never grows.
+        BeingId alice = BeingId.of(UUID.randomUUID());
+        Being being = person(alice, 4, Being.Awareness.SEEN, Being.Locomotion.STILL);
+        percepts.beings = List.of(being);
+        String key = BeingSource.key(being);
+
+        long now = 0;
+        long previousGap = 0;
+        for (int round = 0; round < 4; round++) {
+            long lookedAt = waitUntilLookedAt(key, now);
+            long endedAt = tick(lookedAt).until();
+            long gap = waitUntilLookedAt(key, endedAt) - endedAt;
+            assertTrue(gap > previousGap,
+                    "round " + round + " came back after " + gap + " ticks, no later than the "
+                            + previousGap + " before it — the body never gets bored");
+            previousGap = gap;
+            now = endedAt;
+        }
+        assertTrue(previousGap > Attention.REFRACTORY_TICKS / 2,
+                "after four looks at a statue the gap is still under fifteen seconds: " + previousGap);
+    }
+
+    @Test
+    @DisplayName("doing something else makes somebody worth looking at again")
+    void aChangeOfSightRestoresInterest() {
+        BeingId alice = BeingId.of(UUID.randomUUID());
+        Being standing = person(alice, 4, Being.Awareness.SEEN, Being.Locomotion.STILL);
+        percepts.beings = List.of(standing);
+        String key = BeingSource.key(standing);
+
+        long now = 0;
+        for (int round = 0; round < 4; round++) {           // bore the body thoroughly
+            now = tick(waitUntilLookedAt(key, now)).until();
+        }
+        long boredUntil = waitUntilLookedAt(key, now);
+
+        // Same person, same spot, now walking. The body tires of a SIGHT, not of a thing.
+        percepts.beings = List.of(person(alice, 4, Being.Awareness.SEEN, Being.Locomotion.WALKING));
+        long freshUntil = waitUntilLookedAt(key, now);
+        assertTrue(freshUntil < boredUntil,
+                "walking off should be worth a look sooner than standing there: " + freshUntil
+                        + " vs " + boredUntil);
+    }
+
+    private long waitUntilLookedAt(String key, long from) {
+        for (long t = from; t < from + 20_000; t += Attention.DECIDE_INTERVAL) {
+            if (key.equals(tick(t).key())) {
+                return t;
+            }
+        }
+        throw new AssertionError("never looked at " + key + " again within a thousand seconds");
+    }
 }
