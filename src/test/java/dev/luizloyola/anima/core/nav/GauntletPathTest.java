@@ -83,6 +83,29 @@ class GauntletPathTest {
                 PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).reachedGoal();
     }
 
+    /**
+     * A handful of {@link PathRequest#varying} seeds — one per imaginary settler. Variety is an
+     * opinion about what ground costs to cross and must never amount to a capability: Which body
+     * is asking cannot decide whether a place can be reached. 186 real stations, half of them
+     * one-way-through by construction, is where that claim can be made at all.
+     */
+    private static final long[] VARIETIES = {1L, 6_364_136_223_846_793_005L, -42L, 8_675_309L};
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("stations")
+    void plannerVerdictIsTheSameForEverySettler(Station s) {
+        boolean canonical = plans(s);
+        for (long variety : VARIETIES) {
+            boolean seeded = Pathfinder.find(world,
+                    PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)
+                            .varying(variety)).reachedGoal();
+            assertEquals(canonical, seeded,
+                    () -> s.id() + " (" + s.title() + "): seed " + variety + " disagrees with the "
+                            + "canonical search about whether this station can be reached. A "
+                            + "variety seed bends a route — it must not decide there is one.");
+        }
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("stations")
     void plannerVerdictIsUnchanged(Station s) {

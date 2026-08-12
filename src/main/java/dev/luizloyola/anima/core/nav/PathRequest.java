@@ -7,11 +7,14 @@ import dev.luizloyola.anima.core.brain.sense.DangerField;
  * for an agent with the given {@link MoveCapabilities capabilities}, expanding at most
  * {@code maxNodes} cells before settling for a partial path — and, optionally, what that agent
  * would rather not walk past on the way.
+ *
+ * @param variety which of the equally cheap routes this agent prefers — see {@link #variety()}.
  */
 public record PathRequest(
         int startX, int startY, int startZ,
         int goalX, int goalY, int goalZ,
-        MoveCapabilities profile, DangerField danger, NavDomain domain, int maxNodes) {
+        MoveCapabilities profile, DangerField danger, NavDomain domain, int maxNodes,
+        long variety) {
 
     /**
      * Default search budget. At ~8 neighbour probes per expansion this bounds worst-case work per
@@ -43,7 +46,25 @@ public record PathRequest(
      */
     public PathRequest within(NavDomain domain) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
-                profile, danger, domain, maxNodes);
+                profile, danger, domain, maxNodes, variety);
+    }
+
+    /**
+     * The same route in this agent's own voice: two bodies sent to one place walk different lines
+     * instead of wearing one rut. Zero (the default, and every test) is the canonical search, bit
+     * for bit.
+     *
+     * <p>The seed is an opinion about ground, not routes: it slightly shifts what each patch of
+     * terrain costs this body ({@code Pathfinder.roughness}), so the route stays the cheapest
+     * <em>this</em> body knows of and within a guaranteed 3% of the cheapest there is — an order of
+     * magnitude better in practice.
+     *
+     * <p>Seed from something <em>permanent</em> about the agent, never per request: a body re-plans
+     * halfway to the market, and one re-drawing its opinion of the ground would dither.
+     */
+    public PathRequest varying(long variety) {
+        return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
+                profile, danger, domain, maxNodes, variety);
     }
 
     /**
@@ -56,6 +77,6 @@ public record PathRequest(
                                  int goalX, int goalY, int goalZ, MoveCapabilities profile,
                                  DangerField danger) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ, profile, danger,
-                NavDomain.EVERYWHERE, DEFAULT_MAX_NODES);
+                NavDomain.EVERYWHERE, DEFAULT_MAX_NODES, 0L);
     }
 }

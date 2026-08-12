@@ -347,7 +347,7 @@ class PathfinderTest {
         AsciiWorld world = AsciiWorld.of(row.toString(), row.toString(), row.toString());
         Path path = Pathfinder.find(world,
                 new PathRequest(0, 1, 1, 39, 1, 1, TestBodies.BIPED, DangerField.NONE,
-                        NavDomain.EVERYWHERE, 8));
+                        NavDomain.EVERYWHERE, 8, 0L));
         assertFalse(path.reachedGoal());
         assertFalse(path.isEmpty());
         assertTrue(path.last().x() > 0, "partial path should head toward the goal");

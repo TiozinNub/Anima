@@ -10,19 +10,24 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A* over a {@link NavGrid}, answering a {@link PathRequest} with a {@link Path}. Pure and
- * stateless per call ({@link #find} builds a private search instance), so it is safe on a worker
- * thread: the search sees an immutable classification, never the live world.
+ * A* over a {@link NavGrid}, answering a {@link PathRequest} with a {@link Path}.
  *
- * <p>The neighbour model is parameterized by {@link MoveCapabilities} — cardinal walk, jump-up-1,
- * drop-up-to-{@code maxDrop}, level diagonals that refuse to cut corners, plus {@link #STRIDES},
- * longer flat steps at intermediate angles. Deep holes and {@link CellType#DANGER} cells produce no
- * neighbour at all.
+ * <p>Pure and stateless per call ({@link #find} builds a private search instance), so it is safe
+ * to run on a worker thread: the search never sees the live world, only an immutable, thread-safe
+ * classification of it.
  *
- * <p>An unreachable goal (walled off, outside the grid, or {@code maxNodes} spent) returns the
- * path to the expanded cell closest to it (smallest heuristic, ties to the cheaper), flagged
- * {@code reachedGoal=false}. Expansion is deterministic: f-ties break toward the most recently
- * pushed node, neighbour order is fixed.
+ * <p>The neighbour model, parameterized by {@link MoveCapabilities}: cardinal walk, jump-up-1,
+ * drop-up-to-{@code maxDrop}, level diagonals that refuse to cut corners, plus {@link #STRIDES}.
+ * Deep holes and {@link CellType#DANGER} cells never produce a neighbour, so the search routes
+ * around them for free.
+ *
+ * <p>When the goal cannot be reached — walled off, outside the grid, or the {@code maxNodes}
+ * budget runs out — the result is the path to the expanded cell closest to the goal (smallest
+ * heuristic, ties to the cheaper one), flagged {@code reachedGoal=false}.
+ *
+ * <p>Fully deterministic: ties in f break toward the most recently pushed node and neighbour
+ * generation order is fixed. Given {@link PathRequest#variety()} it is still not the same for
+ * everybody — see {@link #roughness}.
  */
 public final class Pathfinder {
     private static final double SQRT2 = Math.sqrt(2.0);
@@ -234,11 +239,15 @@ public final class Pathfinder {
      */
     private final NavDomain domain;
 
+    /** Whose taste in ground this search uses — {@link PathRequest#variety()}, 0 for nobody's. */
+    private final long variety;
+
     private Pathfinder(NavGrid grid, PathRequest request) {
         this.grid = grid;
         this.profile = request.profile();
         this.danger = request.danger();
         this.domain = request.domain();
+        this.variety = request.variety();
         this.goalX = request.goalX();
         this.goalY = request.goalY();
         this.goalZ = request.goalZ();
@@ -903,7 +912,10 @@ public final class Pathfinder {
         }
         int surface16 = footing == NO_FOOTING ? 0
                 : Math.max(0, Math.min(15, (int) Math.round((footing - ny) * 16.0)));
-        double g = from.g + cost + dread(neighbor);
+        // Scaled by the ground, then surcharged for fear: roughness is how tiring the crossing is,
+        // so it multiplies the crossing, while dread is a flat toll for setting foot at all. The
+        // heuristic survives both because neither can make a move cost less than its length.
+        double g = from.g + cost * (1.0 + roughness(neighbor)) + dread(neighbor);
         Node node = this.nodes.get(neighbor);
         if (node == null) {
             node = new Node();
@@ -945,6 +957,65 @@ public final class Pathfinder {
     }
 
     /**
+     * How much more tiresome this body finds the ground under one cell than the best ground there
+     * is — nothing at all unless the request named whose legs these are.
+     *
+     * <p><b>A cost, not a tie-break.</b> Breaking ties between equally cheap routes at random buys
+     * almost nothing: this model prices a move at its true Euclidean length, so exact ties are rare
+     * and the ones that exist are usually two spellings of one line. Eight seeds produced 1.5
+     * distinct routes per trip that way, and lines 1.4 blocks apart. What spreads people out is
+     * disagreeing about what the ground is worth.
+     *
+     * <p><b>It is bounded, and the bound is the promise.</b> Every move is multiplied by at most
+     * {@code 1 + ROUGHNESS}, so a route chosen under one body's opinion of the ground is within
+     * {@code ROUGHNESS} of the genuine optimum. {@link #ROUGHNESS_MIDPOINT} spends a little more of
+     * that budget to keep the search affordable, taking the whole promise to about 3%. Over 48
+     * open-ground trips the worst detour measured 0.22%, for eight distinct routes per eight
+     * settlers and lines up to 3.2 blocks apart.
+     *
+     * <p><b>Coherent, not noise.</b> The value is drawn per patch of {@code 1 << ROUGHNESS_SHIFT}
+     * cells rather than per cell. That is what bends a route instead of merely roughening one:
+     * independent per-cell noise is a random walk that cancels over any distance worth walking,
+     * while a patch big enough to walk across is a reason to go round.
+     *
+     * <p>Unrelated to {@link #dread}, which is added after this and never scaled by
+     * it: what a body is afraid of is not a matter of taste.
+     */
+    private double roughness(long cell) {
+        if (this.variety == 0L) {
+            return 0.0;
+        }
+        long h = this.variety
+                ^ (unpackX(cell) >> ROUGHNESS_SHIFT) * 0xBF58476D1CE4E5B9L
+                ^ (unpackY(cell) >> ROUGHNESS_SHIFT) * 0xD6E8FEB86659FD93L
+                ^ (unpackZ(cell) >> ROUGHNESS_SHIFT) * 0x94D049BB133111EBL;
+        // SplittableRandom's mixer: cheap, and it has to be a good one — neighbouring patches
+        // differ by a single small addend, and a weak mix would let them stay neighbours in value
+        // too, which is a gradient every body in the world would lean down the same way.
+        h ^= h >>> 30;
+        h *= 0xBF58476D1CE4E5B9L;
+        h ^= h >>> 27;
+        h *= 0x94D049BB133111EBL;
+        h ^= h >>> 31;
+        return ROUGHNESS * ((h >>> 11) * 0x1.0p-53); // the top 53 bits as [0, 1)
+    }
+
+    /**
+     * The widest disagreement two bodies may have about one patch of ground, as a fraction of what
+     * crossing it costs — and so also the worst any of them can be off the true optimum.
+     *
+     * <p>Two percent is where the measured curve turns over: below it settlers start filing back
+     * into one line (1% still fans them out, 0.5% barely does), and above it the extra spread is
+     * bought with detours a player can see. See {@link #roughness} for the numbers.
+     */
+    private static final double ROUGHNESS = 0.02;
+    /**
+     * How big one patch of ground is, as a power of two: four cells to a side. About the size of a
+     * thing you would walk round rather than over. That is the whole idea — see {@link #roughness}.
+     */
+    private static final int ROUGHNESS_SHIFT = 2;
+
+    /**
      * How many steps of detour one unit of danger is worth.
      *
      * <p>Sized against the field's inverse-square falloff so that the result reads the way the
@@ -978,8 +1049,36 @@ public final class Pathfinder {
         double dz = z - this.goalZ;
         double horizontal = Math.sqrt(dx * dx + dz * dz);
         int dy = y - this.goalY;
-        return Math.max(horizontal, dy > 0 ? dy * CHEAPEST_DESCENT : -dy * CHEAPEST_CLIMB);
+        double base = Math.max(horizontal, dy > 0 ? dy * CHEAPEST_DESCENT : -dy * CHEAPEST_CLIMB);
+        return this.variety == 0L ? base : base * ROUGHNESS_MIDPOINT;
     }
+
+    /**
+     * What a seeded search adds to the estimate above: the roughness an average patch of ground
+     * carries, so the guess meets the prices halfway.
+     *
+     * <p><b>Without this the feature is unaffordable.</b> {@link #roughness} only ever raises a
+     * price, so leaving the estimate alone keeps it a lower bound and keeps A* exactly optimal —
+     * and that is precisely the trap. A* must expand every node whose f undercuts the true cost, so
+     * an estimate loose by 2% of the distance admits every node within 2% of optimal. Over open
+     * ground, where the estimate is otherwise nearly exact, that band is enormous: measured at
+     * <b>five times</b> the expansions and nearly five times the wall clock over six long
+     * plain-crossings — the common case, and the worst one.
+     *
+     * <p>Assuming the average patch instead costs the guarantee of an exactly optimal route
+     * <em>under the seeded prices</em>, one already given up the moment the prices were bent. The
+     * standard weighted-A* bound replaces it and the two compose: within
+     * {@code (1 + ROUGHNESS/2) × (1 + ROUGHNESS)}, near enough 3%, of the genuine best, and measured
+     * an order of magnitude inside that. Those same plain-crossings run 16% <em>faster</em> than an
+     * unseeded search; the 186-station gauntlet, mostly searches that exhaust their budget and so
+     * have no estimate left to be helped by, pays 6%.
+     *
+     * <p>Half is the exact midpoint of a value drawn uniformly from {@code [0, ROUGHNESS)}.
+     * Raising it buys speed against the same bound (0.75 searched <em>two-thirds faster</em>); that
+     * is a different feature. An unseeded search never sees any of this: {@code variety == 0} takes
+     * the estimate untouched, so the canonical answer stays admissible, optimal, and bit-identical.
+     */
+    private static final double ROUGHNESS_MIDPOINT = 1.0 + ROUGHNESS / 2.0;
 
     /** Least a move can cost per block it descends — {@link #dropCost}'s asymptote, never met. */
     private static final double CHEAPEST_DESCENT = 0.3;

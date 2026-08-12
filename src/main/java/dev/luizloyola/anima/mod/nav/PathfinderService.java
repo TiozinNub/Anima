@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.mod.nav;
 
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
+import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.sense.DangerField;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.CellType;
@@ -81,31 +82,31 @@ public final class PathfinderService {
     public record Dispatched(CompletableFuture<Path> result, WorldSnapshot snapshot) {}
 
     /**
-     * Asynchronous pathfinding: snapshot on this (the server) thread, search on a worker. The
-     * future completes on the worker — consume it by polling from a tick, never with a callback
-     * that touches the world.
+     * Asynchronous pathfinding: snapshot on this (the server) thread, search on a worker. Poll
+     * the future from a tick, never from a callback that touches the world.
      *
-     * @param who short handle of the agent this search is for, purely for the trace below — see
-     *     {@link #trace}. Resolve it on the calling thread: the lambda must not reach back into a
-     *     body to ask who it is.
+     * @param who the agent this search is for — {@code null} while its identity is resolving (see
+     *     {@link #variety}). Reduced to a handle and a seed on the calling thread: the worker must
+     *     not reach back into a body to ask who it is.
      */
-    public static Dispatched request(ServerLevel level, String who, BlockPos start, BlockPos goal,
-            MoveCapabilities body, DangerField danger) {
+    public static Dispatched request(ServerLevel level, @Nullable AgentId who, BlockPos start,
+            BlockPos goal, MoveCapabilities body, DangerField danger) {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
-        PathRequest pathRequest = buildRequest(snapshot, start, goal, body, danger);
+        PathRequest pathRequest = buildRequest(snapshot, start, goal, body, danger, who);
+        String handle = who == null ? "?" : who.shortText();
         CompletableFuture<Path> result = CompletableFuture.supplyAsync(() -> {
             Path path = Pathfinder.find(snapshot, pathRequest);
-            trace(who, start, goal, path);
+            trace(handle, start, goal, path);
             return path;
         }, executor());
         return new Dispatched(result, snapshot);
     }
 
     /** The same pipeline as {@link #request}, entirely on the calling (server) thread. */
-    public static Dispatched computeNow(ServerLevel level, BlockPos start, BlockPos goal,
-            MoveCapabilities body, DangerField danger) {
+    public static Dispatched computeNow(ServerLevel level, @Nullable AgentId who, BlockPos start,
+            BlockPos goal, MoveCapabilities body, DangerField danger) {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
-        Path path = Pathfinder.find(snapshot, buildRequest(snapshot, start, goal, body, danger));
+        Path path = Pathfinder.find(snapshot, buildRequest(snapshot, start, goal, body, danger, who));
         return new Dispatched(CompletableFuture.completedFuture(path), snapshot);
     }
 
@@ -123,11 +124,22 @@ public final class PathfinderService {
     }
 
     private static PathRequest buildRequest(WorldSnapshot snapshot, BlockPos start, BlockPos goal,
-            MoveCapabilities body, DangerField danger) {
+            MoveCapabilities body, DangerField danger, @Nullable AgentId who) {
         BlockPos afloat = surfaceStart(snapshot, start, body);
         BlockPos grounded = groundGoal(snapshot, goal, body.canSwim());
         return PathRequest.of(afloat.getX(), afloat.getY(), afloat.getZ(),
-                grounded.getX(), grounded.getY(), grounded.getZ(), body, danger);
+                        grounded.getX(), grounded.getY(), grounded.getZ(), body, danger)
+                .varying(variety(who));
+    }
+
+    /**
+     * Which line this agent walks when several will do — see {@link PathRequest#varying}. Half of
+     * an {@link AgentId}'s random bits: a fine seed and a <em>permanent</em> one, so re-planning
+     * mid-trip never sends a body back the way it came, even across a restart. An identity that
+     * has not resolved yet (an entity's first tick or two) gets seed 0; no route to keep yet.
+     */
+    private static long variety(@Nullable AgentId who) {
+        return who == null ? 0L : who.value().getLeastSignificantBits();
     }
 
     /**
