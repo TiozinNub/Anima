@@ -49,16 +49,18 @@ public interface Mover {
 
     /**
      * Whether the legs are still WAITING ON A ROUTE rather than walking one — the difference
-     * {@link MoveState} hides, surfaced for the callers that cannot afford to ignore
-     * it.
+     * {@link MoveState} hides.
      *
-     * <p>Route-finding runs off-thread and costs milliseconds; walking is paid in ticks, so a task
-     * that gives a walk "200 ticks to get there" is mixing units. Raise the server's tick rate and
-     * the tick budget shrinks in real time while the search takes exactly as long — errands then
-     * fail as unreachable at 200 ticks per second that succeed at 20 (observed live 2026-08-11).
+     * <p><b>A wait denominated in ticks must not spend its budget while this is true.</b>
+     * Route-finding runs off-thread and costs milliseconds; walking is paid in ticks, so a tick
+     * budget mixes units. Raise the server's tick rate and the budget shrinks in real time while
+     * the search takes exactly as long: errands that succeed at 20 tps fail as unreachable at 200,
+     * with the bodies standing in front of perfectly reachable work (observed live).
      *
-     * <p>So a wait denominated in ticks must not spend its budget while this answers {@code true}.
-     * The default is {@code false}, the correct answer for a mover with no search phase at all.
+     * <p>The default is {@code false}, correct for a mover with no search phase.
+     * {@link dev.luizloyola.anima.core.config.Knob#PATHFINDER_IN_THREAD} closes the drift at its
+     * source (the search runs inside the tick, so this is true for at most one tick), but it is
+     * off by default and costs frame time, so asking here is what protects a task on any server.
      */
     default boolean routing() {
         return false;

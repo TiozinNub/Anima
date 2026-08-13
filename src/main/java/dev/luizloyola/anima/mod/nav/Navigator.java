@@ -158,13 +158,6 @@ public final class Navigator {
      */
     private static final int PROACTIVE_REPATH_COOLDOWN = 20;
 
-    /**
-     * Debug escape hatch: {@code false} runs the search synchronously on the server thread
-     * (identical pipeline, no executor), taking threading out of the picture when chasing a
-     * pathfinding bug.
-     */
-    private static final boolean OFF_THREAD = true;
-
     private final AgentBody person;
     private State state = State.IDLE;
     private @Nullable BlockPos goal;
@@ -443,8 +436,17 @@ public final class Navigator {
 
     /**
      * One tick of navigation, driven from {@link AgentBody#serverAiStep()}. Exactly one movement
-     * decision leaves here per tick; in every state but FOLLOWING that decision is "stand still",
-     * so a stopped AgentBody never coasts on stale input.
+     * decision leaves here per tick; in every state but FOLLOWING it is "stand still", so a stopped
+     * body never coasts on stale input.
+     *
+     * <p>PATHING is polled before FOLLOWING and may hand straight over to it, which makes path
+     * latency <b>zero ticks</b>: the brain runs before the legs, so an order issued this tick has
+     * already dispatched its search.
+     *
+     * <p><b>The follow pass runs at most once.</b> A re-path fired inside {@link #tickFollowing()}
+     * leaves the state PATHING and returns past the switch: a second pass would count
+     * {@link #groundedTicks} twice against the landing brake's 1..3 window and re-run the waypoint
+     * skips. A mid-tick re-path costs one fixed tick at any tick rate.
      */
     public void tick() {
         this.waterIntent = WaterIntent.NONE; // set again only by the branch that swims, below
@@ -452,14 +454,23 @@ public final class Navigator {
         // tick's decision. See careful() / arrivalRadius().
         this.careful = false;
         this.arrivalRadius = 0.0;
+        if (this.state == State.PATHING) {
+            tickPathing(); // halts the legs itself, and may leave us FOLLOWING/ARRIVED/FAILED
+        }
         switch (this.state) {
-            case PATHING -> tickPathing();
             case FOLLOWING -> tickFollowing();
+            // Still waiting on a worker: tickPathing above already stood the body down.
+            case PATHING -> { }
             default -> this.person.stopMoving();
         }
     }
 
-    /** Fires the (off-thread) path computation for the current goal. */
+    /**
+     * Fires the path computation for the current goal — on a worker, or on this thread when
+     * {@link PathfinderService#inThread()} says so. Either way it only <em>dispatches</em>: the
+     * result is adopted in {@link #tickPathing()} and nowhere else, so an in-thread search does not
+     * swap the path out from under a follow pass that is still running (see {@link #tick()}).
+     */
     private void requestPath() {
         this.path = null;
         this.index = 0;
@@ -473,10 +484,10 @@ public final class Navigator {
         // can still be requested.
         AgentId who = this.person.agentId();
         BlockPos start = startCell();
-        PathfinderService.Dispatched dispatched = OFF_THREAD
-                ? PathfinderService.request(level(), who, start, this.goal,
+        PathfinderService.Dispatched dispatched = PathfinderService.inThread()
+                ? PathfinderService.computeNow(level(), who, start, this.goal,
                         capabilities(), DangerFields.of(this.person), troubles())
-                : PathfinderService.computeNow(level(), who, start, this.goal,
+                : PathfinderService.request(level(), who, start, this.goal,
                         capabilities(), DangerFields.of(this.person), troubles());
         this.grid = dispatched.snapshot();
         this.pending = dispatched.result();

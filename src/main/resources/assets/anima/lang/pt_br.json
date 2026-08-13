@@ -40,6 +40,8 @@
   "anima.config.option.limits.rays_per_tick.desc": "Total de verificações de linha de visão que todos os agentes do servidor podem gastar juntos a cada tique. No limite, eles notam as coisas um pouco mais tarde, e não deixam de notar — as verificações recusadas são adiadas, nunca descartadas.",
   "anima.config.option.limits.ray_budget": "Testes de visão por tique",
   "anima.config.option.limits.ray_budget.desc": "Verificações básicas de linha de visão por Pessoa a cada tique. O orçamento real cresce com a fila acumulada, então uma leva grande de criaturas é notada em poucos tiques — as verificações são adiadas, nunca puladas.",
+  "anima.config.option.limits.pathfinder_in_thread": "Traçar rotas dentro do tique",
+  "anima.config.option.limits.pathfinder_in_thread.desc": "Calcular as rotas durante o tique, em vez de numa thread em segundo plano. Desligado, as rotas não custam nada ao tique, mas levam o tempo real que levarem — o que é ótimo na velocidade normal, só que ao acelerar o mundo uma rota que antes chegava na hora passa a levar muitos tiques, e eles ficam parados como se estivessem perdidos. Ligado, a rota está sempre pronta no mesmo tique em que foi pedida, ao custo de um pequeno engasgo quando muitos replanejam ao mesmo tempo. Serve principalmente para testes.",
   "anima.config.option.claims.ttl_ticks": "Duração da reivindicação",
   "anima.config.option.claims.ttl_ticks.desc": "Por quanto tempo um local reivindicado sobrevive ao seu último sinal de vida antes que outra Pessoa possa tomar o lugar. 20 tiques equivalem a 1 segundo.",
   "anima.config.option.journal.max_entries_per_person": "Entradas por Pessoa",

@@ -5,6 +5,8 @@ import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.DangerField;
 import dev.luizloyola.anima.core.brain.sense.SetbackField;
+import dev.luizloyola.anima.core.config.Config;
+import dev.luizloyola.anima.core.config.Knob;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.Path;
@@ -25,14 +27,16 @@ import net.minecraft.util.Mth;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Turns "this AgentBody wants to reach that block" into a {@link Path}. The split is rigid (see the
- * pathfinder design doc): everything reading the live world — snapshot capture, goal grounding —
- * runs on the server thread in {@link #request}/{@link #computeNow}, while the A* sees only the
- * immutable {@link WorldSnapshot}.
+ * Turns "this AgentBody wants to reach that block" into a {@link Path}. Live-world reads —
+ * snapshot capture, goal grounding — happen on the server thread inside
+ * {@link #request}/{@link #computeNow}; the A* sees only the immutable {@link WorldSnapshot}, so
+ * it can run anywhere (see the pathfinder design doc).
  *
- * <p>{@link #request}'s future is polled by the {@link Navigator} from its own tick, so a path is
- * only ever <em>applied</em> on the main thread; {@link #computeNow} is the same pipeline
- * synchronously, the debugging escape hatch.
+ * <p>{@link #request} searches on the shared executor, returning a future the {@link Navigator}
+ * polls from its tick, so a path is only ever <em>applied</em> on the main thread;
+ * {@link #computeNow} is the same pipeline synchronously ({@link #inThread()}). Both return a
+ * {@link Dispatched}, so nothing downstream branches on which ran — the choice is a knob, not a
+ * code path.
  */
 public final class PathfinderService {
     private PathfinderService() {}
@@ -102,6 +106,18 @@ public final class PathfinderService {
             return path;
         }, executor());
         return new Dispatched(result, snapshot);
+    }
+
+    /**
+     * Whether a search runs on the server thread rather than a worker — see
+     * {@link Knob#PATHFINDER_IN_THREAD} for what that trades away.
+     *
+     * <p>Read through the store per request, never cached, so
+     * {@code /anima config set limits.pathfinder_in_thread} retunes a running world: the knob
+     * exists to A/B against tick rate, and a restart would compare a cold world with a warm one.
+     */
+    public static boolean inThread() {
+        return Config.get().b(Knob.PATHFINDER_IN_THREAD);
     }
 
     /** The same pipeline as {@link #request}, entirely on the calling (server) thread. */

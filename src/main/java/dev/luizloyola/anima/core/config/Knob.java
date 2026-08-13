@@ -99,6 +99,20 @@ public enum Knob implements KnobSpec {
                     + "backlog (max of this and a quarter of the due work), so a 100-mob wave is "
                     + "noticed within ~4 ticks — deferred, never skipped. That elasticity is why "
                     + "the aggregate ceiling below exists."),
+    /** @see dev.luizloyola.anima.mod.nav.PathfinderService#inThread() */
+    PATHFINDER_IN_THREAD("limits.pathfinder_in_thread", Kind.BOOL, 0, 0, 1,
+            "Run the path search on the server thread instead of on a worker. Off, a search costs "
+                    + "the tick nothing and its answer arrives when it arrives — which is "
+                    + "WALL-CLOCK time, while the rest of a mind counts TICKS. At 20 ticks a "
+                    + "second those two agree closely enough to ignore; under /tick sprint they do "
+                    + "not, and a search that spanned a fiftieth of a tick spans dozens, so a task "
+                    + "counting ticks against legs that are merely still thinking gives up — a "
+                    + "body that looks unable to cross a small clearing. On, the answer is always "
+                    + "in hand the same tick it was asked for, at the price of the search landing "
+                    + "inside the tick: one is bounded (4096 expansions, single-figure "
+                    + "milliseconds), but a crowd re-planning on the same tick is not. Chiefly a "
+                    + "development dial — on to fast-forward a world without the warp, off for a "
+                    + "populated server."),
 
     // --- claims: the contract of a registry two agents share ----------------------------------
 

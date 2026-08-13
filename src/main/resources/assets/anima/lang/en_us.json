@@ -27,6 +27,8 @@
   "anima.config.option.limits.rays_per_tick.desc": "Total line-of-sight checks every agent on the server may spend between them each tick. At the ceiling they notice things a little later rather than not at all — refused checks are deferred, never dropped.",
   "anima.config.option.limits.ray_budget": "Sight checks per tick",
   "anima.config.option.limits.ray_budget.desc": "Base line-of-sight checks per Person per tick. The real budget grows with the backlog, so a large wave of mobs is noticed within a few ticks — checks are deferred, never skipped.",
+  "anima.config.option.limits.pathfinder_in_thread": "Path search in the tick",
+  "anima.config.option.limits.pathfinder_in_thread.desc": "Work out routes during the tick instead of on a background thread. Off, routes cost the tick nothing but take however long they take in real seconds — fine at normal speed, but fast-forward the world and a route that used to arrive instantly takes many ticks, so they stand about looking lost. On, a route is always ready the same tick it was asked for, at the cost of a small hitch when a crowd re-plans together. Mainly for testing.",
   "anima.config.option.claims.ttl_ticks": "Claim lifetime",
   "anima.config.option.claims.ttl_ticks.desc": "How long a claimed work site outlives its last heartbeat before another Person may take the spot. 20 ticks is one second.",
   "anima.config.option.journal.max_entries_per_person": "Entries per Person",

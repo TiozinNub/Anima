@@ -45,6 +45,9 @@ class ProfileAspectTest {
             // the wood.
             Knob.PLACE_INDEX_CELLS,
             Knob.RAYS_PER_TICK,
+            // One shared worker pool and one shared server tick: a species that could answer this
+            // would be answering for everybody's frame time. Same reason as the budgets above.
+            Knob.PATHFINDER_IN_THREAD,
             // The contract of a registry two agents share — it belongs to the board, not to
             // either of them.
             Knob.CLAIM_TTL_TICKS,

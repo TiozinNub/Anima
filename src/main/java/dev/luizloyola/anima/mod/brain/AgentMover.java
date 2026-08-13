@@ -47,9 +47,9 @@ public final class AgentMover implements Mover {
     }
 
     /**
-     * The Navigator's lifecycle folded onto the port's four states. PATHING reports as MOVING — a
-     * move is committed the moment it is requested; the wait on the off-thread route is the
-     * Navigator's business, not a task's.
+     * The Navigator's lifecycle folded onto the port's four states. PATHING reports as MOVING: from
+     * the brain's side the move is committed the moment it is requested, and where the route is
+     * worked out is the Navigator's business.
      */
     @Override
     public MoveState state() {
@@ -72,8 +72,9 @@ public final class AgentMover implements Mover {
     }
 
     /**
-     * PATHING, unfolded. {@link #state()} hides it from tasks that only ask whether their order is
-     * still being worked on; a task counting TICKS against an off-thread search needs this instead.
+     * PATHING, unfolded — the answer for a task counting TICKS against a search whose cost is in
+     * milliseconds. Bounded at one tick when the search runs in the tick
+     * ({@link dev.luizloyola.anima.mod.nav.PathfinderService#inThread()}), unbounded otherwise.
      */
     @Override
     public boolean routing() {
