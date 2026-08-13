@@ -54,6 +54,8 @@
   "anima.config.option.journal.file_sink.desc": "Também grava o diário de cada agente em logs/anima/<run>/agent-<id>.log no disco.",
   "anima.config.option.journal.keep_runs": "Execuções mantidas em disco",
   "anima.config.option.journal.keep_runs.desc": "Quantas execuções anteriores de diários manter. As mais antigas são apagadas quando o servidor inicia; quem morreu tem o seu guardado em graveyard/.",
+  "anima.config.option.journal.death_tail_entries": "Últimas palavras guardadas",
+  "anima.config.option.journal.death_tail_entries.desc": "Quantas das últimas linhas do diário de um agente ficam na sepultura dele, onde sobrevivem tanto à limpeza quanto ao reinício. É o que a leitura da sepultura mostra quando você pergunta por que alguém morreu. 0 deixa apenas a lápide.",
   "anima.config.aspect.mind.stickiness": "Bônus de permanência",
   "anima.config.aspect.mind.stickiness.desc": "Bônus somado ao que a Pessoa já está fazendo, para que pequenas variações de pressão não a deixem alternando entre dois impulsos.",
   "anima.config.aspect.mind.preempt": "Limiar de interrupção",

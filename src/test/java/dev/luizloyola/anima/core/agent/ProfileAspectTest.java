@@ -56,7 +56,10 @@ class ProfileAspectTest {
             Knob.JOURNAL_MAX_AGE_TICKS,
             Knob.JOURNAL_SWEEP_INTERVAL,
             Knob.JOURNAL_FILE_SINK,
-            Knob.JOURNAL_KEEP_RUNS);
+            Knob.JOURNAL_KEEP_RUNS,
+            // How much of the journal a grave keeps: not how much a body remembers, but what an
+            // OPERATOR wants left behind to read.
+            Knob.JOURNAL_DEATH_TAIL);
 
     @Test
     @DisplayName("anima.toml holds only what no species may answer for itself")

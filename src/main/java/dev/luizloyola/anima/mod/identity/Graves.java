@@ -4,7 +4,9 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.luizloyola.anima.compat.SavedDatas;
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.log.Entry;
 import dev.luizloyola.anima.mod.AnimaMod;
+import dev.luizloyola.anima.mod.brain.BrainState;
 import dev.luizloyola.anima.mod.store.StoreGuard;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,28 +43,80 @@ public final class Graves extends SavedData implements StoreGuard.Checked {
     /** This store's file key — public so the boot guard can find it on disk. */
     public static final Identifier ID = Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "graves");
 
-    /** This store's schema. Bump when the shape below changes incompatibly. */
-    private static final int SCHEMA = 1;
+    /**
+     * This store's schema. Bump when the shape below changes incompatibly.
+     *
+     * <p>2 — the grave became a black box: damage type, killer, mind at the end, last words. All
+     * optional fields, so schema-1 graves still load, as bare tombstones.
+     */
+    private static final int SCHEMA = 2;
 
     /**
-     * What is kept about one death: when, where, and the story the combat tracker told. Not the
-     * inventory or the mind — those were dropped and wiped, and a second copy would let the rules
-     * drift apart.
+     * What is kept about one death: when, where, how, and the state of the mind that ended.
      *
-     * @param diedAtTick when it happened, on the clock every journal line uses
+     * <p><b>Not the inventory</b> (decision: Luiz): those items lie where they fell, and a second
+     * copy would be a place for the two to drift apart. Everything else is kept because nothing
+     * else can be recovered after this moment.
+     *
+     * <p>Prose where something is read, data where something is asked: {@code mind} and
+     * {@code lastWords} are the sentences the live readouts already print, one vocabulary rather
+     * than two; {@code damageType} and {@code killer} are structured because a later feature
+     * queries them.
+     *
+     * @param diedAtTick the game time it happened, on the same clock every journal line uses
      * @param dimension  the level it happened in
      * @param cause      the death message, e.g. {@code "Alice starved to death"}; may be blank
+     * @param damageType the damage type's message id ({@code mob}, {@code starve}, {@code fall}),
+     *                   or blank when nothing was handed one
+     * @param killer     what dealt it, by display name; blank when nothing did (a fall, a drowning)
+     * @param killerId   the killer's own handle, when the killer was an agent or a player — the
+     *                   seam a social feature reads, and the reason this is not merely a name
+     * @param mind       the state of the mind at the end, one {@code label: sentence} per line
+     * @param lastWords  the tail of the journal, oldest first — the fall, the fight or the slow
+     *                   starve that led here, kept because the ring itself is swept ten game-minutes
+     *                   later and does not survive a restart at all
      */
-    public record Death(long diedAtTick, String dimension, int x, int y, int z, String cause) {
+    public record Death(long diedAtTick, String dimension, int x, int y, int z, String cause,
+                        String damageType, String killer, Optional<AgentId> killerId,
+                        List<String> mind, List<Entry> lastWords) {
+
+        public Death {
+            mind = List.copyOf(mind);
+            lastWords = List.copyOf(lastWords);
+        }
+
+        /** The bare facts, with nothing written on the rest of the stone. */
+        public Death(long diedAtTick, String dimension, int x, int y, int z, String cause) {
+            this(diedAtTick, dimension, x, y, z, cause, "", "", Optional.empty(),
+                    List.of(), List.of());
+        }
+
+        public String where() {
+            return x + ", " + y + ", " + z;
+        }
     }
 
-    private static final Codec<Death> DEATH_CODEC = RecordCodecBuilder.create(d -> d.group(
+    /**
+     * The archive format of one death. Package-private rather than private so its own package's
+     * test can pin it: graves outlive the code that wrote them, and a codec that silently stopped
+     * round-tripping would surface only as a death with nothing recorded under it.
+     */
+    static final Codec<Death> DEATH_CODEC = RecordCodecBuilder.create(d -> d.group(
             Codec.LONG.fieldOf("tick").forGetter(Death::diedAtTick),
             Codec.STRING.optionalFieldOf("dim", "").forGetter(Death::dimension),
             Codec.INT.fieldOf("x").forGetter(Death::x),
             Codec.INT.fieldOf("y").forGetter(Death::y),
             Codec.INT.fieldOf("z").forGetter(Death::z),
-            Codec.STRING.optionalFieldOf("cause", "").forGetter(Death::cause)
+            Codec.STRING.optionalFieldOf("cause", "").forGetter(Death::cause),
+            Codec.STRING.optionalFieldOf("damage", "").forGetter(Death::damageType),
+            Codec.STRING.optionalFieldOf("killer", "").forGetter(Death::killer),
+            UUIDUtil.CODEC.xmap(AgentId::of, AgentId::value)
+                    .optionalFieldOf("killerId").forGetter(Death::killerId),
+            Codec.STRING.listOf().optionalFieldOf("mind", List.of()).forGetter(Death::mind),
+            // The journal codec the entity's own saved ring uses, so a grave's lines and a living
+            // body's lines are one shape on disk. Categories round-trip by NAME, and these rows are
+            // archives: removing a Category is a schema migration, not a rename.
+            BrainState.JOURNAL.optionalFieldOf("words", List.of()).forGetter(Death::lastWords)
     ).apply(d, Death::new));
 
     private record Row(UUID who, Death death) {

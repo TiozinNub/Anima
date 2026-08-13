@@ -28,6 +28,8 @@ public final class AnimaCommands {
                         // own — and mounted again by each consumer under its own root, so nobody
                         // relearns a command they already type.
                         .then(AgentCommands.list())
+                        // The only readout here that answers when there is no body left to ask.
+                        .then(AgentCommands.grave())
                         .then(AgentCommands.select())
                         .then(AgentCommands.contacts())
                         .then(AgentCommands.party())

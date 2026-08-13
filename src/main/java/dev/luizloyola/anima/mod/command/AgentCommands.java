@@ -11,6 +11,7 @@ import dev.luizloyola.anima.mod.debug.PoiLabels;
 import net.minecraft.commands.CommandBuildContext;
 import java.util.Map;
 import dev.luizloyola.anima.mod.identity.AgentDirectory;
+import dev.luizloyola.anima.mod.identity.Burial;
 import dev.luizloyola.anima.mod.identity.Graves;
 import dev.luizloyola.anima.core.agent.PrivateIdentity;
 import dev.luizloyola.anima.mod.body.AgentBodies;
@@ -114,12 +115,15 @@ import dev.luizloyola.anima.mod.nav.Swimmer;
 import dev.luizloyola.anima.core.agent.PrivateIdentity;
 
 /**
- * The command surface of <em>having a mind</em> rather than of being any particular creature —
- * navigation, journal, remembered places, perception, brain state, inventory, the selection pin,
- * the contact book. A work board, a chop, a quota or an appearance are a consuming mod's.
+ * The command surface that belongs to <em>having a mind</em> rather than to being any
+ * particular creature — navigation, the journal, remembered places, perception, the brain's
+ * own state, the carried inventory, the selection pin, the contact book, and the grave.
  *
- * <p>Every subcommand is a <b>factory</b>: Brigadier parents a builder at registration, so a cached
- * node could be mounted only once, and more than one root mounts this tree.
+ * <p>Every subcommand is a <b>factory</b>, so more than one root can mount the same tree:
+ * Brigadier parents a builder at registration, so a cached node could only ever be mounted once.
+ *
+ * <p>What is not here is as deliberate: a settlement's work board, a tree chop, an item quota,
+ * a person's appearance. Those are a consuming mod's, and mount beside these.
  */
 public final class AgentCommands {
 
@@ -2148,13 +2152,18 @@ public final class AgentCommands {
             return 0;
         }
         Vec3 origin = source.getPosition();
+        long now = server.overworld().getGameTime();
         known.forEach((id, identity) -> {
             AgentBody body = AgentBodies.findLoaded(server, id);
             // "dead" before "unloaded" — those two used to be the same word here.
             String kind = graves.isDead(id) ? "dead"
                     : body == null ? "unloaded"
                     : body.entity().getType().getDescription().getString();
-            String where = body == null ? ""
+            // A dead row says when and where it happened instead of how far away it is standing —
+            // the grave has held that all along.
+            String where = graves.isDead(id)
+                    ? graves.deathOf(id).map(death -> summarise(death, now)).orElse("")
+                    : body == null ? ""
                     : String.format(Locale.ROOT, "  %s  %.1fm",
                             body.entity().level().dimension().identifier().getPath(),
                             Math.sqrt(body.entity().distanceToSqr(origin)));
@@ -2167,6 +2176,148 @@ public final class AgentCommands {
                 + (!includeDead && buried > 0 ? ", " + buried + " buried (list all)" : ""))
                 .withStyle(ChatFormatting.GRAY));
         return known.size();
+    }
+
+    /**
+     * What is written on somebody's grave — bare, the roll of everyone buried here; with a name,
+     * the whole black box.
+     *
+     * <p>A factory, not a cached node: Brigadier parents a builder when it is registered.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> grave() {
+        return Commands.literal("grave")
+                .executes(ctx -> graveRoll(ctx.getSource()))
+                .then(Commands.argument("person", StringArgumentType.string())
+                        .suggests(ALL_PERSON_SUGGESTIONS)
+                        .executes(ctx -> graveOf(ctx.getSource(),
+                                StringArgumentType.getString(ctx, "person"))));
+    }
+
+    /** Everyone buried here, oldest death first. */
+    private static int graveRoll(CommandSourceStack source) {
+        MinecraftServer server = source.getServer();
+        Graves graves = Graves.get(server);
+        if (graves.size() == 0) {
+            Replies.send(source, () -> Component.literal("Nobody has died here.")
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        long now = server.overworld().getGameTime();
+        Replies.send(source, () -> Component.literal(graves.size() + " buried")
+                .withStyle(ChatFormatting.AQUA));
+        for (AgentId id : graves.all()) {
+            String line = "  " + label(server, id) + " (" + shortId(id) + ")"
+                    + graves.deathOf(id).map(death -> summarise(death, now)).orElse("");
+            Replies.send(source, () -> Component.literal(line).withStyle(ChatFormatting.GRAY));
+        }
+        return graves.size();
+    }
+
+    /**
+     * One grave in full: when and where, what killed them, the state of the mind at the end and
+     * their last words.
+     *
+     * <p><b>Resolved through the DIRECTORY, never through a body</b> — the point of a grave is that
+     * there is nothing standing there. {@link #resolveBody} would answer only for the freshly dead
+     * whose entity has not finished despawning.
+     */
+    private static int graveOf(CommandSourceStack source, String token) {
+        AgentId who = resolveDirectory(source, token);
+        if (who == null) {
+            return 0;
+        }
+        MinecraftServer server = source.getServer();
+        String name = label(server, who);
+        Optional<Graves.Death> found = Graves.get(server).deathOf(who);
+        if (found.isEmpty()) {
+            Replies.send(source, () -> Component.literal(name + " is alive.")
+                    .withStyle(ChatFormatting.GREEN));
+            return 0;
+        }
+        Graves.Death death = found.orElseThrow();
+        long now = server.overworld().getGameTime();
+        Replies.send(source, () -> Component.literal(
+                        name + " (" + shortId(who) + ") — died " + ago(now - death.diedAtTick()))
+                .withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.literal("  where: "
+                + dimensionName(death.dimension()) + " " + death.where()
+                + "  (tick " + death.diedAtTick() + ")"));
+        if (!death.cause().isBlank()) {
+            Replies.send(source, () -> Component.literal("  cause: " + death.cause())
+                    .withStyle(ChatFormatting.RED));
+        }
+        if (!death.killer().isBlank()) {
+            // The id only when there is one: a zombie has no handle, and printing an empty pair of
+            // brackets after every mob would make the ones that DO matter harder to spot.
+            String killer = "  killer: " + death.killer()
+                    + death.killerId().map(id -> " (" + shortId(id) + ")").orElse("")
+                    + (death.damageType().isBlank() ? "" : "  [" + death.damageType() + "]");
+            Replies.send(source, () -> Component.literal(killer).withStyle(ChatFormatting.RED));
+        } else if (!death.damageType().isBlank()) {
+            Replies.send(source, () -> Component.literal("  damage: " + death.damageType())
+                    .withStyle(ChatFormatting.RED));
+        }
+        if (!death.mind().isEmpty()) {
+            Replies.send(source, () -> Component.literal("  the mind at the end")
+                    .withStyle(ChatFormatting.AQUA));
+            for (String line : death.mind()) {
+                Replies.send(source, () -> Component.literal("    " + line)
+                        .withStyle(ChatFormatting.GRAY));
+            }
+        }
+        List<Entry> words = death.lastWords();
+        if (words.isEmpty()) {
+            // Says which of the two it is: a grave dug with the tail switched off is not the same
+            // as one whose owner never got a line written about them.
+            Replies.send(source, () -> Component.literal(Burial.tailEntries() == 0
+                            ? "  no last words (journal.death_tail_entries is 0)"
+                            : "  no last words — nothing was in their journal")
+                    .withStyle(ChatFormatting.DARK_GRAY));
+            return 1;
+        }
+        Replies.send(source, () -> Component.literal("  last " + words.size() + " lines")
+                .withStyle(ChatFormatting.AQUA));
+        for (Entry entry : words) {
+            Replies.send(source, () -> Component.literal("    " + formatLine(name, entry))
+                    .withStyle(colorFor(entry.category())));
+        }
+        return 1;
+    }
+
+    /** One death as a listing's tail: where it happened, how long ago, and what the story was. */
+    private static String summarise(Graves.Death death, long now) {
+        return "  " + dimensionName(death.dimension()) + " " + death.where()
+                + "  " + ago(now - death.diedAtTick())
+                + (death.cause().isBlank() ? "" : " — " + death.cause());
+    }
+
+    /** {@code minecraft:overworld} as {@code overworld} — the listing's own shorthand. */
+    private static String dimensionName(String dimension) {
+        int colon = dimension.indexOf(':');
+        return colon < 0 ? dimension : dimension.substring(colon + 1);
+    }
+
+    /**
+     * A span of ticks as something a person can hold in their head, coarse on purpose: minutes or
+     * days ago, not 4 minutes versus 5.
+     *
+     * <p>Clamped at zero: a negative span means the world's clock is behind the grave (a backup
+     * restored over a newer save), and "0s ago" confuses less than a negative age does.
+     */
+    private static String ago(long ticks) {
+        long seconds = Math.max(0, ticks) / 20;
+        if (seconds < 60) {
+            return seconds + "s ago";
+        }
+        long minutes = seconds / 60;
+        if (minutes < 60) {
+            return minutes + "m ago";
+        }
+        long hours = minutes / 60;
+        if (hours < 24) {
+            return hours + "h " + minutes % 60 + "m ago";
+        }
+        return hours / 24 + "d " + hours % 24 + "h ago";
     }
 
     /**

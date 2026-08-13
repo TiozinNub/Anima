@@ -4,8 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.mojang.serialization.JsonOps;
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.log.Category;
+import dev.luizloyola.anima.core.log.Entry;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -56,6 +60,53 @@ class GravesTest {
     void anEmptyGraveyardFiltersNothing() {
         List<AgentId> everyone = List.of(alice, bob);
         assertEquals(everyone, graves.living(everyone));
+    }
+
+    @Test
+    void theBlackBoxComesBackAsItWentIn() {
+        // JsonOps: the codec under test is ops-agnostic, so this needs no Minecraft — and it is
+        // the only test that will notice a field that stopped being written.
+        Graves.Death before = new Graves.Death(1200, "minecraft:the_nether", -8, 31, 402,
+                "Alice was slain by Zombie", "mob", "Zombie", Optional.of(bob),
+                List.of("doing: chopping (oak x3)", "food: 3/20 (saturation 0.0)"),
+                List.of(new Entry(1180, Category.BRAIN, "task", "chop -> approach"),
+                        new Entry(1199, Category.BODY, "health", "took 6 damage (mob) now 0/20")));
+
+        var encoded = Graves.DEATH_CODEC.encodeStart(JsonOps.INSTANCE, before).getOrThrow();
+        Graves.Death after = Graves.DEATH_CODEC.parse(JsonOps.INSTANCE, encoded).getOrThrow();
+
+        assertEquals(before, after);
+        assertEquals(Optional.of(bob), after.killerId(), "the killer's handle is the queryable half");
+        assertEquals("took 6 damage (mob) now 0/20", after.lastWords().get(1).detail(),
+                "the last words are the whole reason the grave got bigger");
+    }
+
+    @Test
+    void aGraveFromBeforeTheBlackBoxLoadsAsTheTombstoneItIs() {
+        // The schema-1 shape, verbatim. The black box's fields are all optional so old graves load
+        // as what they are instead of failing the store — how a codec silently empties one.
+        var old = com.google.gson.JsonParser.parseString("""
+                {"tick":900,"dim":"minecraft:overworld","x":1,"y":2,"z":3,"cause":"Alice fell"}""");
+        Graves.Death death = Graves.DEATH_CODEC.parse(JsonOps.INSTANCE, old).getOrThrow();
+
+        assertEquals(900, death.diedAtTick());
+        assertEquals("Alice fell", death.cause());
+        assertEquals("", death.damageType());
+        assertEquals(Optional.empty(), death.killerId());
+        assertTrue(death.mind().isEmpty());
+        assertTrue(death.lastWords().isEmpty());
+    }
+
+    @Test
+    void aBareTombstoneIsStillAValidGrave() {
+        // The six-argument constructor, which every test above builds: it must not leave nulls
+        // where lists are expected.
+        Graves.Death bare = at(10);
+        assertTrue(bare.mind().isEmpty());
+        assertTrue(bare.lastWords().isEmpty());
+        assertEquals("1, 2, 3", bare.where());
+        assertEquals(bare, Graves.DEATH_CODEC.parse(JsonOps.INSTANCE,
+                Graves.DEATH_CODEC.encodeStart(JsonOps.INSTANCE, bare).getOrThrow()).getOrThrow());
     }
 
     @Test

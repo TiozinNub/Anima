@@ -41,6 +41,8 @@
   "anima.config.option.journal.file_sink.desc": "Also mirror each agent's journal to logs/anima/<run>/agent-<id>.log on disk.",
   "anima.config.option.journal.keep_runs": "Runs kept on disk",
   "anima.config.option.journal.keep_runs.desc": "How many past runs of journal files to keep. Older ones are deleted when the server starts; an agent who died keeps theirs in graveyard/.",
+  "anima.config.option.journal.death_tail_entries": "Last words kept",
+  "anima.config.option.journal.death_tail_entries.desc": "How many of an agent's final journal lines are kept in its grave, where they survive both the sweep and the restart. This is what the grave readout shows you when you ask why somebody died. 0 keeps only the bare tombstone.",
   "anima.config.category.mind": "Mind",
   "anima.config.category.instincts": "Instincts",
   "anima.config.category.senses": "Senses",
