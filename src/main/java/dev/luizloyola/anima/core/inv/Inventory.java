@@ -77,6 +77,49 @@ public final class Inventory {
         return slots[HOTBAR_START + selectedSlot];
     }
 
+    /**
+     * Brings the stack in {@code slot} into the main hand: a hotbar slot is selected, a
+     * backpack slot is swapped with the selected hotbar slot. Armor and offhand are not wieldable
+     * this way.
+     */
+    public void wield(int slot) {
+        if (slot >= HOTBAR_START && slot < HOTBAR_START + HOTBAR_SIZE) {
+            setSelectedSlot(slot - HOTBAR_START);
+            return;
+        }
+        if (slot < MAIN_START || slot >= STORAGE_END) {
+            throw new IllegalArgumentException("not a wieldable storage slot: " + slot);
+        }
+        int hand = HOTBAR_START + selectedSlot;
+        ItemStack held = slots[hand];
+        slots[hand] = slots[slot];
+        slots[slot] = held;
+    }
+
+    /**
+     * Empties the main hand when it can be done for free: selects an empty hotbar slot, or failing
+     * that swaps the held stack into an empty backpack slot. A pack with no room keeps the hand as
+     * it is — a little tool wear beats dropping something. Idempotent.
+     */
+    public void stow() {
+        if (mainHand().isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < HOTBAR_SIZE; i++) {
+            if (slots[HOTBAR_START + i].isEmpty()) {
+                selectedSlot = i;
+                return;
+            }
+        }
+        for (int slot = MAIN_START; slot < STORAGE_END; slot++) {
+            if (slots[slot].isEmpty()) {
+                slots[slot] = mainHand();
+                slots[HOTBAR_START + selectedSlot] = ItemStack.EMPTY;
+                return;
+            }
+        }
+    }
+
     public ItemStack offhand() {
         return slots[OFFHAND_SLOT];
     }

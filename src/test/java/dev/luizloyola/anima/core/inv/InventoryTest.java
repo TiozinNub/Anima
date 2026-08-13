@@ -188,4 +188,78 @@ class InventoryTest {
         ItemStack enchanted = ItemStack.of("minecraft:diamond_sword", 1, 1, "looting");
         assertEquals("looting", enchanted.withCount(5).components());
     }
+
+    private static ItemStack axe() {
+        return ItemStack.of("minecraft:wooden_axe", 1, 1);
+    }
+
+    @Test
+    void wieldingAHotbarSlotJustSelectsIt() {
+        Inventory inv = new Inventory();
+        inv.set(4, axe());
+        inv.wield(4);
+        assertEquals(4, inv.selectedSlot());
+        assertEquals(axe(), inv.mainHand());
+    }
+
+    @Test
+    void wieldingABackpackSlotSwapsItIntoTheHand() {
+        Inventory inv = new Inventory();
+        inv.set(0, logs(8));         // what the hand held
+        inv.set(20, axe());          // the axe, deep in the backpack
+        inv.wield(20);
+        assertEquals(axe(), inv.mainHand(), "the axe arrives in the hand");
+        assertEquals(logs(8), inv.get(20), "the logs take its old slot — nothing is lost");
+        assertEquals(0, inv.selectedSlot(), "selection did not move; the contents did");
+    }
+
+    @Test
+    void wieldingRefusesArmorAndOffhand() {
+        Inventory inv = new Inventory();
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> inv.wield(Inventory.OFFHAND_SLOT));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> inv.wield(Inventory.ARMOR_START));
+    }
+
+    @Test
+    void stowSelectsAnEmptyHotbarSlotWhenOneExists() {
+        Inventory inv = new Inventory();
+        inv.set(0, axe());
+        inv.stow();
+        assertTrue(inv.mainHand().isEmpty(), "the hand is bare");
+        assertEquals(axe(), inv.get(0), "the axe never moved — the selection did");
+    }
+
+    @Test
+    void stowSwapsIntoTheBackpackWhenTheHotbarIsFull() {
+        Inventory inv = new Inventory();
+        for (int i = 0; i < Inventory.HOTBAR_SIZE; i++) {
+            inv.set(i, logs(1));
+        }
+        inv.set(0, axe()); // the hand, hotbar otherwise full
+        inv.stow();
+        assertTrue(inv.mainHand().isEmpty(), "the hand is bare");
+        assertEquals(axe(), inv.get(Inventory.MAIN_START), "the axe went to the first free backpack slot");
+    }
+
+    @Test
+    void stowKeepsTheHandWhenThePackHasNoRoomAnywhere() {
+        Inventory inv = new Inventory();
+        for (int slot = 0; slot < Inventory.MAIN_START + Inventory.MAIN_SIZE; slot++) {
+            inv.set(slot, logs(1));
+        }
+        inv.set(0, axe());
+        inv.stow();
+        assertEquals(axe(), inv.mainHand(), "nowhere to put it: a little wear beats dropping it");
+    }
+
+    @Test
+    void stowOnAnEmptyHandDoesNothing() {
+        Inventory inv = new Inventory();
+        inv.set(20, axe());
+        inv.stow();
+        assertEquals(0, inv.selectedSlot());
+        assertEquals(axe(), inv.get(20));
+    }
 }

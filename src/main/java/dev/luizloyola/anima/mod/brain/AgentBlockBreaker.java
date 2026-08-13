@@ -3,11 +3,17 @@ package dev.luizloyola.anima.mod.brain;
 import dev.luizloyola.anima.core.brain.act.BlockBreaker;
 import dev.luizloyola.anima.core.brain.act.BreakState;
 import dev.luizloyola.anima.core.brain.act.MiningSpeed;
+import dev.luizloyola.anima.core.brain.act.ToolChoice;
+import dev.luizloyola.anima.compat.inv.ItemStacks;
 import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.mod.body.AgentAttributes;
 import dev.luizloyola.anima.mod.body.AgentBody;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.Holder;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.InteractionHand;
@@ -70,6 +76,7 @@ public final class AgentBlockBreaker implements BlockBreaker {
                 || !LevelProbe.armPathClear(level, person.entity().getEyePosition(), pos)) {
             return false; // includes a blocked arm path: no breaking logs through the canopy
         }
+        wieldBestFor(blockState);
         clearCrack();
         this.target = pos;
         this.begunOn = blockState;
@@ -156,6 +163,41 @@ public final class AgentBlockBreaker implements BlockBreaker {
     public void abort() {
         clearCrack();
         state = BreakState.IDLE;
+    }
+
+    /**
+     * The wield step, run once per block begun: measure every carried stack against the block and
+     * bring the pack's best into the hand — or empty it when nothing out-digs a fist (an axe
+     * measures 1.0 on dirt, same as bare knuckles, so tools stay sheathed for dirt with no rule
+     * about dirt anywhere). Ranking is {@link ToolChoice}'s.
+     *
+     * <p>Writes the CORE inventory only; an entity-side write would be stomped by the equipment
+     * mirror. Stateless, so a tool that breaks mid-chop leaves the next {@code begin()} to re-rank.
+     *
+     * <p>Known limit: ranking is by the STACK's own speed, so Efficiency — which lands only once
+     * equipped — cannot separate two otherwise-equal axes. The tie keeps whichever is in the hand.
+     */
+    private void wieldBestFor(BlockState blockState) {
+        Inventory inv = person.inventory();
+        HolderLookup.Provider registries = person.level().registryAccess();
+        List<ToolChoice.Candidate> pack = new ArrayList<>();
+        for (int slot = 0; slot < Inventory.ARMOR_START; slot++) {
+            dev.luizloyola.anima.core.inv.ItemStack core = inv.get(slot);
+            if (core.isEmpty()) {
+                continue;
+            }
+            ItemStack stack = ItemStacks.toVanilla(core, registries);
+            pack.add(new ToolChoice.Candidate(
+                    slot, stack.getDestroySpeed(blockState), stack.isCorrectToolForDrops(blockState)));
+        }
+        int heldSlot = Inventory.HOTBAR_START + inv.selectedSlot();
+        int choice = ToolChoice.choose(pack, heldSlot,
+                ItemStack.EMPTY.getDestroySpeed(blockState), blockState.requiresCorrectToolForDrops());
+        if (choice == ToolChoice.BARE_HAND) {
+            inv.stow();
+        } else if (choice != ToolChoice.KEEP_HAND) {
+            inv.wield(choice);
+        }
     }
 
     /** The survival player's destroy-progress formula, minus nothing: speed / hardness / divisor. */
