@@ -10,6 +10,7 @@ import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.FakeProbe;
 import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -176,6 +177,50 @@ class EscapeStepTest {
             }
         }
         assertEquals("call for help", chosen());
+    }
+
+    // ── choosing from anywhere it can reach ──────────────────────────────────────────────────
+
+    /**
+     * The mound in miniature: a flat top the body cannot get down from, where the descent applies
+     * only at the RIM — so it must consider cells it can walk to, not just what is underfoot.
+     */
+    @Test
+    void itWalksToWhereAWayOutIsAndTakesIt() {
+        // A 5x5 plateau standing five above the ground, with the body in the middle of its top.
+        List<Pos> plateau = new ArrayList<>();
+        for (int x = 0; x <= 4; x++) {
+            for (int z = 0; z <= 4; z++) {
+                for (int y = FakeProbe.GROUND_Y + 1; y <= FakeProbe.GROUND_Y + 5; y++) {
+                    blocks.set(x, y, z, BlockKind.OTHER);
+                }
+                plateau.add(new Pos(x, FakeProbe.GROUND_Y + 6, z));
+            }
+        }
+        ctx.percepts.position = new Pos(2, FakeProbe.GROUND_Y + 6, 2);
+        ctx.percepts.confinement = new Confinement(true, plateau.size(), plateau);
+
+        assertEquals("lower yourself", chosen(), "the rim is a way out, two steps away");
+        List<Task> plan = plan();
+        assertTrue(plan.get(0) instanceof GoTo walk
+                        && (walk.x() == 0 || walk.x() == 4 || walk.z() == 0 || walk.z() == 4),
+                "it walks to a rim cell before it digs");
+        assertTrue(plan.get(1) instanceof BreakBlock, "and then it digs");
+    }
+
+    /**
+     * The region is only ever an ADDITION to what is underfoot — and every use of this class
+     * outside the drive that owns it has no region at all.
+     */
+    @Test
+    void withNoRegionItStillActsOnWhatIsUnderfoot() {
+        for (int y = FakeProbe.GROUND_Y + 1; y <= FakeProbe.GROUND_Y + 5; y++) {
+            blocks.set(0, y, 0, BlockKind.OTHER);
+        }
+        ctx.percepts.position = new Pos(0, FakeProbe.GROUND_Y + 6, 0);
+        ctx.percepts.confinement = new Confinement(true, 1);
+        assertEquals("lower yourself", chosen());
+        assertTrue(plan().get(0) instanceof BreakBlock, "already where it needs to be — no walk");
     }
 
     /**

@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.nav;
 
 import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.DangerField;
+import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.sense.SetbackField;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -316,7 +317,24 @@ public final class Pathfinder {
             }
             expandNeighbors(current, node);
         }
-        return new Confinement(exhausted && sealedIn(request), expanded);
+        boolean sealed = exhausted && sealedIn(request);
+        return new Confinement(sealed, expanded, sealed ? closedCells() : List.of());
+    }
+
+    /**
+     * Every cell the expansion actually reached — the map of a proved prison. That is what lets
+     * whoever holds the verdict walk to a way out instead of only considering what is underfoot.
+     * Built only when there is a proof to attach it to; an ordinary search allocates nothing.
+     */
+    private List<Pos> closedCells() {
+        List<Pos> cells = new ArrayList<>(this.nodes.size());
+        for (Map.Entry<Long, Node> entry : this.nodes.entrySet()) {
+            if (entry.getValue().closed) {
+                long cell = entry.getKey();
+                cells.add(new Pos(unpackX(cell), unpackY(cell), unpackZ(cell)));
+            }
+        }
+        return cells;
     }
 
     private Path search(PathRequest request) {
