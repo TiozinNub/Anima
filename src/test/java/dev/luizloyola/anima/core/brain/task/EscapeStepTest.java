@@ -245,4 +245,65 @@ class EscapeStepTest {
         blocks.markUnloaded(1, 0);
         assertFalse(escape.methods().get(2).applicable(ctx));
     }
+
+    /**
+     * <b>The ground below, not the top of the column.</b> The motion-blocking heightmap answers
+     * about the whole column, so anything overhead (a canopy, a roof, a floor above) read as
+     * the ground: the drop went NEGATIVE and every rung was refused with "shut in with no way
+     * out".
+     */
+    @Test
+    void aRoofOverheadIsNotTheGroundBelow() {
+        for (int y = FakeProbe.GROUND_Y + 1; y <= FakeProbe.GROUND_Y + 5; y++) {
+            blocks.set(0, y, 0, BlockKind.OTHER); // the column it is standing on
+        }
+        ctx.percepts.position = new Pos(0, FakeProbe.GROUND_Y + 5, 0);
+        // ... and a lid two above its head, over every way down.
+        for (int[] d : new int[][] {{0, 1}, {0, -1}, {1, 0}, {-1, 0}}) {
+            blocks.set(d[0], FakeProbe.GROUND_Y + 7, d[1], BlockKind.LEAVES);
+        }
+        assertEquals("lower yourself", chosen(), "the roof says nothing about the drop");
+        List<Task> plan = plan();
+        assertEquals(1, plan.size(), "four above the landing, three of which it can fall");
+        assertTrue(plan.get(0) instanceof BreakBlock cut
+                && cut.target().equals(new Pos(0, FakeProbe.GROUND_Y + 4, 0)));
+    }
+
+    /** The same body under the same lid, low enough to step off, still steps off. */
+    @Test
+    void aRoofOverheadDoesNotInventADescentEither() {
+        for (int y = FakeProbe.GROUND_Y + 1; y <= FakeProbe.GROUND_Y + 2; y++) {
+            blocks.set(0, y, 0, BlockKind.OTHER);
+        }
+        ctx.percepts.position = new Pos(0, FakeProbe.GROUND_Y + 3, 0);
+        for (int[] d : new int[][] {{0, 1}, {0, -1}, {1, 0}, {-1, 0}}) {
+            blocks.set(d[0], FakeProbe.GROUND_Y + 5, d[1], BlockKind.LEAVES);
+        }
+        assertFalse(escape.methods().get(2).applicable(ctx), "three down is still a drop, not a dig");
+    }
+
+    /**
+     * The look starts at the body's own feet, so a wall beside it reads as a landing level with
+     * it, not a hole below. Being walled in sideways belongs to the rungs above this one.
+     */
+    @Test
+    void aWallBesideItIsNotADropBesideIt() {
+        for (int y = FakeProbe.GROUND_Y + 1; y <= FakeProbe.GROUND_Y + 5; y++) {
+            blocks.set(0, y, 0, BlockKind.OTHER);
+            for (int[] d : new int[][] {{0, 1}, {0, -1}, {1, 0}, {-1, 0}}) {
+                blocks.set(d[0], y, d[1], BlockKind.OTHER); // solid all the way up, all round
+            }
+        }
+        ctx.percepts.position = new Pos(0, FakeProbe.GROUND_Y + 5, 0);
+        assertFalse(escape.methods().get(2).applicable(ctx),
+                "it is standing IN the ground, not on a spire above it");
+    }
+
+    /** Know where you land: a fall whose bottom is past the look is not aimed at. */
+    @Test
+    void itWillNotCommitToAHoleItCannotSeeTheBottomOf() {
+        ctx.percepts.position = new Pos(0, FakeProbe.GROUND_Y + 200, 0);
+        assertFalse(escape.methods().get(2).applicable(ctx),
+                "the ground is there, but not within a look this rung is willing to trust");
+    }
 }

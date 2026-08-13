@@ -352,23 +352,30 @@ public final class EscapeStep implements CompoundTask {
          * hands the wheel back, and whatever runs next walks the body away: watched live
          * (2026-08-12) chewing an entire mound perimeter one rim block at a time without ever
          * completing a descent.
-         *
-         * <p>The measure is the ground AROUND the body, not the column under it: there is a landing
-         * under every floor everywhere, so an earlier cut that asked "is there something to land
-         * on" applied on perfectly flat meadow. What matters is how far this body is above the
+ *
+         * <p><b>The measure is the ground AROUND the body, not the column under it.</b> There is a
+         * landing under every floor everywhere, so an earlier cut that asked "is there something to
+         * land on" applied on perfectly flat meadow. What matters is how far this body is above the
          * ground it is trying to reach; a fall it could take should be taken.
+         *
+         * <p><b>And it must be the ground BELOW, which a heightmap cannot tell you.</b>
+         * {@code BlockProbe.surfaceY} is a whole-column question, and under anything overhead it
+         * answers with the ROOF: a Person four blocks up a spruce read her own canopy as the ground
+         * around her, computed a NEGATIVE drop and refused every rung with
+         * {@code shut in with no way out}, on a 200-tick loop (in-world, 2026-08-12). A cave, a
+         * bridge or a floor above would do the same. So the landing is found by looking down
+         * through {@code at()}, and the heightmap is not consulted at all.
          */
         private List<Pos> descent(BrainContext ctx) {
             Pos here = ctx.percepts().position();
             MoveCapabilities body = MoveCapabilities.of(ctx.profile());
-            BlockProbe blocks = ctx.percepts().blocks();
             int lowest = Integer.MAX_VALUE;
             for (int[] d : CARDINALS) {
-                int surface = blocks.surfaceY(here.x() + d[0], here.z() + d[1]);
-                if (surface == Integer.MIN_VALUE) {
-                    return List.of(); // a column we cannot read is not a landing we can aim at
+                int landing = landingBelow(ctx, here.x() + d[0], here.z() + d[1], here.y());
+                if (landing == Integer.MIN_VALUE) {
+                    return List.of(); // nothing we can see to aim at; do not commit to a hole
                 }
-                lowest = Math.min(lowest, surface);
+                lowest = Math.min(lowest, landing);
             }
             int drop = here.y() - (lowest + 1);
             if (drop <= body.maxDrop()) {
@@ -448,6 +455,39 @@ public final class EscapeStep implements CompoundTask {
     }
 
     // ── shared ───────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * How far down a look for a landing reaches, in cells. Bounded because these are block reads —
+     * four columns' worth every time the rung is scored — and deep enough for anything a body could
+     * be stranded on and still mine off; past it, "I cannot see where I would land" is the correct
+     * answer. Shares its number with the pathfinder's plunge look.
+     */
+    private static final int LANDING_LOOK = 32;
+
+    /**
+     * The first thing in this column that would hold a body up, at or <em>below</em> {@code fromY}
+     * — or {@link Integer#MIN_VALUE} when there is none within {@link #LANDING_LOOK}, or the column
+     * cannot be read.
+     *
+     * <p>Starts AT the body's own level, so a wall beside it reads as a landing level with its feet
+     * rather than being seen through; sideways confinement belongs to the rungs above.
+     *
+     * <p>Water is not a landing, keeping the motion-blocking heightmap's meaning; teaching this rung
+     * otherwise would have to know whether the body can swim.
+     */
+    private static int landingBelow(BrainContext ctx, int x, int z, int fromY) {
+        BlockProbe blocks = ctx.percepts().blocks();
+        for (int y = fromY; y > fromY - LANDING_LOOK; y--) {
+            BlockKind kind = blocks.at(x, y, z);
+            if (kind == BlockKind.UNKNOWN) {
+                return Integer.MIN_VALUE; // a column we cannot read is not one we can aim at
+            }
+            if (kind != BlockKind.AIR && kind != BlockKind.WATER) {
+                return y;
+            }
+        }
+        return Integer.MIN_VALUE;
+    }
 
     /** Whether this cell would hold a body up — anything solid, water excluded. */
     private static boolean solidFloor(BrainContext ctx, int x, int y, int z) {
