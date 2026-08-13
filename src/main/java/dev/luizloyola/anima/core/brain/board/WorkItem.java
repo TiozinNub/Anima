@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.brain.board;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.task.Task;
+import dev.luizloyola.anima.core.inv.Kit;
 
 /**
  * One claimable unit of work. An {@code Instinct} bids continuous {@code pressure(ctx)} and is
@@ -28,6 +29,15 @@ public interface WorkItem {
 
     /** A FRESH task tree that pursues this item — called anew on every grant and resume. */
     Task root();
+
+    /**
+     * What working this item calls for — see {@link Kit}. The board's offer path skips an asker
+     * whose pack is missing a NEED; WANTs gate nothing and are wielded opportunistically at the
+     * block. Defaults to nothing.
+     */
+    default Kit kit() {
+        return Kit.NONE;
+    }
 
     /** One-line name for journal and board readouts, e.g. {@code "acquire logs x16"}. */
     String describe();
