@@ -36,8 +36,24 @@ public final class EscapeInstinct implements Instinct {
         return profile.d(ProfileAspect.ESCAPE_PRESSURE);
     }
 
+    /**
+     * Shut in or not — <b>unless the body is in the middle of reshaping the ground, in which case
+     * the question is not asked at all</b>.
+     *
+     * <p>That gate is {@link dev.luizloyola.anima.core.brain.task.Task#reshapesGround()}, and it
+     * gates the BELIEF rather than the acting: the survey is never run, so a body felling a tree
+     * does not privately think it is trapped. Mining and building put a body somewhere precarious
+     * on purpose and carry their own way back down. It is also cheaper — no body doing terrain work
+     * pays for a survey a second.
+     *
+     * <p>The cost, knowingly accepted: a body that walls itself in while mining will not notice
+     * until the operation ends.
+     */
     @Override
     public double pressure(BrainContext ctx) {
+        if (ctx.reshapingGround()) {
+            return 0.0;
+        }
         return ctx.percepts().confinement().sealed() ? pressure(ctx.profile()) : 0.0;
     }
 

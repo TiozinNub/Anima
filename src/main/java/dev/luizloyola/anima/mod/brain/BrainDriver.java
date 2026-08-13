@@ -195,6 +195,14 @@ public final class BrainDriver {
             }
 
             @Override
+            public boolean reshapingGround() {
+                // Asked of the executor: it is a property of the tree currently running, and
+                // only the executor knows what that is. True while a chop rides its mast,
+                // installed directly or reached through an errand.
+                return arbiter.executor().reshapingGround();
+            }
+
+            @Override
             public double costTolerance() {
                 // Manual driving answers to no pressure: a dev-issued task runs to completion (or
                 // failure) on its own terms rather than getting judged against the arbiter's

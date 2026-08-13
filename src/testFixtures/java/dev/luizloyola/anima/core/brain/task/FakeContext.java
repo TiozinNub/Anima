@@ -57,6 +57,12 @@ public final class FakeContext implements BrainContext {
      * ∞). Defaults to ∞, so tests predating cost tolerance see every applicable method.
      */
     public double costTolerance = Double.POSITIVE_INFINITY;
+    /**
+     * Whether the body is mid-operation on the structural blocks around it — see
+     * {@link dev.luizloyola.anima.core.brain.task.Task#reshapesGround()}. Settable because a fake
+     * context has no executor to derive it from.
+     */
+    public boolean reshapingGround = false;
     private final ActuatorAccess actuators = new ActuatorAccess() {
         @Override
         public Mover mover() {
@@ -122,6 +128,11 @@ public final class FakeContext implements BrainContext {
     @Override
     public AgentClaims claims() {
         return siteClaims.forPerson(self);
+    }
+
+    @Override
+    public boolean reshapingGround() {
+        return reshapingGround;
     }
 
     @Override

@@ -82,6 +82,16 @@ public interface BrainContext {
     double costTolerance();
 
     /**
+     * Whether the work under way places or breaks structural blocks — mining, chopping, building.
+     * A drive asks it to know whether now is a moment to judge the body's situation at all; see
+     * {@link dev.luizloyola.anima.core.brain.task.Task#reshapesGround()} and {@code EscapeInstinct},
+     * the one drive that asks. Defaults to false: a rig with no executor is a body doing nothing.
+     */
+    default boolean reshapingGround() {
+        return false;
+    }
+
+    /**
      * This body's stream of chance — drawn from when an instinct or a method has a genuine choice
      * to make.
      *

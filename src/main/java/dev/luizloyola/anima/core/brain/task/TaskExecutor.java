@@ -210,6 +210,27 @@ public final class TaskExecutor {
         return node instanceof PrimitiveTask primitive ? Optional.of(primitive) : Optional.empty();
     }
 
+    /**
+     * Whether the work under way places or breaks structural blocks — see
+     * {@link Task#reshapesGround()}. The whole running CHAIN is asked, not just the root: a chop
+     * reached through {@code ObtainItem(LOGS)} is a chop whichever way it was arrived at.
+     */
+    public boolean reshapingGround() {
+        if (root == null) {
+            return false;
+        }
+        if (root.reshapesGround()) {
+            return true;
+        }
+        for (Frame frame : stack) {
+            if (frame.compound.reshapesGround()) {
+                return true;
+            }
+        }
+        Task node = currentNode();
+        return node != null && node.reshapesGround();
+    }
+
     // --- internals -------------------------------------------------------------------------------
 
     /** The node execution is at: the top frame's current subtask, or the root before any expansion. */

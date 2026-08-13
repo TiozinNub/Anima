@@ -55,6 +55,19 @@ public final class EscapeStep implements CompoundTask {
         return "get out of here";
     }
 
+    /**
+     * No, though escaping breaks structural blocks by definition. {@link Task#reshapesGround()}
+     * means "work that put the body here, so do not judge it stuck while it runs"; this is the
+     * opposite, and its loop condition is the confinement verdict. Answering yes would switch that
+     * verdict off the instant the first block came out: cut, stop, wander off, come back, cut.
+     *
+     * <p>Written down rather than left to the default, so a later tidy-up pass reads it first.
+     */
+    @Override
+    public boolean reshapesGround() {
+        return false;
+    }
+
     // ── reading the world ────────────────────────────────────────────────────────────────────
 
     /** The four ways out, in the fixed order that makes the choice deterministic. */
