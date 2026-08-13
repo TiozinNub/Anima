@@ -1024,15 +1024,16 @@ public final class Navigator {
                 return; // a leap landing is claimed on touchdown, never mid-flight (see skip)
             }
             Waypoint next = this.path.waypoints().get(this.index + 1);
-            // The one arrangement this advance reads backwards: standing in the takeoff cell with
-            // the run-up onto it still ahead. It assumes a waypoint is reached from the far side of
-            // its outgoing segment, so a body parked on the takeoff already sits past the run-up
-            // start — it would claim that cell without moving and take the wide leap from a
-            // standstill. Refusing walks the leg properly, and is also right when a glide carried
-            // it onto the takeoff by accident.
-            if (next.move() == MoveType.RUNUP
-                    && this.person.blockPosition().getX() == next.x()
-                    && this.person.blockPosition().getZ() == next.z()) {
+            // The cell a RUNUP starts from is ARRIVED at, never merely passed: it is where the
+            // acceleration starts, and every block short of it is runway lost.
+            //
+            // This advance assumes a waypoint is reached from the far side of its outgoing segment,
+            // so a body handed a path that walks it BACK a cell starts out past the run-up start.
+            // Measured: it turned at 1199.0 for a waypoint centred on 1198.5, ran a 3-cell gap with
+            // two thirds of its runway, and dropped in half a block short. A tighter test does not
+            // help — the near half of the cell is "past the plane" and is where the turn must not
+            // happen.
+            if (next.move() == MoveType.RUNUP) {
                 return;
             }
             double offX = pos.x - (current.x() + 0.5);
