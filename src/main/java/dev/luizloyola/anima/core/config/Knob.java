@@ -140,11 +140,13 @@ public enum Knob implements KnobSpec {
             "How many past runs of per-agent journal files to keep. Older run folders are "
                     + "deleted at boot; a dead agent's file is moved to graveyard/ first."),
     /** Read by the mod-side burial, once, as an agent dies. */
-    JOURNAL_DEATH_TAIL("journal.death_tail_entries", Kind.INT, 24, 0, 256,
+    JOURNAL_DEATH_TAIL("journal.death_tail_entries", Kind.INT, 64, 0, 256,
             "How many of an agent's last journal lines are copied into its grave, where they "
                     + "outlive the ring and the restart. This is what makes a death readable "
                     + "afterwards — the fall, the fight or the slow starve that led into it. 0 "
-                    + "keeps the grave a bare tombstone.");
+                    + "keeps the grave a bare tombstone. 64 rather than a couple of dozen because "
+                    + "a body standing near others spends most of its lines noticing them: 24 "
+                    + "measured out at twelve seconds, nearly all of it peer chatter.");
 
     private final String key;
     private final Kind kind;
