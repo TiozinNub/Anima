@@ -20,6 +20,25 @@ public interface GrowthRule {
     boolean joins(Pos p, BlockKind kind, BlockProbe probe);
 
     /**
+     * Whether a thing of this kind may stand taller than a mind's sense of one place. Off by
+     * default: the spread cap is a Chebyshev ball around the seed, because a mass that wanders too
+     * far stops being somewhere in particular.
+     *
+     * <p>That reasoning is only sideways. A jungle giant is thirty blocks of one thing and a cap of
+     * twenty-four cut it wherever the seed landed — and the seed lands at either end: from a canopy
+     * leaf ({@code probe.topY}) the stump falls outside and the tree is not remembered AT all; from
+     * the stump (where the chopper re-grows) the crown falls outside and the top is left hanging.
+     *
+     * <p>Saying yes caps how far the walk <em>wanders</em>, not how high it <em>climbs</em>. The
+     * horizontal cap still splits a fused mega-forest into groves and {@link RegionGrowth#maxBlocks}
+     * still bounds the whole; rules whose things are a height field — surface water, a crop clump —
+     * leave it off.
+     */
+    default boolean standsTall() {
+        return false;
+    }
+
+    /**
      * Judges the fully-grown collection and <b>individuates</b> it: one evaluation per distinct
      * thing the mass contains — a fused canopy is several trees, a lake is one body. Growth answers
      * "what is connected", this "how many things is that", so felling one tree of a grove does not

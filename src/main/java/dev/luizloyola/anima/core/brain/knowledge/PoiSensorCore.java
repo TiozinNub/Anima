@@ -288,7 +288,8 @@ public final class PoiSensorCore {
             // Nobody stood exactly here — but they may have walked this same mass from its other
             // side, which is the common case in a wood a crowd is crossing. The cells keep; the
             // judgment is made again, from where this body is looking.
-            Map<Pos, BlockKind> mass = regions.covering(rule.kind(), surface, spread);
+            Map<Pos, BlockKind> mass =
+                    regions.covering(rule.kind(), surface, spread, rule.standsTall());
             if (mass != null) {
                 // A complete mass by construction (covering serves no other kind), so nothing in
                 // it stands against a cut, and every thing it holds is worth filing.

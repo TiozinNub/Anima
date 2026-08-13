@@ -81,8 +81,8 @@ class RegionCacheTest {
         cache.put(keyAt(near), massAt(near, new Pos(10, 65, 10), new Pos(10, 66, 10), far));
 
         assertNull(cache.get(keyAt(far)), "not the scan somebody else ran");
-        assertNotNull(cache.covering(FakeGrowthRule.THICKET, far, 24), "but the same mass");
-        assertNull(cache.covering(FakeGrowthRule.THICKET, new Pos(10, 68, 10), 24),
+        assertNotNull(cache.covering(FakeGrowthRule.THICKET, far, 24, false), "but the same mass");
+        assertNull(cache.covering(FakeGrowthRule.THICKET, new Pos(10, 68, 10), 24, false),
                 "a cell that is not in it is not in it");
     }
 
@@ -95,7 +95,7 @@ class RegionCacheTest {
         cache.put(keyAt(near), mass(true, near, new Pos(10, 65, 10), far));
 
         assertNotNull(cache.get(keyAt(near)), "the body that stopped short still gets its own scan");
-        assertNull(cache.covering(FakeGrowthRule.THICKET, far, 24),
+        assertNull(cache.covering(FakeGrowthRule.THICKET, far, 24, false),
                 "but where it stopped is a fact about where it stood, not about the wood");
     }
 
@@ -107,9 +107,28 @@ class RegionCacheTest {
         Pos other = new Pos(0, 64, 20);
         cache.put(keyAt(new Pos(0, 64, 10)), massAt(new Pos(0, 64, 10), end, other));
 
-        assertNotNull(cache.covering(FakeGrowthRule.THICKET, end, 24), "20 away, willing to go 24");
-        assertNull(cache.covering(FakeGrowthRule.THICKET, end, 8),
+        assertNotNull(cache.covering(FakeGrowthRule.THICKET, end, 24, false),
+                "20 away, willing to go 24");
+        assertNull(cache.covering(FakeGrowthRule.THICKET, end, 8, false),
                 "the far end lies past where this body would have stopped looking");
+    }
+
+    /**
+     * The lending test must measure what the growth measured, or it refuses the masses
+     * the exemption exists for: a thirty-block trunk, the priciest thing in a wood.
+     */
+    @Test
+    @DisplayName("a mass that stands tall is lent end to end; one that does not is not")
+    void coveringFollowsTheRulesReachUpwards() {
+        RegionCache cache = new RegionCache();
+        Pos stump = new Pos(10, 64, 10);
+        Pos crown = new Pos(10, 94, 10); // 30 up, against a reach of 24
+        cache.put(keyAt(stump), massAt(stump, new Pos(10, 79, 10), crown));
+
+        assertNotNull(cache.covering(FakeGrowthRule.THICKET, crown, 24, true),
+                "a body seeding in the canopy of something that stands tall would have walked it all");
+        assertNull(cache.covering(FakeGrowthRule.THICKET, crown, 24, false),
+                "and for a rule that measures its height, the far end is past where it would stop");
     }
 
     @Test
@@ -119,7 +138,7 @@ class RegionCacheTest {
         Pos seed = new Pos(10, 64, 10);
         cache.put(keyAt(seed), massAt(seed));
 
-        assertNull(cache.covering(TestPois.WATER, seed, 24));
+        assertNull(cache.covering(TestPois.WATER, seed, 24, false));
     }
 
     @Test

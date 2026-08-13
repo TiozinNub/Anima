@@ -16,18 +16,19 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * One in-flight structure scan — an incremental, budgeted BFS. Give it reads via {@link #step}
- * until {@link #isDone()}; an unfinished scan keeps its frontier and resumes next tick, so an oak
- * (~400 reads) completes across a handful of ticks while the person walks. It never touches the
- * store; the sensor decides what a finished {@link GrownRegion} becomes.
+ * One in-flight structure scan: an incremental, budgeted BFS. Give it reads via {@link #step}
+ * until {@link #isDone()} — it keeps its frontier and resumes next tick, so an oak (~400 reads)
+ * completes over a handful of ticks while the person walks on. It only collects; the sensor
+ * decides what a finished {@link GrownRegion} becomes.
  *
- * <p>Connectivity is <b>26-way</b> (see {@link #NEIGHBORS}), because worldgen hangs branches off
- * trunks diagonally and a face-only walk loses them silently. It costs roughly four times the probe
- * reads, and groves touching at a corner fuse into one region — which is why the rule individuates
- * what the growth fused ({@link GrowthRule#evaluate}).
+ * <p>Connectivity is <b>26-way</b> ({@link #NEIGHBORS}): worldgen hangs branches off trunks
+ * diagonally, and a face-only walk loses them silently. It costs roughly four times the reads and
+ * fuses corner-touching groves, so {@link GrowthRule#evaluate} individuates what growth fused.
  *
- * <p>Bounded three ways, each marking the result {@code partial}: the block cap, the spread cap
- * (Chebyshev from seed), and unloaded borders ({@link BlockKind#UNKNOWN}).
+ * <p>Three bounds mark a result {@code partial}: the block cap, the spread cap (Chebyshev from
+ * the seed), and unloaded borders ({@link BlockKind#UNKNOWN}). A rule whose things
+ * {@linkplain GrowthRule#standsTall stand tall} meets the spread cap sideways only
+ * ({@link #beyondReach}).
  */
 public final class RegionGrowth {
     /** Block cap on one scan — hitting it marks the region partial. */
@@ -83,18 +84,19 @@ public final class RegionGrowth {
     /**
      * Which cells have been looked at, as a bit per cell of a box centred on the seed.
      *
-     * <p>The hottest structure in perception: every frontier cell asks about twenty-six neighbours,
-     * and inside a dense mass the answer is overwhelmingly "seen already". As a
-     * {@code HashSet<Pos>} each cost a {@link Pos} allocation and a hash probe — the near-field
-     * loop measured 226 ns per block read against the ray fan's 33.
+     * <p>The hottest structure in perception — twenty-six questions per frontier cell, almost
+     * always answered "seen already". As a {@code HashSet<Pos>} each answer cost a {@link Pos}
+     * allocation and a hash probe: 226 ns per block read in the near-field loop, against the ray
+     * fan's 33.
      *
-     * <p>The box is sized in advance because growth refuses anything beyond the spread cap from the
-     * seed, so a frontier cell is within the cap and its neighbours within one more. Cells outside
-     * fall back to {@link #seenFar}, which is also the whole story when the box would be too large.
+     * <p>The box covers the ordinary case, growth refusing anything past the spread cap. Cells
+     * outside it fall back to {@link #seenFar}, as does everything when the box would be too
+     * large; only a mid-scan cap widening and the vertical tail of a
+     * {@linkplain GrowthRule#standsTall stands tall} mass reach past it.
      *
-     * <p><b>It cannot change a verdict</b>: nothing iterates it, so no order depends on it — unlike
-     * {@link #blocks}, a {@code LinkedHashMap} because the mass's order is the order the rules
-     * individuate in and an anchor's identity hangs off it.
+     * <p><b>It cannot change a verdict:</b> only containment is asked and nothing iterates it —
+     * unlike {@link #blocks}, a {@code LinkedHashMap} because the mass's order is the order the
+     * rules individuate in and an anchor's identity hangs off it.
      */
     private final long[] seenBits;
     /** Out-of-box cells, and every cell when {@link #seenBits} was refused. */
@@ -177,6 +179,7 @@ public final class RegionGrowth {
         // reload lands mid-scan.
         int spreadCap = maxSpread(this.profile);
         int blockCap = maxBlocks();
+        boolean tall = rule.standsTall();
         int reads = 0;
         // Frontier cells visited this step, bounded alongside the reads: a cell whose neighbours
         // are all seen costs no READS, only twenty-six set lookups, so a dense mass could drain
@@ -223,7 +226,7 @@ public final class RegionGrowth {
                 if (!rule.joins(n, kind, probe)) {
                     continue; // a real boundary: the structure really does end here
                 }
-                if (chebyshev(n, seed) > spreadCap) {
+                if (beyondReach(n, spreadCap, tall)) {
                     partial = true;
                     cutEdge.add(p);
                     continue;
@@ -307,10 +310,33 @@ public final class RegionGrowth {
         return folded;
     }
 
-    private static int chebyshev(Pos a, Pos b) {
-        int dx = Math.abs(a.x() - b.x());
-        int dy = Math.abs(a.y() - b.y());
-        int dz = Math.abs(a.z() - b.z());
-        return Math.max(dx, Math.max(dy, dz));
+    /**
+     * Whether a cell lies past where this walk was willing to go — Chebyshev from the seed.
+     * Sideways is always the cap, the arm that keeps a fused wood from being one enormous place;
+     * vertically it is the cap too, unless the rule
+     * {@linkplain GrowthRule#standsTall stands tall}.
+     *
+     * <p><b>The exemption cannot be entered from nowhere:</b> growth is 26-way, so a step changes
+     * {@code y} by at most one, and standing above the cap means having walked up through
+     * unbroken structure.
+     */
+    private boolean beyondReach(Pos n, int spreadCap, boolean tall) {
+        if (Math.abs(n.x() - seed.x()) > spreadCap || Math.abs(n.z() - seed.z()) > spreadCap) {
+            return true;
+        }
+        return !tall && Math.abs(n.y() - seed.y()) > spreadCap;
+    }
+
+    /**
+     * The reach question of {@link #beyondReach}, for a finished mass rather than a cell —
+     * {@link RegionCache} lending one out. The two must agree, or the cache serves masses a body
+     * would not have collected (or refuses ones it would, expensively). The spans are the mass's
+     * furthest extent from that seed per axis.
+     */
+    static boolean withinReach(int spanX, int spanY, int spanZ, int spread, boolean tall) {
+        if (spanX > spread || spanZ > spread) {
+            return false;
+        }
+        return tall || spanY <= spread;
     }
 }

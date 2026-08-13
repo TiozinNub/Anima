@@ -12,41 +12,32 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * What the ground is SHAPED like, worked out once and lent to everybody — the one part of
- * perception that is a fact about the world rather than a belief about it.
+ * The level's memory of what the ground is SHAPED like — a fact about the world, not a belief
+ * about it, so it is worked out once and lent to everybody. A flood fill is the most expensive
+ * thing a mind does (twenty-six reads per frontier cell, thousands of cells in a welded conifer
+ * stand), and fifty bodies in one wood used to run fifty identical ones.
  *
- * <p>{@link RegionGrowth} is by far the most expensive thing a mind does: 26-way connectivity is
- * twenty-six block reads per frontier cell, and a welded conifer stand is thousands of cells. Fifty
- * bodies walking through one wood used to run fifty identical flood fills.
+ * <p>It shares the READING, never the believing: the finder still notes its own
+ * {@link PoiMemory}, stakes its own claims and writes its own journal line.
  *
- * <p><b>What it does not share is anybody's mind.</b> A hit skips the READING, never the believing:
- * the finder still notes its own {@link PoiMemory}, stakes its own claims and writes its own
- * journal line.
+ * <p>Two ways in. {@link #get}: the same seed and reach, so the finished scan comes back whole
+ * with its anchors already right. {@link #covering}: a different cell of a mass somebody has
+ * already walked — the expensive half (which cells connect) is reusable, the cheap half (which
+ * are trees, which end you would walk to) is re-judged by the caller.
  *
- * <p><b>Two ways in.</b>
- * <ul>
- *   <li>{@link #get} — same seed, same reach: the finished scan whole, anchors already right.</li>
- *   <li>{@link #covering} — a different cell of a mass somebody already walked. That is what
- *       carries a crowd arriving at a wood from every side. The expensive half (which cells are
- *       connected) is reusable; the cheap half (which of them is a tree, and which end you would
- *       walk to) is re-judged for the new seed by the caller. Only <em>complete</em> masses
- *       qualify.</li>
- * </ul>
+ * <p><b>Only complete masses may be re-seeded</b>, because growth stops at a Chebyshev spread cap
+ * measured from the seed: a partial mass is a fact about where somebody stood, and is served only
+ * to that seed. A complete one goes to any seed that could have reached all of it — a comparison
+ * against the box's far corner, on the axes growth measured, which for a
+ * {@linkplain GrowthRule#standsTall stands tall} rule is the two horizontal ones.
  *
- * <p><b>Why only complete masses may be re-seeded.</b> Any cell of a flood fill finds the same
- * component, but growth also stops at a Chebyshev spread cap measured from the seed, and a scan
- * that hit that cap is a fact about where somebody stood. So a partial mass is served only to its
- * own seed, a complete one to any seed that could have reached all of it — a comparison against the
- * box's far corner.
+ * <p><b>Any block change in the footprint invalidates an entry, at any height</b> — hence
+ * {@link #invalidate(int, int)} taking no Y: a rule may decide membership from a column's surface
+ * ({@code WaterRule} joins water only at the top of its column). The footprint carries a one-cell
+ * margin because growth is 26-way.
  *
- * <p><b>What invalidates an entry: any block change in its footprint, at any height.</b> Hence
- * {@link #invalidate(int, int)} taking no Y — the omission is the rule, not an oversight. A rule
- * may ask a column's surface to decide membership ({@code WaterRule} joins water only where it is
- * the top of its column), so a block dropped anywhere above can change what belongs. The footprint
- * carries a one-cell margin because growth is 26-way: a log touching a trunk joins the mass.
- *
- * <p><b>Bounded in cells, not entries</b> — a pumpkin is one cell, a fused spruce stand thousands.
- * Eviction is least-recently-used.
+ * <p><b>Bounded in cells, not entries</b> — a pumpkin is one cell and a fused spruce stand
+ * thousands — and evicted least-recently-used.
  */
 public final class RegionCache {
 
@@ -98,15 +89,16 @@ public final class RegionCache {
         }
 
         /**
-         * Whether a body seeding at this cell, willing to look this far, would have collected
-         * this mass. The furthest cell of a box from any point is one of its corners, so
-         * the widest span on each axis is all this has to ask.
+         * Whether a body seeding here with this reach would have collected this mass —
+         * the furthest cell of a box is a corner, so the widest span per axis is all this asks.
+         * {@code standsTall} is the asking rule's: a height-measuring test would refuse exactly
+         * the tall shapes the exemption exists for.
          */
-        boolean reachableFrom(Pos seed, int spread) {
+        boolean reachableFrom(Pos seed, int spread, boolean standsTall) {
             int dx = Math.max(seed.x() - minX, maxX - seed.x());
             int dy = Math.max(seed.y() - minY, maxY - seed.y());
             int dz = Math.max(seed.z() - minZ, maxZ - seed.z());
-            return Math.max(dx, Math.max(dy, dz)) <= spread;
+            return RegionGrowth.withinReach(dx, dy, dz, spread, standsTall);
         }
 
         int cells() {
@@ -145,7 +137,8 @@ public final class RegionCache {
      * at it from". Asked speculatively on the miss path: no eviction-order move, and no hit until
      * {@link #tookCovering()}.
      */
-    public synchronized Map<Pos, BlockKind> covering(PoiKind kind, Pos seed, int spread) {
+    public synchronized Map<Pos, BlockKind> covering(PoiKind kind, Pos seed, int spread,
+            boolean standsTall) {
         Set<Entry> candidates = byChunk.get(chunkKey(seed.x() >> 4, seed.z() >> 4));
         if (candidates == null) {
             unknownGround++;
@@ -153,12 +146,12 @@ public final class RegionCache {
         }
         for (Entry entry : candidates) {
             if (!entry.region.partial() && entry.key.kind().equals(kind)
-                    && entry.reachableFrom(seed, spread)
+                    && entry.reachableFrom(seed, spread, standsTall)
                     && entry.region.blocks().containsKey(seed)) {
                 return entry.region.blocks();
             }
         }
-        attributeRefusal(kind, seed, spread, candidates);
+        attributeRefusal(kind, seed, spread, standsTall, candidates);
         return null;
     }
 
@@ -168,7 +161,8 @@ public final class RegionCache {
      * A third of hypotheses re-grew on already-walked ground (measured 2026-08-03, fifty walkers,
      * a cache big enough never to evict), a symptom with three different cures.
      */
-    private void attributeRefusal(PoiKind kind, Pos seed, int spread, Set<Entry> candidates) {
+    private void attributeRefusal(PoiKind kind, Pos seed, int spread, boolean standsTall,
+            Set<Entry> candidates) {
         boolean sawPartial = false;
         boolean sawOutOfReach = false;
         for (Entry entry : candidates) {
@@ -177,7 +171,7 @@ public final class RegionCache {
             }
             if (entry.region.partial()) {
                 sawPartial = true;
-            } else if (!entry.reachableFrom(seed, spread)) {
+            } else if (!entry.reachableFrom(seed, spread, standsTall)) {
                 sawOutOfReach = true;
             }
         }
