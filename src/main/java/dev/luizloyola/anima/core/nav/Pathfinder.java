@@ -56,6 +56,22 @@ public final class Pathfinder {
      */
     private static final double[] LEAP_COSTS = {0.0, 2.4, 5.4, 9.6};
     /**
+     * How many cells of approach a leap of each gap width needs before its takeoff, index = gap —
+     * how far back the search will go to build one when the body has none. A 1-gap is a hop and
+     * needs nothing; half a block of takeoff cell is a standing jump however early the follower
+     * presses sprint, and one cell is 1.5 blocks of runway.
+     *
+     * <p>Zero does not mean "no approach" for the widths that ask for one — a body already
+     * travelling when it reaches the takeoff has its run-up in hand, and most routes do (see
+     * {@link #leapNeighbor}). It means how many cells to spend MAKING one for a body that is not.
+     *
+     * <p>Fixed numbers deliberately: the exact version is a function of the body's actual speed
+     * and belongs with the capabilities work. Widening the table is most of what a longer run-up
+     * costs — the search sources the edge that many cells back and {@link #reconstruct} lays that
+     * many waypoints in.
+     */
+    private static final int[] LEAP_RUN_UP = {0, 0, 1, 1};
+    /**
      * Cost multiplier for unit moves whose either endpoint is careful ground (bordering a chasm,
      * lava, or water — {@link NavGrids#isNearDeepDrop}): the follower walks such steps at the
      * careful throttle (0.45 → this is 1/0.45), so this is the real time cost, and it doubles as
@@ -210,6 +226,17 @@ public final class Pathfinder {
         MoveType move = MoveType.WALK;
         /** Feet height above this cell's floor, in sixteenths — see {@link Waypoint#surface16}. */
         int surface16;
+        /**
+         * For a {@link MoveType#LEAP}: the cell it launched from, when that is not the parent —
+         * i.e. when the edge carried a {@link MoveType#RUNUP} in front of it. {@link #NO_PARENT}
+         * otherwise, covering both leaps that take off from their own source: a hop, and a chain
+         * landing that arrives already flying.
+         *
+         * <p>Recorded rather than re-derived: once a chain can leap 2 cells off its own landing, a
+         * span of 4 is both "a 3-gap taken from here" and "a 2-gap taken a cell in front of here",
+         * and geometry cannot separate them.
+         */
+        long takeoff = NO_PARENT;
         /** Cells travelled with the head under water to reach here — see {@link #relaxWater}. */
         int submergedRun;
         boolean closed;
@@ -666,41 +693,121 @@ public final class Pathfinder {
     }
 
     /**
-     * Leaps: jump a gap of 1..{@code maxLeap} cells to same-level ground. A column counts as gap
-     * when the body fits through it but has no floor at this level — pit, trench (leaping a 1-deep
-     * trench at 2.4 beats dipping through it at 3.0), lava, water, chasm. Needs takeoff headroom, a
-     * body-height+1 corridor over every gap column (the arc rises a block), a standable landing.
-     * Same-level landings only in v1.
+     * Leaps: jump across a gap of 1..{@code maxLeap} cells to same-level ground on the far side.
+     * A column counts as gap when the body fits through it but there is no floor at this level —
+     * a pit, a trench (even a shallow one: leaping a 1-deep trench at 2.4 beats dipping through it
+     * at 3.0), lava, water, a chasm.
+     *
+     * <p><b>A wide leap needs the body moving when it reaches the rim</b> ({@link #LEAP_RUN_UP}):
+     * a gap of 1 is a hop and never does, 2 and 3 do, and half a block of takeoff cell is not a
+     * run-up however early the follower presses sprint. So this node offers up to three things:
+     *
+     * <ul>
+     *   <li><b>The hop</b>, always — a 1-cell gap off this cell from a standstill.
+     *   <li><b>The wide leap off this cell</b>, whenever the body ARRIVES here rather than
+     *       starting here — every node in a search but the path's start.
+     *   <li><b>The wide leap taken a cell in FRONT of here</b>, treating this node as the run-up.
+     *       The edge covers approach and flight together and is charged for both, and
+     *       {@link #reconstruct} lays the takeoff back in as a {@link MoveType#RUNUP} waypoint.
+     * </ul>
+     *
+     * <p>The third fixes a body parked at the edge of the gap: the run-up cell is a different NODE,
+     * so A* walks it a cell back with nothing special-cased. Not a check on the
+     * terrain behind the takeoff — the follower never backs up, so such a check changed which leaps
+     * were ALLOWED without changing how any was EXECUTED.
      */
     private void leapNeighbor(long current, Node node, int x, int y, int z, double from,
                               int dx, int dz) {
         int maxLeap = Math.min(this.profile.maxLeap(), LEAP_COSTS.length - 1);
         if (maxLeap < 1 || this.profile.jumpHeight() < 1) return;
-        int overhead = this.profile.topCell(from - y) + 1;   // first cell above the head
-        if (this.grid.cell(x, y + overhead, z) != CellType.PASSABLE) return; // takeoff headroom
+        // Hops — this node is the takeoff, and the approach costs nothing because there isn't one.
+        leapFrom(current, node, x, y, z, from, dx, dz, maxLeap, 0, 0.0);
+        // Wide leaps off this cell directly — allowed whenever the body ARRIVES here, which is
+        // every node but one: whatever it walked, jumped or flew in from was the approach. The
+        // exception is the path's own start, the one cell a route stands still on.
+        //
+        // The stronger rules are wrong. A block demanded BEHIND the takeoff tested the terrain, not
+        // the route, and was removed. An aligned approach refuses a pillar walked onto diagonally
+        // from the one beside it (gauntlet A8, A12) and a pillar landed on from the leap before it
+        // (A9, A11, A13), where every neighbour is a gap. Unmodelled: speed surviving a 90° TURN.
+        if (node.parent != NO_PARENT) {
+            leapFrom(current, node, x, y, z, from, dx, dz, maxLeap, 1, 0.0);
+        }
+        // Wide leaps — this node is the run-up and the cell in front is the takeoff, if the body
+        // can arrive there still on its feet and able to jump.
+        int tx = x + dx;
+        int tz = z + dz;
+        // Level with us, or a block up (a staircase summit): those are the two ways to reach the
+        // takeoff with the run's momentum intact. Scanned high-first because a body cannot stand
+        // in two cells of one column, so the upper footing (if there is one) is the only one.
+        int ty = y + 1;
+        double takeoff = footing(tx, ty, tz);
+        if (takeoff == NO_FOOTING) {
+            ty = y;
+            takeoff = footing(tx, ty, tz);
+        }
+        if (takeoff == NO_FOOTING) return;
+        double rise = takeoff - from;
+        double approach;
+        if (rise > STEP_UP) {
+            if (this.profile.jumpHeight() < 1 || rise > JUMP_UP) return;
+            // Headroom to rise into, measured from where these feet actually are — the same test
+            // stepTo makes of an ordinary jump, because that is what this leg is.
+            if (this.grid.cell(x, y + this.profile.topCell(from - y) + 1, z) != CellType.PASSABLE) return;
+            approach = JUMP_COST;
+        } else if (rise >= -STEP_UP) {
+            approach = WALK_COST;
+        } else {
+            // Running DOWNHILL into the takeoff. Refused: the body arrives falling, and a jump
+            // pressed on the tick it lands is a jump it does not get.
+            return;
+        }
+        // Not scaled by terrainFactor, for the same reason the leap itself is not:
+        // the follower does not throttle a run-up. It is careful ground by construction (it
+        // borders the gap), so charging the careful rate would price every wide leap in the world
+        // as if the approach were tiptoed.
+        leapFrom(current, node, tx, ty, tz, takeoff, dx, dz, maxLeap, 1, approach);
+    }
+
+    /**
+     * Scans one direction out of a takeoff cell for the first landing it can reach, and relaxes it
+     * onto {@code current}. What it demands of the terrain: jump headroom above the takeoff, a
+     * body-height+1 corridor over every gap column (the arc rises a block), and a standable
+     * landing. Landing is same-level only in v1.
+     *
+     * @param widths which gap widths this call prices — their {@link #LEAP_RUN_UP} entry. Widths
+     *               belonging to the other class are walked PAST rather than skipped, so a wide
+     *               leap still has to prove every column it flies over
+     * @param approach what reaching the takeoff costs on top of the leap: zero when {@code current}
+     *               Is the takeoff, a step or a jump when it is the cell behind it
+     */
+    private void leapFrom(long current, Node node, int tx, int ty, int tz, double takeoff,
+                          int dx, int dz, int maxLeap, int widths, double approach) {
+        int overhead = this.profile.topCell(takeoff - ty) + 1;   // first cell above the head
+        if (this.grid.cell(tx, ty + overhead, tz) != CellType.PASSABLE) return; // takeoff headroom
         for (int gap = 1; gap <= maxLeap; gap++) {
-            int gx = x + gap * dx;
-            int gz = z + gap * dz;
+            int gx = tx + gap * dx;
+            int gz = tz + gap * dz;
             // The column must be open for the flight but floorless at this level — else it is
             // walkable ground (no leap needed) or a wall (no leap possible). A partial floor in it
             // counts as ground for that purpose: you walk onto a slab rather than leaping it, and
             // the corridor check below would have refused the cell anyway.
-            if (this.grid.cell(gx, y - 1, gz) == CellType.GROUND) return;
+            if (this.grid.cell(gx, ty - 1, gz) == CellType.GROUND) return;
             for (int i = 0; i <= overhead; i++) { // one past the head: the arc rises a block
-                if (this.grid.cell(gx, y + i, gz) != CellType.PASSABLE) return;
+                if (this.grid.cell(gx, ty + i, gz) != CellType.PASSABLE) return;
             }
-            int lx = x + (gap + 1) * dx;
-            int lz = z + (gap + 1) * dz;
-            double landing = footing(lx, y, lz);
+            if (LEAP_RUN_UP[gap] != widths) continue; // this width is the other pass's to price
+            int lx = tx + (gap + 1) * dx;
+            int lz = tz + (gap + 1) * dz;
+            double landing = footing(lx, ty, lz);
             // Same-level landings only, still — but "level" is the footing, so leaping onto a
             // slab-topped far bank is a leap rather than a refusal. Landings a full cell up or
             // down remain out of the model (gauntlet A5/A6/A7).
-            if (landing != NO_FOOTING && Math.abs(landing - from) <= STEP_UP) {
-                // No run-up requirement, deliberately (Luiz): the follower sprints from inside the
-                // takeoff cell and never backs up, so ground behind it changed which leaps were
-                // ALLOWED without changing how any was EXECUTED. Capability is purely geometric;
-                // if 3-gaps prove unreliable, fix the follower, not this check.
-                relax(current, node, pack(lx, y, lz), landing, MoveType.LEAP, LEAP_COSTS[gap]);
+            if (landing != NO_FOOTING && Math.abs(landing - takeoff) <= STEP_UP) {
+                long launch = pack(tx, ty, tz);
+                relax(current, node, pack(lx, ty, lz), landing, MoveType.LEAP,
+                        approach + LEAP_COSTS[gap], 0,
+                        launch == current ? NO_PARENT : launch);
                 return; // landed on the near edge of the far side; wider leaps from here are moot
             }
         }
@@ -1054,11 +1161,16 @@ public final class Pathfinder {
                        double cost) {
         // A move that ends anywhere but under water puts the breath clock back to zero, which for
         // every land move is the truth: the body has its head in the air again.
-        relax(current, from, neighbor, footing, move, cost, 0);
+        relax(current, from, neighbor, footing, move, cost, 0, NO_PARENT);
     }
 
     private void relax(long current, Node from, long neighbor, double footing, MoveType move,
                        double cost, int submergedRun) {
+        relax(current, from, neighbor, footing, move, cost, submergedRun, NO_PARENT);
+    }
+
+    private void relax(long current, Node from, long neighbor, double footing, MoveType move,
+                       double cost, int submergedRun, long takeoff) {
         int ny = unpackY(neighbor);
         if (!this.domain.contains(unpackX(neighbor), ny, unpackZ(neighbor))) {
             return; // outside the fence there is no world, not merely a worse one
@@ -1077,6 +1189,7 @@ public final class Pathfinder {
             node.move = move;
             node.surface16 = surface16;
             node.submergedRun = submergedRun;
+            node.takeoff = takeoff;
             this.nodes.put(neighbor, node);
         } else if (!node.closed && g < node.g) {
             node.g = g;
@@ -1084,6 +1197,7 @@ public final class Pathfinder {
             node.move = move;
             node.surface16 = surface16;
             node.submergedRun = submergedRun;
+            node.takeoff = takeoff;
         } else {
             return;
         }
@@ -1284,18 +1398,61 @@ public final class Pathfinder {
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    /** Walks the parent chain from {@code end} back to the start and emits it forward. */
+    /**
+     * Walks the parent chain from {@code end} back to the start and emits it forward, marking the
+     * takeoff of every wide leap as it goes (see {@link #LEAP_RUN_UP}) — something only this pass
+     * can do, because it is the only place that knows what came before a waypoint.
+     *
+     * <p>Usually the takeoff is already on the route and the step onto it is re-marked,
+     * turning a WALK that would have been tiptoed at the careful throttle into the run it has to
+     * be. When the search had to go BACK for its run-up, the takeoff was never a node at all — a
+     * cell is all a node is, with nowhere in it to record that a body arrived at speed — so it is
+     * laid back in here from the cell the leap recorded. Not being a node is a feature twice over:
+     * it stays out of the closed set, and the body is free to route through that cell for some
+     * other purpose.
+     */
     private Path reconstruct(long end, boolean reachedGoal, boolean sealed, int reachableCells) {
         Deque<Waypoint> chain = new ArrayDeque<>();
         long key = end;
         Node node = this.nodes.get(key);
+        boolean takingOff = false;
         while (node.parent != NO_PARENT) {
-            chain.addFirst(new Waypoint(unpackX(key), unpackY(key), unpackZ(key), node.move,
+            // A plain step onto the takeoff of the wide leap we emitted last time round is a
+            // run-up, whatever else it looks like. Only a WALK is re-marked: a JUMP onto a summit
+            // and a LEAP landing that chains onward are both already exempt from the throttling
+            // this marking exists to prevent, and both say something the mark would erase.
+            MoveType move = takingOff && node.move == MoveType.WALK ? MoveType.RUNUP : node.move;
+            chain.addFirst(new Waypoint(unpackX(key), unpackY(key), unpackZ(key), move,
                     node.surface16));
+            takingOff = false;
+            if (node.move == MoveType.LEAP) {
+                if (node.takeoff != NO_PARENT) {
+                    // Added after the landing and before the next iteration's addFirst, so it
+                    // lands between the run-up and the landing — the order they are walked in.
+                    chain.addFirst(runUpOf(node.takeoff));
+                } else {
+                    // Took off from its own source, so the source is the takeoff — and it is a
+                    // waypoint already, the next one this loop will emit. Only a WIDE leap needs
+                    // it marked; a hop is cleared from a standstill and its takeoff is an
+                    // ordinary step. Span 2 is a hop, 3 and 4 are the 2- and 3-cell gaps.
+                    takingOff = Math.max(Math.abs(unpackX(key) - unpackX(node.parent)),
+                            Math.abs(unpackZ(key) - unpackZ(node.parent))) > 2;
+                }
+            }
             key = node.parent;
             node = this.nodes.get(key);
         }
         return new Path(new ArrayList<>(chain), reachedGoal, sealed, reachableCells);
+    }
+
+    private Waypoint runUpOf(long takeoff) {
+        int tx = unpackX(takeoff);
+        int ty = unpackY(takeoff);
+        int tz = unpackZ(takeoff);
+        double surface = footing(tx, ty, tz);
+        int surface16 = surface == NO_FOOTING ? 0
+                : Math.max(0, Math.min(15, (int) Math.round((surface - ty) * 16.0)));
+        return new Waypoint(tx, ty, tz, MoveType.RUNUP, surface16);
     }
 
     // Positions are packed into a long with BlockPos.asLong's layout (x: 26 bits, z: 26, y: 12) —

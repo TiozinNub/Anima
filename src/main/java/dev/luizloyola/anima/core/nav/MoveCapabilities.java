@@ -4,24 +4,28 @@ import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 
 /**
- * What the body a path is computed for can physically do, as plain data: the neighbour model is
- * parameterized by this rather than hard-coding any particular creature.
+ * What the body a path is computed for can physically do, as plain data — the neighbour model is
+ * parameterized by it, so a one-cell-tall wolf routes under what a settler walks around.
  *
- * <p><b>A snapshot.</b> These are {@link ProfileAspect}s and can shift under a
- * modifier, but the A* runs OFF the server thread, so {@link #of} reads them once on the calling
- * thread.
+ * <p><b>A snapshot.</b> These are {@link ProfileAspect}s — per species, shiftable by
+ * a modifier — but the A* runs OFF the server thread, where a live view could change under it
+ * mid-path. {@link #of} takes the reading once, on the calling thread.
  *
  * @param height     body height in blocks — the real hitbox (1.8 for a Person), not a cell count;
- *                   {@link #topCell} works out what it costs in cells
- * @param jumpHeight cells it can jump straight up (only 0 and 1 are modelled)
- * @param maxDrop    cells it will willingly fall <em>onto ground</em>; water cancels a fall, and
- *                   the search prices plunges by depth instead
- * @param maxLeap    widest gap (cells) at the same level; 2+ needs a sprint run-up, so the engine
- *                   also demands an aligned approach cell
- * @param canSwim    whether it may cross water; false keeps {@link CellType#WATER} impassable.
- *                   Wading is not swimming — standable water is ground to the search
- * @param maxSubmerged cells it may travel with its head under water. Body STATE, not shape: read
- *                   off the breath gauge when the request was made. Zero refuses submerged travel
+ *                   what it costs in cells depends on how high the floor sits inside its own cell,
+ *                   which is what {@link #topCell} works out
+ * @param jumpHeight how many cells it can jump straight up (only 0 and 1 are modelled)
+ * @param maxDrop    how many cells it will willingly fall <em>onto ground</em>; deeper is a hole to
+ *                   route around. Water cancels it — the search prices plunges by depth instead
+ * @param maxLeap    widest gap (in cells) it can jump at the same level. Gaps of 2+ need a sprint
+ *                   run-up: the search sources them a cell further back and walks the approach as a
+ *                   {@link MoveType#RUNUP} leg — see {@code Pathfinder.LEAP_RUN_UP}
+ * @param canSwim    whether it may enter and cross water; false keeps {@link CellType#WATER}
+ *                   impassable. Wading is not swimming — water shallow enough to stand up in is
+ *                   ground to the search
+ * @param maxSubmerged cells of travel it may make with its head under water before reaching air.
+ *                   Body STATE, not shape — read off the breath gauge at request time, so a
+ *                   half-drowned body plans a shorter tunnel. Zero refuses submerged travel
  */
 public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
                                boolean canSwim, int maxSubmerged) {

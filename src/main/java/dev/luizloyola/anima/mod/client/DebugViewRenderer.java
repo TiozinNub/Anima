@@ -829,6 +829,10 @@ public final class DebugViewRenderer {
             case JUMP -> JUMP_COLOR;
             case DROP -> DROP_COLOR;
             case LEAP -> LEAP_COLOR;
+            // The run-up draws in the leap's own colour: it is half of that move, and a leg that
+            // looked like an ordinary walk is the thing you would misread when a wide leap
+            // came up short.
+            case RUNUP -> LEAP_COLOR;
             // The vertical pair draw as swimming: they ARE swimming, and a debug line that is
             // one cell long has its own shape to say so without needing a colour of its own.
             case SWIM, DIVE, SURFACE -> SWIM_COLOR;

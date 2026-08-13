@@ -111,4 +111,32 @@ class PathIntegrityTest {
         assertTrue(needs.stream().noneMatch(n -> n.y() == 4 && (n.x() == 1 || n.x() == 2)),
                 "gap-column floors must not be watched");
     }
+
+    @Test
+    void aLevelRunUpWatchesEveryCellItsFeetCross() {
+        // A level run-up is marked ordinary travel: the stride still puts deck cells between its
+        // endpoints, and watching only the takeoff would stop watching them.
+        List<CellNeed> needs = PathIntegrity.edgeNeeds(
+                new Waypoint(0, 5, 0, MoveType.WALK), new Waypoint(3, 5, 0, MoveType.RUNUP), PERSON);
+        assertEquals(List.of(
+                new CellNeed(0, 5, 0, CellNeed.Need.FOOTING),
+                new CellNeed(0, 6, 0, CellNeed.Need.CLEAR),
+                new CellNeed(1, 5, 0, CellNeed.Need.FOOTING),
+                new CellNeed(1, 6, 0, CellNeed.Need.CLEAR),
+                new CellNeed(2, 5, 0, CellNeed.Need.FOOTING),
+                new CellNeed(2, 6, 0, CellNeed.Need.CLEAR),
+                new CellNeed(3, 5, 0, CellNeed.Need.FOOTING),
+                new CellNeed(3, 6, 0, CellNeed.Need.CLEAR)), needs);
+    }
+
+    @Test
+    void aRisingRunUpWatchesItsTakeoffOnly() {
+        // The staircase-summit run-up is a jump, and the line rule would ask the cell BELOW the
+        // summit to be standable at the summit's own level — which on a staircase is thin air.
+        List<CellNeed> needs = PathIntegrity.edgeNeeds(
+                new Waypoint(0, 4, 0, MoveType.WALK), new Waypoint(1, 5, 0, MoveType.RUNUP), PERSON);
+        assertEquals(List.of(
+                new CellNeed(1, 5, 0, CellNeed.Need.FOOTING),
+                new CellNeed(1, 6, 0, CellNeed.Need.CLEAR)), needs);
+    }
 }

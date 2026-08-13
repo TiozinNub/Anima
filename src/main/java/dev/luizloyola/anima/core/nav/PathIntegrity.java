@@ -5,27 +5,31 @@ import java.util.List;
 
 /**
  * Derives the completion-critical cells of a path <em>edge</em> — the "relevant blocks" the
- * follower watches ahead of the body (see {@code Navigator}'s integrity check). Keyed on the move,
- * and for the common case it is the cells the feet cross, not just the destination:
+ * follower watches a few nodes ahead of the body (see {@code Navigator}'s integrity check). Keyed
+ * on the move, and for the common case it is the cells the feet cross, not just the destination:
  *
  * <ul>
- *   <li><b>Level ground moves</b> ({@link MoveType#WALK} — step, diagonal or stride): every cell on
- *       the {@link #lineCells Bresenham line} needs {@link CellNeed.Need#FOOTING} and a
- *       {@link CellNeed.Need#CLEAR} column. Destination-only missed a block pulled from the
- *       <em>middle</em> of a stride, and the follower walked off it.
+ *   <li><b>Level ground moves</b> ({@link MoveType#WALK}: step, diagonal or multi-cell stride):
+ *       every cell of the {@link #lineCells Bresenham line} between the waypoints must keep
+ *       {@link CellNeed.Need#FOOTING} under a {@link CellNeed.Need#CLEAR} body column. Watching
+ *       only the destination missed blocks pulled from the middle of a stride — a 3-cell stride
+ *       leaves two of every three deck cells between waypoints.
  *   <li><b>Water moves</b> ({@link MoveType#inWater()}): the destination feet cell stays
  *       {@link CellNeed.Need#WATER} with {@link CellNeed.Need#ROOM} above — room, not air, because
  *       a diving body's own column is water.
  *   <li><b>Leaps</b> ({@link MoveType#LEAP}): the landing plus the flight arc — takeoff headroom
- *       and a clear body-height+1 corridor over every gap column — so a wall in the arc is caught.
- *   <li><b>Other vertical moves</b> ({@link MoveType#DROP}, {@link MoveType#JUMP}): destination
- *       standability only; in-flight failures land as stumbles the reactive stuck/stray net already
- *       recovers from.
+ *       and a clear body-height+1 corridor over every gap column, so a wall built into the arc is
+ *       caught too.
+ *   <li><b>Other vertical moves</b> ({@link MoveType#DROP}, {@link MoveType#JUMP}): the destination
+ *       only; the drop shaft and the block a jump clears are left to the reactive stuck/stray net.
+ *   <li><b>Run-ups</b> ({@link MoveType#RUNUP}): the line rule when level, the destination rule
+ *       when it rises onto its takeoff. Either way the takeoff is watched again, as the next leap's
+ *       launch cell.
  * </ul>
  *
  * <p>Re-derived from waypoint geometry rather than recorded by the search, so it mirrors what
  * {@link Pathfinder}'s level-move generators require; {@code PathIntegrityTest} pins the shape. If
- * the move vocabulary grows a case this misses, source the cells from the generators instead.
+ * the move vocabulary grows a case this misses, source the cells from the generators directly.
  */
 public final class PathIntegrity {
     private PathIntegrity() {}
@@ -46,9 +50,14 @@ public final class PathIntegrity {
             }
             return needs;
         }
-        if (to.move() == MoveType.WALK) {
-            // Level ground move: watch the standable floor + body under every cell the feet cross,
-            // at this waypoint's level (walks/diagonals/strides are all same-level).
+        if (to.move() == MoveType.WALK
+                || (to.move() == MoveType.RUNUP && from.y() == to.y())) {
+            // Level ground move: standable floor + body column under every cell the feet cross, at
+            // this waypoint's level (walks, diagonals and strides are all same-level).
+            //
+            // A level RUNUP belongs here — a step, diagonal or stride onto a takeoff, re-marked so
+            // the follower runs it; a re-marked stride still puts two deck cells between its
+            // endpoints. One that RISES onto its takeoff is a jump and falls through below.
             for (int[] cell : lineCells(from.x(), from.z(), to.x(), to.z())) {
                 addStandable(needs, cell[0], to.y(), cell[1], profile, to.surface16() / 16.0);
             }

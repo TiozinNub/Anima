@@ -58,16 +58,16 @@ public final class Navigator {
     /** Intermediate waypoints are corners, not destinations — cut them tighter so turns hug the path. */
     private static final double WAYPOINT_RADIUS = 0.4;
     /**
-     * Careful mode, active while the ground being crossed borders a deep drop / lava / water
-     * ({@link NavGrids#isNearDeepDrop}): forward input throttled to about half walk speed and
-     * waypoints hit tighter. JUMP and LEAP are exempt — a leap's takeoff is edge-adjacent by
-     * definition and needs full speed.
+     * Careful mode, while the ground crossed borders a deep drop / lava / water
+     * ({@link NavGrids#isNearDeepDrop}): ~half walk speed and tighter waypoints, so a misstep
+     * can't carry the body over an edge. JUMP, LEAP and RUNUP are exempt: a takeoff is
+     * edge-adjacent by definition and needs full speed.
      */
     private static final float CAREFUL_THROTTLE = 0.45F;
     /**
-     * Forward input for a {@link Gait#STROLL} on open ground: ~55% walk speed (≈2.4 b/s).
-     * Above the careful throttle — careful is a SAFETY slowdown and keeps precedence
-     * via its earlier branch. LEAP legs are exempt (the run-up needs full speed).
+     * Forward input for a {@link Gait#STROLL} on open ground: ~55% walk speed (≈2.4 b/s). Above
+     * the careful throttle by design — careful is a SAFETY slowdown and keeps precedence via its
+     * earlier branch. LEAP and RUNUP legs are exempt: a gap needs its run-up speed regardless.
      */
     private static final float STROLL_THROTTLE = 0.55F;
     /**
@@ -674,11 +674,14 @@ public final class Navigator {
         // of the sprint-jump speed a span-3 (2-block-gap) leap needs, so the next leap falls short,
         // strays and re-paths forever. The brake stands down whenever a leap leaves this cell: a
         // leap already past its landing phase (the 1.44 mirrors leapLanding below), or one whose
-        // next waypoint leaps.
-        boolean leapTakeoff = waypoint.move() == MoveType.LEAP
-                && (horizontalSq > 1.44
-                        || (this.index + 1 < this.path.waypoints().size()
-                                && this.path.waypoints().get(this.index + 1).move() == MoveType.LEAP));
+        // next waypoint leaps. A planned RUNUP leg says the same in advance — braking an approach
+        // whose job is to arrive fast undoes the leg, which bites on the summit shape, where the
+        // run-up JUMPS onto the takeoff.
+        boolean leapTakeoff = waypoint.move() == MoveType.RUNUP
+                || (waypoint.move() == MoveType.LEAP
+                        && (horizontalSq > 1.44
+                                || (this.index + 1 < this.path.waypoints().size()
+                                        && this.path.waypoints().get(this.index + 1).move() == MoveType.LEAP)));
         if (this.groundedTicks >= 1 && this.groundedTicks <= 3 && this.grid != null && !leapTakeoff) {
             BlockPos feet = this.person.blockPosition();
             if (NavGrids.isNearDeepDrop(this.grid, capabilities().maxDrop(),
@@ -704,10 +707,15 @@ public final class Navigator {
             return;
         }
 
-        // Leap phases: full speed through approach and flight; grounded near the landing ("landing
-        // phase") the sprint cuts, and if that cell borders another drop careful mode takes the
-        // settling ticks so the landing momentum can't carry us over the far edge.
-        double leapSpan = waypoint.move() == MoveType.LEAP ? leapSpan(waypoint) : 0.0;
+        // Leap phases: full speed through approach and flight; once grounded near the landing the
+        // sprint cuts, and if that cell borders another drop careful mode takes the settling ticks.
+        // The span the gait is chosen against is the leap being flown, or on a RUNUP the leap about
+        // to be — a run-up decides its speed by where it is GOING.
+        double leapSpan = switch (waypoint.move()) {
+            case LEAP -> leapSpan(waypoint);
+            case RUNUP -> runUpSpan();
+            default -> 0.0;
+        };
         boolean leapLanding = waypoint.move() == MoveType.LEAP && this.person.onGround()
                 && horizontalSq <= 1.44;
         boolean careful = isCareful(waypoint, leapLanding);
@@ -830,14 +838,18 @@ public final class Navigator {
         boolean leapFlightTrim = committedFlight && leapSpan > 2.5 && leapSpan < 3.5;
         // STROLL eases the open-ground walk to its amble, but never a LEAP leg, and the careful
         // throttle (0.45, below the stroll's 0.55) still wins via its earlier branch.
-        boolean stroll = this.gait == Gait.STROLL && waypoint.move() != MoveType.LEAP;
+        boolean stroll = this.gait == Gait.STROLL
+                && waypoint.move() != MoveType.LEAP && waypoint.move() != MoveType.RUNUP;
         this.person.driveForward(heading,
                 coastToLanding ? 0.0F
                         : careful || precisionFinal ? CAREFUL_THROTTLE
                         : leapFlightTrim ? LEAP_AIR_THROTTLE
                         : stroll ? STROLL_THROTTLE
                         : 1.0F);
-        if (waypoint.move() == MoveType.JUMP && dy < -0.5
+        // A RUNUP is driven like a JUMP when its takeoff is a block up (the staircase summit) and
+        // like a WALK when it is level — which the dy guard already decides, so the two share the
+        // branch rather than the label.
+        if ((waypoint.move() == MoveType.JUMP || waypoint.move() == MoveType.RUNUP) && dy < -0.5
                 && horizontalSq < JUMP_RANGE * JUMP_RANGE && this.person.onGround()) {
             // A full block up needs a real jump (step height covers only 0.6); aiStep's ground check
             // fires it the moment we are grounded and close. The dy guard keeps the press to while
@@ -982,6 +994,13 @@ public final class Navigator {
             if (w.move() == MoveType.LEAP && !this.person.onGround()) {
                 continue;
             }
+            // A RUNUP is never claimed by standing in it. A body parked at the edge of a gap gets a
+            // path that walks it a cell BACK and runs at the thing; its feet are in the takeoff
+            // cell on tick one, so a skip would claim the run-up on the spot, hand it the leap from
+            // a standing start, and reproduce the failure the plan just avoided.
+            if (w.move() == MoveType.RUNUP) {
+                continue;
+            }
             if (feet.getX() == w.x() && feet.getZ() == w.z()
                     && atWaypointHeight(y - w.feetY(), w.move(), isWet())) {
                 this.index = Math.min(j + 1, last);
@@ -1005,6 +1024,17 @@ public final class Navigator {
                 return; // a leap landing is claimed on touchdown, never mid-flight (see skip)
             }
             Waypoint next = this.path.waypoints().get(this.index + 1);
+            // The one arrangement this advance reads backwards: standing in the takeoff cell with
+            // the run-up onto it still ahead. It assumes a waypoint is reached from the far side of
+            // its outgoing segment, so a body parked on the takeoff already sits past the run-up
+            // start — it would claim that cell without moving and take the wide leap from a
+            // standstill. Refusing walks the leg properly, and is also right when a glide carried
+            // it onto the takeoff by accident.
+            if (next.move() == MoveType.RUNUP
+                    && this.person.blockPosition().getX() == next.x()
+                    && this.person.blockPosition().getZ() == next.z()) {
+                return;
+            }
             double offX = pos.x - (current.x() + 0.5);
             double offZ = pos.z - (current.z() + 0.5);
             double segX = next.x() - current.x();
@@ -1132,10 +1162,13 @@ public final class Navigator {
     }
 
     /**
-     * Whether this moment warrants careful mode (see {@link #CAREFUL_THROTTLE}). Walk and drop
-     * stretches are careful when the waypoint or our own feet cell borders a deep drop; a LEAP only
-     * in its landing phase, and only when the landing cell itself borders another drop. Checked
-     * against the grid the path was planned on.
+     * Whether this moment warrants careful mode (see {@link #CAREFUL_THROTTLE}), checked against
+     * the grid the path was planned on. Walk/drop stretches are careful when the waypoint or our
+     * own feet cell borders a deep drop; a LEAP only in its landing phase, and only when that cell
+     * borders another drop.
+     *
+     * <p>A RUNUP is never careful: it ends on a cell that borders the gap by construction, so
+     * consulting the drop would throttle every run-up to 0.45 and there would be no wide leaps.
      */
     private boolean isCareful(Waypoint waypoint, boolean leapLanding) {
         if (this.grid == null) {
@@ -1162,6 +1195,21 @@ public final class Navigator {
      * (2..4). Read off the previous waypoint (leaps are cardinal, so the Chebyshev distance is
      * exact); when the leap is the path's first move the takeoff is our own start cell.
      */
+    /**
+     * Span of the leap a {@link MoveType#RUNUP} leg is feeding — the same 2..4 number read one
+     * waypoint FORWARD instead of one back. It picks the gait: a run-up onto a span-3 leap's
+     * takeoff sprints, and that is the only reason the leap clears. Zero if nothing follows, which
+     * the search never produces (it never ends a path on a run-up).
+     */
+    private double runUpSpan() {
+        if (this.index + 1 >= this.path.waypoints().size()) {
+            return 0.0;
+        }
+        Waypoint takeoff = this.path.waypoints().get(this.index);
+        Waypoint landing = this.path.waypoints().get(this.index + 1);
+        return Math.max(Math.abs(landing.x() - takeoff.x()), Math.abs(landing.z() - takeoff.z()));
+    }
+
     private double leapSpan(Waypoint waypoint) {
         int fromX;
         int fromZ;

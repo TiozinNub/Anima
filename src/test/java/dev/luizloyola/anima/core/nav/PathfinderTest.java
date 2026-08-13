@@ -173,6 +173,8 @@ class PathfinderTest {
         assertTrue(path.reachedGoal());
         assertTrue(path.waypoints().contains(new Waypoint(4, 1, 0, MoveType.LEAP)),
                 "expected a 2-wide leap onto (4,1,0), got " + path.waypoints());
+        assertTrue(path.waypoints().contains(new Waypoint(1, 1, 0, MoveType.RUNUP)),
+                "the takeoff must be walked as a run-up, got " + path.waypoints());
     }
 
     @Test
@@ -181,6 +183,17 @@ class PathfinderTest {
         assertTrue(path.reachedGoal());
         assertTrue(path.waypoints().contains(new Waypoint(5, 1, 0, MoveType.LEAP)),
                 "expected a 3-wide leap onto (5,1,0), got " + path.waypoints());
+        assertTrue(path.waypoints().contains(new Waypoint(1, 1, 0, MoveType.RUNUP)),
+                "the takeoff must be walked as a run-up, got " + path.waypoints());
+    }
+
+    @Test
+    void aHopNeedsNoRunUp() {
+        // A 1-cell gap is cleared from a standstill: the search must not spend a cell backing up
+        // for it. That is what keeps a puddle cheap.
+        Path path = find(AsciiWorld.of("111 1"), 2, 1, 0, 4, 1, 0);
+        assertTrue(path.reachedGoal());
+        assertEquals(List.of(new Waypoint(4, 1, 0, MoveType.LEAP)), path.waypoints());
     }
 
     @Test
@@ -211,21 +224,98 @@ class PathfinderTest {
     }
 
     @Test
-    void leapsATwoWideGapFromAStandingStart() {
-        // No run-up cell at all (world edge behind the takeoff): a 2-gap still clears from a
-        // standing sprint-jump.
+    void refusesAWideLeapWithNowhereToRunUpFrom() {
+        // Half a block of runway is a standing jump however hard the follower presses sprint, so
+        // there is no route — this used to be planned, attempted, and dropped into.
         Path path = find(AsciiWorld.of("1  1"), 0, 1, 0, 3, 1, 0);
-        assertTrue(path.reachedGoal());
-        assertEquals(List.of(new Waypoint(3, 1, 0, MoveType.LEAP)), path.waypoints());
+        assertFalse(path.reachedGoal());
     }
 
     @Test
-    void leapsAThreeWideGapFromAStandingStart() {
-        // No ground behind the takeoff at all: capability is geometric, so this equals the
-        // has-a-block-behind case (the follower sprints from inside the takeoff either way).
+    void refusesAThreeWideLeapWithNowhereToRunUpFrom() {
         Path path = find(AsciiWorld.of("1   1"), 0, 1, 0, 4, 1, 0);
+        assertFalse(path.reachedGoal());
+    }
+
+    @Test
+    void backsUpACellToRunAtAThreeWideGapItIsAlreadyStandingAtTheEdgeOf() {
+        // Why the leap is sourced from the run-up rather than guarded by a check: the body BEGINS
+        // on the takeoff cell, which no approach requirement could repair. The run-up is a node of
+        // its own, so A* walks a cell back and runs at the gap.
+        Path path = find(AsciiWorld.of("1111   1"), 3, 1, 0, 7, 1, 0);
         assertTrue(path.reachedGoal());
-        assertEquals(List.of(new Waypoint(4, 1, 0, MoveType.LEAP)), path.waypoints());
+        assertEquals(List.of(
+                        new Waypoint(2, 1, 0, MoveType.WALK),
+                        new Waypoint(3, 1, 0, MoveType.RUNUP),
+                        new Waypoint(7, 1, 0, MoveType.LEAP)),
+                path.waypoints());
+    }
+
+    @Test
+    void backsUpACellToRunAtATwoWideGap() {
+        Path path = find(AsciiWorld.of("1111  1"), 3, 1, 0, 6, 1, 0);
+        assertTrue(path.reachedGoal());
+        assertEquals(List.of(
+                        new Waypoint(2, 1, 0, MoveType.WALK),
+                        new Waypoint(3, 1, 0, MoveType.RUNUP),
+                        new Waypoint(6, 1, 0, MoveType.LEAP)),
+                path.waypoints());
+    }
+
+    @Test
+    void noWideLeapTakesOffFromAPlainWalk() {
+        // A takeoff left looking like ordinary ground is throttled to 0.45 on approach — it borders
+        // the gap, so careful mode fires every time — and a tiptoed approach is a standing jump. So
+        // the step onto a 2- or 3-cell leap's takeoff must read as a run-up, or be a leap of its
+        // own (a chain arrives at flight speed already).
+        for (Path path : List.of(
+                find(AsciiWorld.of("11  11"), 0, 1, 0, 5, 1, 0),
+                find(AsciiWorld.of("11   11"), 0, 1, 0, 6, 1, 0),
+                find(AsciiWorld.of("1111   1"), 3, 1, 0, 7, 1, 0),
+                find(AsciiWorld.of("1234  4"), 0, 1, 0, 6, 4, 0),
+                find(AsciiWorld.of("1234   4"), 0, 1, 0, 7, 4, 0),
+                // Chained 1-wide pillars over a 2-gap: every takeoff here is a landing, and there
+                // is no cell to run up from — the gauntlet's A9 shape.
+                find(AsciiWorld.of("11 1  1  1  11"), 0, 1, 0, 13, 1, 0))) {
+            List<Waypoint> steps = path.waypoints();
+            assertTrue(path.reachedGoal(), "expected a route: " + steps);
+            for (int i = 0; i < steps.size(); i++) {
+                Waypoint to = steps.get(i);
+                if (to.move() != MoveType.LEAP || i == 0) {
+                    continue;
+                }
+                Waypoint takeoff = steps.get(i - 1);
+                int span = Math.max(Math.abs(to.x() - takeoff.x()), Math.abs(to.z() - takeoff.z()));
+                if (span <= 2) {
+                    continue; // a hop needs no speed and its takeoff is ordinary ground
+                }
+                assertTrue(takeoff.move() == MoveType.RUNUP || takeoff.move() == MoveType.LEAP,
+                        "a span-" + span + " leap took off from a " + takeoff.move() + ": " + steps);
+            }
+        }
+    }
+
+    @Test
+    void everyRunUpIsFollowedByItsLeap() {
+        // A RUNUP is exempt from the landing brake and from being claimed by standing in it, both
+        // wrong for a leg that ended a walk — it exists only as the step before a landing.
+        for (Path path : List.of(
+                find(AsciiWorld.of("11  11"), 0, 1, 0, 5, 1, 0),
+                find(AsciiWorld.of("11   11"), 0, 1, 0, 6, 1, 0),
+                find(AsciiWorld.of("1111   1"), 3, 1, 0, 7, 1, 0),
+                find(AsciiWorld.of("1234  4"), 0, 1, 0, 6, 4, 0))) {
+            List<Waypoint> steps = path.waypoints();
+            assertTrue(steps.stream().anyMatch(w -> w.move() == MoveType.RUNUP),
+                    "expected a run-up in " + steps);
+            for (int i = 0; i < steps.size(); i++) {
+                if (steps.get(i).move() != MoveType.RUNUP) {
+                    continue;
+                }
+                assertTrue(i + 1 < steps.size(), "a run-up ended the path: " + steps);
+                assertEquals(MoveType.LEAP, steps.get(i + 1).move(),
+                        "a run-up must hand off to its leap: " + steps);
+            }
+        }
     }
 
     @Test
