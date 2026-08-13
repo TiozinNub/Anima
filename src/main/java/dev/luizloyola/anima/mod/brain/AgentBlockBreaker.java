@@ -2,11 +2,21 @@ package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.core.brain.act.BlockBreaker;
 import dev.luizloyola.anima.core.brain.act.BreakState;
+import dev.luizloyola.anima.core.brain.act.MiningSpeed;
 import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.mod.body.AgentAttributes;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.effect.MobEffectUtil;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -14,19 +24,25 @@ import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The {@link BlockBreaker} port over a live {@link AgentBody} — vanilla-fidelity breaking without a
- * {@code Player}: the survival progress formula (hardness, the HELD stack's destroy speed, the
- * correct-tool divisor — a bare hand takes ~3s on a log), the broadcast crack animation, real drops
- * via {@code destroyBlock(pos, true)}, and 0.005 exhaustion per block onto
+ * The {@link BlockBreaker} port over a live {@link AgentBody} — vanilla-fidelity block breaking
+ * without a {@code Player}: the survival player's progress formula (hardness, the HELD stack's
+ * destroy speed, the correct-tool divisor — a bare hand takes ~3s on a log), every factor
+ * {@link MiningSpeed} adds (Haste, Mining Fatigue, Efficiency, water over the eyes, mid-air), the
+ * shared crack animation, an arm swing, real drops, and the player's 0.005 exhaustion per block onto
  * {@link AgentBody#metabolism()}.
  *
- * <p>Owned and ticked by the body, exposed to the brain as a port: the machine lives with the body,
- * the brain holds intent. Every tick re-validates the world, re-reading the held item, so a swapped
- * block or a body out of reach fails the break and a mid-break tool swap changes speed.
+ * <p>Owned and ticked by the body ({@link AgentBody#serverAiStep()}), exposed to the brain as a port
+ * by the {@link BrainDriver}. Every tick mid-break re-validates the world — a swapped block or a
+ * body out of reach fails the break — and re-reads the held item, so a mid-break tool swap changes
+ * speed like a player's.
  */
 public final class AgentBlockBreaker implements BlockBreaker {
-    /** Arm's reach in blocks (eye to block center) — the survival player's block-interaction range. */
-    private static final double REACH = 4.5;
+    /**
+     * Arm's reach in blocks (eye to block center) for a body that declares no
+     * {@code block_interaction_range} — the survival player's own default, for a body that skipped
+     * {@link AgentAttributes#mining}.
+     */
+    private static final double DEFAULT_REACH = 4.5;
     /** Vanilla's per-block exhaustion for breaking (verified against the player mining path). */
     private static final float EXHAUSTION_PER_BLOCK = 0.005F;
 
@@ -142,17 +158,54 @@ public final class AgentBlockBreaker implements BlockBreaker {
         state = BreakState.IDLE;
     }
 
-    /** The survival player's destroy-progress formula: held speed / hardness / divisor. */
+    /** The survival player's destroy-progress formula, minus nothing: speed / hardness / divisor. */
     private float perTick(BlockState blockState, float hardness) {
         ItemStack held = person.entity().getMainHandItem();
-        float speed = held.getDestroySpeed(blockState);
         boolean harvest = !blockState.requiresCorrectToolForDrops()
                 || held.isCorrectToolForDrops(blockState);
-        return speed / hardness / (harvest ? 30.0F : 100.0F);
+        return miningSpeed(held, blockState) / hardness / (harvest ? 30.0F : 100.0F);
+    }
+
+    /**
+     * Everything the world has to say about how fast this body mines, gathered off the entity and
+     * combined by {@link MiningSpeed}.
+     *
+     * <p>Haste and Conduit Power arrive together through {@code MobEffectUtil} — the call
+     * {@code LivingEntity} uses to shorten the swing ANIMATION, and that is how a hasted agent came to
+     * swing visibly faster while mining at the old rate.
+     */
+    private float miningSpeed(ItemStack held, BlockState blockState) {
+        LivingEntity self = person.entity();
+        MobEffectInstance fatigue = self.getEffect(MobEffects.MINING_FATIGUE);
+        return MiningSpeed.of(
+                held.getDestroySpeed(blockState),
+                attribute(self, Attributes.MINING_EFFICIENCY, 0.0),
+                MobEffectUtil.hasDigSpeed(self)
+                        ? MobEffectUtil.getDigSpeedAmplification(self) : MiningSpeed.ABSENT,
+                fatigue == null ? MiningSpeed.ABSENT : fatigue.getAmplifier(),
+                attribute(self, Attributes.BLOCK_BREAK_SPEED, 1.0),
+                self.isEyeInFluid(FluidTags.WATER)
+                        ? attribute(self, Attributes.SUBMERGED_MINING_SPEED, 0.2) : MiningSpeed.DRY,
+                self.onGround());
+    }
+
+    /**
+     * An attribute this body may not have declared: a consumer that never called
+     * {@link AgentAttributes#mining} would otherwise take an {@code IllegalArgumentException} out of
+     * {@code AttributeSupplier.getValue} mid-swing. The fallback is the vanilla player's default, so
+     * an undeclared body mines like an unmodified one.
+     */
+    private static double attribute(LivingEntity self, Holder<Attribute> attribute, double whenAbsent) {
+        return self.getAttributes().hasAttribute(attribute)
+                ? self.getAttributeValue(attribute) : whenAbsent;
     }
 
     private boolean inReach(BlockPos pos) {
-        return person.entity().getEyePosition().distanceToSqr(Vec3.atCenterOf(pos)) <= REACH * REACH;
+        // Vanilla's own geometry (eye to block centre) over vanilla's own number, so a reach
+        // modifier on the body moves what the arm can touch — the constant was only ever the
+        // player's default value written down.
+        double reach = attribute(person.entity(), Attributes.BLOCK_INTERACTION_RANGE, DEFAULT_REACH);
+        return person.entity().getEyePosition().distanceToSqr(Vec3.atCenterOf(pos)) <= reach * reach;
     }
 
     private void fail() {
