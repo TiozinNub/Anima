@@ -4,21 +4,18 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 
 /**
- * The vanilla attributes a body must own before the world can tune it — folded into a consumer's
+ * The vanilla attributes a body must own before the world can tune it, folded into a consumer's
  * {@code createAttributes()}.
  *
- * <p><b>An undeclared attribute is a silent hole, not a zero.</b> {@code AttributeMap} skips a
- * modifier whose instance is missing without a log line, so an Efficiency V pickaxe is not
- * enchanted and a datapack raising {@code block_break_speed} misses your agents. Reading one is
- * worse: {@code AttributeSupplier.getValue} throws, so {@code AgentBlockBreaker} reads
- * each through a presence check and falls back to the vanilla player's default.
+ * <p>An undeclared attribute is a silent hole, not a zero: {@code AttributeMap} drops a modifier
+ * whose instance is missing, without a log line, so an Efficiency V pickaxe is not enchanted and a
+ * datapack's {@code block_break_speed} misses your agents. Reading one throws
+ * {@code IllegalArgumentException} out of {@code AttributeSupplier.getValue}, so
+ * {@code AgentBlockBreaker} reads each through a presence check with a player default.
  *
- * <p>Modifiers are data — a status effect, an enchantment, an item component, a datapack, another
- * mod all deliver tuning the same way — so declaring the attribute is the whole of the work.
- *
- * <p><b>Only what something reads.</b> A player declares twelve; these are the four a mining body
- * consults. The combat set (attack damage and speed, where Strength, Weakness and Haste's second
- * half land) waits until an agent can swing at something.
+ * <p>Modifiers are data (effects, enchantments, item components, datapacks, other mods), so
+ * declaring the attribute is the whole of the work, and content nobody has written yet lands too.
+ * That is why {@link #combat} is declared though nothing reads it.
  */
 public final class AgentAttributes {
 
@@ -48,5 +45,27 @@ public final class AgentAttributes {
                 .add(Attributes.BLOCK_BREAK_SPEED)
                 .add(Attributes.SUBMERGED_MINING_SPEED)
                 .add(Attributes.BLOCK_INTERACTION_RANGE);
+    }
+
+    /**
+     * Adds the player's combat attributes, at the player's own values.
+     *
+     * <ul>
+     *   <li>{@code attack_damage} (1, a fist — <b>not</b> the attribute's own default of 2) —
+     *       where a weapon's damage, Strength (+3/level) and Weakness (-4/level) all land
+     *   <li>{@code attack_speed} (4) — where a weapon's swing rate lands, and the half of Haste
+     *       and Mining Fatigue that is not about mining
+     *   <li>{@code sweeping_damage_ratio} (0) — where Sweeping Edge lands
+     * </ul>
+     *
+     * <p>Nothing reads these yet; they are declared because the alternative is a hole, not a
+     * default (see the class note). Vanilla reads {@code attack_damage} only off a {@code Mob} (its
+     * own) or a {@code Player}, so declaring them changes no behaviour today.
+     */
+    public static AttributeSupplier.Builder combat(AttributeSupplier.Builder builder) {
+        return builder
+                .add(Attributes.ATTACK_DAMAGE, 1.0)
+                .add(Attributes.ATTACK_SPEED)
+                .add(Attributes.SWEEPING_DAMAGE_RATIO);
     }
 }
