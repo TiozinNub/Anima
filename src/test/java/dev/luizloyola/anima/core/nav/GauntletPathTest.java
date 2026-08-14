@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.nav;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -139,6 +140,72 @@ class GauntletPathTest {
     void startIsStandable(Station s) {
         assertEquals(CellType.GROUND, world.cell(s.sx(), s.sy() - 1, s.sz()),
                 () -> s.id() + ": nothing solid under the start pad");
+    }
+
+    /**
+     * Every route must be one a body could walk in the world it was planned in: each edge goes back
+     * through {@link PathIntegrity}, the engine's own statement of what that edge depends on, and
+     * the captured world is asked whether it provides it. A path that fails this was malformed on
+     * the day it was made, not "walkable until something changes" — that is the follower's problem.
+     *
+     * <p>Everything else here asks only whether a route EXISTS and is blind to what it is made of:
+     * A9 once scored a clean {@code plans=true} while laying a RUNUP over a six-block hole.
+     *
+     * <p>It reuses the searches the lock already runs, so any future move that emits an edge its own
+     * integrity rule refuses trips on 186 real terrains.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("stations")
+    void everyPlannedRouteIsWalkableInTheWorldItWasPlannedIn(Station s) {
+        List<Waypoint> route = Pathfinder.find(world,
+                PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+        // The body's own cell is where the first edge comes from. Its surface is zero by the same
+        // reasoning startIsStandable pins: a station pad is a full block.
+        Waypoint previous = new Waypoint(s.sx(), s.sy(), s.sz(), MoveType.WALK);
+        for (Waypoint to : route) {
+            Waypoint from = previous;
+            for (CellNeed need : PathIntegrity.edgeNeeds(from, to, BODY)) {
+                assertTrue(NavGrids.satisfies(world, need),
+                        () -> s.id() + " (" + s.title() + "): the route asks for " + need.need()
+                                + " at " + need.x() + " " + need.y() + " " + need.z()
+                                + ", which the captured world does not provide — the edge into "
+                                + to.move() + " " + to.x() + " " + to.y() + " " + to.z()
+                                + " is not walkable. Full route: " + route);
+            }
+            previous = to;
+        }
+    }
+
+    /**
+     * The rim starts (see {@code rim_start} in the generator): stations that begin ON the takeoff
+     * rather than on a pad, which is the one thing the other 186 cannot ask. Reaching the goal is
+     * not enough here, so this asserts HOW.
+     *
+     * <p>A wide gap must be crossed by first walking AWAY from it — a body on the takeoff has half
+     * a block of runway, so the route goes back a cell and the step onto the takeoff comes back
+     * marked {@link MoveType#RUNUP}. A 1-cell hop must not: that cell is waste, and it is the half
+     * of the rule most easily lost by tuning the other.
+     */
+    @Test
+    void rimStartsBackUpForAWideGapAndOnlyForAWideGap() {
+        for (String id : List.of("A1.R", "A2.R", "A3.R")) {
+            Station s = stations.stream().filter(st -> st.id().equals(id)).findFirst()
+                    .orElseThrow(() -> new AssertionError("no station " + id));
+            List<Waypoint> route = Pathfinder.find(world,
+                    PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+            boolean backsUp = route.stream().anyMatch(w -> w.move() == MoveType.RUNUP);
+            if (id.equals("A1.R")) {
+                assertFalse(backsUp,
+                        id + " (" + s.title() + ") spent a cell backing up for a hop: " + route);
+                continue;
+            }
+            assertTrue(backsUp,
+                    id + " (" + s.title() + ") crossed a wide gap with no run-up — from the "
+                            + "takeoff that is a standing jump, whatever the plan says: " + route);
+            assertTrue(route.get(0).x() < s.sx(),
+                    id + " (" + s.title() + "): the run-up has to be walked BACKWARDS from the "
+                            + "start, and the first step goes forward: " + route);
+        }
     }
 
     /**

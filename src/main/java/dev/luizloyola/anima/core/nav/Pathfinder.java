@@ -722,16 +722,25 @@ public final class Pathfinder {
         if (maxLeap < 1 || this.profile.jumpHeight() < 1) return;
         // Hops — this node is the takeoff, and the approach costs nothing because there isn't one.
         leapFrom(current, node, x, y, z, from, dx, dz, maxLeap, 0, 0.0);
-        // Wide leaps off this cell directly — allowed whenever the body ARRIVES here, which is
-        // every node but one: whatever it walked, jumped or flew in from was the approach. The
-        // exception is the path's own start, the one cell a route stands still on.
+        // Wide leaps off this cell directly, for a body that already has the speed. Two ways to
+        // have it, and the course settled both:
         //
-        // The stronger rules are wrong. A block demanded BEHIND the takeoff tested the terrain, not
-        // the route, and was removed. An aligned approach refuses a pillar walked onto diagonally
-        // from the one beside it (gauntlet A8, A12) and a pillar landed on from the leap before it
-        // (A9, A11, A13), where every neighbour is a gap. Unmodelled: speed surviving a 90° TURN.
+        //  - ON FOOT, travelling somewhat the way it is about to jump — a straight step or a
+        //    diagonal, which keeps most of its speed through the 45° (gauntlet A8, A12). A quarter
+        //    turn does not count, hence a dot product: at A2.R a sideways step (1.0) plus a
+        //    perpendicular leap (5.4) beat backing up and running at the gap (7.4), which is a
+        //    standing jump wearing a run-up's name.
+        //  - FLYING, whatever the heading: a landing slides, and the follower presses the next leap
+        //    on the first grounded tick in band. A12's serpentine turns a gap-3 leap through 90° on
+        //    a 1-wide pillar; refusing turns regressed it and A13.
+        //
+        // A body with neither is standing still — the route's start cell, which gets a run-up below.
         if (node.parent != NO_PARENT) {
-            leapFrom(current, node, x, y, z, from, dx, dz, maxLeap, 1, 0.0);
+            int ax = Integer.signum(x - unpackX(node.parent));
+            int az = Integer.signum(z - unpackZ(node.parent));
+            if (node.move == MoveType.LEAP || ax * dx + az * dz > 0) {
+                leapFrom(current, node, x, y, z, from, dx, dz, maxLeap, 1, 0.0);
+            }
         }
         // Wide leaps — this node is the run-up and the cell in front is the takeoff, if the body
         // can arrive there still on its feet and able to jump.

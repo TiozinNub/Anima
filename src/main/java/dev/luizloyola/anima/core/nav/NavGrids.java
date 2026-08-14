@@ -44,4 +44,29 @@ public final class NavGrids {
         }
         return false;
     }
+
+    /**
+     * Whether a grid satisfies one {@link CellNeed} — the question the follower asks of the LIVE
+     * world at each new node ({@code Navigator.stillHolds}), asked of a snapshot instead. The pair
+     * must agree; they are separate because the follower must notice where the world has diverged
+     * from the planning grid, so it cannot be handed that grid.
+     *
+     * <p>Asked OF the planning grid it checks a route against its own integrity contract: every
+     * edge the search emits must already meet what {@link PathIntegrity} says it needs. A path that
+     * fails this was never walkable.
+     *
+     * <p><b>Wading counts as footing</b>, as everywhere in the engine ({@code Pathfinder.footing}):
+     * water a body can stand up in is ground to every land move.
+     */
+    public static boolean satisfies(NavGrid grid, CellNeed need) {
+        CellType here = grid.cell(need.x(), need.y(), need.z());
+        return switch (need.need()) {
+            case CLEAR -> here == CellType.PASSABLE;
+            case WATER -> here == CellType.WATER;
+            case ROOM -> here == CellType.PASSABLE || here == CellType.WATER;
+            case FOOTING -> here == CellType.STEP
+                    || ((here == CellType.PASSABLE || here == CellType.WATER)
+                            && grid.cell(need.x(), need.y() - 1, need.z()) == CellType.GROUND);
+        };
+    }
 }

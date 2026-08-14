@@ -8,9 +8,13 @@
 # refusals are correct and which are gaps.
 # id	startX	startY	startZ	goalX	goalY	goalZ	plans	expect	title
 A1	601	-49	4	618	-49	4	true	reach	gap 1
+A1.R	607	-49	4	618	-49	4	true	reach	gap 1, STARTING on the takeoff - a hop needs no run-up
 A2	601	-49	16	618	-49	16	true	reach	gap 2
+A2.R	607	-49	16	618	-49	16	true	reach	gap 2, STARTING on the takeoff - must back up to run
 A3	601	-49	28	618	-49	28	true	reach	gap 3
+A3.R	607	-49	28	618	-49	28	true	reach	gap 3, STARTING on the takeoff - must back up to run
 A4	601	-49	40	618	-49	40	false	block	gap 4
+A4.R	607	-49	40	618	-49	40	false	block	gap 4, STARTING on the takeoff - out of reach either way
 A5	601	-49	52	618	-50	52	false	reach	gap 2 -> land 1 DOWN
 A6	601	-49	64	618	-48	64	false	reach	gap 2 -> land 1 UP
 A7	601	-49	76	618	-51	76	false	reach	gap 4 -> land 2 DOWN

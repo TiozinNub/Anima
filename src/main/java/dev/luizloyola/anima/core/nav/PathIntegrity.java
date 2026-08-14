@@ -52,14 +52,22 @@ public final class PathIntegrity {
         }
         if (to.move() == MoveType.WALK
                 || (to.move() == MoveType.RUNUP && from.y() == to.y())) {
-            // Level ground move: standable floor + body column under every cell the feet cross, at
-            // this waypoint's level (walks, diagonals and strides are all same-level).
+            // Level ground move: standable floor + body column under every cell the feet cross.
+            //
+            // Each END is read at its own level; only the cells between them take the
+            // destination's. "Level" means the feet climb no more than STEP_UP, so a slab step is a
+            // walk with endpoints in different cells — reading the whole line at the destination's
+            // level demanded footing one cell ABOVE the slab and broke 23 gauntlet stations,
+            // invisibly, because re-planning hands back the identical route. Only a stride has
+            // middles, and it is level by construction (walkableFlank measures them against one y).
             //
             // A level RUNUP belongs here — a step, diagonal or stride onto a takeoff, re-marked so
-            // the follower runs it; a re-marked stride still puts two deck cells between its
-            // endpoints. One that RISES onto its takeoff is a jump and falls through below.
-            for (int[] cell : lineCells(from.x(), from.z(), to.x(), to.z())) {
-                addStandable(needs, cell[0], to.y(), cell[1], profile, to.surface16() / 16.0);
+            // the follower runs it, deck cells and all. One that RISES onto its takeoff is a jump.
+            List<int[]> line = lineCells(from.x(), from.z(), to.x(), to.z());
+            addStandable(needs, from.x(), from.y(), from.z(), profile, from.surface16() / 16.0);
+            for (int i = 1; i < line.size(); i++) {
+                addStandable(needs, line.get(i)[0], to.y(), line.get(i)[1], profile,
+                        to.surface16() / 16.0);
             }
             return needs;
         }
