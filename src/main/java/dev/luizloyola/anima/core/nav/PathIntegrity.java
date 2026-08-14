@@ -44,27 +44,40 @@ public final class PathIntegrity {
             // Feet in water, and room for the rest of the body — above a swimmer that is water as
             // often as air, so the column asks for ROOM and not CLEAR. Demanding air failed every
             // DIVE and every submerged crossing on its own first tick, re-planning the same route.
-            needs.add(new CellNeed(to.x(), to.y(), to.z(), CellNeed.Need.WATER));
-            for (int i = 1; i <= profile.topCell(0.0); i++) {
-                needs.add(new CellNeed(to.x(), to.y() + i, to.z(), CellNeed.Need.ROOM));
-            }
+            addAfloat(needs, to.x(), to.y(), to.z(), profile);
             return needs;
         }
         if (to.move() == MoveType.WALK
                 || (to.move() == MoveType.RUNUP && from.y() == to.y())) {
-            // Level ground move: standable floor + body column under every cell the feet cross.
+            // Level ground move: watch the standable floor + body column under every cell the feet
+            // cross. Each END at its own level; the cells between them at the destination's.
             //
-            // Each END is read at its own level; only the cells between them take the
-            // destination's. "Level" means the feet climb no more than STEP_UP, so a slab step is a
-            // walk with endpoints in different cells — reading the whole line at the destination's
-            // level demanded footing one cell ABOVE the slab and broke 23 gauntlet stations,
-            // invisibly, because re-planning hands back the identical route. Only a stride has
-            // middles, and it is level by construction (walkableFlank measures them against one y).
+            // "Level" means the feet climb no more than STEP_UP, not that the waypoints share a
+            // cell — stepping up onto a slab is a walk whose endpoints sit a cell apart. Reading
+            // the whole line at the destination's level asked footing one cell ABOVE the slab the
+            // body stood on: 23 gauntlet stations (every slab ramp, dirt path and soul-sand lane)
+            // reported a broken route on the first tick of the leg.
             //
-            // A level RUNUP belongs here — a step, diagonal or stride onto a takeoff, re-marked so
-            // the follower runs it, deck cells and all. One that RISES onto its takeoff is a jump.
+            // The middles take the destination's level because a stride records no surface for the
+            // cells it sweeps and is level by construction ({@code walkableFlank} measures every
+            // one of them against a single y).
+            //
+            // A RUNUP belongs here whenever it is level — a re-marked stride still puts deck cells
+            // between its endpoints. One that RISES onto its takeoff (a staircase summit) is a jump
+            // and falls through to the destination rule.
+            //
+            // The near end is watched as what the body was DOING there, not as ground: a walk out
+            // of water starts on the last SWIM waypoint, whose cell is water, so FOOTING failed
+            // every climb-out on the first tick (measured in-world 2026-08-14: nine searches for
+            // one ninety-block trip). Both bugs re-planned into the identical route, so they only
+            // cost searches and never looked wrong.
             List<int[]> line = lineCells(from.x(), from.z(), to.x(), to.z());
-            addStandable(needs, from.x(), from.y(), from.z(), profile, from.surface16() / 16.0);
+            if (from.move().inWater()) {
+                addAfloat(needs, from.x(), from.y(), from.z(), profile);
+            } else {
+                addStandable(needs, from.x(), from.y(), from.z(), profile,
+                        from.surface16() / 16.0);
+            }
             for (int i = 1; i < line.size(); i++) {
                 addStandable(needs, line.get(i)[0], to.y(), line.get(i)[1], profile,
                         to.surface16() / 16.0);
@@ -113,6 +126,24 @@ public final class PathIntegrity {
         // decides how far up the body reaches — the arithmetic that admitted this cell.
         for (int i = 1; i <= profile.topCell(surface); i++) {
             needs.add(new CellNeed(x, y + i, z, CellNeed.Need.CLEAR));
+        }
+    }
+
+    /**
+     * Appends what a cell must keep providing for a body to be <em>in the water</em> there: the
+     * feet cell still water, room for the rest of the body above it.
+     *
+     * <p>Counterpart to {@link #addStandable}, kept separate because a swimmer's feet cell is water
+     * and footing is a demand nothing afloat can meet. Both ends of a water move need it, and so
+     * does the near end of a walk climbing out of one.
+     */
+    private static void addAfloat(List<CellNeed> needs, int x, int y, int z,
+                                  MoveCapabilities profile) {
+        needs.add(new CellNeed(x, y, z, CellNeed.Need.WATER));
+        // ROOM and not CLEAR: above a swimmer is water as often as it is air, and demanding air of
+        // it failed every DIVE and every submerged crossing on its own first tick.
+        for (int i = 1; i <= profile.topCell(0.0); i++) {
+            needs.add(new CellNeed(x, y + i, z, CellNeed.Need.ROOM));
         }
     }
 

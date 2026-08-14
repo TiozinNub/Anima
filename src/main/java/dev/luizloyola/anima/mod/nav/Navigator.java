@@ -1236,6 +1236,14 @@ public final class Navigator {
         this.stuckTicks = 0;
         if (!wasLast) {
             this.index++;
+            // Reaching a waypoint buys back a retry. Handed out once per GOAL and never
+            // replenished, a five-block errand and a hundred-and-thirty-block march got the same
+            // three lives: a step up onto a canopy strayed 13 times out of 13 and recovered on the
+            // retry, so three such steps in one trip were fatal. Earned, not free — a body that
+            // keeps failing in the same place never advances, so it never refills.
+            if (this.repathsLeft < MAX_REPATHS) {
+                this.repathsLeft++;
+            }
             return;
         }
         this.person.stopMoving();

@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.nav;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -48,6 +49,34 @@ class PathIntegrityTest {
         assertEquals(3, cells.get(cells.size() - 1)[0]); 
         assertTrue(cells.stream().allMatch(c -> c[1] == 0 || c[1] == 1),
                 "every crossed cell sits in the z-band the segment spans");
+    }
+
+    @Test
+    void climbingOutOfWaterDoesNotAskTheSwimWaypointForFooting() {
+        // The near end is watched as whatever the body was DOING there: a climb-out starts on the
+        // last SWIM waypoint, whose cell is water, and asking it for FOOTING failed integrity on
+        // the first tick — nine searches for one ninety-block trip.
+        List<CellNeed> needs = PathIntegrity.edgeNeeds(
+                new Waypoint(2, 62, 8, MoveType.SWIM), new Waypoint(3, 63, 8, MoveType.WALK),
+                PERSON);
+        assertTrue(needs.contains(new CellNeed(2, 62, 8, CellNeed.Need.WATER)),
+                "the swim end wants to still be in water: " + needs);
+        assertTrue(needs.contains(new CellNeed(2, 63, 8, CellNeed.Need.ROOM)),
+                "and room for the body over it: " + needs);
+        assertFalse(needs.contains(new CellNeed(2, 62, 8, CellNeed.Need.FOOTING)),
+                "nothing may ask a swimming body for a floor under its feet: " + needs);
+        assertTrue(needs.contains(new CellNeed(3, 63, 8, CellNeed.Need.FOOTING)),
+                "the land the walk arrives on still needs footing: " + needs);
+    }
+
+    @Test
+    void anOrdinaryWalkOutOfADryCellStillWatchesItsOwnStart() {
+        // The guard is on the MOVE, not on the water.
+        List<CellNeed> needs = PathIntegrity.edgeNeeds(
+                new Waypoint(2, 63, 8, MoveType.JUMP), new Waypoint(3, 63, 8, MoveType.WALK),
+                PERSON);
+        assertTrue(needs.contains(new CellNeed(2, 63, 8, CellNeed.Need.FOOTING)),
+                "a dry near end is still watched for footing: " + needs);
     }
 
     @Test

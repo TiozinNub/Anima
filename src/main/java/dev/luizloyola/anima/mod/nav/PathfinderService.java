@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.nav;
 
+import dev.luizloyola.anima.compat.nav.TerrainProfile;
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.sense.Confinement;
@@ -216,14 +217,22 @@ public final class PathfinderService {
         int gx = Mth.clamp(goal.getX(), start.getX() - MAX_REACH, start.getX() + MAX_REACH);
         int gy = goal.getY();
         int gz = Mth.clamp(goal.getZ(), start.getZ() - MAX_REACH, start.getZ() + MAX_REACH);
-        BlockPos min = new BlockPos(
-                Math.min(start.getX(), gx) - HORIZONTAL_MARGIN,
-                Math.min(start.getY(), gy) - DOWN_MARGIN,
-                Math.min(start.getZ(), gz) - HORIZONTAL_MARGIN);
-        BlockPos max = new BlockPos(
-                Math.max(start.getX(), gx) + HORIZONTAL_MARGIN,
-                Math.max(start.getY(), gy) + UP_MARGIN,
-                Math.max(start.getZ(), gz) + HORIZONTAL_MARGIN);
+        int minX = Math.min(start.getX(), gx) - HORIZONTAL_MARGIN;
+        int minZ = Math.min(start.getZ(), gz) - HORIZONTAL_MARGIN;
+        int maxX = Math.max(start.getX(), gx) + HORIZONTAL_MARGIN;
+        int maxZ = Math.max(start.getZ(), gz) + HORIZONTAL_MARGIN;
+        // The vertical extent is a question about the GROUND, not about the two cells being
+        // joined: sized off the endpoints alone, a saddle above both read as sky the search could
+        // not enter — a route peaking at 97 between ends at 86 and 90, against a ceiling of 96.
+        // See TerrainProfile: heightmaps only, no block reads and no chunk loads, and the cells it
+        // adds are mostly sky that bake() fills without reading anything.
+        TerrainProfile.Band band = TerrainProfile.widen(
+                new TerrainProfile.Band(
+                        Math.min(start.getY(), gy) - DOWN_MARGIN,
+                        Math.max(start.getY(), gy) + UP_MARGIN),
+                TerrainProfile.terrain(level, minX, minZ, maxX, maxZ));
+        BlockPos min = new BlockPos(minX, band.low(), minZ);
+        BlockPos max = new BlockPos(maxX, band.high(), maxZ);
 
         CachedSnapshot cached = snapshots.get(level);
         if (cached != null && cached.gameTime() == level.getGameTime() && cached.snapshot().covers(min, max)) {
