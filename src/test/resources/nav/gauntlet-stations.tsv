@@ -26,7 +26,7 @@ A8	601	-49	88	618	-49	88	true	reach	corner-diagonal staircase
 A9	601	-49	100	618	-49	100	true	reach	gap 2 onto 1-wide pillars
 A10	601	-49	112	618	-49	112	true	reach	chained gap-1 pillars
 A11	601	-49	124	618	-49	124	true	reach	gap 3 onto 1-wide pillars
-A12	601	-49	136	618	-49	136	true	reach	SERPENTINE, gaps 0-2
+A12	601	-49	136	618	-49	136	true	reach	SERPENTINE, gaps 1-2
 A13	601	-49	148	618	-49	148	true	reach	SERPENTINE, gaps 2-3
 A14	601	-49	160	618	-49	160	false	reach	gap-1 pillars, ALTERNATING height
 A15	601	-49	172	618	-45	172	false	reach	gap-1 pillar STAIRCASE up
