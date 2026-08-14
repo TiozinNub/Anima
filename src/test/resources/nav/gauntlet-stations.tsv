@@ -6,6 +6,10 @@
 # doors, no building. It is design intent, not a measurement, and nothing
 # asserts against it; the report scores `plans` against it to say which
 # refusals are correct and which are gaps.
+# The stations below marked headless-only are never walked in-world: they share a
+# lane's goal pad with the station they are named after, and the in-world score asks
+# only whether SOMEBODY is standing on it. One line, ids last - report.py reads it.
+# headless-only: A1.R A2.R A3.R A4.R
 # id	startX	startY	startZ	goalX	goalY	goalZ	plans	expect	title
 A1	601	-49	4	618	-49	4	true	reach	gap 1
 A1.R	607	-49	4	618	-49	4	true	reach	gap 1, STARTING on the takeoff - a hop needs no run-up
