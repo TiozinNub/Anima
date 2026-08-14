@@ -273,39 +273,82 @@ public final class AgentCommands {
      * so a shared subcommand must be built once per root that mounts it.
      */
     /**
-     * {@code recipes <spec>} — what the registered {@link dev.luizloyola.anima.core.craft.Recipes
-     * recipe sources} know how to make of an item class, as bills of materials. Read-only: the
-     * craftbook is world knowledge, not body state, and a spec no recipe produces answers with
-     * nothing.
+     * {@code recipes <what>} — what the registered {@link dev.luizloyola.anima.core.craft.Recipes
+     * recipe sources} know how to make, as bills of materials. Read-only, no agent involved: the
+     * craftbook is world knowledge, not body state.
+     *
+     * <p>{@code what} resolves in order: a registered {@link
+     * dev.luizloyola.anima.core.inv.ItemSpec} name, then an exact item id (bare names get
+     * {@code minecraft:}), then a contains-match over every output. The ad-hoc lookups build an
+     * UNREGISTERED spec — registration exists so persisted plans can find their spec again, and a
+     * readout persists nothing.
      */
     public static LiteralArgumentBuilder<CommandSourceStack> recipes() {
         return Commands.literal("recipes")
-                .then(Commands.argument("spec", StringArgumentType.word())
+                .then(Commands.argument("what", StringArgumentType.greedyString())
                         .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(
-                                dev.luizloyola.anima.core.inv.ItemSpec.names(), builder))
+                                craftableNames(), builder))
                         .executes(ctx -> listRecipes(ctx.getSource(),
-                                StringArgumentType.getString(ctx, "spec"))));
+                                StringArgumentType.getString(ctx, "what"))));
+    }
+
+    /** Everything worth tab-completing: registered spec names plus every craftable output. */
+    private static java.util.Collection<String> craftableNames() {
+        java.util.TreeSet<String> names =
+                new java.util.TreeSet<>(dev.luizloyola.anima.core.inv.ItemSpec.names());
+        for (dev.luizloyola.anima.core.craft.CraftRecipe recipe : allRecipes()) {
+            names.add(shortItem(recipe.outputId()));
+        }
+        return names;
+    }
+
+    /** The whole book, through the same path a real query takes — a spec that matches all. */
+    private static List<dev.luizloyola.anima.core.craft.CraftRecipe> allRecipes() {
+        return dev.luizloyola.anima.core.craft.Recipes.producing(
+                new dev.luizloyola.anima.core.inv.ItemSpec("(everything)", id -> true));
     }
 
     private static int listRecipes(CommandSourceStack source, String name) {
-        var spec = dev.luizloyola.anima.core.inv.ItemSpec.byName(name);
-        if (spec.isEmpty()) {
-            Replies.fail(source, Component.literal("No item class named \"" + name
-                    + "\" is registered. Known: "
-                    + String.join(", ", new java.util.TreeSet<>(
-                            dev.luizloyola.anima.core.inv.ItemSpec.names()))));
-            return 0;
+        var registered = dev.luizloyola.anima.core.inv.ItemSpec.byName(name);
+        String label = "\"" + name + "\"";
+        List<dev.luizloyola.anima.core.craft.CraftRecipe> known;
+        if (registered.isPresent()) {
+            known = dev.luizloyola.anima.core.craft.Recipes.producing(registered.get());
+        } else {
+            String qualified = name.contains(":") ? name : "minecraft:" + name;
+            known = dev.luizloyola.anima.core.craft.Recipes.producing(
+                    new dev.luizloyola.anima.core.inv.ItemSpec(qualified,
+                            id -> id.equals(qualified)));
+            if (known.isEmpty() && !name.isBlank()) {
+                // Not a spec, not an exact id: show everything whose output mentions it.
+                known = dev.luizloyola.anima.core.craft.Recipes.producing(
+                        new dev.luizloyola.anima.core.inv.ItemSpec(name,
+                                id -> id.contains(name)));
+                if (!known.isEmpty()) {
+                    label = "*" + name + "*";
+                }
+            } else {
+                label = shortItem(qualified);
+            }
         }
-        List<dev.luizloyola.anima.core.craft.CraftRecipe> known =
-                dev.luizloyola.anima.core.craft.Recipes.producing(spec.get());
         if (known.isEmpty()) {
-            Replies.send(source, () -> Component.literal("Nobody knows a way to craft \"" + name
-                    + "\".").withStyle(ChatFormatting.GRAY));
+            String asked = label;
+            Replies.send(source, () -> Component.literal("Nobody knows a way to craft " + asked
+                    + ".").withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        Replies.send(source, () -> Component.literal("\"" + name + "\": " + known.size()
-                + (known.size() == 1 ? " recipe" : " recipes")).withStyle(ChatFormatting.AQUA));
+        int count = known.size();
+        String header = label;
+        Replies.send(source, () -> Component.literal(header + ": " + count
+                + (count == 1 ? " recipe" : " recipes")).withStyle(ChatFormatting.AQUA));
+        int shown = 0;
         for (dev.luizloyola.anima.core.craft.CraftRecipe recipe : known) {
+            if (shown++ == RECIPE_ROWS_CAP) {
+                int rest = known.size() - RECIPE_ROWS_CAP;
+                Replies.send(source, () -> Component.literal("  …and " + rest
+                        + " more — narrow the name.").withStyle(ChatFormatting.GRAY));
+                break;
+            }
             StringBuilder bill = new StringBuilder();
             for (dev.luizloyola.anima.core.craft.CraftRecipe.Ingredient line : recipe.ingredients()) {
                 if (bill.length() > 0) {
@@ -320,6 +363,9 @@ public final class AgentCommands {
         }
         return known.size();
     }
+
+    /** Rows before a broad contains-match stops flooding the chat. */
+    private static final int RECIPE_ROWS_CAP = 20;
 
     /** One bill line's alternatives: the first id plainly, the rest as a count. */
     private static String billLabel(java.util.Set<String> acceptedIds) {
