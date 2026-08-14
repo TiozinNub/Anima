@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.compat.craft;
 
+import dev.luizloyola.anima.compat.inv.ItemStacks;
 import dev.luizloyola.anima.core.craft.CraftRecipe;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -69,9 +70,10 @@ public final class CraftingRecipes {
         if (result.isEmpty()) {
             return null;
         }
-        return new CraftRecipe(id,
-                BuiltInRegistries.ITEM.getKey(result.getItem()).toString(),
-                result.getCount(), bill, needsTable(crafting, placement));
+        // The whole output crosses (id, count, cap, components), so the craft act adds exactly
+        // what the game would have made, including a modded recipe's data.
+        return new CraftRecipe(id, ItemStacks.toCore(result, server.registryAccess()),
+                bill, needsTable(crafting, placement));
     }
 
     /** The grid as a bill: identical alternative-sets aggregate into one counted line. */

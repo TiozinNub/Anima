@@ -1,23 +1,26 @@
 package dev.luizloyola.anima.core.craft;
 
+import dev.luizloyola.anima.core.inv.ItemStack;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * One way to make a thing from other things, as pure data — the {@code core} view of a crafting
- * recipe, with no {@code net.minecraft}; the compat lens translates the game's recipes into these.
+ * One way to make a thing from other things, as pure data — the {@code core} layer's view of a
+ * crafting recipe, carrying no {@code net.minecraft}. The compat lens translates the game's
+ * recipes into these.
  *
  * <p>The ingredient list is a <b>bill of materials</b>, not a grid: identical alternatives are
- * aggregated, because a gatherer cares how many of what class, not which pattern cell.
+ * aggregated ("planks ×3, sticks ×2") because a gathering mind cares how many of what class, never
+ * which pattern cell. Placement is the game's business at the moment of the craft.
  *
- * @param id          the recipe's own name, for readouts — never parsed
- * @param outputId    namespaced item id produced
- * @param outputCount how many per craft, {@code >= 1}
+ * @param id          the recipe's own name, for readouts and journal lines — never parsed
+ * @param output      what one craft yields, as a whole core stack — id and count and cap and any
+ *                    components, so the act that performs the craft adds this
  * @param ingredients the bill, aggregated; never empty
- * @param needsTable  whether it exceeds the 2×2 a body can do in hand
+ * @param needsTable  whether this craft exceeds the 2×2 a body can do in its own hands
  */
-public record CraftRecipe(String id, String outputId, int outputCount,
+public record CraftRecipe(String id, ItemStack output,
                           List<Ingredient> ingredients, boolean needsTable) {
 
     /**
@@ -45,17 +48,23 @@ public record CraftRecipe(String id, String outputId, int outputCount,
 
     public CraftRecipe {
         Objects.requireNonNull(id, "id");
-        Objects.requireNonNull(outputId, "outputId");
+        Objects.requireNonNull(output, "output");
         Objects.requireNonNull(ingredients, "ingredients");
-        if (outputId.isBlank()) {
+        if (output.isEmpty()) {
             throw new IllegalArgumentException("a recipe produces something");
-        }
-        if (outputCount < 1) {
-            throw new IllegalArgumentException("output count must be >= 1: " + outputCount);
         }
         if (ingredients.isEmpty()) {
             throw new IllegalArgumentException("a recipe consumes something");
         }
         ingredients = List.copyOf(ingredients);
+    }
+
+    /** The produced item's id — the half of {@link #output} every matcher asks about. */
+    public String outputId() {
+        return output.id();
+    }
+
+    public int outputCount() {
+        return output.count();
     }
 }

@@ -44,6 +44,48 @@ public record ItemSpec(String name, Predicate<String> matcher) {
         return java.util.Set.copyOf(REGISTERED.keySet());
     }
 
+    /** The literal id-sets behind {@link #anyOf} specs, so a codec can write one down by content. */
+    private static final Map<String, java.util.Set<String>> LITERALS = new ConcurrentHashMap<>();
+
+    /**
+     * The spec meaning "any one of exactly these items" — the shape a crafting ingredient has
+     * ("any plank"), built from content rather than declared by a mod. A plan mid-flight persists
+     * its specs BY NAME, so the name is deterministic in the sorted ids (readable head, hash
+     * tail), {@link #literalIds} hands a codec the content, and loading re-canonicalises through
+     * here.
+     */
+    public static ItemSpec anyOf(java.util.Set<String> ids) {
+        if (ids.isEmpty()) {
+            throw new IllegalArgumentException("a spec matches at least one item");
+        }
+        java.util.TreeSet<String> sorted = new java.util.TreeSet<>(ids);
+        String name = literalName(sorted);
+        ItemSpec spec = register(new ItemSpec(name, sorted::contains));
+        LITERALS.putIfAbsent(name, java.util.Set.copyOf(sorted));
+        return spec;
+    }
+
+    /** The exact ids behind a literal spec, or empty for a mod-declared one — the codec's fork. */
+    public static Optional<java.util.Set<String>> literalIds(ItemSpec spec) {
+        return Optional.ofNullable(LITERALS.get(spec.name()));
+    }
+
+    /**
+     * Readable head, collision-proof tail: {@code oak_log} alone for a singleton, else
+     * {@code oak_planks+11#1a2b3c4d}. The hash is over the full sorted join and
+     * {@code String.hashCode} is specified, so the name is stable across JVMs and saves and two
+     * plank-families cannot steal each other's name.
+     */
+    private static String literalName(java.util.TreeSet<String> sorted) {
+        String first = sorted.first();
+        String head = first.startsWith("minecraft:") ? first.substring("minecraft:".length()) : first;
+        if (sorted.size() == 1) {
+            return head;
+        }
+        String joined = String.join("|", sorted);
+        return head + "+" + (sorted.size() - 1) + "#" + Integer.toHexString(joined.hashCode());
+    }
+
     public boolean matches(String itemId) {
         return matcher.test(itemId);
     }

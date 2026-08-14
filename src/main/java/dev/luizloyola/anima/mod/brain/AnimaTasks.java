@@ -9,6 +9,8 @@ import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.task.BreakBlock;
 import dev.luizloyola.anima.core.brain.task.ConsumeItem;
+import dev.luizloyola.anima.core.brain.task.CraftStep;
+import dev.luizloyola.anima.core.craft.CraftRecipe;
 import dev.luizloyola.anima.core.brain.task.FleeStep;
 import dev.luizloyola.anima.core.brain.task.GatherNearbyDrops;
 import dev.luizloyola.anima.core.brain.task.EscapeStep;
@@ -45,16 +47,38 @@ public final class AnimaTasks {
             Gait::name);
 
     /**
-     * A class of items, by the name it registered under: the matcher is a lambda and cannot be
-     * written down, so the name is the handle and {@link ItemSpec#byName} supplies the rest. An
-     * unregistered name errors rather than inventing a spec that matches nothing.
+     * A class of items, in the two shapes a spec can have. A mod-declared spec's matcher is a
+     * lambda and cannot be written down, so its NAME is the handle ({@link ItemSpec#byName}); an
+     * unregistered name errors rather than inventing a spec that matches nothing. A
+     * {@link ItemSpec#anyOf literal} spec ("any plank") has no declarer, so its CONTENT is the
+     * handle: the id list, re-canonicalised through {@code anyOf} on load. The fork is
+     * {@link ItemSpec#literalIds}; old saves, always name-shaped, read unchanged.
      */
-    private static final Codec<ItemSpec> ITEM_SPEC = Codec.STRING.comapFlatMap(
-            name -> ItemSpec.byName(name)
-                    .map(DataResult::success)
-                    .orElseGet(() -> DataResult.error(
-                            () -> "no item spec is registered as \"" + name + "\" — was a mod removed?")),
-            ItemSpec::name);
+    private static final Codec<ItemSpec> ITEM_SPEC = Codec.either(
+                    Codec.STRING, Codec.STRING.listOf())
+            .comapFlatMap(AnimaTasks::specFromEither, AnimaTasks::specToEither);
+
+    private static DataResult<ItemSpec> specFromEither(
+            com.mojang.datafixers.util.Either<String, java.util.List<String>> written) {
+        return written.map(
+                name -> ItemSpec.byName(name)
+                        .map(DataResult::success)
+                        .orElseGet(() -> DataResult.error(
+                                () -> "no item spec is registered as \"" + name
+                                        + "\" — was a mod removed?")),
+                ids -> ids.isEmpty()
+                        ? DataResult.error(() -> "an item spec with no ids")
+                        : DataResult.success(ItemSpec.anyOf(new java.util.HashSet<>(ids))));
+    }
+
+    private static com.mojang.datafixers.util.Either<String, java.util.List<String>> specToEither(
+            ItemSpec spec) {
+        return ItemSpec.literalIds(spec)
+                .<com.mojang.datafixers.util.Either<String, java.util.List<String>>>map(
+                        ids -> com.mojang.datafixers.util.Either.right(
+                                java.util.List.copyOf(new java.util.TreeSet<>(ids))))
+                .orElseGet(() -> com.mojang.datafixers.util.Either.left(spec.name()));
+    }
 
     /**
      * A kind of place, by the key it registered under — the same handle the knowledge store and
@@ -67,6 +91,35 @@ public final class AnimaTasks {
                     .orElseGet(() -> DataResult.error(
                             () -> "no POI kind is registered as \"" + key + "\" — was a mod removed?")),
             PoiKind::key);
+
+    /** A core stack, whole — what a recipe's output is. */
+    private static final Codec<dev.luizloyola.anima.core.inv.ItemStack> CORE_STACK =
+            RecordCodecBuilder.create(s -> s.group(
+                    Codec.STRING.fieldOf("id")
+                            .forGetter(dev.luizloyola.anima.core.inv.ItemStack::id),
+                    Codec.INT.fieldOf("count")
+                            .forGetter(dev.luizloyola.anima.core.inv.ItemStack::count),
+                    Codec.INT.fieldOf("max")
+                            .forGetter(dev.luizloyola.anima.core.inv.ItemStack::maxStackSize),
+                    Codec.STRING.optionalFieldOf("components", "")
+                            .forGetter(dev.luizloyola.anima.core.inv.ItemStack::components)
+            ).apply(s, dev.luizloyola.anima.core.inv.ItemStack::new));
+
+    private static final Codec<CraftRecipe.Ingredient> INGREDIENT =
+            RecordCodecBuilder.create(i -> i.group(
+                    Codec.STRING.listOf().fieldOf("ids").forGetter(line ->
+                            java.util.List.copyOf(new java.util.TreeSet<>(line.acceptedIds()))),
+                    Codec.INT.fieldOf("count").forGetter(CraftRecipe.Ingredient::count)
+            ).apply(i, (ids, count) ->
+                    new CraftRecipe.Ingredient(new java.util.HashSet<>(ids), count)));
+
+    private static final Codec<CraftRecipe> CRAFT_RECIPE =
+            RecordCodecBuilder.create(r -> r.group(
+                    Codec.STRING.fieldOf("id").forGetter(CraftRecipe::id),
+                    CORE_STACK.fieldOf("output").forGetter(CraftRecipe::output),
+                    INGREDIENT.listOf().fieldOf("bill").forGetter(CraftRecipe::ingredients),
+                    Codec.BOOL.fieldOf("table").forGetter(CraftRecipe::needsTable)
+            ).apply(r, CraftRecipe::new));
 
     private static final Codec<Pos> POS = RecordCodecBuilder.create(p -> p.group(
             Codec.INT.fieldOf("x").forGetter(Pos::x),
@@ -128,8 +181,26 @@ public final class AnimaTasks {
         TaskCodecs.register("anima:obtain", ObtainItem.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         ITEM_SPEC.fieldOf("spec").forGetter(ObtainItem::spec),
-                        Codec.INT.fieldOf("count").forGetter(ObtainItem::count)
-                ).apply(t, ObtainItem::new)));
+                        Codec.INT.fieldOf("count").forGetter(ObtainItem::count),
+                        // Sorted on the way out so the same plan always writes the same bytes;
+                        // optional so every save from before crafting reads as an empty set.
+                        Codec.STRING.listOf().optionalFieldOf("pursued", java.util.List.of())
+                                .forGetter(task -> java.util.List.copyOf(
+                                        new java.util.TreeSet<>(task.pursued())))
+                ).apply(t, (spec, count, pursued) ->
+                        new ObtainItem(spec, count, new java.util.HashSet<>(pursued)))));
+
+        // The recipe rides INLINE, bill and all, rather than as a name to look up: a datapack
+        // reload can remove a recipe mid-craft, and finishing a valid plan beats a load error
+        // that silently drops the whole mind.
+        TaskCodecs.register("anima:craft", CraftStep.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        CRAFT_RECIPE.fieldOf("recipe").forGetter(CraftStep::recipe),
+                        Codec.INT.fieldOf("times").forGetter(CraftStep::times),
+                        Codec.INT.fieldOf("done").forGetter(CraftStep::done),
+                        Codec.INT.fieldOf("work").forGetter(CraftStep::workTicks)
+                ).apply(t, (recipe, times, done, work) ->
+                        new CraftStep(recipe, times).resume(done, work))));
 
         TaskCodecs.register("anima:wander", WanderStep.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

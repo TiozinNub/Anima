@@ -6,30 +6,41 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Have {@code n} of {@code spec} in the pack — the first {@link AchieveTask}. The satisfied-check
- * Is the goal, so no "already stocked" method is needed; each executor round picks the cheapest way
- * to make progress: scavenge matching drops in sight ({@link PickUpNearby}) or fell a remembered
- * producer a consumer registered for that spec (see {@link Producers}). The crafting era adds its
- * {@code CraftFor} method here — with the occurs-check, since THAT recursion is genuine (planks
- * want logs) — and no caller changes.
+ * Have {@code n} of {@code spec} in the pack — the first {@link AchieveTask}. The satisfied-check is
+ * the goal; each executor round picks the cheapest way to make progress: scavenge drops in sight
+ * ({@link PickUpNearby}), fell a producer a consumer registered for that spec (see
+ * {@link Producers}), or make one ({@link CraftFor}, with an occurs-check — planks want logs).
  *
- * <p>In the finished mod this is always a SUBGOAL: a project computes a bill of materials and posts
- * requirements; nobody wants logs as an end state. The board's placeholder stock project posts the
- * same shape until real projects exist.
+ * <p>Always a SUBGOAL in the finished mod: a craft or build project computes a bill of materials and
+ * posts requirements; nobody wants logs as an end state.
  */
 public final class ObtainItem implements AchieveTask {
     private final ItemSpec spec;
     private final int count;
+    private final java.util.Set<String> pursued;
     private final List<Method> methods;
 
     public ObtainItem(ItemSpec spec, int count) {
+        this(spec, count, java.util.Set.of());
+    }
+
+    /**
+     * @param pursued output ids this branch of the goal stack is already obtaining — threaded
+     *                into {@link CraftFor} as its ancestor-based occurs-check, and grown by one
+     *                (the chosen recipe's output) on each descent. Method ORDER is load-bearing:
+     *                a saved plan resumes its method by index, so {@code CraftFor} joins at the
+     *                END and nothing may ever be inserted above it.
+     */
+    public ObtainItem(ItemSpec spec, int count, java.util.Set<String> pursued) {
         this.spec = spec;
         this.count = count;
+        this.pursued = java.util.Set.copyOf(pursued);
         List<Method> ways = new ArrayList<>();
         // Picking one up is the way Anima always knows: it needs no knowledge of where the
         // thing came from. Everything else is the consuming mod's to teach.
         ways.add(new PickUpNearby(spec));
         ways.addAll(Producers.forSpec(spec));
+        ways.add(new CraftFor(spec, count, this.pursued));
         this.methods = List.copyOf(ways);
     }
 
@@ -60,5 +71,10 @@ public final class ObtainItem implements AchieveTask {
 
     public int count() {
         return count;
+    }
+
+    /** The occurs-check's ancestor set — what the codec writes so a reload keeps refusing cycles. */
+    public java.util.Set<String> pursued() {
+        return pursued;
     }
 }

@@ -88,4 +88,41 @@ class TaskCodecsTest {
         assertTrue(parsed.error().orElseThrow().message().contains("gone:chop"),
                 "the complaint has to name the type, or nobody can act on it");
     }
+
+    @Test
+    void anObtainCarriesItsPursuedSetAndALiteralSpecSurvivesByContent() {
+        // The spec is a literal (no mod ever declared "any plank") and the occurs-check's ancestor
+        // set rides along — lose either and a reloaded settler forgets what not to craft.
+        dev.luizloyola.anima.core.brain.task.ObtainItem before =
+                new dev.luizloyola.anima.core.brain.task.ObtainItem(
+                        dev.luizloyola.anima.core.inv.ItemSpec.anyOf(
+                                java.util.Set.of("minecraft:oak_planks", "minecraft:birch_planks")),
+                        6, java.util.Set.of("minecraft:wooden_axe"));
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.ObtainItem.class,
+                roundTrip(before));
+        assertEquals(6, after.count());
+        assertEquals(before.spec().name(), after.spec().name(), "content-derived name, rebuilt");
+        assertTrue(after.spec().matches("minecraft:birch_planks"));
+        assertEquals(java.util.Set.of("minecraft:wooden_axe"), after.pursued());
+    }
+
+    @Test
+    void aCraftMidPauseComesBackMidPauseWithItsWholeRecipe() {
+        // The recipe rides inline (a /reload can remove it from the book mid-craft), and the
+        // pause counter is the part a body would feel restarting.
+        dev.luizloyola.anima.core.craft.CraftRecipe recipe =
+                new dev.luizloyola.anima.core.craft.CraftRecipe("minecraft:oak_planks",
+                        dev.luizloyola.anima.core.inv.ItemStack.of("minecraft:oak_planks", 4, 64),
+                        java.util.List.of(new dev.luizloyola.anima.core.craft.CraftRecipe.Ingredient(
+                                java.util.Set.of("minecraft:oak_log"), 1)),
+                        false);
+        dev.luizloyola.anima.core.brain.task.CraftStep before =
+                new dev.luizloyola.anima.core.brain.task.CraftStep(recipe, 3).resume(1, 4);
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.CraftStep.class,
+                roundTrip(before));
+        assertEquals(3, after.times());
+        assertEquals(1, after.done());
+        assertEquals(4, after.workTicks());
+        assertEquals(recipe, after.recipe(), "bill, output and table flag, byte for byte");
+    }
 }

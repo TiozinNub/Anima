@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.inv.ItemSpec;
+import dev.luizloyola.anima.core.inv.ItemStack;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
@@ -22,7 +23,8 @@ class RecipesTest {
             ItemSpec.register(new ItemSpec("recipes-test-axes", id -> id.endsWith("_axe")));
 
     private static CraftRecipe woodenAxe() {
-        return new CraftRecipe("minecraft:wooden_axe", "minecraft:wooden_axe", 1,
+        return new CraftRecipe("minecraft:wooden_axe",
+                ItemStack.of("minecraft:wooden_axe", 1, 1),
                 List.of(new CraftRecipe.Ingredient(Set.of("minecraft:oak_planks",
                                 "minecraft:birch_planks"), 3),
                         new CraftRecipe.Ingredient(Set.of("minecraft:stick"), 2)),
@@ -37,7 +39,8 @@ class RecipesTest {
     @Test
     void producingFiltersAcrossSourcesInRegistrationOrder() {
         CraftRecipe axe = woodenAxe();
-        CraftRecipe planks = new CraftRecipe("minecraft:oak_planks", "minecraft:oak_planks", 4,
+        CraftRecipe planks = new CraftRecipe("minecraft:oak_planks",
+                ItemStack.of("minecraft:oak_planks", 4, 64),
                 List.of(new CraftRecipe.Ingredient(Set.of("minecraft:oak_log"), 1)), false);
         Recipes.provide(spec -> spec.matches(axe.outputId()) ? List.of(axe) : List.of());
         Recipes.provide(spec -> spec.matches(planks.outputId()) ? List.of(planks) : List.of());
@@ -62,12 +65,10 @@ class RecipesTest {
 
     @Test
     void theModelRefusesNonsense() {
-        assertThrows(IllegalArgumentException.class, () -> new CraftRecipe("r", "", 1,
+        assertThrows(IllegalArgumentException.class, () -> new CraftRecipe("r", ItemStack.EMPTY,
                 woodenAxe().ingredients(), false));
-        assertThrows(IllegalArgumentException.class, () -> new CraftRecipe("r", "minecraft:stick", 0,
-                woodenAxe().ingredients(), false));
-        assertThrows(IllegalArgumentException.class, () -> new CraftRecipe("r", "minecraft:stick", 1,
-                List.of(), false));
+        assertThrows(IllegalArgumentException.class, () -> new CraftRecipe("r",
+                ItemStack.of("minecraft:stick", 1, 64), List.of(), false));
         assertThrows(IllegalArgumentException.class,
                 () -> new CraftRecipe.Ingredient(Set.of(), 1));
         assertThrows(IllegalArgumentException.class,
