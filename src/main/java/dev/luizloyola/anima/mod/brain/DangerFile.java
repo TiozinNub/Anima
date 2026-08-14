@@ -5,6 +5,7 @@ import com.electronwill.nightconfig.core.UnmodifiableConfig;
 import dev.luizloyola.anima.core.brain.sense.DangerStore;
 import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.mod.AnimaMod;
+import dev.luizloyola.anima.mod.config.DefaultsFile;
 import dev.luizloyola.anima.mod.config.TomlDocument;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -22,22 +23,22 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 
 /**
- * One species' flee weights on disk — {@code config/<mod id>-danger.toml}.
+ * One species' flee weights on disk — {@code config/<mod id>-danger.toml}. Its own artifact rather
+ * than a config section: several hundred machine-written entries do not belong beside thirty
+ * hand-tuned ones, and it cannot be written at mod init, since datapack and modded entity types
+ * exist only once the registries freeze.
  *
- * <p><b>Its own artifact, not a config section:</b> hundreds of machine-written entries do not
- * belong beside thirty hand-tuned numbers, and it cannot be written at mod init — modded and
- * datapack entity types exist only once the registries freeze, so the generator runs at server
- * start.
+ * <p>{@code derived} is regenerated wholesale on every load — a new mod's creatures appear, an
+ * uninstalled one's entries stop lingering, and an operator's edit there is lost.
+ * {@code overrides} is never touched by the generator.
  *
- * <p><b>Two halves, owned by different people.</b> {@code derived} is regenerated wholesale on every
- * load, so a new mod's creatures appear, an uninstalled one's stop lingering, and an operator's
- * edit there is lost (the file says so); {@code overrides} the generator never touches.
+ * <p>The guess is coarse on purpose: {@link MobCategory} is registry-level and free, where the
+ * runtime classification the being sense uses needs an instance, expensive at load and unsafe for
+ * some types. The overrides carry what it gets wrong — a zombified piglin is {@code MONSTER} and
+ * behaviourally neutral.
  *
- * <p><b>The guess is coarse on purpose:</b> {@link MobCategory} is free where the runtime
- * classification needs an instance. The overrides carry what it gets wrong — a zombified piglin is
- * {@code MONSTER} and behaviourally neutral.
- *
- * <p>Nothing here throws at the caller; a malformed file is reported and skipped.
+ * <p>It has a twin, {@code config/<mod id>-danger.defaults.toml}; see {@code DefaultsFile}.
+ * Nothing here throws: a malformed file is reported and skipped.
  */
 public final class DangerFile {
 
@@ -73,10 +74,18 @@ public final class DangerFile {
      */
     public void generate() {
         Map<String, Double> derived = fromRegistry();
+        // What this file would say if nobody had ever edited it: today's registry under the
+        // corrections the mod itself declares. Built before the install below, because the live
+        // table stops being able to answer that the moment somebody's overrides land on it.
+        DangerTable pristine = store.get().withDerived(derived)
+                .withOverrides(store.declared().overrides());
         Map<String, Double> overrides = readOverrides();
-        DangerTable table = store.get().withDerived(derived).withOverrides(overrides);
+        DangerTable table = pristine.withOverrides(overrides);
         store.install(table);
         save(table);
+        // The derived half of the twin is generated in this same call from this same registry, so
+        // installing a mod moves both files identically and the diff keeps showing only edits.
+        DefaultsFile.write(path(), render(pristine), modId + " danger");
         AnimaMod.LOGGER.info("{} danger: {} entries derived from the registry, {} overridden",
                 modId, derived.size(), overrides.size());
         warnOnOrphans(derived, overrides);
@@ -127,7 +136,7 @@ public final class DangerFile {
     private Map<String, Double> readOverrides() {
         Path path = path();
         if (!Files.exists(path)) {
-            return store.get().overrides(); // first run: whatever the mod author declared
+            return store.declared().overrides(); 
         }
         CommentedConfig root;
         try {
@@ -180,8 +189,12 @@ public final class DangerFile {
 
     /**
      * The exact text {@link #save} writes — pulled out so a test can check it round-trips. Each
-     * half is introduced by a comment on its own table, so EDITS HERE ARE OVERWRITTEN is a real
-     * TOML comment rather than the first of several hundred string entries.
+     * half is introduced by a comment on its own table, so EDITS HERE ARE OVERWRITTEN sits above
+     * {@code [derived]} as a comment rather than as one more string entry.
+     *
+     * <p><b>Both halves are sorted here</b>, by {@link #ordered}: a {@link DangerTable} holds
+     * immutable maps, so everything arrives flattened to hash order, and unsorted output had the
+     * defaults twin reporting re-orderings as differences.
      */
     public String render(DangerTable table) {
         CommentedConfig root = TomlDocument.document();
@@ -194,7 +207,8 @@ public final class DangerFile {
                         + "GENERATED from the entity registry every time the server starts, "
                         + "guessed from each type's category. EDITS HERE ARE OVERWRITTEN — put "
                         + "yours in \"" + OVERRIDES + "\" below, which is never touched."));
-        table.derived().forEach((species, weight) -> root.set(List.of(DERIVED, species), weight));
+        ordered(table.derived()).forEach(
+                (species, weight) -> root.set(List.of(DERIVED, species), weight));
 
         root.set(List.of(OVERRIDES), TomlDocument.document());
         root.setComment(List.of(OVERRIDES), TomlDocument.comment(
@@ -203,8 +217,28 @@ public final class DangerFile {
                         + "species is worth; \"" + DangerTable.HOSTILE_KEY + "\" is what "
                         + "something that has attacked from cover is worth before it is "
                         + "identified."));
-        table.overrides().forEach((species, weight) -> root.set(List.of(OVERRIDES, species), weight));
+        ordered(table.overrides()).forEach(
+                (species, weight) -> root.set(List.of(OVERRIDES, species), weight));
 
         return TomlDocument.render(root);
+    }
+
+    /**
+     * A half of the table in reading order: the two keys that are not species first, then
+     * everything else alphabetically — no grouping is worth preserving across several hundred
+     * machine-written lines, and a stable order is what makes two of these files diffable.
+     * {@link DangerTable#DEFAULT_KEY} and {@link DangerTable#HOSTILE_KEY} are hoisted because they
+     * are not mobs.
+     */
+    private static Map<String, Double> ordered(Map<String, Double> half) {
+        Map<String, Double> out = new LinkedHashMap<>();
+        for (String special : List.of(DangerTable.DEFAULT_KEY, DangerTable.HOSTILE_KEY)) {
+            Double value = half.get(special);
+            if (value != null) {
+                out.put(special, value);
+            }
+        }
+        new TreeMap<>(half).forEach(out::putIfAbsent);
+        return out;
     }
 }

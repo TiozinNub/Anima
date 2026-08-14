@@ -12,14 +12,28 @@ package dev.luizloyola.anima.core.brain.sense;
 public final class DangerStore {
 
     private volatile DangerTable current;
+    private final DangerTable declared;
 
     public DangerStore(DangerTable initial) {
-        this.current = initial == null ? DangerTable.NEUTRAL : initial;
+        this.declared = initial == null ? DangerTable.NEUTRAL : initial;
+        this.current = this.declared;
     }
 
     /** The table in force right now. Never null. */
     public DangerTable get() {
         return current;
+    }
+
+    /**
+     * The table this store was built with — the mod author's corrections, before any file was read
+     * over them.
+     *
+     * <p>Kept for the defaults twin of the danger file, which {@link #get()} cannot answer once a
+     * file lands; and as the fallback when the file is gone, since the live table would hand back
+     * the last file's overrides on a second world load in the same JVM.
+     */
+    public DangerTable declared() {
+        return declared;
     }
 
     /** Swaps in a new table; every subsequent read sees it whole. */

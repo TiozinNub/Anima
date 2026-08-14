@@ -25,20 +25,21 @@ import net.fabricmc.loader.api.FabricLoader;
  * The TOML face of {@link ConfigValues} — {@code config/<mod id>.toml}, read at startup and on
  * {@code /<mod> config reload}, written back whenever a knob changes.
  *
- * <p>Derived from the {@link KnobSet}: the file's shape is the knobs' dotted keys, one table per
- * segment ({@code person.anima_settings.senses.radius} under
- * {@code [person.anima_settings.senses]}), so a new tunable appears with no code change here and a
- * consumer's file reads as a description of its species.
+ * <p>Shaped by the {@link KnobSet}: the knobs' dotted keys, one TOML table per segment, so a new
+ * tunable appears without a line of code here changing.
  *
- * <p><b>An open-keyed table is not this:</b> entity ids are an open set, so the flee weights are
- * their own artifact — see {@code DangerFile}.
+ * <p>An open-keyed table is not this — entity ids are an open set, so the flee weights are their
+ * own artifact with their own lifecycle. See {@code DangerFile}.
  *
- * <p><b>Self-documenting:</b> each value is preceded by its knob's doc sentence as a {@code #}
- * comment, refreshed from the code on every write — which also drops an operator's own notes.
+ * <p>Each value carries its knob's own doc sentence as a {@code #} comment, refreshed from the
+ * code on every write; an operator's own notes do not survive one either.
  *
- * <p><b>Nothing here throws at the caller:</b> a missing file is written from the defaults, a
- * malformed one reported and the defaults used with the file left untouched. Only {@link #save}
- * surfaces I/O failure, as a log line.
+ * <p>Every load also writes the {@code <mod id>.defaults.toml} twin, so "what have I changed" is a
+ * diff. See {@link DefaultsFile}; nothing ever reads it back.
+ *
+ * <p><b>Nothing here throws at the caller.</b> A missing file is written from the defaults; a
+ * malformed one is reported and the defaults used, leaving the operator's file untouched. Only
+ * {@link #save} surfaces I/O failure, and only as a log line.
  */
 public final class ConfigFile {
 
@@ -71,6 +72,9 @@ public final class ConfigFile {
      */
     public List<String> reload() {
         Path path = path();
+        // The reference twin, first and unconditionally: it is most useful when the load below
+        // fails, and a file that will not parse needs an untouched one to compare against.
+        DefaultsFile.write(path, render(set.defaults()), set.title() + " config");
         if (!Files.exists(path)) {
             store.install(set.defaults());
             save(set.defaults());

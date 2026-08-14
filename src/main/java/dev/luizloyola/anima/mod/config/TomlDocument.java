@@ -121,6 +121,43 @@ public final class TomlDocument {
     }
 
     /**
+     * A comment block for the top of a file — {@link #comment}'s wrapping, but carrying its own
+     * {@code #} markers and ending in a blank line.
+     *
+     * <p>Not handed to night-config: every comment its writer emits is attached to an entry, so a
+     * header would be pinned to whichever key happened to be first.
+     */
+    public static String header(String doc) {
+        String newline = System.lineSeparator();
+        StringBuilder out = new StringBuilder();
+        for (String line : comment(doc).split("\n", -1)) {
+            out.append('#').append(line).append(newline); // comment() already leads with a space
+        }
+        return out.append(newline).toString();
+    }
+
+    /**
+     * {@link #save}, but only when the file does not already say this. Returns whether it
+     * wrote, so an unchanged mtime means the file was last touched by the build that last changed
+     * it, not by the last launch. An unreadable existing file counts as different and is replaced.
+     *
+     * @throws IOException if the file could not be written; the caller decides how loud that is.
+     */
+    public static boolean saveIfChanged(Path path, String text) throws IOException {
+        if (Files.exists(path)) {
+            try {
+                if (Files.readString(path, StandardCharsets.UTF_8).equals(text)) {
+                    return false;
+                }
+            } catch (IOException | RuntimeException e) {
+                // Unreadable or not even UTF-8. Fall through and replace it.
+            }
+        }
+        save(path, text);
+        return true;
+    }
+
+    /**
      * Writes {@code text} to {@code path}, replacing it. Atomic where the filesystem allows it, so
      * a crash mid-write cannot truncate a file the mod rewrites on every {@code config set}.
      *
