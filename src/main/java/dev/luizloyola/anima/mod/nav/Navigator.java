@@ -667,21 +667,26 @@ public final class Navigator {
         }
 
         // Landing beat: the first grounded ticks after any airborne phase, on ground bordering a
-        // drop, brake — input cut, friction kills the arrival momentum so a sprint landing can't
-        // skid over the far lip of a 1-wide pillar. Continuous walking near an edge never trips it.
+        // drop, cut input so friction kills the arrival momentum and a sprint landing can't skid
+        // over the far lip of a 1-wide pillar. Continuous walking never trips it.
         //
-        // EXCEPTION — a leap chain: braking on a takeoff pillar leaves a 1-block runway, far short
-        // of the sprint-jump speed a span-3 (2-block-gap) leap needs, so the next leap falls short,
-        // strays and re-paths forever. The brake stands down whenever a leap leaves this cell: a
-        // leap already past its landing phase (the 1.44 mirrors leapLanding below), or one whose
-        // next waypoint leaps. A planned RUNUP leg says the same in advance — braking an approach
-        // whose job is to arrive fast undoes the leg, which bites on the summit shape, where the
-        // run-up JUMPS onto the takeoff.
+        // Exempt when this is the approach or takeoff of a WIDE (span >= 3) leap: braking leaves a
+        // 1-block runway, too little to rebuild sprint-jump speed, and the chain fails. Width is
+        // the whole of the condition — over gauntlet A10's gap-1 hops the exemption only compounded
+        // speed, each arc starting further forward until the fourth hit the side of pillar 612,
+        // three runs out of three.
+        //
+        // A planned RUNUP is exempt with no width test: the search only plans one in front of a
+        // wide leap. It bites on the summit shape, where the run-up JUMPS onto the takeoff.
+        boolean approachingWideLeap = waypoint.move() == MoveType.LEAP
+                && horizontalSq > 1.44                       // past its landing phase (see leapLanding)
+                && leapSpan(waypoint) >= 3.0;
+        boolean handsOffToWideLeap = this.index + 1 < this.path.waypoints().size()
+                && this.path.waypoints().get(this.index + 1).move() == MoveType.LEAP
+                && spanToNext() >= 3.0;
         boolean leapTakeoff = waypoint.move() == MoveType.RUNUP
-                || (waypoint.move() == MoveType.LEAP
-                        && (horizontalSq > 1.44
-                                || (this.index + 1 < this.path.waypoints().size()
-                                        && this.path.waypoints().get(this.index + 1).move() == MoveType.LEAP)));
+                || approachingWideLeap
+                || handsOffToWideLeap;
         if (this.groundedTicks >= 1 && this.groundedTicks <= 3 && this.grid != null && !leapTakeoff) {
             BlockPos feet = this.person.blockPosition();
             if (NavGrids.isNearDeepDrop(this.grid, capabilities().maxDrop(),
@@ -713,7 +718,7 @@ public final class Navigator {
         // to be — a run-up decides its speed by where it is GOING.
         double leapSpan = switch (waypoint.move()) {
             case LEAP -> leapSpan(waypoint);
-            case RUNUP -> runUpSpan();
+            case RUNUP -> spanToNext();
             default -> 0.0;
         };
         boolean leapLanding = waypoint.move() == MoveType.LEAP && this.person.onGround()
@@ -1197,12 +1202,13 @@ public final class Navigator {
      * exact); when the leap is the path's first move the takeoff is our own start cell.
      */
     /**
-     * Span of the leap a {@link MoveType#RUNUP} leg is feeding — the same 2..4 number read one
-     * waypoint FORWARD instead of one back. It picks the gait: a run-up onto a span-3 leap's
-     * takeoff sprints, and that is the only reason the leap clears. Zero if nothing follows, which
-     * the search never produces (it never ends a path on a run-up).
+     * Span of the next leg — the same 2..4 number {@link #leapSpan} reads, one waypoint forward
+     * instead of one back. A {@link MoveType#RUNUP} picks its gait by what it feeds (a run-up onto
+     * a span-3 takeoff sprints, which is the only reason the leap clears), and a landing decides
+     * whether to brake by what it hands off to: momentum is worth keeping for a wide leap and
+     * nothing for a hop. Zero when nothing follows, which for a run-up cannot happen.
      */
-    private double runUpSpan() {
+    private double spanToNext() {
         if (this.index + 1 >= this.path.waypoints().size()) {
             return 0.0;
         }
