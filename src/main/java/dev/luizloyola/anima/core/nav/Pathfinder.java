@@ -72,6 +72,21 @@ public final class Pathfinder {
      */
     private static final int[] LEAP_RUN_UP = {0, 0, 1, 1};
     /**
+     * The widest gap a body may leap after turning a hard corner on a landing, indexed by the SPAN
+     * of the leap it landed from (2..4; index 0 and 1 are unreachable and hold a walk's answer). A
+     * landing keeps a body's speed but not its aim: turn 90° and the old axis's momentum goes with
+     * you, so you land off-line by however much of it the arriving leap left.
+     *
+     * <p>Measured on gauntlet A13. Off a gap-2 landing (span 3) the turn into a gap-3 came down
+     * with 0.23 of a block still on the pillar and held; off THAT landing (span 4) the same turn
+     * was short by 0.4 and 0.19 wide, and fell three runs out of three. So a span-4 arrival caps
+     * the turn at a 2-cell gap and everything narrower is left alone.
+     *
+     * <p>Nothing here caps a leap taken STRAIGHT off a landing: a chain that keeps its heading
+     * keeps its aim. That is what the 1-wide pillar courses (A9, A11) are made of.
+     */
+    private static final int[] LEAP_TURN_CAP = {3, 3, 3, 3, 2};
+    /**
      * Cost multiplier for unit moves whose either endpoint is careful ground (bordering a chasm,
      * lava, or water — {@link NavGrids#isNearDeepDrop}): the follower walks such steps at the
      * careful throttle (0.45 → this is 1/0.45), so this is the real time cost, and it doubles as
@@ -722,24 +737,44 @@ public final class Pathfinder {
         if (maxLeap < 1 || this.profile.jumpHeight() < 1) return;
         // Hops — this node is the takeoff, and the approach costs nothing because there isn't one.
         leapFrom(current, node, x, y, z, from, dx, dz, maxLeap, 0, 0.0);
-        // Wide leaps off this cell directly, for a body that already has the speed. Two ways to
-        // have it, and the course settled both:
+        // Wide leaps taken off this cell directly, with no approach planned in front of them —
+        // for a body that already has the speed. Two ways to have it:
         //
-        //  - ON FOOT, travelling somewhat the way it is about to jump — a straight step or a
-        //    diagonal, which keeps most of its speed through the 45° (gauntlet A8, A12). A quarter
-        //    turn does not count, hence a dot product: at A2.R a sideways step (1.0) plus a
-        //    perpendicular leap (5.4) beat backing up and running at the gap (7.4), which is a
-        //    standing jump wearing a run-up's name.
-        //  - FLYING, whatever the heading: a landing slides, and the follower presses the next leap
-        //    on the first grounded tick in band. A12's serpentine turns a gap-3 leap through 90° on
-        //    a 1-wide pillar; refusing turns regressed it and A13.
+        //  - it arrives ON FOOT, travelling somewhat the way it is about to jump. A diagonal step
+        //    in counts, keeping most of its speed through a 45°, and that is how a pillar reached
+        //    from the pillar beside it (gauntlet A8, A12) is leapt off at all. A quarter turn does
+        //    not, so this is a dot product rather than "did it come from anywhere":
+        //    station A2.R found it cheaper to step SIDEWAYS one cell (1.0) and leap perpendicular
+        //    to that step (5.4) than to back up and run at the gap properly (7.4) — a standing
+        //    jump wearing a run-up's name.
         //
-        // A body with neither is standing still — the route's start cell, which gets a run-up below.
+        //  - it arrives FLYING, and the heading matters less: a landing does not stop a body, and
+        //    the follower presses the next leap on the first grounded tick in band, turning what
+        //    is left of the flight into the next takeoff. A quarter turn off a landing is
+        //    therefore allowed where a quarter turn off a walk is not (A12's serpentine is nothing
+        //    else). Less, though, not not-at-all: what survives a hard turn is speed, not aim, so
+        //    the turn is capped by what the body arrived on — see LEAP_TURN_CAP.
+        //
+        // A body with neither is standing still, and there is exactly one such cell in any route:
+        // its start. That one gets a run-up planned for it instead, below.
         if (node.parent != NO_PARENT) {
-            int ax = Integer.signum(x - unpackX(node.parent));
-            int az = Integer.signum(z - unpackZ(node.parent));
-            if (node.move == MoveType.LEAP || ax * dx + az * dz > 0) {
+            // Where the flight came from, which for a run-up-sourced leap is its takeoff and not
+            // its parent — the parent is a cell further back, and counting it would overstate both
+            // the heading and the width of the leap that got us here.
+            long arrival = node.move == MoveType.LEAP && node.takeoff != NO_PARENT
+                    ? node.takeoff
+                    : node.parent;
+            int ax = Integer.signum(x - unpackX(arrival));
+            int az = Integer.signum(z - unpackZ(arrival));
+            if (ax * dx + az * dz > 0) {
                 leapFrom(current, node, x, y, z, from, dx, dz, maxLeap, 1, 0.0);
+            } else if (node.move == MoveType.LEAP) {
+                int arrived = Math.max(Math.abs(x - unpackX(arrival)),
+                        Math.abs(z - unpackZ(arrival)));
+                leapFrom(current, node, x, y, z, from, dx, dz,
+                        arrived >= LEAP_TURN_CAP.length ? LEAP_TURN_CAP[LEAP_TURN_CAP.length - 1]
+                                : Math.min(maxLeap, LEAP_TURN_CAP[arrived]),
+                        1, 0.0);
             }
         }
         // Wide leaps — this node is the run-up and the cell in front is the takeoff, if the body

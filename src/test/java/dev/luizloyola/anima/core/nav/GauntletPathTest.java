@@ -232,8 +232,15 @@ class GauntletPathTest {
             String id = entry.getKey();
             Station s = stations.stream().filter(st -> st.id().equals(id)).findFirst()
                     .orElseThrow(() -> new AssertionError("no station " + id));
-            List<Waypoint> route = Pathfinder.find(world,
-                    PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+            var result = Pathfinder.find(world,
+                    PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY));
+            if (!result.reachedGoal()) {
+                // A refusal is the reachability lock's business. Read as a shortcut it is nonsense:
+                // a partial route stops early, so of course it misses rows. Caught the day A13
+                // became unplannable.
+                continue;
+            }
+            List<Waypoint> route = result.waypoints();
             for (int row : entry.getValue()) {
                 assertTrue(route.stream().anyMatch(w -> w.z() == row),
                         () -> id + " (" + s.title() + ") reaches the goal without ever standing on "
