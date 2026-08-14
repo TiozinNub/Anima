@@ -272,6 +272,67 @@ public final class AgentCommands {
      * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
      * so a shared subcommand must be built once per root that mounts it.
      */
+    /**
+     * {@code recipes <spec>} — what the registered {@link dev.luizloyola.anima.core.craft.Recipes
+     * recipe sources} know how to make of an item class, as bills of materials. Read-only: the
+     * craftbook is world knowledge, not body state, and a spec no recipe produces answers with
+     * nothing.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> recipes() {
+        return Commands.literal("recipes")
+                .then(Commands.argument("spec", StringArgumentType.word())
+                        .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(
+                                dev.luizloyola.anima.core.inv.ItemSpec.names(), builder))
+                        .executes(ctx -> listRecipes(ctx.getSource(),
+                                StringArgumentType.getString(ctx, "spec"))));
+    }
+
+    private static int listRecipes(CommandSourceStack source, String name) {
+        var spec = dev.luizloyola.anima.core.inv.ItemSpec.byName(name);
+        if (spec.isEmpty()) {
+            Replies.fail(source, Component.literal("No item class named \"" + name
+                    + "\" is registered. Known: "
+                    + String.join(", ", new java.util.TreeSet<>(
+                            dev.luizloyola.anima.core.inv.ItemSpec.names()))));
+            return 0;
+        }
+        List<dev.luizloyola.anima.core.craft.CraftRecipe> known =
+                dev.luizloyola.anima.core.craft.Recipes.producing(spec.get());
+        if (known.isEmpty()) {
+            Replies.send(source, () -> Component.literal("Nobody knows a way to craft \"" + name
+                    + "\".").withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        Replies.send(source, () -> Component.literal("\"" + name + "\": " + known.size()
+                + (known.size() == 1 ? " recipe" : " recipes")).withStyle(ChatFormatting.AQUA));
+        for (dev.luizloyola.anima.core.craft.CraftRecipe recipe : known) {
+            StringBuilder bill = new StringBuilder();
+            for (dev.luizloyola.anima.core.craft.CraftRecipe.Ingredient line : recipe.ingredients()) {
+                if (bill.length() > 0) {
+                    bill.append(" + ");
+                }
+                bill.append(line.count()).append("×").append(billLabel(line.acceptedIds()));
+            }
+            String row = "  " + shortItem(recipe.outputId())
+                    + (recipe.outputCount() > 1 ? " x" + recipe.outputCount() : "")
+                    + " ← " + bill + (recipe.needsTable() ? "  [table]" : "");
+            Replies.send(source, () -> Component.literal(row).withStyle(ChatFormatting.GRAY));
+        }
+        return known.size();
+    }
+
+    /** One bill line's alternatives: the first id plainly, the rest as a count. */
+    private static String billLabel(java.util.Set<String> acceptedIds) {
+        String first = shortItem(acceptedIds.iterator().next());
+        int alternatives = acceptedIds.size() - 1;
+        return alternatives == 0 ? first : first + "(+" + alternatives + " alts)";
+    }
+
+    /** {@code minecraft:} dropped, everything else kept — the readout stays one line wide. */
+    private static String shortItem(String id) {
+        return id.startsWith("minecraft:") ? id.substring("minecraft:".length()) : id;
+    }
+
     public static LiteralArgumentBuilder<CommandSourceStack> probe() {
         return Commands.literal("probe").then(ProbeDump.node());
     }

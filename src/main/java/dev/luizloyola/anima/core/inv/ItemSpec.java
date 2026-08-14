@@ -39,6 +39,11 @@ public record ItemSpec(String name, Predicate<String> matcher) {
         return Optional.ofNullable(REGISTERED.get(name));
     }
 
+    /** Every registered name, for tab completion and readouts. Snapshot, not a live view. */
+    public static java.util.Set<String> names() {
+        return java.util.Set.copyOf(REGISTERED.keySet());
+    }
+
     public boolean matches(String itemId) {
         return matcher.test(itemId);
     }

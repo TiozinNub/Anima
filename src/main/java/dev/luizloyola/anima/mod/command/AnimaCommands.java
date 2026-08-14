@@ -37,6 +37,8 @@ public final class AnimaCommands {
                         // A standing order, instead of typing nav goto at the body every 20 blocks.
                         .then(AgentCommands.follow())
                         .then(AgentCommands.probe())
+                        // The craftbook lens — read-only.
+                        .then(AgentCommands.recipes())
                         .then(AgentCommands.brain())
                         .then(AgentCommands.think())
                         .then(AgentCommands.log())
