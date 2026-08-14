@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -205,6 +206,40 @@ class GauntletPathTest {
             assertTrue(route.get(0).x() < s.sx(),
                     id + " (" + s.title() + "): the run-up has to be walked BACKWARDS from the "
                             + "start, and the first step goes forward: " + route);
+        }
+    }
+
+    /**
+     * The rows each serpentine has to actually set foot on. A lane five cells wide between two pads
+     * that each span the full width hands out a shortcut the moment any single row runs from one
+     * pad to the other inside leap range.
+     *
+     * <p>A12 gave one out twice — a leap due east off the start pad at zc+1 onto the row-+1 pillar,
+     * a gap of 3, exactly maxLeap, skipping all of row -2 and the first turn. Both leaks are walled
+     * off; this is the alarm for the next redraw that opens one.
+     *
+     * <p>Rows, not a count of turns: the shortcut route still changed axis six times,
+     * so counting corners would have waved it through. What a shortcut always does is leave a row
+     * out.
+     */
+    private static final Map<String, int[]> SERPENTINE_ROWS = Map.of(
+            "A12", new int[]{134, 135, 136, 137, 138},
+            "A13", new int[]{146, 147, 150});
+
+    @Test
+    void serpentinesAreNotQuietlySolvedByLeavingARowOut() {
+        for (Map.Entry<String, int[]> entry : SERPENTINE_ROWS.entrySet()) {
+            String id = entry.getKey();
+            Station s = stations.stream().filter(st -> st.id().equals(id)).findFirst()
+                    .orElseThrow(() -> new AssertionError("no station " + id));
+            List<Waypoint> route = Pathfinder.find(world,
+                    PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+            for (int row : entry.getValue()) {
+                assertTrue(route.stream().anyMatch(w -> w.z() == row),
+                        () -> id + " (" + s.title() + ") reaches the goal without ever standing on "
+                                + "row z=" + row + ", so it is being solved by a shortcut and is "
+                                + "measuring an easier lane than the one it is named for: " + route);
+            }
         }
     }
 
