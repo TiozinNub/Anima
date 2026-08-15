@@ -8,9 +8,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A* over a {@link NavGrid}, answering a {@link PathRequest} with a {@link Path}.
@@ -235,7 +233,7 @@ public final class Pathfinder {
     private final int goalZ;
 
     /** Per-cell search record, keyed by packed position in {@link #nodes}. */
-    private static final class Node {
+    static final class Node {
         double g;
         long parent = NO_PARENT;
         MoveType move = MoveType.WALK;
@@ -257,18 +255,20 @@ public final class Pathfinder {
         boolean closed;
     }
 
-    private final Map<Long, Node> nodes = new HashMap<>();
+    // Sized for an ordinary search rather than grown into: DEFAULT_MAX_NODES is 4096, and the
+    // memos are probed far more often than the node table is filled.
+    private final CellTable.Nodes nodes = new CellTable.Nodes(8192);
     private final OpenHeap open = new OpenHeap();
     /** Careful-ground memo: each cell is probed by every incident edge, and one probe costs ~20
      *  grid reads — cache it per search. */
-    private final Map<Long, Boolean> carefulCache = new HashMap<>();
+    private final CellTable.Flags carefulCache = new CellTable.Flags(8192);
     /**
      * Water-node memo, same reasoning as {@link #carefulCache}: the test is not cheap (a
      * standability check plus a clearance loop) and every cell is re-tested by each of its own
      * neighbours. It matters more here — a swimmer has a hundred neighbours where a walker has
      * forty.
      */
-    private final Map<Long, Boolean> waterNodeCache = new HashMap<>();
+    private final CellTable.Flags waterNodeCache = new CellTable.Flags(4096);
     /**
      * What this body would rather not walk past. A snapshot taken before the search left the
      * server thread — see {@link PathRequest#of(int, int, int, int, int, int, MoveCapabilities,
@@ -370,9 +370,10 @@ public final class Pathfinder {
      */
     private List<Pos> closedCells() {
         List<Pos> cells = new ArrayList<>(this.nodes.size());
-        for (Map.Entry<Long, Node> entry : this.nodes.entrySet()) {
-            if (entry.getValue().closed) {
-                long cell = entry.getKey();
+        for (int slot = 0; slot < this.nodes.capacity(); slot++) {
+            Node node = this.nodes.valueAt(slot);
+            if (node != null && node.closed) {
+                long cell = this.nodes.keyAt(slot);
                 cells.add(new Pos(unpackX(cell), unpackY(cell), unpackZ(cell)));
             }
         }
@@ -458,11 +459,12 @@ public final class Pathfinder {
         int margin = Math.max(Math.max(MAX_STRIDE + 1, this.profile.maxLeap() + 2),
                 Math.max(this.profile.maxDrop() + 2,
                         this.profile.clearCells() + this.profile.jumpHeight() + 1));
-        for (Map.Entry<Long, Node> entry : this.nodes.entrySet()) {
-            if (!entry.getValue().closed) {
-                continue; // opened but never reached: it was never anywhere the body could stand
+        for (int slot = 0; slot < this.nodes.capacity(); slot++) {
+            Node reached = this.nodes.valueAt(slot);
+            if (reached == null || !reached.closed) {
+                continue; // free slot, or opened but never reached: never anywhere to stand
             }
-            long cell = entry.getKey();
+            long cell = this.nodes.keyAt(slot);
             int x = unpackX(cell);
             int y = unpackY(cell);
             int z = unpackZ(cell);
@@ -579,8 +581,10 @@ public final class Pathfinder {
      * flooded tunnel are both water nodes, and every horizontal move treats them alike.
      */
     private boolean isWaterNode(int x, int y, int z) {
-        Boolean known = this.waterNodeCache.get(pack(x, y, z));
-        return known != null ? known : computeWaterNode(x, y, z);
+        byte known = this.waterNodeCache.get(pack(x, y, z));
+        return known != CellTable.Flags.UNKNOWN
+                ? known == CellTable.Flags.TRUE
+                : computeWaterNode(x, y, z);
     }
 
     private boolean computeWaterNode(int x, int y, int z) {
@@ -1117,8 +1121,16 @@ public final class Pathfinder {
 
     /** Memoized {@link NavGrids#isNearDeepDrop} — see {@link #CAREFUL_COST_FACTOR}. */
     private boolean isCareful(int x, int y, int z) {
-        return this.carefulCache.computeIfAbsent(pack(x, y, z),
-                key -> NavGrids.isNearDeepDrop(this.grid, this.profile.maxDrop(), x, y, z));
+        long key = pack(x, y, z);
+        byte known = this.carefulCache.get(key);
+        if (known != CellTable.Flags.UNKNOWN) {
+            return known == CellTable.Flags.TRUE;
+        }
+        // Spelled out rather than computeIfAbsent: that call allocates a capture object for its
+        // lambda on every invocation, hit or miss, and this is the hottest line in the search.
+        boolean answer = NavGrids.isNearDeepDrop(this.grid, this.profile.maxDrop(), x, y, z);
+        this.carefulCache.put(key, answer);
+        return answer;
     }
 
     /**
