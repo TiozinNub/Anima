@@ -70,12 +70,38 @@ class CraftForTest {
     }
 
     @Test
-    void notApplicableWithoutARecipeOrWithOnlyTableRecipes() {
+    void notApplicableWithoutAnyRecipe() {
         assertFalse(new CraftFor(PLANKS, 4, Set.of()).applicable(ctx), "empty book");
+    }
+
+    @Test
+    void aTableRecipePlansItsBenchBetweenTheBillAndTheExchange() {
         book(axeNeedingTable());
-        assertFalse(new CraftFor(ItemSpec.anyOf(Set.of("minecraft:wooden_axe")), 1, Set.of())
-                        .applicable(ctx),
-                "a table recipe is out of reach until the table era");
+        CraftFor axe = new CraftFor(ItemSpec.anyOf(Set.of("minecraft:wooden_axe")), 1, Set.of());
+        assertTrue(axe.applicable(ctx), "the table era: the whole book is reachable");
+        List<Task> plan = axe.decompose(ctx);
+        assertEquals(6, plan.size());
+        assertInstanceOf(ObtainItem.class, plan.get(0), "planks");
+        assertInstanceOf(ObtainItem.class, plan.get(1), "sticks");
+        EnsureTable bench = assertInstanceOf(EnsureTable.class, plan.get(2));
+        assertTrue(bench.pursued().contains("minecraft:wooden_axe"),
+                "the occurs-check threads through the bench — a table recipe for the table halts");
+        assertInstanceOf(ObtainItem.class, plan.get(3),
+                "the bill again: making the bench may have EATEN it (the table is planks)");
+        assertInstanceOf(ObtainItem.class, plan.get(4));
+        assertInstanceOf(CraftStep.class, plan.get(5));
+    }
+
+    @Test
+    void tiesPreferTheInHandRecipeOverTheTableOne() {
+        // Same output, same bill, one needs a bench: no walk beats a walk.
+        CraftRecipe sticksAtTable = new CraftRecipe("mod:sticks-at-table",
+                ItemStack.of("minecraft:stick", 4, 64),
+                List.of(new CraftRecipe.Ingredient(
+                        Set.of("minecraft:oak_planks", "minecraft:birch_planks"), 2)), true);
+        book(sticksAtTable, sticksFromPlanks());
+        List<Task> plan = new CraftFor(STICKS, 4, Set.of()).decompose(ctx);
+        assertEquals(2, plan.size(), "no EnsureTable in the plan: the in-hand recipe won the tie");
     }
 
     @Test

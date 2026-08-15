@@ -8,17 +8,13 @@ import dev.luizloyola.anima.core.log.Category;
 import java.util.TreeSet;
 
 /**
- * Perform {@code times} crafts of one recipe out of the carried pack — the primitive
- * {@link CraftFor} bottoms out in. Each craft is a short worked pause ({@link #CRAFT_TICKS}) and
- * then an ATOMIC exchange: bill verified, consumed and output added in the same tick, so a death, a
- * suspension or a reload can strand no half-crafted state. Only the pause can be interrupted, and
- * the codec carries it.
+ * Perform {@code times} crafts of one recipe from the carried pack — what {@link CraftFor} bottoms
+ * out in. Each craft is a worked pause ({@link #CRAFT_TICKS}) then an ATOMIC exchange in one tick,
+ * so nothing strands a half-crafted state; only the pause survives a reload, carried by the codec.
  *
- * <p>Materials are re-verified at the START of each craft and again at the exchange, because the
- * pack is live state; a bill that no longer holds is a clean FAILED, so the parent re-rounds and
- * re-obtains rather than waiting for materials nobody is fetching.
- *
- * <p>No table, no position: this is the in-hand 2×2.
+ * <p>The pack is live, so the bill is re-verified at the start of each craft and again at the
+ * exchange; one that no longer holds is FAILED and the parent re-obtains. A table recipe also
+ * verifies its bench in reach.
  */
 public final class CraftStep implements PrimitiveTask {
 
@@ -40,8 +36,8 @@ public final class CraftStep implements PrimitiveTask {
     public TaskStatus tick(BrainContext ctx) {
         Inventory pack = ctx.percepts().inventory();
         if (workTicks == 0) {
-            // Starting a craft: the bill must be there and the output must have somewhere to go.
-            if (!billCovered(pack) || !roomFor(recipe.output(), pack)) {
+            // EnsureTable just ran, but the pause is real time and a body can be shoved.
+            if (!billCovered(pack) || !roomFor(recipe.output(), pack) || !sited(ctx)) {
                 return TaskStatus.FAILED;
             }
             workTicks = CRAFT_TICKS;
@@ -51,7 +47,7 @@ public final class CraftStep implements PrimitiveTask {
             return TaskStatus.RUNNING;
         }
         // The exchange, atomic within this tick — re-verified, because the pause is real time.
-        if (!billCovered(pack) || !roomFor(recipe.output(), pack)) {
+        if (!billCovered(pack) || !roomFor(recipe.output(), pack) || !sited(ctx)) {
             return TaskStatus.FAILED;
         }
         consumeBill(pack);
@@ -76,7 +72,13 @@ public final class CraftStep implements PrimitiveTask {
 
     @Override
     public String failureDetail() {
-        return "craft lost its materials (" + recipe.outputId() + ", " + done + "/" + times + ")";
+        return "craft could not go on (" + recipe.outputId() + ", " + done + "/" + times
+                + (recipe.needsTable() ? ", needs a bench" : "") + ")";
+    }
+
+    /** In-hand recipes craft anywhere; a table recipe needs its bench within reach, verified. */
+    private boolean sited(BrainContext ctx) {
+        return !recipe.needsTable() || dev.luizloyola.anima.core.craft.Workbench.standingAtOne(ctx);
     }
 
     /** One craft's bill, present in the pack right now. */

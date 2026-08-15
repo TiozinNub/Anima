@@ -249,6 +249,33 @@ public final class AnimaTasks {
         TaskCodecs.register("anima:flee", FleeStep.class, MapCodec.unit(FleeStep::new));
         TaskCodecs.register("anima:eat", SatisfyHunger.class, MapCodec.unit(SatisfyHunger::new));
 
+        TaskCodecs.register("anima:place", dev.luizloyola.anima.core.brain.task.PlaceBlock.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        Codec.STRING.fieldOf("item")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceBlock::itemId),
+                        POS.fieldOf("at")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceBlock::target)
+                ).apply(t, (item, at) -> new dev.luizloyola.anima.core.brain.task.PlaceBlock(
+                        item, at.x(), at.y(), at.z()))));
+
+        TaskCodecs.register("anima:note_place", dev.luizloyola.anima.core.brain.task.NotePlace.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POI_KIND.fieldOf("kind")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.NotePlace::kind),
+                        POS.fieldOf("at")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.NotePlace::anchor)
+                ).apply(t, (kind, at) -> new dev.luizloyola.anima.core.brain.task.NotePlace(
+                        kind, at.x(), at.y(), at.z()))));
+
+        TaskCodecs.register("anima:ensure_table",
+                dev.luizloyola.anima.core.brain.task.EnsureTable.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        Codec.STRING.listOf().optionalFieldOf("pursued", java.util.List.of())
+                                .forGetter(task -> java.util.List.copyOf(
+                                        new java.util.TreeSet<>(task.pursued())))
+                ).apply(t, pursued -> new dev.luizloyola.anima.core.brain.task.EnsureTable(
+                        new java.util.HashSet<>(pursued)))));
+
         // The two wrappers carry TASKS, so both lean on the dispatch codec — whose per-key
         // lookups happen at parse time. That is what makes the recursion legal here.
         TaskCodecs.register("anima:try", dev.luizloyola.anima.core.brain.task.Try.class,

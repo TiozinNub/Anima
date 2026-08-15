@@ -44,6 +44,9 @@ public final class AnimaMod implements ModInitializer {
         PlaceIndexes.install();
         AnimaItems.init();
         AnimaRecords.install();
+        // The one block Anima itself perceives: CraftFor must find tables, so the kind cannot
+        // belong to any consumer.
+        dev.luizloyola.anima.compat.craft.WorkbenchBlocks.register();
         // Teaches the plan-codec registry Anima's own tasks, before anything can load a plan.
         dev.luizloyola.anima.mod.brain.AnimaTasks.install();
         // As the server finishes starting: refuses to run a world whose memory did not load,

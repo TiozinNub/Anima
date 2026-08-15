@@ -11,21 +11,23 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The making method — the third way {@link ObtainItem} can have a thing, after picking one up and
- * after a consumer's registered producers. Applicable exactly when a registered
- * {@link Recipes recipe source} knows an in-hand recipe for the spec; recipes that need a table are
- * filtered out until the table era.
+ * The making method — the third way {@link ObtainItem} can have a thing, after picking one up
+ * and after a registered producer. Applicable when a registered {@link Recipes recipe source}
+ * knows a recipe for the spec.
  *
- * <p>Decomposition: one {@link ObtainItem} per bill line (satisfied-check-first, so stocked
- * materials cost nothing), then a {@link CraftStep}. Sub-goal specs are
- * {@link ItemSpec#anyOf literal} — "any plank", straight from the ingredient — so they persist by
- * content and a reload rebuilds them without any mod having declared a planks class.
+ * <p>An in-hand recipe crafts where the body stands; one needing a table gets an
+ * {@link EnsureTable} after the materials and before the exchange, and ties prefer the in-hand
+ * shape — no walk is cheaper. Decomposition: one {@link ObtainItem} per bill line (each
+ * satisfied-check-first, so stocked materials cost nothing), then a {@link CraftStep}. Sub-goal
+ * specs are {@link ItemSpec#anyOf literal} — "any plank", straight from the ingredient — so they
+ * persist by content and a reload rebuilds them with no mod having declared a planks class.
  *
  * <p><b>The occurs-check is ancestor-based</b>, carried as {@code pursued}: the output ids this
  * branch of the goal stack is already obtaining. A recipe whose output is already pursued is not
  * offered (the gold-ingot ⇄ gold-nugget cycle refusing to loop) while a SIBLING obtain of the
- * same item is untouched, so an empty-handed settler may chop one log for planks on the way to an
- * axe whose errand also wants logs. A satisfied goal never expands, so only a genuine cycle bites.
+ * same item is untouched, letting an empty-handed settler chop one log for planks on the way to
+ * an axe whose errand also wants logs. A satisfied goal never expands, so only a genuine cycle
+ * is bitten.
  */
 public final class CraftFor implements Method {
 
@@ -83,6 +85,17 @@ public final class CraftFor implements Method {
             plan.add(new ObtainItem(ItemSpec.anyOf(line.acceptedIds()),
                     line.count() * crafts, nowPursued));
         }
+        if (recipe.needsTable()) {
+            // Materials, bench, then the bill again: making the bench may CONSUME the bill (the
+            // table itself is planks). Every obtain is satisfied-check-first, so an untouched
+            // pack tops up for zero and an eaten one is re-gathered before the exchange instead
+            // of failing it — gather 4 planks, craft the table from them, arrive 2 short.
+            plan.add(new EnsureTable(nowPursued));
+            for (CraftRecipe.Ingredient line : recipe.ingredients()) {
+                plan.add(new ObtainItem(ItemSpec.anyOf(line.acceptedIds()),
+                        line.count() * crafts, nowPursued));
+            }
+        }
         plan.add(new CraftStep(recipe, crafts));
         return plan;
     }
@@ -92,11 +105,11 @@ public final class CraftFor implements Method {
         return "craft " + spec.name();
     }
 
-    /** Recipes this method may use: in-hand, producing the spec, and not already being pursued. */
+    /** Recipes this method may use: producing the spec and not already being pursued. */
     private List<CraftRecipe> usable() {
         List<CraftRecipe> fit = new ArrayList<>();
         for (CraftRecipe recipe : Recipes.producing(spec)) {
-            if (!recipe.needsTable() && !pursued.contains(recipe.outputId())) {
+            if (!pursued.contains(recipe.outputId())) {
                 fit.add(recipe);
             }
         }
@@ -105,14 +118,17 @@ public final class CraftFor implements Method {
 
     /**
      * The recipe to expand: covered-from-the-pack beats everything, then the fewest missing
-     * items, then source order — so the same pack always plans the same craft.
+     * items, then in-hand over table (no walk beats a walk), then source order — so the same
+     * pack always plans the same craft.
      */
     private CraftRecipe pick(Inventory pack) {
         CraftRecipe best = null;
         int bestMissing = Integer.MAX_VALUE;
         for (CraftRecipe recipe : usable()) {
             int missing = missingFor(recipe, craftsNeeded(recipe, pack), pack);
-            if (missing < bestMissing) {
+            if (missing < bestMissing
+                    || (missing == bestMissing && best != null
+                            && best.needsTable() && !recipe.needsTable())) {
                 best = recipe;
                 bestMissing = missing;
             }
