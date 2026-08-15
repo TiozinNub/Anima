@@ -77,6 +77,8 @@ class CraftForTest {
     @Test
     void aTableRecipePlansItsBenchBetweenTheBillAndTheExchange() {
         book(axeNeedingTable());
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_planks", 3, 64));
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:stick", 2, 64));
         CraftFor axe = new CraftFor(ItemSpec.anyOf(Set.of("minecraft:wooden_axe")), 1, Set.of());
         assertTrue(axe.applicable(ctx), "the table era: the whole book is reachable");
         List<Task> plan = axe.decompose(ctx);
@@ -100,6 +102,7 @@ class CraftForTest {
                 List.of(new CraftRecipe.Ingredient(
                         Set.of("minecraft:oak_planks", "minecraft:birch_planks"), 2)), true);
         book(sticksAtTable, sticksFromPlanks());
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_planks", 2, 64));
         List<Task> plan = new CraftFor(STICKS, 4, Set.of()).decompose(ctx);
         assertEquals(2, plan.size(), "no EnsureTable in the plan: the in-hand recipe won the tie");
     }
@@ -116,6 +119,7 @@ class CraftForTest {
     @Test
     void decomposesToOneObtainPerBillLineThenTheCraft() {
         book(sticksFromPlanks());
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_planks", 2, 64));
         List<Task> plan = new CraftFor(STICKS, 4, Set.of()).decompose(ctx);
         assertEquals(2, plan.size());
         ObtainItem materials = assertInstanceOf(ObtainItem.class, plan.get(0));
@@ -130,6 +134,7 @@ class CraftForTest {
     void shortfallScalesTheCraftsAndTheBill() {
         book(planksFromLog());
         ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_planks", 5, 64));
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_log", 2, 64));
         List<Task> plan = new CraftFor(PLANKS, 12, Set.of()).decompose(ctx);
         // Short 7 planks at 4 a craft -> 2 crafts -> 2 logs.
         assertEquals(2, ((ObtainItem) plan.get(0)).count());
@@ -137,33 +142,59 @@ class CraftForTest {
     }
 
     @Test
-    void thePursuedSetRefusesTheCycle() {
+    void aPureCycleIsNotEvenApplicable() {
+        // Ingots from nuggets from ingots, nothing real at the bottom: reachability walks the
+        // loop with the occurs-check's own output-id guard and finds no floor.
         book(ingotFromNuggets(), nuggetsFromIngot());
-        // Obtaining ingots via nuggets: each descent adds its OUTPUT to the pursued set, so the
-        // loop is refused exactly where it would close — at the sub-goal asking for ingots again.
+        assertFalse(new CraftFor(INGOTS, 1, Set.of()).applicable(ctx));
+    }
+
+    @Test
+    void thePursuedSetRefusesTheCycleWhereItWouldClose() {
+        book(ingotFromNuggets(), nuggetsFromIngot());
+        // With real nuggets in the pack the ingot craft has a floor and runs…
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:gold_nugget", 9, 64));
         List<Task> plan = new CraftFor(INGOTS, 1, Set.of()).decompose(ctx);
         ObtainItem nuggets = (ObtainItem) plan.get(0);
         assertTrue(nuggets.pursued().contains("minecraft:gold_ingot"));
-        CraftFor viaIngot = new CraftFor(nuggets.spec(), nuggets.count(), nuggets.pursued());
-        assertTrue(viaIngot.applicable(ctx),
-                "nuggets are not yet pursued — this level may still plan a craft");
-        ObtainItem backToIngots = (ObtainItem) viaIngot.decompose(ctx).get(0);
-        assertEquals(Set.of("minecraft:gold_ingot", "minecraft:gold_nugget"),
-                backToIngots.pursued());
-        assertFalse(new CraftFor(backToIngots.spec(), backToIngots.count(),
-                        backToIngots.pursued()).applicable(ctx),
-                "the ingot recipe's output is already pursued — the cycle dies here, bounded");
+        // …but the nugget sub-goal must not crawl back up: its only recipe consumes the very
+        // ingot being pursued, which reachability now rejects a level earlier than the
+        // decompose-time check alone used to.
+        assertFalse(new CraftFor(nuggets.spec(), nuggets.count(), nuggets.pursued())
+                        .applicable(ctx),
+                "the way back up is the pursued ingot — refused before any plan starts");
     }
 
     @Test
     void aSiblingObtainIsNotAnAncestor() {
         book(planksFromLog());
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_log", 1, 64));
         // The planks sub-goal under an axe want may still craft from logs — nobody's ancestor.
         CraftFor planks = new CraftFor(PLANKS, 4, Set.of("minecraft:wooden_axe"));
         assertTrue(planks.applicable(ctx));
         ObtainItem logs = (ObtainItem) planks.decompose(ctx).get(0);
         assertEquals(Set.of("minecraft:wooden_axe", "minecraft:oak_planks"), logs.pursued(),
                 "the descent grows the set by exactly the chosen recipe's output");
+    }
+
+    @Test
+    void aReachableRecipeBeatsAnEarlierUnreachableOne() {
+        // The bug this filter exists for: "any axe" listed the copper axe first, ties broke by
+        // order, and a round gives one method attempt — so settlers with a forest at their back
+        // shrugged the want off.
+        CraftRecipe copperAxe = new CraftRecipe("minecraft:copper_axe",
+                ItemStack.of("minecraft:copper_axe", 1, 1),
+                List.of(new CraftRecipe.Ingredient(Set.of("minecraft:copper_ingot"), 3),
+                        new CraftRecipe.Ingredient(Set.of("minecraft:stick"), 2)), true);
+        book(copperAxe, axeNeedingTable(), planksFromLog(), sticksFromPlanks());
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_log", 2, 64));
+
+        ItemSpec axes = ItemSpec.register(
+                new ItemSpec("craft-test-axes-family", id -> id.endsWith("_axe")));
+        List<Task> plan = new CraftFor(axes, 1, Set.of()).decompose(ctx);
+        CraftStep exchange = (CraftStep) plan.get(plan.size() - 1);
+        assertEquals("minecraft:wooden_axe", exchange.recipe().outputId(),
+                "two logs and a book: the wooden axe is the one with a floor under it");
     }
 
     @Test

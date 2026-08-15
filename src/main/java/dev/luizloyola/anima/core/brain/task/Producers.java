@@ -40,6 +40,18 @@ public final class Producers {
         return REGISTERED.containsKey(spec);
     }
 
+    /** Whether any registration's spec matches any of {@code ids} — the reachability question. */
+    public static boolean knowsAnyOf(java.util.Set<String> ids) {
+        for (ItemSpec spec : REGISTERED.keySet()) {
+            for (String id : ids) {
+                if (spec.matches(id)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /** Fresh producer methods for {@code spec}, in registration order; empty when nobody knows. */
     public static List<Method> forSpec(ItemSpec spec) {
         List<Supplier<Method>> factories = REGISTERED.get(spec);

@@ -57,13 +57,13 @@ public final class CraftFor implements Method {
 
     @Override
     public boolean applicable(BrainContext ctx) {
-        return !usable().isEmpty();
+        return !usable(ctx).isEmpty();
     }
 
     @Override
     public double estimateCost(BrainContext ctx) {
         Inventory pack = ctx.percepts().inventory();
-        for (CraftRecipe recipe : usable()) {
+        for (CraftRecipe recipe : usable(ctx)) {
             if (coverable(recipe, craftsNeeded(recipe, pack), pack)) {
                 return COVERED_COST;
             }
@@ -74,7 +74,7 @@ public final class CraftFor implements Method {
     @Override
     public List<Task> decompose(BrainContext ctx) {
         Inventory pack = ctx.percepts().inventory();
-        CraftRecipe recipe = pick(pack);
+        CraftRecipe recipe = pick(ctx);
         int crafts = craftsNeeded(recipe, pack);
         Set<String> nowPursued = new HashSet<>(pursued);
         nowPursued.add(recipe.outputId());
@@ -105,11 +105,21 @@ public final class CraftFor implements Method {
         return "craft " + spec.name();
     }
 
-    /** Recipes this method may use: producing the spec and not already being pursued. */
-    private List<CraftRecipe> usable() {
+    /**
+     * Recipes this method may use: producing the spec, not already pursued, and <b>reachable</b>
+     * — every bill line must have some way to be had from here. Without that filter "any axe"
+     * resolved to the book's first entry (the copper axe) and, one method attempt per round, a
+     * settler with a forest at their back shrugged the want off over copper ingots.
+     */
+    private List<CraftRecipe> usable(BrainContext ctx) {
         List<CraftRecipe> fit = new ArrayList<>();
         for (CraftRecipe recipe : Recipes.producing(spec)) {
-            if (!pursued.contains(recipe.outputId())) {
+            if (pursued.contains(recipe.outputId())) {
+                continue;
+            }
+            Set<String> guard = new HashSet<>(pursued);
+            guard.add(recipe.outputId());
+            if (reachable(recipe, guard, ctx, REACH_DEPTH)) {
                 fit.add(recipe);
             }
         }
@@ -117,14 +127,81 @@ public final class CraftFor implements Method {
     }
 
     /**
+     * Whether any registered recipe for {@code spec} is reachable from where this body stands —
+     * the board's gate asks this too, so an errand is only ever claimed toward a craft some plan
+     * can actually finish.
+     */
+    public static boolean anyReachable(ItemSpec spec, BrainContext ctx) {
+        for (CraftRecipe recipe : Recipes.producing(spec)) {
+            Set<String> guard = new HashSet<>();
+            guard.add(recipe.outputId());
+            if (reachable(recipe, guard, ctx, REACH_DEPTH)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Recursion bound for pathological (modded) books; vanilla chains are three deep at most. */
+    private static final int REACH_DEPTH = 8;
+
+    private static boolean reachable(CraftRecipe recipe, Set<String> guard, BrainContext ctx,
+                                     int depth) {
+        if (depth <= 0) {
+            return false;
+        }
+        for (CraftRecipe.Ingredient line : recipe.ingredients()) {
+            if (!lineReachable(line, guard, ctx, depth)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * One bill line's ways, cheapest question first: already in the pack, a producer somebody
+     * registered (the chop), lying in sight as a drop, or craftable by a recipe that is itself
+     * reachable — guarded by the same output-id set the occurs-check uses, so a cyclic book
+     * answers "no" instead of hanging.
+     */
+    private static boolean lineReachable(CraftRecipe.Ingredient line, Set<String> guard,
+                                         BrainContext ctx, int depth) {
+        if (ctx.percepts().inventory().count(line.acceptedIds()::contains) >= line.count()) {
+            return true;
+        }
+        if (Producers.knowsAnyOf(line.acceptedIds())) {
+            return true;
+        }
+        for (dev.luizloyola.anima.core.brain.sense.Drop drop : ctx.percepts().drops()) {
+            if (line.accepts(drop.itemId())) {
+                return true;
+            }
+        }
+        // Deliberately UNREGISTERED: a throwaway lens for one question, not a name to persist.
+        ItemSpec lineSpec = new ItemSpec("(reachable?)", line.acceptedIds()::contains);
+        for (CraftRecipe making : Recipes.producing(lineSpec)) {
+            if (guard.contains(making.outputId())) {
+                continue;
+            }
+            Set<String> deeper = new HashSet<>(guard);
+            deeper.add(making.outputId());
+            if (reachable(making, deeper, ctx, depth - 1)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * The recipe to expand: covered-from-the-pack beats everything, then the fewest missing
      * items, then in-hand over table (no walk beats a walk), then source order — so the same
      * pack always plans the same craft.
      */
-    private CraftRecipe pick(Inventory pack) {
+    private CraftRecipe pick(BrainContext ctx) {
+        Inventory pack = ctx.percepts().inventory();
         CraftRecipe best = null;
         int bestMissing = Integer.MAX_VALUE;
-        for (CraftRecipe recipe : usable()) {
+        for (CraftRecipe recipe : usable(ctx)) {
             int missing = missingFor(recipe, craftsNeeded(recipe, pack), pack);
             if (missing < bestMissing
                     || (missing == bestMissing && best != null
