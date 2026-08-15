@@ -40,6 +40,10 @@ public final class ObtainItem implements AchieveTask {
         // thing came from. Everything else is the consuming mod's to teach.
         ways.add(new PickUpNearby(spec));
         ways.addAll(Producers.forSpec(spec));
+        // A literal spec (a crafting ingredient) reaches producers by CONTENT: "any oak log"
+        // intersects what a consumer's logs spec means, so its chop is on this menu too — the
+        // bridge that lets a craft chain end in a felled tree.
+        ItemSpec.literalIds(spec).ifPresent(ids -> ways.addAll(Producers.forItems(ids, spec)));
         ways.add(new CraftFor(spec, count, this.pursued));
         this.methods = List.copyOf(ways);
     }

@@ -121,6 +121,27 @@ public final class AnimaTasks {
                     Codec.BOOL.fieldOf("table").forGetter(CraftRecipe::needsTable)
             ).apply(r, CraftRecipe::new));
 
+    private static final Codec<dev.luizloyola.anima.core.inv.ItemCall> ITEM_CALL =
+            RecordCodecBuilder.create(c -> c.group(
+                    ITEM_SPEC.fieldOf("spec")
+                            .forGetter(dev.luizloyola.anima.core.inv.ItemCall::spec),
+                    Codec.INT.fieldOf("count")
+                            .forGetter(dev.luizloyola.anima.core.inv.ItemCall::count),
+                    Codec.STRING.comapFlatMap(
+                                    name -> {
+                                        try {
+                                            return DataResult.success(dev.luizloyola.anima.core
+                                                    .inv.ItemCall.Strength.valueOf(name));
+                                        } catch (IllegalArgumentException e) {
+                                            return DataResult.error(
+                                                    () -> "no call strength called \"" + name + "\"");
+                                        }
+                                    },
+                                    dev.luizloyola.anima.core.inv.ItemCall.Strength::name)
+                            .fieldOf("strength")
+                            .forGetter(dev.luizloyola.anima.core.inv.ItemCall::strength)
+            ).apply(c, dev.luizloyola.anima.core.inv.ItemCall::new));
+
     private static final Codec<Pos> POS = RecordCodecBuilder.create(p -> p.group(
             Codec.INT.fieldOf("x").forGetter(Pos::x),
             Codec.INT.fieldOf("y").forGetter(Pos::y),
@@ -227,5 +248,21 @@ public final class AnimaTasks {
         // stream those choices draw from belongs to the body and is saved there.
         TaskCodecs.register("anima:flee", FleeStep.class, MapCodec.unit(FleeStep::new));
         TaskCodecs.register("anima:eat", SatisfyHunger.class, MapCodec.unit(SatisfyHunger::new));
+
+        // The two wrappers carry TASKS, so both lean on the dispatch codec — whose per-key
+        // lookups happen at parse time. That is what makes the recursion legal here.
+        TaskCodecs.register("anima:try", dev.luizloyola.anima.core.brain.task.Try.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        TaskCodecs.codec().fieldOf("attempt")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Try::attempt)
+                ).apply(t, dev.luizloyola.anima.core.brain.task.Try::new)));
+
+        TaskCodecs.register("anima:kitted", dev.luizloyola.anima.core.brain.task.KittedErrand.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        ITEM_CALL.listOf().fieldOf("calls")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.KittedErrand::calls),
+                        TaskCodecs.codec().fieldOf("work")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.KittedErrand::work)
+                ).apply(t, dev.luizloyola.anima.core.brain.task.KittedErrand::new)));
     }
 }

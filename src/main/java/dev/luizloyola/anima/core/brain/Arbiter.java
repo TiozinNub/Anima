@@ -350,7 +350,10 @@ public final class Arbiter {
         }
         active = null;
         workRunning = true;
-        executor.run(item.root(), ctx);
+        // Through the kit wrap: needs fetched, wants tried, then the item's own root — all
+        // INSIDE the claim taken above, which is the invariant that stops two bodies shopping
+        // for the same errand. A kit-less item comes back unwrapped.
+        executor.run(dev.luizloyola.anima.core.brain.task.KittedErrand.around(item), ctx);
     }
 
     /** Install instinct {@code i}'s fresh root as the running task, recording it as active. */

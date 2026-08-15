@@ -107,6 +107,29 @@ class TaskCodecsTest {
     }
 
     @Test
+    void theKitWrapAndTheShrugRoundTripWithTheirInnards() {
+        // Both wrappers carry TASKS through the dispatch codec — the recursion the whole tree
+        // format is built on, exercised one level deep from each.
+        dev.luizloyola.anima.core.inv.ItemSpec axes = dev.luizloyola.anima.core.inv.ItemSpec.anyOf(
+                java.util.Set.of("minecraft:wooden_axe", "minecraft:stone_axe"));
+        dev.luizloyola.anima.core.brain.task.KittedErrand before =
+                new dev.luizloyola.anima.core.brain.task.KittedErrand(
+                        java.util.List.of(dev.luizloyola.anima.core.inv.ItemCall.want(axes, 1)),
+                        new GoTo(4, -60, 9));
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.KittedErrand.class,
+                roundTrip(before));
+        assertEquals(1, after.calls().size());
+        assertEquals(axes.name(), after.calls().get(0).spec().name());
+        assertEquals(dev.luizloyola.anima.core.inv.ItemCall.Strength.WANT,
+                after.calls().get(0).strength());
+        assertInstanceOf(GoTo.class, after.work());
+
+        var shrug = assertInstanceOf(dev.luizloyola.anima.core.brain.task.Try.class, roundTrip(
+                new dev.luizloyola.anima.core.brain.task.Try(new GoTo(1, 2, 3))));
+        assertInstanceOf(GoTo.class, shrug.attempt());
+    }
+
+    @Test
     void aCraftMidPauseComesBackMidPauseWithItsWholeRecipe() {
         // The recipe rides inline (a /reload can remove it from the book mid-craft), and the
         // pause counter is the part a body would feel restarting.

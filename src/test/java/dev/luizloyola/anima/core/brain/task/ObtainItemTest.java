@@ -1,0 +1,82 @@
+package dev.luizloyola.anima.core.brain.task;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.inv.ItemSpec;
+import java.util.List;
+import java.util.Set;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+
+/**
+ * The obtain goal's method roster. The producer BRIDGE: a literal (content-built) spec reaches
+ * producers registered under an overlapping consumer spec, so a crafting ingredient can end in
+ * a felled tree. The order is contract — a resumed plan re-finds its method BY INDEX, CraftFor
+ * last of all.
+ */
+class ObtainItemTest {
+
+    private static final ItemSpec LOGS = ItemSpec.register(
+            new ItemSpec("obtain-test-logs", id -> id.endsWith("_log")));
+
+    /** A recognizable stand-in for a consumer's felling choreography. */
+    private static final class FellSomething implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return false;
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            return 0;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            return List.of();
+        }
+
+        @Override
+        public String describe() {
+            return "fell something";
+        }
+    }
+
+    @AfterEach
+    void tearDown() {
+        Producers.reset();
+    }
+
+    @Test
+    void aLiteralIngredientReachesTheConsumersProducerByContent() {
+        Producers.register(LOGS, FellSomething::new);
+        // The ingredient shape: "any oak log", built from a recipe, never declared by a mod.
+        ObtainItem ingredient = new ObtainItem(
+                ItemSpec.anyOf(Set.of("minecraft:oak_log", "minecraft:oak_wood")), 1);
+        List<Method> roster = ingredient.methods();
+        assertEquals(3, roster.size());
+        assertInstanceOf(PickUpNearby.class, roster.get(0));
+        assertInstanceOf(FellSomething.class, roster.get(1),
+                "oak_log is a log the consumer knows how to produce — the chop is on the menu");
+        assertInstanceOf(CraftFor.class, roster.get(2), "CraftFor last, always");
+    }
+
+    @Test
+    void anUnrelatedLiteralGetsNoBridge() {
+        Producers.register(LOGS, FellSomething::new);
+        ObtainItem stone = new ObtainItem(ItemSpec.anyOf(Set.of("minecraft:cobblestone")), 1);
+        assertEquals(2, stone.methods().size(), "pick up + craft; nobody produces cobble");
+    }
+
+    @Test
+    void aDeclaredSpecKeepsItsIdentityRosterUnchanged() {
+        Producers.register(LOGS, FellSomething::new);
+        List<Method> roster = new ObtainItem(LOGS, 16).methods();
+        assertEquals(3, roster.size(), "identity producer once — the bridge never double-adds");
+        assertInstanceOf(FellSomething.class, roster.get(1));
+        assertTrue(roster.get(2) instanceof CraftFor);
+    }
+}

@@ -35,6 +35,11 @@ public final class Producers {
         REGISTERED.computeIfAbsent(spec, key -> new ArrayList<>()).add(producer);
     }
 
+    /** Whether anybody registered a way to produce {@code spec} — the gate's cheap question. */
+    public static boolean knows(ItemSpec spec) {
+        return REGISTERED.containsKey(spec);
+    }
+
     /** Fresh producer methods for {@code spec}, in registration order; empty when nobody knows. */
     public static List<Method> forSpec(ItemSpec spec) {
         List<Supplier<Method>> factories = REGISTERED.get(spec);
@@ -44,6 +49,36 @@ public final class Producers {
         List<Method> methods = new ArrayList<>(factories.size());
         for (Supplier<Method> factory : factories) {
             methods.add(factory.get());
+        }
+        return methods;
+    }
+
+    /**
+     * Fresh methods from every registration whose spec matches any of {@code ids}, skipping
+     * {@code except} (already offered by identity) — how a crafting ingredient no mod declared
+     * reaches a producer.
+     */
+    public static List<Method> forItems(java.util.Set<String> ids, ItemSpec except) {
+        // Matched entries sorted by spec NAME, never map order: a saved plan resumes its method
+        // BY INDEX, and this map's iteration order is not stable across JVMs (an ItemSpec's hash
+        // includes its lambda).
+        java.util.TreeMap<String, List<Supplier<Method>>> matched = new java.util.TreeMap<>();
+        for (Map.Entry<ItemSpec, List<Supplier<Method>>> entry : REGISTERED.entrySet()) {
+            if (entry.getKey() == except) {
+                continue;
+            }
+            for (String id : ids) {
+                if (entry.getKey().matches(id)) {
+                    matched.put(entry.getKey().name(), entry.getValue());
+                    break;
+                }
+            }
+        }
+        List<Method> methods = new ArrayList<>();
+        for (List<Supplier<Method>> factories : matched.values()) {
+            for (Supplier<Method> factory : factories) {
+                methods.add(factory.get());
+            }
         }
         return methods;
     }
