@@ -21,23 +21,31 @@ plugins {
 // `buildSrc` convention plugin.
 
 // Same versioning rule as Autarkia: an exact `v*` tag on HEAD is a release, anything else is
-// `<mod.version>-build.<commit timestamp>` (valid semver — this jar gets nested into Autarkia,
-// and Loader resolves nested-jar versions as semver). One repo, one version: a tag releases
-// every mod in it.
+// `<mod.version>-build.<commit timestamp>` (valid semver, which Loader requires of anything it
+// resolves).
+//
+// The tag is PREFIXED with the MOD ID — `anima-v0.2.0`, never a bare `v0.2.0`. One repo no longer
+// means one version: each mod carries its own number in its own `[<mod>]` table and is released
+// by its own tag, so cutting Anima does not drag Autarkia's number along behind it. A bare `v*`
+// tag now releases nothing at all, which is the intended failure — it is ambiguous about which
+// mod it means. See docs/superpowers/specs/2026-08-16-repo-split-design.md, slice 1.
 fun git(vararg args: String): String = providers.exec {
     workingDir(rootDir)
     commandLine("git", *args)
     isIgnoreExitValue = true
 }.standardOutput.asText.get().trim()
 
-val exactTag = git("describe", "--tags", "--exact-match", "--match", "v*")
-val modVersion = if (exactTag.startsWith("v")) exactTag.removePrefix("v")
+// Resolves to "anima" via the `[anima]` table in stonecutter.properties.toml — `sc.branch.id`
+// is a default property tag, so `anima:mod:id` shortens to `mod:id` here and here only.
+// Read before the version, which is now derived from it.
+val modId: String = sc.properties["mod.id"]
+
+val tagPrefix = "$modId-v"
+val exactTag = git("describe", "--tags", "--exact-match", "--match", "$tagPrefix*")
+val modVersion = if (exactTag.startsWith(tagPrefix)) exactTag.removePrefix(tagPrefix)
     else "${sc.properties.get<String>("mod.version")}-build.${git("log", "-1", "--format=%cd", "--date=format:%Y%m%d%H%M%S")}"
 
 version = "$modVersion+${sc.current.version}"
-// Resolves to "anima" via the `[anima]` table in stonecutter.properties.toml — `sc.branch.id`
-// is a default property tag, so `anima:mod:id` shortens to `mod:id` here and here only.
-val modId: String = sc.properties["mod.id"]
 base.archivesName = modId
 
 val requiredJava: JavaVersion = when {
@@ -295,16 +303,21 @@ tasks {
     }
 
     // The licence travels with the jar: someone who has only the file, not the repository,
-    // still has the terms. TRADEMARKS.md rides along because the licences say
-    // nothing about the name, so the jar would otherwise imply the name came with the code.
+    // still has the terms.
     //
-    // THIRD-PARTY.md and licenses/ ride along for the nested night-config, which is LGPL-3.0 and
-    // ships no licence text of its own — so if we did not carry one, nobody downloading this jar
-    // would ever see the terms of the library inside it. That is an obligation, not a courtesy.
+    // licenses/ rides along for the nested night-config, which is LGPL-3.0 and ships no licence
+    // text of its own — so if we did not carry one, nobody downloading this jar would ever see
+    // the terms of the library inside it. That is an obligation, not a courtesy. Both GNU texts,
+    // because the LGPL is not a whole licence: it is additional permissions written on top of the
+    // GPL and incorporates it by reference.
+    //
+    // TRADEMARKS.md and THIRD-PARTY.md were dropped on 2026-08-16 while the legal docs are
+    // reworked (the files themselves are gone). A `from()` naming a missing file is a silent
+    // no-op in Gradle, so these lines went too rather than staying as decoration that looks like
+    // it does something. What lapsed is the PROSE — the name reservation, and the sentence saying
+    // which library the GNU texts below belong to — not the licence terms.
     named<Jar>("jar") {
-        from(rootProject.file("TRADEMARKS.md"))
         from(sc.branch.project.file("LICENSE"))
-        from(sc.branch.project.file("THIRD-PARTY.md"))
         from(sc.branch.project.file("licenses")) { into("licenses") }
     }
 

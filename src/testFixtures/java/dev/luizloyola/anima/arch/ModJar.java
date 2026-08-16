@@ -103,6 +103,26 @@ public final class ModJar {
         }
     }
 
+    /**
+     * The title of the packaged {@code LICENSE} — its first non-blank line, trimmed.
+     *
+     * <p>Not the first byte: the texts are byte-identical to what their stewards publish, and
+     * Apache leads with a blank line, the GNU texts indent, Mozilla starts at column one.
+     *
+     * <p>Not a substring either: a jar here can carry several licence texts (Autarkia the LGPL plus
+     * the GPL in {@code licenses/}, Anima two more for the library it nests), so {@code contains}
+     * cannot tell which one it matched.
+     *
+     * @throws IllegalStateException if the jar carries no {@code LICENSE} at all.
+     */
+    public String licenceTitle() {
+        return text("LICENSE").lines()
+                .map(String::strip)
+                .filter(line -> !line.isEmpty())
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(name() + " ships a blank LICENSE"));
+    }
+
     /** The jar's file name, for messages. */
     public String name() {
         return path.getFileName().toString();

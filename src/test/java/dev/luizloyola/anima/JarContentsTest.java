@@ -22,13 +22,17 @@ import org.junit.jupiter.api.Test;
 class JarContentsTest {
 
     private static final String MOD_ID = "anima";
-    private static final String LICENCE = "MPL-2.0";
+    private static final String LICENCE = "Apache-2.0";
 
     /**
-     * The licence text's own first line. Asserted because {@code fabric.mod.json} declaring
-     * {@code MPL-2.0} beside a file that is some other licence has consequences outside the code.
+     * The licence text's own title line: {@code fabric.mod.json} declaring {@code Apache-2.0} over
+     * some other licence file is a mistake with consequences outside the code.
+     *
+     * <p>Compared against the first non-blank line, not the first byte — the canonical texts are
+     * kept exactly as their stewards publish them, and Apache's opens with a blank line and an
+     * indented title.
      */
-    private static final String LICENCE_HEADING = "Mozilla Public License Version 2.0";
+    private static final String LICENCE_HEADING = "Apache License";
 
     /**
      * Where a jar entry is allowed to be. Anything outside this is a file that arrived without
@@ -38,10 +42,15 @@ class JarContentsTest {
             "dev/luizloyola/" + MOD_ID + "/", "assets/" + MOD_ID + "/", "data/" + MOD_ID + "/",
             "META-INF/", "licenses/");
 
-    /** Top-level files that belong in the jar by name. */
+    /**
+     * Top-level files that belong in the jar by name. {@code TRADEMARKS.md} and
+     * {@code THIRD-PARTY.md} went with the files on 2026-08-16 while the legal docs are reworked;
+     * the licence TEXTS still ship — {@code LICENSE}, and the GNU pair under {@code licenses/} for
+     * the nested night-config.
+     */
     private static final List<String> ALLOWED_FILES = List.of(
             "fabric.mod.json", MOD_ID + ".mixins.json", MOD_ID + ".accesswidener", MOD_ID + ".ct",
-            "LICENSE", "TRADEMARKS.md", "THIRD-PARTY.md");
+            "LICENSE");
 
     /**
      * The nested jars this mod is allowed to carry, BY NAME rather than under a blanket
@@ -67,14 +76,11 @@ class JarContentsTest {
             JsonParser.parseString(JAR.text("fabric.mod.json")).getAsJsonObject();
 
     @Test
-    @DisplayName("the licence and the trademark notice travel with the jar")
+    @DisplayName("the licence travels with the jar")
     void legalTextIsPackaged() {
         assertTrue(JAR.has("LICENSE"), JAR.name() + " ships no LICENSE");
-        assertTrue(JAR.has("TRADEMARKS.md"), JAR.name() + " ships no TRADEMARKS.md — the licences "
-                + "deliberately say nothing about the name, so the jar would otherwise imply the "
-                + "name came with the code");
-        assertTrue(JAR.text("LICENSE").startsWith(LICENCE_HEADING),
-                "LICENSE does not begin \"" + LICENCE_HEADING + "\", but fabric.mod.json declares "
+        assertEquals(LICENCE_HEADING, JAR.licenceTitle(),
+                "LICENSE is not titled \"" + LICENCE_HEADING + "\", but fabric.mod.json declares "
                         + LICENCE + " — one of the two is wrong");
         assertEquals(LICENCE, METADATA.get("license").getAsString(),
                 "fabric.mod.json declares a licence this mod does not ship");
@@ -83,9 +89,9 @@ class JarContentsTest {
     @Test
     @DisplayName("the nested library's terms travel with it")
     void nestedLicenceTextIsPackaged() {
-        assertTrue(JAR.has("THIRD-PARTY.md"), JAR.name() + " nests a third-party library but "
-                + "ships no THIRD-PARTY.md — night-config's own jars carry no licence text, so "
-                + "without this nobody holding this jar can read the terms of the code inside it");
+        // The THIRD-PARTY.md assertion went with the file on 2026-08-16. night-config's own jars
+        // carry no licence text, so these two files are the only place a holder of this jar can
+        // read the terms of the code nested inside it.
         for (String text : List.of("licenses/LGPL-3.0.txt", "licenses/GPL-3.0.txt")) {
             assertTrue(JAR.has(text), text + " is missing — LGPL-3.0 is not conveyed by naming it");
         }
