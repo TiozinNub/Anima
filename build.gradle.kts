@@ -35,9 +35,9 @@ fun git(vararg args: String): String = providers.exec {
     isIgnoreExitValue = true
 }.standardOutput.asText.get().trim()
 
-// Resolves to "anima" via the `[anima]` table in stonecutter.properties.toml — `sc.branch.id`
-// is a default property tag, so `anima:mod:id` shortens to `mod:id` here and here only.
-// Read before the version, which is now derived from it.
+// Top-level `mod.id` in stonecutter.properties.toml. This repo has a ROOT branch and one mod,
+// so there are no `[<mod>]` tables and no `sc.branch.id` tag shortening a path to reach them.
+// Read before the version, which is derived from it.
 val modId: String = sc.properties["mod.id"]
 
 val tagPrefix = "$modId-v"
@@ -154,7 +154,7 @@ tasks.named<Test>("test") {
     // shared source of truth, and the Stonecutter rule can only be asked of source that still
     // has its `//?` directives. Handed in rather than derived from the working directory, so a
     // moved node layout fails with a message instead of scanning an empty tree and passing.
-    val branchSources = sc.branch.project.file("src/main/java")
+    val branchSources = rootProject.file("src/main/java")
     systemProperty("anima.arch.sourceRoot", branchSources.absolutePath)
     // Declared as an input because a violation can be introduced without changing any bytecode —
     // adding a `//?` to a core file, or an import nothing uses. Without this the test task is
@@ -260,9 +260,9 @@ tasks.withType<Jar>().configureEach {
 }
 
 loom {
-    // The BRANCH's own source dir (`anima/src`) — `sc.branch.project` is the safe way to say
-    // `project(":anima")` from inside a node.
-    fabricModJsonPath = sc.branch.project.file("src/main/resources/fabric.mod.json")
+    // The root project's own source dir. Was `sc.branch.project.file(...)` while this mod was a
+    // branch of a shared tree; with a root branch the branch project is the root project.
+    fabricModJsonPath = rootProject.file("src/main/resources/fabric.mod.json")
 
     decompilerOptions.named("vineflower") {
         options.put("mark-corresponding-synthetics", "1")
@@ -317,8 +317,8 @@ tasks {
     // it does something. What lapsed is the PROSE — the name reservation, and the sentence saying
     // which library the GNU texts below belong to — not the licence terms.
     named<Jar>("jar") {
-        from(sc.branch.project.file("LICENSE"))
-        from(sc.branch.project.file("licenses")) { into("licenses") }
+        from(rootProject.file("LICENSE"))
+        from(rootProject.file("licenses")) { into("licenses") }
     }
 
     register<Copy>("buildAndCollect") {

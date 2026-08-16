@@ -1,0 +1,58 @@
+# See https://stonecutter.kikugie.dev/wiki/config/properties#centralized-properties
+#
+# This is a single-mod repo with a ROOT branch, so `mod.*` sits at the top level rather than in a
+# `[<mod>]` table the way it did in the combined tree this was split out of.
+mod.id = "anima"
+mod.name = "Anima"
+mod.group = "dev.luizloyola"
+# Released by an `anima-v<version>` tag on HEAD. Anything else builds as
+# `<mod.version>-build.<commit timestamp>`. Autarkia carries its own number and is cut separately.
+mod.version = "0.1.0"
+
+# Modrinth project id (slug "anima"); the create-version API needs the base62 id
+publish.modrinth_id = "l8eKuisB"
+
+deps.fabric_loader = "0.19.3"
+loomx.loom_version = "1.17-SNAPSHOT"
+
+# The TOML reader/writer behind `config/anima.toml`. Version-independent — it is a plain Java
+# library that never sees Minecraft — so it lives up here rather than in the per-node tables.
+# LGPL-3.0, nested into this jar; the verbatim texts ride along in `licenses/`.
+deps.night_config = "3.9.0"
+
+# ⚠ THE PER-NODE PINS BELOW MUST MATCH AUTARKIA'S. Two mods built against different Fabric API
+# versions load side by side without a build ever complaining; the failure surfaces in a player's
+# game. Until 2026-08-16 one file served both mods and this was structural. It is now a promise
+# across repositories — worth a CI check comparing the two.
+#
+# 1.20.1 and 1.21.1 are TEMPORARILY DROPPED — see the note in settings.gradle.kts. The constraint
+# is Autarkia's (the Person entity needs the 1.21.9+ Avatar pipeline), not this library's; the node
+# set is kept identical across the mods deliberately.
+
+["1.21.11"]
+mod.mc_compat = "1.21.11"
+mod.mc_releases = ["1.21.11"]
+
+deps.fabric_api = "0.141.3+1.21.11"
+# Optional config GUI — compileOnly, never shipped. See build.gradle.kts.
+# NOTE: YACL's 1.21.11 line lags the 26.x line (3.8.x vs 3.9.x); the screen API we use is the
+# same across both, but check upstream before assuming a newer API is available here.
+# 3.8.2 exists on Modrinth but was never published to isxander's maven — 3.8.1 is the newest there.
+deps.yacl = "3.8.1+1.21.11-fabric"
+deps.modmenu = "17.0.1-beta.1"
+
+["26.1.x"]
+mod.mc_compat = "~26.1"
+mod.mc_releases = ["26.1.2"]
+
+deps.fabric_api = "0.155.2+26.1.2"
+deps.yacl = "3.9.6+26.1-fabric"
+deps.modmenu = "18.0.0"
+
+["26.2.x"]
+mod.mc_compat = "~26.2"
+mod.mc_releases = ["26.2"]
+
+deps.fabric_api = "0.152.2+26.2"
+deps.yacl = "3.9.6+26.2-fabric"
+deps.modmenu = "20.0.1"
