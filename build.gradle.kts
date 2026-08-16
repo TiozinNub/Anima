@@ -67,6 +67,12 @@ val modVersion = if (isRelease) exactTag.removePrefix(tagPrefix)
 /** The commit this jar was built from — the identity that `-SNAPSHOT` does not carry. */
 val buildStamp = git("log", "-1", "--format=%cd", "--date=format:%Y%m%d%H%M%S")
 
+// The Maven coordinates. Hoisted up here rather than written inline in `publishing` because the
+// test-fixtures capability below has to be spelled with the same words — see the comment
+// there for what happens when it is not.
+val publishGroup: String = sc.properties["mod.group"]
+val publishArtifact = "$modId-${sc.current.version}"
+
 version = "$modVersion+${sc.current.version}"
 base.archivesName = modId
 
@@ -400,11 +406,35 @@ publishMods {
 //
 // The jar on disk still encodes it the other way round (`anima-0.1.0-SNAPSHOT+26.1.2.jar`) because
 // that is the Fabric convention for a FILE a player downloads. Same two facts, two audiences.
+// ⚠ The test-fixtures capability has to be RESTATED to match the publication, or a consumer
+// cannot resolve the fixtures at all.
+//
+// Gradle derives it from the PROJECT — `${group}:${name}-test-fixtures:${version}` — which here is
+// `Anima:26.1.x-test-fixtures:0.1.0-SNAPSHOT+26.1.2`: the root project's name, the version node's
+// name, and the jar's version. maven-publish rewrites the coordinates of the main variants to the
+// ones set below, but a capability is an opaque string it never touches, so the published metadata
+// advertised the project's identity while a consumer writing
+// `testFixtures("dev.luizloyola:anima-26.1.2:0.1.0-SNAPSHOT")` asked for a capability derived from
+// the COORDINATES. Nothing matched, and Autarkia's build failed with "Unable to find a variant with
+// the requested capability: feature 'test-fixtures'" while the main jar resolved perfectly — which
+// is a confusing shape of failure, because the artifact is plainly right there.
+//
+// The variant ends up advertising both names — `java-test-fixtures` registers its own explicitly,
+// so this adds to it rather than replacing it (the usual "declaring a capability drops the implicit
+// one" rule does not apply, because the plugin's was never implicit). That is harmless: a variant
+// may provide several capabilities, and a consumer matches on whichever one it asked for. Verified
+// in the published .module — both appear, and Autarkia resolves through the coordinate-shaped one.
+listOf("testFixturesApiElements", "testFixturesRuntimeElements").forEach { conf ->
+    configurations.named(conf) {
+        outgoing.capability("$publishGroup:$publishArtifact-test-fixtures:$modVersion")
+    }
+}
+
 publishing {
     publications {
         create<MavenPublication>("mod") {
-            groupId = sc.properties["mod.group"]
-            artifactId = "$modId-${sc.current.version}"
+            groupId = publishGroup
+            artifactId = publishArtifact
             version = modVersion
 
             // The whole component rather than hand-listed artifacts: it carries the test-fixtures
