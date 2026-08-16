@@ -8,9 +8,14 @@ plugins {
     `java-test-fixtures`
     id("me.modmuss50.mod-publish-plugin") version "2.1.1"
     id("net.ltgt.errorprone") version "5.1.0"
+    // Anima is a library other mods compile against, so it publishes to a Maven repository as
+    // well as to Modrinth. Autarkia consumes it the way a stranger would.
+    `maven-publish`
 }
 
-// DO NOT set group = ...!
+// DO NOT set group = ...! Loom and Stonecutter both key off the project coordinates, and setting
+// a group here has broken node resolution before. The Maven coordinates are set on the
+// PUBLICATION instead (see `publishing` at the bottom), which is the supported seam.
 
 // Anima — the brain/nav/perception library, built from `anima/src` into its own mod jar.
 // A peer branch of Autarkia, not a subproject of it: it publishes standalone to Modrinth and
@@ -42,8 +47,25 @@ val modId: String = sc.properties["mod.id"]
 
 val tagPrefix = "$modId-v"
 val exactTag = git("describe", "--tags", "--exact-match", "--match", "$tagPrefix*")
-val modVersion = if (exactTag.startsWith(tagPrefix)) exactTag.removePrefix(tagPrefix)
-    else "${sc.properties.get<String>("mod.version")}-build.${git("log", "-1", "--format=%cd", "--date=format:%Y%m%d%H%M%S")}"
+val isRelease = exactTag.startsWith(tagPrefix)
+
+// A release is the tag's number; anything else is `<mod.version>-SNAPSHOT`.
+//
+// -SNAPSHOT rather than the `-build.<commit timestamp>` this used to be, because these are
+// PUBLISHED now. A timestamped version is unique and immutable, so every workstation build would
+// mint a permanent version in the registry and the package list would become a landfill. A
+// snapshot is one reusable slot: Maven timestamps the individual uploads underneath it, and
+// `0.1.0-SNAPSHOT` always resolves to the newest.
+//
+// The cost is that the version string no longer says which build it is — which mattered, because
+// reading the version out of the in-game mod list is how you tell whether the thing you just
+// compiled is the thing that is running. So the commit stamp moves to the jar manifest rather
+// than disappearing.
+val modVersion = if (isRelease) exactTag.removePrefix(tagPrefix)
+    else "${sc.properties.get<String>("mod.version")}-SNAPSHOT"
+
+/** The commit this jar was built from — the identity that `-SNAPSHOT` does not carry. */
+val buildStamp = git("log", "-1", "--format=%cd", "--date=format:%Y%m%d%H%M%S")
 
 version = "$modVersion+${sc.current.version}"
 base.archivesName = modId
@@ -317,6 +339,16 @@ tasks {
     // it does something. What lapsed is the PROSE — the name reservation, and the sentence saying
     // which library the GNU texts below belong to — not the licence terms.
     named<Jar>("jar") {
+        // Which commit this is. The version string stopped saying so when dev builds became
+        // `-SNAPSHOT`, and "is the running game the code I just compiled" is a question this
+        // project asks constantly. `unzip -p <jar> META-INF/MANIFEST.MF` answers it.
+        manifest.attributes(
+            "Implementation-Title" to (sc.properties["mod.name"] as String),
+            "Implementation-Version" to modVersion,
+            "Implementation-Build" to buildStamp,
+            "Minecraft-Version" to sc.current.version,
+        )
+
         from(rootProject.file("LICENSE"))
         from(rootProject.file("licenses")) { into("licenses") }
     }
@@ -341,10 +373,81 @@ publishMods {
     dryRun = providers.environmentVariable("MODRINTH_TOKEN").orNull == null
 
     modrinth {
-        // Resolves to l8eKuisB via the `[anima]` table
+        // Resolves to l8eKuisB from the top-level `publish.modrinth_id`
         val modrinthId: String = sc.properties["publish.modrinth_id"]
         projectId = modrinthId
         accessToken = providers.environmentVariable("MODRINTH_TOKEN")
         minecraftVersions.addAll(compatibleVersions)
+    }
+}
+
+// ── Maven ──────────────────────────────────────────────────────────────────────────────────
+//
+// Modrinth is where a PLAYER gets this mod; Maven is where a DEVELOPER gets it. Autarkia resolves
+// Anima from here, through the coordinates a stranger would use — if this path is awkward
+// for the mod in the next directory, it is awkward for everyone, and we find that out ourselves
+// rather than from a bug report.
+//
+// ⚠ THE MINECRAFT VERSION IS IN THE ARTIFACT ID, not the version string. Every node publishes from
+// this one repo, so the coordinate has to distinguish them or the 26.1.2 build silently overwrites
+// the 1.21.11 one. It cannot go in the version because Maven decides a version is a snapshot by
+// `endsWith("-SNAPSHOT")` — so the ecosystem-familiar `0.1.0-SNAPSHOT+26.1.2` would be treated as
+// an ordinary immutable release, which is the exact thing -SNAPSHOT exists to avoid. Putting it in
+// the artifact id keeps the version a clean semver string and the snapshot a real snapshot:
+//
+//     dev.luizloyola:anima-26.1.2:0.1.0-SNAPSHOT     (dev)
+//     dev.luizloyola:anima-26.1.2:0.2.0              (released by an `anima-v0.2.0` tag)
+//
+// The jar on disk still encodes it the other way round (`anima-0.1.0-SNAPSHOT+26.1.2.jar`) because
+// that is the Fabric convention for a FILE a player downloads. Same two facts, two audiences.
+publishing {
+    publications {
+        create<MavenPublication>("mod") {
+            groupId = sc.properties["mod.group"]
+            artifactId = "$modId-${sc.current.version}"
+            version = modVersion
+
+            // The whole component rather than hand-listed artifacts: it carries the test-fixtures
+            // variant (Autarkia's chop and architecture tests drive FakeContext, and Fidelia will
+            // want the same harness) and it writes real POM dependencies. Hand-listing artifacts
+            // would publish a POM with no dependencies at all, and night-config — which Anima's
+            // config machinery reads on its CONSUMER's behalf — would silently not be there.
+            from(components["java"])
+
+            pom {
+                name = sc.properties["mod.name"] as String
+                description = "The machinery of souls, for any body — brains, navigation, " +
+                        "perception and journalling for autonomous agents in Minecraft."
+                url = "https://modrinth.com/mod/anima"
+                licenses {
+                    license {
+                        name = "Apache-2.0"
+                        url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                    }
+                }
+            }
+        }
+    }
+
+    repositories {
+        // A plain directory, for the Anima-Workspace helper: it publishes this library here and
+        // points Autarkia at it, so a change to the library reaches its consumer without a round
+        // trip through a server. Not `mavenLocal()` — ~/.m2 is machine-global and
+        // parallel sessions share one checkout on this box, so two sessions publishing different
+        // Animas would poison each other's builds with no sign of where it came from.
+        maven {
+            name = "LocalMaven"
+            url = uri(providers.gradleProperty("localMaven")
+                .getOrElse(rootProject.layout.buildDirectory.dir("local-maven").get().asFile.path))
+        }
+
+        maven {
+            name = "Gitea"
+            url = uri("https://gitea.luizloyola.dev/api/packages/TiozinNub/maven")
+            credentials {
+                username = providers.environmentVariable("GITEA_USER").getOrElse("TiozinNub")
+                password = providers.environmentVariable("GITEA_TOKEN").orNull
+            }
+        }
     }
 }
