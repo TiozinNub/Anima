@@ -116,11 +116,16 @@ public final class NeedKind {
      * <p>The axis runs to vanilla's attribute ceiling rather than to a settler's twenty: it bounds
      * what any body may DECLARE, not what this one has. {@code Vigor} stops reading at whatever
      * {@code healthy} is declared at, so the unanchored stretch above it is unreachable.
+     *
+     * <p><b>The knees are spread across the whole bar, not bunched at the bottom</b> (decision:
+     * Luiz, 2026-08-17). The first cut put {@code dying} at 2 — one heart — which put
+     * {@link Severity#CRITICAL} past the point where noticing is any use: on red should mean "the
+     * next hit probably kills you", not "already dead". Three hearts is where it means that.
      */
     public static final NeedKind VIGOR = declare("vigor", Kind.DOUBLE, 0.0, 1024.0, "hit points")
-            .level("dying", 2, 0.85, 0)
-            .level("wounded", 7, 0.60, 0)
-            .level("hurt", 14, 0.30, 0)
+            .level("dying", 6, 0.85, 0)
+            .level("wounded", 10, 0.60, 0)
+            .level("hurt", 15, 0.30, 0)
             .level("healthy", 20, 0.00, 0)
             .modulate("flee_or_fight")
             .build();

@@ -32,9 +32,9 @@ class VigorTest {
         health(16.0F);
         assertEquals(16.0, vigor.value());
         assertEquals("healthy", vigor.level().key());
-        // The number glides where the name steps: four points down from full is a fifth of the way
-        // to the `hurt` corner's 0.30, and still called healthy.
-        assertEquals(0.20, vigor.pressure(), 1e-9);
+        // The number glides where the name steps: four points down from full is four fifths of the
+        // way to the `hurt` corner's 0.30, and still called healthy.
+        assertEquals(0.24, vigor.pressure(), 1e-9);
         health(20.0F);
         assertEquals(0.0, vigor.pressure(), "an untouched body is not asking for anything");
     }
@@ -67,14 +67,32 @@ class VigorTest {
     void theLevelsStepDownWithTheReading() {
         health(20.0F);
         assertEquals("healthy", vigor.level().key());
-        health(14.0F);
-        assertEquals("hurt", vigor.level().key(), "you are hurt AT the boundary, not past it");
         health(15.0F);
+        assertEquals("hurt", vigor.level().key(), "you are hurt AT the boundary, not past it");
+        health(16.0F);
         assertEquals("healthy", vigor.level().key(), "and keep the better name until you reach it");
-        health(7.0F);
+        health(10.0F);
         assertEquals("wounded", vigor.level().key());
-        health(2.0F);
+        health(6.0F);
         assertEquals("dying", vigor.level().key());
+    }
+
+    /**
+     * What the bands are actually FOR: "is anybody on red?", answered without naming a need. On red
+     * has to arrive while it is still worth acting on — three hearts, not one.
+     */
+    @Test
+    void onRedMeansTheNextHitProbablyKillsThem() {
+        health(20.0F);
+        assertEquals(Severity.COMFORTABLE, vigor.severity());
+        health(15.0F);
+        assertEquals(Severity.MILD, vigor.severity());
+        health(10.0F);
+        assertEquals(Severity.URGENT, vigor.severity());
+        health(6.0F);
+        assertEquals(Severity.CRITICAL, vigor.severity(), "three hearts is on red");
+        health(7.0F);
+        assertEquals(Severity.URGENT, vigor.severity(), "and just above it is not");
     }
 
     /** The acceptance readout of the needs design, in the order it prints. */
@@ -105,11 +123,12 @@ class VigorTest {
      */
     @Test
     void aHurtBodyItemisesTheSameThreeFamilies() {
-        health(10.0F);
+        health(16.0F);
         applied.add(new Effects.Effect("effect.minecraft.weakness", false, 1));
 
         List<ReasonGroup> groups = vigor.reasons();
-        assertEquals("hurt", vigor.level().key());
+        assertEquals("hurt", vigor.level().key(),
+                "the debuff alone is what takes 16 across the boundary");
         assertEquals(-1.0, groups.get(1).reasons().get(0).amount(), "the debuff, signed");
         assertTrue(groups.get(2).isEmpty());
         assertEquals("anima.needs.vigor.buffs.none", groups.get(2).emptyKey());
