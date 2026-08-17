@@ -57,6 +57,16 @@ public final class WanderInstinct implements Instinct {
         return new WanderStep(radius == null ? defaultRadius(ctx.profile()) : radius);
     }
 
+    /**
+     * Nothing — an idle saunter is the floor the whole cost economy sits on, and a body doing
+     * nothing in particular must not be able to buy its way into an errand. Wandering itself is
+     * free, so this prices out nothing it actually does.
+     */
+    @Override
+    public double costTolerance(BrainContext ctx) {
+        return 0.0;
+    }
+
     @Override
     public String describe() {
         return "wander";

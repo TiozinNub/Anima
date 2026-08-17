@@ -1,10 +1,10 @@
 package dev.luizloyola.anima.core.brain;
 
 /**
- * The commitment side's cost budget — deliberately not {@link ToleranceCurve} (decision: Luiz):
- * need-pressure is <em>desperation</em>, unbounded at the starving plateau, while a work item's
- * priority is <em>policy</em> — a job is worth a fixed effort, and nothing on a board ever spends
- * like a starving person.
+ * The commitment side's cost budget — deliberately not a need's own (decision: Luiz): need-pressure
+ * is <em>desperation</em>, unbounded once a body is starving, while a work item's priority is
+ * <em>policy</em> — a job is worth a fixed effort, and nothing on a board ever spends like a
+ * starving person.
  */
 public final class WorkToleranceCurve {
     /** Blocks of acceptable method cost for the lowest-priority work. Tuning knob. */

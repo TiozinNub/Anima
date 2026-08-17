@@ -326,7 +326,7 @@ class ArbiterWorkTest {
     void workToleranceIsPolicyNotDesperation() {
         board.offered = new StubItem(0.35, 50);
         ticks(2);
-        assertEquals(WorkToleranceCurve.tolerance(0.35), arbiter.costTolerance(),
+        assertEquals(WorkToleranceCurve.tolerance(0.35), arbiter.costTolerance(ctx),
                 "the errand budgets by priority, not by any need's pressure");
     }
 }

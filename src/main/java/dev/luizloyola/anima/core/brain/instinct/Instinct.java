@@ -28,6 +28,26 @@ public interface Instinct {
      */
     Task root(BrainContext ctx);
 
+    /**
+     * The most this drive will pay for a method while it holds the wheel, in the walk-block
+     * currency methods price themselves in — published by the
+     * {@link dev.luizloyola.anima.core.brain.Arbiter} as
+     * {@link dev.luizloyola.anima.core.brain.BrainContext#costTolerance()}, where the executor
+     * treats anything dearer as inapplicable.
+     *
+     * <p><b>The budget belongs to the drive, not to a shared curve.</b> It used to be one
+     * hunger-shaped ramp every drive was fed through, so a need that was not hunger inherited
+     * hunger's idea of what desperation is worth. A {@link NeedDrive} answers from the level its
+     * body is currently at, which is a per-species number in a config file.
+     *
+     * <p>The default is unbounded — the same thing the arbiter means when nothing is active, and
+     * the right answer for an emergency (Flee, Escape) that must never be priced out of surviving.
+     * A drive that should not license an expensive method says so: see {@link WanderInstinct}.
+     */
+    default double costTolerance(BrainContext ctx) {
+        return Double.POSITIVE_INFINITY;
+    }
+
     /** One-word drive name for the debug readout — {@code "eat"}, {@code "wander"}. */
     String describe();
 

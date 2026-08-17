@@ -13,7 +13,7 @@ import dev.luizloyola.anima.core.brain.act.ItemConsumer;
 import dev.luizloyola.anima.core.brain.act.Mover;
 import dev.luizloyola.anima.core.brain.act.Riser;
 import dev.luizloyola.anima.core.brain.board.AgentClaims;
-import dev.luizloyola.anima.core.brain.instinct.EatInstinct;
+import dev.luizloyola.anima.core.brain.instinct.Drives;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.instinct.EscapeInstinct;
 import dev.luizloyola.anima.core.brain.instinct.FleeInstinct;
@@ -207,7 +207,7 @@ public final class BrainDriver {
                 // Manual driving answers to no pressure: a dev-issued task runs to completion (or
                 // failure) on its own terms rather than getting judged against the arbiter's
                 // budget while autonomy is off.
-                return auto ? arbiter.costTolerance() : Double.POSITIVE_INFINITY;
+                return auto ? arbiter.costTolerance(this) : Double.POSITIVE_INFINITY;
             }
 
             @Override
@@ -286,12 +286,17 @@ public final class BrainDriver {
             public int failCooldown() {
                 return roaming.failCooldown();
             }
+
+            @Override
+            public double costTolerance(BrainContext c) {
+                return roaming.costTolerance(c);
+            }
         };
         // Flee is first on purpose: the arbiter breaks pressure ties in list order, so an exact
         // flee/eat tie must resolve to fleeing. Escape sits straight behind it — everything below
         // is a want about somewhere the body cannot currently get to.
         this.arbiter = new Arbiter(List.of(
-                new FleeInstinct(), new EscapeInstinct(), new EatInstinct(),
+                new FleeInstinct(), new EscapeInstinct(), Drives.EAT,
                 this.wanderDrive),
                 celebrating);
     }

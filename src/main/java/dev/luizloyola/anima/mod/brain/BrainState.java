@@ -100,7 +100,6 @@ public final class BrainState {
 
     private static final Codec<Arbiter.Grant> GRANT = RecordCodecBuilder.create(g -> g.group(
             Codec.STRING.fieldOf("active").forGetter(Arbiter.Grant::active),
-            Codec.DOUBLE.fieldOf("pressure").forGetter(Arbiter.Grant::activePressure),
             Codec.BOOL.fieldOf("working").forGetter(Arbiter.Grant::workRunning),
             Codec.STRING.fieldOf("lastGranted").forGetter(Arbiter.Grant::lastGranted)
     ).apply(g, Arbiter.Grant::new));

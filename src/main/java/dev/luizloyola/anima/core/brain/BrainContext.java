@@ -76,8 +76,9 @@ public interface BrainContext {
     /**
      * The maximum method cost currently acceptable, in the walk-block currency methods price
      * themselves in — a costlier applicable method is treated as inapplicable. Set by the arbiter
-     * from the active instinct's pressure through {@link ToleranceCurve};
-     * {@link Double#POSITIVE_INFINITY} is unbounded — the STARVING plateau, and manual driving.
+     * from the active drive's own budget
+     * ({@link dev.luizloyola.anima.core.brain.instinct.Instinct#costTolerance});
+     * {@link Double#POSITIVE_INFINITY} is unbounded — a starving body, and manual driving.
      */
     double costTolerance();
 

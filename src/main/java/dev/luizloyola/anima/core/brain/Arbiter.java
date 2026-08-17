@@ -18,9 +18,9 @@ import java.util.Optional;
 /**
  * Every tick, reads each {@link Instinct}'s pressure, picks the winner, and keeps its one
  * {@link TaskExecutor} running the winner's task tree; publishes the executor's method-cost ceiling
- * ({@link #costTolerance()}) from the active drive's pressure through {@link ToleranceCurve}. The
- * arbiter alone grants instinct-driven work, so {@code active} names the instinct whose root runs —
- * {@code null} for idle, or a task installed on {@link #executor()} directly.
+ * ({@link #costTolerance}), which is the active drive's own. The arbiter alone grants
+ * instinct-driven work, so {@code active} names the instinct whose root runs — {@code null} for
+ * idle, or a task installed on {@link #executor()} directly.
  *
  * <h2>Per-tick arbitration ({@link #tick})</h2>
  * <ol>
@@ -68,8 +68,6 @@ public final class Arbiter {
     private WorkItem claimedItem;
     /** Whether the executor's current root belongs to {@link #claimedItem} (vs a drive's). */
     private boolean workRunning;
-    /** The active instinct's pressure as of the last arbitration — the source for {@link #costTolerance()}. */
-    private double activePressure;
     /** The last drive journalled, so a re-grant of the same drive does not spam the BRAIN log. */
     private Instinct lastGranted;
 
@@ -96,22 +94,21 @@ public final class Arbiter {
     }
 
     /**
-     * Which drive holds the wheel and how hard it was pressing; {@code active} is null when nothing
-     * is granted. <b>Only ever saved and restored alongside the executor's plan</b> — a grant with
-     * no running root is the half-a-commitment bug, paid for three times over.
+     * Which drive holds the wheel; {@code active} is null when nothing is granted. <b>Only ever
+     * saved and restored alongside the executor's plan</b> — a grant with no running root is the
+     * half-a-commitment bug, paid for three times over.
      */
-    public record Grant(String active, double activePressure, boolean workRunning, String lastGranted) {
+    public record Grant(String active, boolean workRunning, String lastGranted) {
     }
 
     public Grant grant() {
-        return new Grant(active == null ? "" : active.key(), activePressure, workRunning,
+        return new Grant(active == null ? "" : active.key(), workRunning,
                 lastGranted == null ? "" : lastGranted.key());
     }
 
     /** Puts a saved grant back. An unknown drive clears the grant rather than failing the load. */
     public void restoreGrant(Grant grant, WorkItem held) {
         this.active = byKey(grant.active());
-        this.activePressure = grant.activePressure();
         this.lastGranted = byKey(grant.lastGranted());
         // Errand and flag together or neither: the flag alone took the server down on a null claim.
         this.claimedItem = held;
@@ -223,11 +220,6 @@ public final class Arbiter {
             }
         }
 
-        // Keep the tolerance source current for an incumbent that kept running (wasn't re-granted).
-        if (active != null) {
-            activePressure = lastPressures[indexOf(active)];
-        }
-
         // 4b. The heartbeat is the only thing keeping the hold alive — stop long enough (a
         //     suspension, a death) and the board takes the errand back.
         if (workRunning && claimedItem != null) {
@@ -268,16 +260,20 @@ public final class Arbiter {
     }
 
     /**
-     * The cost ceiling for method selection: {@link ToleranceCurve} of the active drive's pressure,
-     * {@link Double#POSITIVE_INFINITY} when nothing is active.
+     * The cost ceiling for method selection — the active drive's own
+     * ({@link Instinct#costTolerance}), {@link Double#POSITIVE_INFINITY} when nothing is active.
+     *
+     * <p>Read live rather than cached at the grant, because a need drive's budget is the level its
+     * body is at right now: a body that goes from hungry to starving mid-errand may pay more for
+     * the rest of it without waiting to be re-granted.
      */
-    public double costTolerance() {
+    public double costTolerance(BrainContext ctx) {
         if (workRunning && claimedItem != null) {
             // Decoupled from the needs' desperation curve on purpose: a job is worth a fixed
             // effort, set by policy — see WorkToleranceCurve.
             return WorkToleranceCurve.tolerance(claimedItem.priority());
         }
-        return active == null ? Double.POSITIVE_INFINITY : ToleranceCurve.tolerance(activePressure);
+        return active == null ? Double.POSITIVE_INFINITY : active.costTolerance(ctx);
     }
 
     /** The executor the arbiter drives — the mod driver's manual-mode entry point and status source. */
@@ -368,7 +364,6 @@ public final class Arbiter {
             lastGranted = instinct;
         }
         active = instinct;
-        activePressure = lastPressures[i];
         executor.run(instinct.root(ctx), ctx); // run() cancels any incumbent first
     }
 

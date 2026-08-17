@@ -8,10 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.BrainContext;
-import dev.luizloyola.anima.core.brain.ToleranceCurve;
 import dev.luizloyola.anima.core.brain.act.ConsumeState;
 import dev.luizloyola.anima.core.brain.act.MoveState;
-import dev.luizloyola.anima.core.brain.instinct.EatInstinct;
+import dev.luizloyola.anima.core.brain.instinct.Drives;
 import dev.luizloyola.anima.core.brain.instinct.FleeInstinct;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
@@ -79,6 +78,7 @@ class ArbiterTest {
         private final Supplier<Task> factory;
         final List<Task> grantedRoots = new ArrayList<>();
         int failCooldownOverride = Instinct.DEFAULT_FAIL_COOLDOWN;
+        double budget = Double.POSITIVE_INFINITY;
 
         FakeInstinct(String name, double pressure, Supplier<Task> factory) {
             this.name = name;
@@ -101,6 +101,11 @@ class ArbiterTest {
         @Override
         public int failCooldown() {
             return failCooldownOverride;
+        }
+
+        @Override
+        public double costTolerance(BrainContext ctx) {
+            return budget;
         }
 
         @Override
@@ -351,7 +356,7 @@ class ArbiterTest {
         arbiter.executor().run(manual, ctx); // the driver's manual mode installs directly
         arbiter.tick(ctx);
         assertEquals(1, manual.ticks, "the executor still ticks even with nothing to arbitrate");
-        assertTrue(Double.isInfinite(arbiter.costTolerance()), "nothing active -> unbounded tolerance");
+        assertTrue(Double.isInfinite(arbiter.costTolerance(ctx)), "nothing active -> unbounded tolerance");
     }
 
     // --- who is driving, and a bid that goes silent -----------------------------------------------
@@ -416,15 +421,22 @@ class ArbiterTest {
     // --- cost tolerance ---------------------------------------------------------------------------
 
     @Test
-    void costToleranceTracksTheActiveInstinctsPressure() {
-        FakeInstinct eat = new FakeInstinct("eat", 0.7, forever("sat")); // HUNGRY band
+    void costToleranceIsTheActiveDrivesOwn() {
+        FakeInstinct rich = new FakeInstinct("rich", 0.7, forever("sat"));
+        rich.budget = 60.0;
         FakeInstinct wander = new FakeInstinct("wander", 0.15, forever("roam"));
-        Arbiter arbiter = new Arbiter(List.of(eat, wander));
-        assertTrue(Double.isInfinite(arbiter.costTolerance()), "before any tick, nothing active");
+        wander.budget = 0.0;
+        Arbiter arbiter = new Arbiter(List.of(rich, wander));
+        assertTrue(Double.isInfinite(arbiter.costTolerance(ctx)), "before any tick, nothing active");
 
-        arbiter.tick(ctx); // eat (0.7) wins
-        assertEquals(ToleranceCurve.tolerance(0.7), arbiter.costTolerance());
-        assertEquals(60.0, arbiter.costTolerance(), "hunger 0.7 -> the HUNGRY tolerance");
+        arbiter.tick(ctx); // rich (0.7) wins
+        assertEquals(60.0, arbiter.costTolerance(ctx), "the winner's budget, not a shared curve");
+
+        // The same two budgets are read off whichever drive holds the wheel — a separate arbiter
+        // rather than a preempt, because 0.15 never clears the PREEMPT bar to take it off `rich`.
+        Arbiter idling = new Arbiter(List.of(wander));
+        idling.tick(ctx);
+        assertEquals(0.0, idling.costTolerance(ctx), "an idle saunter buys nothing");
     }
 
     // --- describe smoke --------------------------------------------------------------------------
@@ -459,7 +471,7 @@ class ArbiterTest {
     @Test
     void aCloseThreatPreemptsAMidChewEatThenClearsAndTheRunnerUpResumesAtTheNextBoundary() {
         Arbiter arbiter = new Arbiter(List.of(
-                new EatInstinct(), new WanderInstinct(), new FleeInstinct()));
+                Drives.EAT, new WanderInstinct(), new FleeInstinct()));
 
         // Peckish (below PREEMPT) with bread in hand -> Eat outbids idle Wander and starts a bite.
         ctx.percepts.food("minecraft:bread", new FoodValue(5, 6.0F, false));

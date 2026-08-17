@@ -52,6 +52,7 @@ import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.log.Entry;
 import dev.luizloyola.anima.core.log.JournalService;
 import dev.luizloyola.anima.core.agent.Metabolism;
+import dev.luizloyola.anima.core.agent.need.Binding;
 import dev.luizloyola.anima.core.agent.need.Company;
 import dev.luizloyola.anima.core.agent.need.Gauge;
 import dev.luizloyola.anima.core.agent.need.NeedKind;
@@ -1123,8 +1124,10 @@ public final class AgentCommands {
                 : other.getName().getString() + "'s chat.";
     }
 
-    /** The resolved Person's live {@code beings()} reading — everything they make out. */
-    /** Every gauge the resolved body has, one line each, without knowing what any of them are. */
+    /**
+     * Every gauge the resolved body has, one line each and its declared {@link Binding}s under it,
+     * without knowing what any of them are.
+     */
     private static int needsShow(CommandSourceStack source) {
         AgentBody body = resolveBody(source);
         if (body == null) return 0;
@@ -1144,6 +1147,12 @@ public final class AgentCommands {
                     gauge.describe(), gauge.pressure());
             Replies.send(source, () -> Component.literal(line)
                     .withStyle(gauge.pressure() > 0.0 ? ChatFormatting.YELLOW : ChatFormatting.GRAY));
+            // What this need DOES, from its own declaration — so "why is he walking over there?"
+            // is answerable without reading whichever instinct happens to mention the gauge.
+            for (Binding binding : gauge.kind().bindings()) {
+                Replies.send(source, () -> Component.literal("    " + binding.describe())
+                        .withStyle(ChatFormatting.DARK_GRAY));
+            }
         }
         return 1;
     }

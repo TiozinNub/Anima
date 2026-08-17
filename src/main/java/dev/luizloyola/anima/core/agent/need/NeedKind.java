@@ -23,6 +23,9 @@ import java.util.Optional;
  * per-species aspects apiece, generated here and edited in a config file. See
  * {@code docs/superpowers/specs/2026-08-06-needs-design.md}.
  *
+ * <p><b>It also declares what it DOES</b> — its {@link Binding}s, so "what does this need drive?"
+ * is answered by the registry rather than by reading whichever instinct happens to mention it.
+ *
  * <p><b>Declare at class-initialisation time.</b> The aspects a level generates must exist before
  * any species is declared, or that species is complete without them — {@link ProfileAspect} freezes
  * at the first {@link SpeciesProfile.Builder#build()}. Anima's own are forced into existence from
@@ -47,6 +50,7 @@ public final class NeedKind {
             .level("hungry", 8, 0.60, 60)
             .level("peckish", 14, 0.30, 15)
             .level("sated", 20, 0.00, 0)
+            .drive(Binding.Side.BELOW, "eat")
             .build();
 
     /**
@@ -77,12 +81,20 @@ public final class NeedKind {
      * How much company this body has had lately — the first gauge that is genuinely its own number
      * rather than a view, and bidirectional: see {@link Company}. Neither end of its axis is
      * comfortable, so both pin at full pressure and the V falls out of the ordinary ramp.
+     *
+     * <p><b>Both drives are DECLARED and neither is built yet</b> (decision: Luiz, 2026-08-17). The
+     * tasks they would propose do not exist — there is no conversation machinery for a lonely body
+     * to walk toward, and "go and be alone" is the social spec's v0.1. What company does today it
+     * does through {@code Comfort}, which prices where a body would rather stand by
+     * {@link Ramp#side}; these two say what will bid once there is something to bid for.
      */
     public static final NeedKind COMPANY = declare("company", Kind.DOUBLE, 0.0, 1.0, "parts of a full day's worth")
             .level("lonely", 0.175, 0.50, -1)
             .level("alone", 0.35, 0.00, 80)
             .level("content", 0.85, 0.00, 0)
             .level("crowded", 1.0, 1.00, 20)
+            .drive(Binding.Side.BELOW, "seek_people")
+            .drive(Binding.Side.ABOVE, "stray_away")
             .build();
 
     private final String key;
@@ -91,17 +103,22 @@ public final class NeedKind {
     private final double axisMax;
     private final String unit;
     private final List<NeedLevel> levels;
+    private final List<Binding> bindings;
     private final Ramp ramp;
 
     private NeedKind(String key, Kind kind, double axisMin, double axisMax, String unit,
-            List<NeedLevel> levels) {
+            List<NeedLevel> levels, List<Binding> bindings) {
         this.key = key;
         this.kind = kind;
         this.axisMin = axisMin;
         this.axisMax = axisMax;
         this.unit = unit;
         this.levels = List.copyOf(levels);
+        this.bindings = List.copyOf(bindings);
         this.ramp = levels.isEmpty() ? null : new Ramp(this.levels, axisMin, axisMax);
+        for (Binding binding : this.bindings) {
+            binding.attach(this);
+        }
     }
 
     /**
@@ -132,7 +149,7 @@ public final class NeedKind {
         }
         NeedKind existing = REGISTERED.get(key);
         return existing != null ? existing : put(
-                new NeedKind(key, Kind.DOUBLE, 0.0, 1.0, "", List.of()));
+                new NeedKind(key, Kind.DOUBLE, 0.0, 1.0, "", List.of(), List.of()));
     }
 
     /**
@@ -207,6 +224,28 @@ public final class NeedKind {
     }
 
     /**
+     * What this need does to behaviour — its drives and its modulators, in declaration order, and
+     * empty for a need that does nothing but be readable. See {@link Binding}.
+     */
+    public List<Binding> bindings() {
+        return bindings;
+    }
+
+    /**
+     * One binding by key, for whoever supplies what it proposes ({@code NeedDrive}). Throws for a
+     * key this need never declared, rather than returning empty: a drive bound to nothing is a
+     * typo, and a silent one leaves a body with a want it can never act on.
+     */
+    public Binding binding(String bindingKey) {
+        for (Binding binding : bindings) {
+            if (binding.key().equals(bindingKey)) {
+                return binding;
+            }
+        }
+        throw new IllegalArgumentException(key + " declares no binding \"" + bindingKey + "\"");
+    }
+
+    /**
      * One level by name, for the rare caller that means a particular one rather than whichever the
      * body is at — {@code BREATH.level("easy")}, whose value a body reports as its own lung
      * capacity. Empty for a name this need never declared, so a rename fails where it is used
@@ -235,6 +274,7 @@ public final class NeedKind {
         private final double axisMax;
         private final String unit;
         private final List<NeedLevel> levels = new ArrayList<>();
+        private final List<Binding> bindings = new ArrayList<>();
         private NeedKind pending;
 
         private Builder(String key, Kind kind, double axisMin, double axisMax, String unit) {
@@ -258,19 +298,41 @@ public final class NeedKind {
             return this;
         }
 
+        /**
+         * Something this need wants done, and which end of it wants that. The task is supplied
+         * separately by whoever owns it ({@code NeedDrive}) — see {@link Binding}.
+         *
+         * @param side which end of the need bids through this: below comfort, above it, or either
+         * @param bindingKey stable id, and the drive's {@code Instinct.key()}
+         */
+        public Builder drive(Binding.Side side, String bindingKey) {
+            bindings.add(new Binding(key, Binding.Verb.DRIVE, side, bindingKey));
+            return this;
+        }
+
+        /**
+         * Something this need weighs in on without ever proposing it. Sideless: a modulator
+         * contributes to somebody else's decision rather than asking for anything of its own.
+         */
+        public Builder modulate(String bindingKey) {
+            bindings.add(new Binding(key, Binding.Verb.MODULATE,
+                    Binding.Side.EITHER, bindingKey));
+            return this;
+        }
+
         /** The declared need, canonical per key. */
         public synchronized NeedKind build() {
             NeedKind existing = REGISTERED.get(key);
             if (existing != null) {
                 return existing;
             }
-            return put(new NeedKind(key, kind, axisMin, axisMax, unit, levels));
+            return put(new NeedKind(key, kind, axisMin, axisMax, unit, levels, bindings));
         }
 
-        /** A stand-in the levels can name while they are still being collected. */
+        /** A stand-in the levels and bindings can name while they are still being collected. */
         private NeedKind pending() {
             if (pending == null) {
-                pending = new NeedKind(key, kind, axisMin, axisMax, unit, List.of());
+                pending = new NeedKind(key, kind, axisMin, axisMax, unit, List.of(), List.of());
             }
             return pending;
         }

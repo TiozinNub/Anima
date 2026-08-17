@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 
-import dev.luizloyola.anima.core.brain.instinct.EatInstinct;
+import dev.luizloyola.anima.core.brain.instinct.Drives;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import org.junit.jupiter.api.Test;
@@ -21,7 +21,7 @@ class InstinctTest {
 
     @Test
     void eatPressureTracksHungerExactly() {
-        Instinct eat = new EatInstinct();
+        Instinct eat = Drives.EAT;
         ctx.percepts.metabolism.setFoodLevel(20);
         assertEquals(0.0, eat.pressure(ctx), "full bar -> no hunger pressure");
         ctx.percepts.metabolism.setFoodLevel(8); // hunger 1 - 8/20 = 0.6
@@ -45,7 +45,7 @@ class InstinctTest {
 
     @Test
     void eatRootIsAFreshSatisfyHungerEachGrant() {
-        Instinct eat = new EatInstinct();
+        Instinct eat = Drives.EAT;
         var a = eat.root(ctx);
         var b = eat.root(ctx);
         assertInstanceOf(SatisfyHunger.class, a);

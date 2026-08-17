@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.act.ConsumeState;
 import dev.luizloyola.anima.core.brain.act.MoveState;
-import dev.luizloyola.anima.core.brain.instinct.EatInstinct;
+import dev.luizloyola.anima.core.brain.instinct.Drives;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import dev.luizloyola.anima.core.agent.FoodValue;
@@ -15,7 +15,7 @@ import java.util.Random;
 import org.junit.jupiter.api.Test;
 
 /**
- * The whole slice-1 loop, headless: an {@link Arbiter} of {@link EatInstinct} +
+ * The whole slice-1 loop, headless: an {@link Arbiter} of {@link Drives#EAT} +
  * {@link WanderInstinct} (in the mod's construction order) driven only by ticks and scripted
  * actuator states — no Minecraft. Sated they wander; hungry with bread in hand Eat preempts,
  * then wander takes back over.
@@ -32,7 +32,7 @@ class AutonomousLoopTest {
 
     private final FakeContext ctx = new FakeContext();
     private final Arbiter arbiter =
-            new Arbiter(java.util.List.of(new EatInstinct(), new WanderInstinct(8)));
+            new Arbiter(java.util.List.of(Drives.EAT, new WanderInstinct(8)));
 
     @Test
     void satedWandersInCyclesThenHungerPreemptsAndTheyEatThenWanderResumes() {

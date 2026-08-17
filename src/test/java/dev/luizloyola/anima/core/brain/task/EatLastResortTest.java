@@ -5,7 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.luizloyola.anima.core.brain.ToleranceCurve;
+import dev.luizloyola.anima.core.agent.TestSpecies;
+import dev.luizloyola.anima.core.agent.need.NeedKind;
 import dev.luizloyola.anima.core.brain.act.ConsumeState;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import dev.luizloyola.anima.core.agent.FoodValue;
@@ -25,6 +26,10 @@ class EatLastResortTest {
     private static final FoodValue BAKED_POTATO = new FoodValue(5, 6.0F, false);
     private static final FoodValue BREAD = new FoodValue(5, 6.0F, false);
     private static final FoodValue GOLDEN_APPLE = new FoodValue(4, 9.6F, true);
+
+    /** What a merely-hungry body will spend — read from the need's own declaration, not retyped. */
+    private static final double HUNGRY_TOLERANCE =
+            NeedKind.HUNGER.level("hungry").orElseThrow().tolerance(TestSpecies.PROFILE);
 
     private final FakeContext ctx = new FakeContext();
     private final TaskExecutor executor = new TaskExecutor();
@@ -81,7 +86,7 @@ class EatLastResortTest {
         ctx.percepts.metabolism.setFoodLevel(8); // merely hungry (band is now irrelevant — the number is)
         ctx.percepts.inventory.set(4, ItemStack.of("minecraft:potato", 6, 64));
 
-        ctx.costTolerance = ToleranceCurve.HUNGRY_TOLERANCE; // 60 < the raw potato's 80
+        ctx.costTolerance = HUNGRY_TOLERANCE; // 60 < the raw potato's 80
         executor.run(new SatisfyHunger(), ctx);
         executor.tick(ctx);
         assertFalse(executor.isBusy());
@@ -106,7 +111,7 @@ class EatLastResortTest {
         ctx.percepts.metabolism.setFoodLevel(8);
         ctx.percepts.inventory.set(0, ItemStack.of("minecraft:golden_apple", 1, 64));
 
-        ctx.costTolerance = ToleranceCurve.HUNGRY_TOLERANCE; // 60 < the treat's 80
+        ctx.costTolerance = HUNGRY_TOLERANCE; // 60 < the treat's 80
         executor.run(new SatisfyHunger(), ctx);
         executor.tick(ctx);
         assertEquals(0, ctx.consumer.beginCalls);
