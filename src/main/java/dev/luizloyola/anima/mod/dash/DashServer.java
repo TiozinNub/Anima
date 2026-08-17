@@ -10,6 +10,7 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -44,10 +45,17 @@ import org.jspecify.annotations.Nullable;
  *       guarantee is structural rather than a promise.
  * </ul>
  *
- * <p><b>Loopback and a fresh token, neither configurable.</b> A dashboard reachable from the
- * network is one somebody else can drive, and it exposes every mind and commands them. The token
- * is regenerated per start and required on every route, so a page that guessed the port still
- * cannot read a frame; the {@code Host} check is what a DNS-rebinding attempt fails.
+ * <p><b>Off by default, loopback by default, and a fresh token every start.</b> The token is
+ * required on every route, so a page that guessed the port still cannot read a frame, and the
+ * {@code Host} check is what a DNS-rebinding attempt fails — see {@link #isAcceptableHost}, which
+ * refuses DNS names outright and so holds at any bind address.
+ *
+ * <p><b>{@link Knob#DASH_HOST} can widen that, and nothing else about the design changes to
+ * compensate.</b> There is no TLS and no login; the token rides in the URL. Bound anywhere but
+ * loopback, every mind is readable and drivable by whatever can reach the port, so the bind is
+ * announced with a warning rather than left to be discovered. A non-loopback origin also is not
+ * <em>potentially trustworthy</em>, so the page stops being a secure context and the APIs that
+ * needs go with it.
  *
  * <p>See {@code docs/superpowers/specs/2026-08-17-dashboard-design.md}.
  */
@@ -75,9 +83,19 @@ public final class DashServer {
         return Config.get().b(Knob.DASH_ENABLED);
     }
 
-    /** The loopback port to listen on. @see Knob#DASH_PORT */
+    /** The port to listen on. @see Knob#DASH_PORT */
     public static int port() {
         return Config.get().i(Knob.DASH_PORT);
+    }
+
+    /** The address to bind to — {@code 127.0.0.1} unless an operator widened it. @see Knob#DASH_HOST */
+    public static String host() {
+        return Config.get().s(Knob.DASH_HOST);
+    }
+
+    /** Whether the current binding keeps the dashboard on this machine. */
+    public static boolean loopbackOnly() {
+        return isLoopbackName(host());
     }
 
     /** Where the stub loads the UI from. @see Knob#DASH_APP_URL */
@@ -90,9 +108,19 @@ public final class DashServer {
         return http != null;
     }
 
-    /** The address to open, token included — what {@code /anima dash} prints. */
+    /**
+     * The address to open, token included — what {@code /anima dash} prints.
+     *
+     * <p>A wildcard bind has no address to name, so it prints as loopback: every interface includes
+     * this one, and the operator who set {@code 0.0.0.0} knows their own LAN address better than
+     * this does.
+     */
     public static String address() {
-        return "http://127.0.0.1:" + port() + "/?t=" + token;
+        String bound = host();
+        String reachable = bound.equals("0.0.0.0") || bound.equals("::") ? "127.0.0.1" : bound;
+        // An IPv6 literal needs brackets in a URL; a bare ::1 would parse as host "" port ":1".
+        String inUrl = reachable.contains(":") ? "[" + reachable + "]" : reachable;
+        return "http://" + inUrl + ":" + port() + "/?t=" + token;
     }
 
     /** Call once from common mod init. */
@@ -125,8 +153,7 @@ public final class DashServer {
         world = server;
         token = UUID.randomUUID().toString().replace("-", "");
         try {
-            HttpServer created = HttpServer.create(
-                    new InetSocketAddress(InetAddress.getLoopbackAddress(), port()), 0);
+            HttpServer created = HttpServer.create(new InetSocketAddress(bindAddress(), port()), 0);
             // Cached and daemon: an SSE stream holds its thread for as long as the browser is
             // open, so a fixed pool of N would wedge on the N+1th tab, and a non-daemon thread
             // would keep a crashed server's JVM alive.
@@ -145,11 +172,46 @@ public final class DashServer {
             http = created;
             pool = created_pool;
             AnimaMod.LOGGER.info("dash: listening — open {}", address());
+            warnIfExposed();
             return null;
+        } catch (UnknownHostException e) {
+            AnimaMod.LOGGER.warn("dash: \"{}\" is not an address this machine can bind", host());
+            return "dash.host \"" + host() + "\" is not an address this machine can bind";
         } catch (IOException e) {
-            AnimaMod.LOGGER.warn("dash: could not listen on 127.0.0.1:{} ({})", port(), e.toString());
-            return "could not listen on port " + port() + " — " + e.getMessage();
+            AnimaMod.LOGGER.warn("dash: could not listen on {}:{} ({})", host(), port(), e.toString());
+            return "could not listen on " + host() + ":" + port() + " — " + e.getMessage();
         }
+    }
+
+    /**
+     * The address {@link Knob#DASH_HOST} names. {@code 0.0.0.0} and {@code ::} mean every
+     * interface, which {@code InetSocketAddress} spells as the wildcard.
+     *
+     * @throws UnknownHostException when the knob holds something unresolvable — reported to the
+     *     operator rather than swallowed, since silently falling back to loopback would leave
+     *     somebody who asked for a LAN bind wondering why nothing can reach it.
+     */
+    private static InetAddress bindAddress() throws UnknownHostException {
+        String bound = host();
+        if (bound.equals("0.0.0.0") || bound.equals("::")) {
+            return null; // InetSocketAddress reads null as the wildcard address
+        }
+        return InetAddress.getByName(bound);
+    }
+
+    /**
+     * Says plainly what a non-loopback bind just did. Loud because it cannot be undone by anything
+     * on the wire: the dashboard reads every mind and its commands drive them, the transport is
+     * plain HTTP, and the token travels in the URL where anything on the path can read it.
+     */
+    private static void warnIfExposed() {
+        if (loopbackOnly()) {
+            return;
+        }
+        AnimaMod.LOGGER.warn("dash: bound to {} — NOT loopback. Every agent's mind is readable, "
+                + "and its commands drivable, by anything that can reach {}:{} and read the token "
+                + "off the URL. There is no TLS and no login. Set dash.host back to 127.0.0.1 "
+                + "unless you meant this.", host(), host(), port());
     }
 
     /** Stops listening and releases every parked stream. Safe to call when nothing is running. */
@@ -286,7 +348,7 @@ public final class DashServer {
      */
     private static boolean authorised(HttpExchange exchange) throws IOException {
         String host = exchange.getRequestHeaders().getFirst("Host");
-        if (host == null || !isLoopbackHost(host)) {
+        if (host == null || !isAcceptableHost(host, host())) {
             send(exchange, 421, "wrong host".getBytes(StandardCharsets.UTF_8));
             return false;
         }
@@ -298,12 +360,94 @@ public final class DashServer {
         return true;
     }
 
-    /** {@code 127.0.0.1:25599} / {@code localhost:25599} / {@code [::1]:25599} and nothing else. */
-    static boolean isLoopbackHost(String host) {
-        String name = host.startsWith("[")
-                ? host.substring(0, Math.min(host.length(), host.indexOf(']') + 1))
-                : host.split(":", 2)[0];
-        return name.equals("127.0.0.1") || name.equalsIgnoreCase("localhost") || name.equals("[::1]");
+    /**
+     * Whether a {@code Host} header may be served, given what the server is {@code bound} to.
+     *
+     * <p><b>An IP literal or a loopback name — never an arbitrary DNS name.</b> That is the whole
+     * anti-rebinding guard, and stating it this way is what makes it survive a non-loopback bind:
+     * rebinding works by getting the browser to resolve {@code attacker.example} to a private
+     * address, and the browser then sends {@code Host: attacker.example}. A header follows the
+     * URL's hostname and cannot be forged into an IP literal, so refusing names refuses the attack
+     * at every bind address.
+     *
+     * <p>The configured host is accepted by name as well, for the operator who bound to one.
+     */
+    static boolean isAcceptableHost(String header, String bound) {
+        String name = hostName(header);
+        if (name.isEmpty()) {
+            return false;
+        }
+        return isLoopbackName(name) || isIpLiteral(name) || name.equalsIgnoreCase(unbracket(bound));
+    }
+
+    /** The name in a {@code Host} header: brackets stripped, port dropped. Never resolved. */
+    static String hostName(String header) {
+        String trimmed = header.trim();
+        if (trimmed.startsWith("[")) {
+            int close = trimmed.indexOf(']');
+            return close < 0 ? "" : trimmed.substring(1, close);
+        }
+        int colon = trimmed.indexOf(':');
+        return colon < 0 ? trimmed : trimmed.substring(0, colon);
+    }
+
+    /** {@code localhost}, {@code ::1}, or anything in {@code 127/8} — all of which stay on this box. */
+    static boolean isLoopbackName(String name) {
+        String bare = unbracket(name);
+        if (bare.equalsIgnoreCase("localhost") || bare.equals("::1")) {
+            return true;
+        }
+        // The literal test first: "127.evil.example" starts with "127." and is a DNS name.
+        return isIpv4(bare) && bare.startsWith("127.");
+    }
+
+    private static String unbracket(String name) {
+        return name.startsWith("[") && name.endsWith("]")
+                ? name.substring(1, name.length() - 1)
+                : name;
+    }
+
+    private static boolean isIpLiteral(String name) {
+        return isIpv4(name) || isIpv6(name);
+    }
+
+    private static boolean isIpv4(String text) {
+        String[] parts = text.split("\\.", -1);
+        if (parts.length != 4) {
+            return false;
+        }
+        for (String part : parts) {
+            if (part.isEmpty() || part.length() > 3) {
+                return false;
+            }
+            for (int i = 0; i < part.length(); i++) {
+                if (part.charAt(i) < '0' || part.charAt(i) > '9') {
+                    return false;
+                }
+            }
+            if (Integer.parseInt(part) > 255) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Hex groups, colons and a zone or embedded-v4 tail. Deliberately loose: this decides
+     *  "is this a literal rather than a name", not "is this a valid address" — the bind already
+     *  answered that. */
+    private static boolean isIpv6(String text) {
+        if (text.indexOf(':') < 0) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            boolean legal = c == ':' || c == '.' || c == '%'
+                    || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+            if (!legal) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // --- plumbing -------------------------------------------------------------------------------

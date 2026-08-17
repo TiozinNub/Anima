@@ -158,8 +158,18 @@ public enum Knob implements KnobSpec {
                     + "reachable from the network is one somebody else can drive."),
     /** @see dev.luizloyola.anima.mod.dash.DashServer#port() */
     DASH_PORT("dash.port", Kind.INT, 25_599, 1024, 65_535,
-            "Port the dashboard listens on, loopback only. Change it when something else already "
-                    + "holds this one; the server logs the address to open either way."),
+            "Port the dashboard listens on. Change it when something else already holds this one; "
+                    + "the server logs the address to open either way."),
+    /** @see dev.luizloyola.anima.mod.dash.DashServer#host() */
+    DASH_HOST("dash.host", Kind.STRING, "127.0.0.1", 1, 64,
+            "Address the dashboard binds to. 127.0.0.1 keeps it on this machine, which is the only "
+                    + "setting the security story is written for: the dashboard exposes every "
+                    + "agent's mind and its commands drive them, and the per-start token is the "
+                    + "ONLY thing guarding it. Anything else — a LAN address, or 0.0.0.0 for every "
+                    + "interface — puts that on the network in the clear, over plain HTTP, where "
+                    + "the token is readable by anything on the path. The server logs a warning "
+                    + "when it binds anywhere but loopback. A non-loopback address also stops the "
+                    + "page being a secure context, which some browser APIs need."),
     /**
      * Text rather than a bundled asset: the page served from here is a stub, and the UI itself is
      * fetched from this URL. @see dev.luizloyola.anima.mod.dash.DashServer

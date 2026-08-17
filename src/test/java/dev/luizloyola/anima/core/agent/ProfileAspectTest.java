@@ -65,6 +65,7 @@ class ProfileAspectTest {
             // these would be answering for what everybody else's debugging looks like.
             Knob.DASH_ENABLED,
             Knob.DASH_PORT,
+            Knob.DASH_HOST,
             Knob.DASH_APP_URL);
 
     @Test

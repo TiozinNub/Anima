@@ -72,5 +72,12 @@ public final class DashCommands {
                         .withClickEvent(new ClickEvent.OpenUrl(java.net.URI.create(address)))));
         Replies.send(source, () -> Component.literal("  the UI loads from " + DashServer.appUrl())
                 .withStyle(ChatFormatting.DARK_GRAY));
+        // Said here as well as in the log: whoever is reading this is the person who can undo it,
+        // and the log line scrolls past on a busy server.
+        if (!DashServer.loopbackOnly()) {
+            Replies.send(source, () -> Component.literal("  bound to " + DashServer.host()
+                    + " — reachable off this machine, with no TLS and no login. The token in that "
+                    + "URL is the only guard.").withStyle(ChatFormatting.RED));
+        }
     }
 }

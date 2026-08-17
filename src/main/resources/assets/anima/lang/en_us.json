@@ -48,6 +48,8 @@
   "anima.config.option.dash.enabled.desc": "Serve the browser debug dashboard on localhost. A development tool: it shows every agent's mind and its buttons drive them. It listens on 127.0.0.1 only, behind a token that changes every start.",
   "anima.config.option.dash.port": "Port",
   "anima.config.option.dash.port.desc": "The port the dashboard listens on. Change it if something else already holds this one; run /anima dash for the address either way.",
+  "anima.config.option.dash.host": "Bind address",
+  "anima.config.option.dash.host.desc": "The address the dashboard listens on. 127.0.0.1 keeps it on this machine, which is what its security is built around: the dashboard shows every agent's mind and its buttons command them, and the token is the only thing guarding it. A LAN address, or 0.0.0.0 for every interface, puts all of that on the network over plain HTTP where the token can be read in transit. The server warns you when it binds anywhere else.",
   "anima.config.option.dash.app_url": "Interface address",
   "anima.config.option.dash.app_url.desc": "Where the dashboard's interface is loaded from. The mod itself serves only a small loader page, so the site this points at never sees any of your world. Point it at a local address to work on the interface itself.",
   "anima.config.category.mind": "Mind",

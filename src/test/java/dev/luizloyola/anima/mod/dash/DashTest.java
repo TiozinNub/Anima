@@ -127,18 +127,59 @@ class DashTest {
     // --- the guards -----------------------------------------------------------------------------
 
     @Test
-    @DisplayName("only a loopback Host is served — this is what a DNS-rebinding attempt fails")
-    void hostCheckAcceptsOnlyLoopback() {
+    @DisplayName("a loopback bind serves loopback Hosts and refuses every DNS name")
+    void hostCheckOnALoopbackBind() {
         for (String good : List.of("127.0.0.1:25599", "localhost:25599", "LOCALHOST:25599",
-                "[::1]:25599", "127.0.0.1")) {
-            assertTrue(DashServer.isLoopbackHost(good), good);
+                "[::1]:25599", "127.0.0.1", "127.1.2.3:25599")) {
+            assertTrue(DashServer.isAcceptableHost(good, "127.0.0.1"), good);
         }
         // A name that resolves to 127.0.0.1 gets the browser to send the request; what it cannot
         // do is forge the header the request arrives with.
         for (String bad : List.of("evil.example:25599", "anima-debugger.tioz.in",
-                "127.0.0.1.evil.example:25599", "192.168.1.5:25599", "")) {
-            assertFalse(DashServer.isLoopbackHost(bad), bad);
+                "127.0.0.1.evil.example:25599", "127.evil.example:25599", "")) {
+            assertFalse(DashServer.isAcceptableHost(bad, "127.0.0.1"), bad);
         }
+    }
+
+    @Test
+    @DisplayName("the rebinding guard survives a LAN bind — literals pass, names still do not")
+    void hostCheckOnALanBind() {
+        // The point of generalising rather than dropping the check: bound to a LAN address, the
+        // browser sends that literal, and a rebinding attempt still arrives as a name.
+        assertTrue(DashServer.isAcceptableHost("192.168.1.5:25599", "192.168.1.5"));
+        assertTrue(DashServer.isAcceptableHost("127.0.0.1:25599", "192.168.1.5"),
+                "the box it runs on must still reach it");
+        assertTrue(DashServer.isAcceptableHost("10.0.0.9:25599", "0.0.0.0"),
+                "a wildcard bind is reached at whichever literal the client used");
+        assertFalse(DashServer.isAcceptableHost("evil.example:25599", "192.168.1.5"));
+        assertFalse(DashServer.isAcceptableHost("evil.example:25599", "0.0.0.0"),
+                "a wildcard bind must not become a wildcard Host check");
+        // An operator who bound to a name is served under that name and no other.
+        assertTrue(DashServer.isAcceptableHost("devbox.lan:25599", "devbox.lan"));
+        assertFalse(DashServer.isAcceptableHost("other.lan:25599", "devbox.lan"));
+    }
+
+    @Test
+    @DisplayName("loopbackOnly answers for the knob, and 127/8 is not a prefix match on a name")
+    void loopbackOnlyIsLiteralAware() {
+        assertTrue(DashServer.isLoopbackName("127.0.0.1"));
+        assertTrue(DashServer.isLoopbackName("127.0.0.53"));
+        assertTrue(DashServer.isLoopbackName("::1"));
+        assertTrue(DashServer.isLoopbackName("localhost"));
+        assertFalse(DashServer.isLoopbackName("0.0.0.0"));
+        assertFalse(DashServer.isLoopbackName("192.168.1.5"));
+        assertFalse(DashServer.isLoopbackName("127.evil.example"),
+                "a DNS name starting \"127.\" is not loopback");
+    }
+
+    @Test
+    @DisplayName("a Host header is split without ever resolving it")
+    void hostNameParsing() {
+        assertEquals("127.0.0.1", DashServer.hostName("127.0.0.1:25599"));
+        assertEquals("127.0.0.1", DashServer.hostName("127.0.0.1"));
+        assertEquals("::1", DashServer.hostName("[::1]:25599"));
+        assertEquals("fe80::1%eth0", DashServer.hostName("[fe80::1%eth0]:25599"));
+        assertEquals("", DashServer.hostName("[unclosed:25599"));
     }
 
     @Test

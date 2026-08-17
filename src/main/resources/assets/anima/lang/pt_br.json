@@ -71,6 +71,8 @@
   "anima.config.option.dash.enabled.desc": "Serve o painel de depuração no navegador, em localhost. É uma ferramenta de desenvolvimento: mostra a mente de cada agente e seus botões os comandam. Escuta apenas em 127.0.0.1, atrás de um token que muda a cada início.",
   "anima.config.option.dash.port": "Porta",
   "anima.config.option.dash.port.desc": "A porta em que o painel escuta. Mude se outra coisa já estiver usando esta; use /anima dash para ver o endereço de qualquer forma.",
+  "anima.config.option.dash.host": "Endereço de escuta",
+  "anima.config.option.dash.host.desc": "O endereço em que o painel escuta. 127.0.0.1 o mantém nesta máquina, que é a premissa de toda a sua segurança: o painel mostra a mente de cada agente e seus botões os comandam, e o token é a única coisa que o protege. Um endereço da rede local, ou 0.0.0.0 para todas as interfaces, expõe tudo isso na rede em HTTP puro, onde o token pode ser lido em trânsito. O servidor avisa quando escuta em qualquer outro lugar.",
   "anima.config.option.dash.app_url": "Endereço da interface",
   "anima.config.option.dash.app_url.desc": "De onde a interface do painel é carregada. O mod serve apenas uma pequena página de carregamento, então o site apontado aqui nunca vê nada do seu mundo. Aponte para um endereço local para trabalhar na própria interface.",
   "anima.config.option.limits.reads_per_tick": "Leituras de blocos por tique",
