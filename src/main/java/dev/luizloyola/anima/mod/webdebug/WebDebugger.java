@@ -86,6 +86,9 @@ public final class WebDebugger {
     /** @see #port() */
     public static final String PORT_PROPERTY = "anima.web_debugger.port";
 
+    /** @see #appUrl() */
+    public static final String APP_URL_PROPERTY = "anima.web_debugger.app_url";
+
     /** How long an idle stream waits before emitting a keepalive — and noticing a dead socket. */
     private static final long KEEPALIVE_MILLIS = 15_000L;
 
@@ -144,9 +147,25 @@ public final class WebDebugger {
         return isLoopbackName(host());
     }
 
-    /** Where the stub loads the UI from. @see Knob#WEB_APP_URL */
+    /**
+     * Where the stub loads the UI from.
+     *
+     * <p>{@link #APP_URL_PROPERTY} is {@link #PORT_PROPERTY}'s shape exactly: a development
+     * default that <b>loses to a knob anybody actually set</b>. It is how a dev world loads the UI
+     * from the Vite server beside it (scripts/frontend.sh) rather than from the site, without that
+     * address ever being written into a config file a real installation might inherit.
+     *
+     * @see Knob#WEB_APP_URL
+     */
     public static String appUrl() {
-        return Config.get().s(Knob.WEB_APP_URL);
+        ConfigValues config = Config.get();
+        if (config.isDefault(Knob.WEB_APP_URL)) {
+            String fromLauncher = System.getProperty(APP_URL_PROPERTY, "").trim();
+            if (!fromLauncher.isEmpty()) {
+                return fromLauncher;
+            }
+        }
+        return config.s(Knob.WEB_APP_URL);
     }
 
     /**
@@ -322,21 +341,25 @@ public final class WebDebugger {
         }
         String app = appUrl();
         String origin = originOf(app);
+        // The app replaces this on mount, so it is only ever read when the app did not arrive —
+        // which names the URL that failed instead of leaving a blank page to explain itself.
         String html = """
                 <!doctype html>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width,initial-scale=1">
                 <title>Anima</title>
                 <div id="anima-dash" data-app="%s">
+                  Loading the web debugger from %s
                   <noscript>The web debugger needs JavaScript.</noscript>
                 </div>
                 <script type="module" src="%s"></script>
-                """.formatted(escape(app), escape(app));
+                """.formatted(escape(app), escape(app), escape(app));
         exchange.getResponseHeaders().add("Content-Type", "text/html; charset=utf-8");
         exchange.getResponseHeaders().add("Content-Security-Policy",
                 "default-src 'none'; script-src " + origin + "; style-src " + origin
                         + " 'unsafe-inline'; img-src 'self' data: " + origin
-                        + "; font-src " + origin + "; connect-src 'self'; base-uri 'none'");
+                        + "; font-src " + origin + "; connect-src " + connectSrc(app)
+                        + "; base-uri 'none'");
         // Load-bearing: the URL that opened this page still carries ?key=, and fetching the app
         // script from another origin would otherwise send that whole URL in a Referer header.
         exchange.getResponseHeaders().add("Referrer-Policy", "no-referrer");
@@ -559,6 +582,36 @@ public final class WebDebugger {
     }
 
     // --- plumbing -------------------------------------------------------------------------------
+
+    /**
+     * What the page may talk to. {@code 'self'} is the mod and nothing else, and that single word
+     * is the structural half of "the site sees no world data": a bundle that wanted to phone home
+     * cannot, whatever it contains.
+     *
+     * <p><b>A loopback app URL is the one exception, because there the guarantee has nothing left
+     * to protect.</b> That is a dev server on this machine — it already serves the code the page
+     * runs, and its owner already has the key — and the connection being allowed is the HMR socket
+     * that makes editing the UI worth doing. A remote origin never gets this, so the shipped
+     * default is unchanged.
+     *
+     * <p>The {@code ws:} origin is named separately on purpose: Chrome does not accept a {@code ws}
+     * connection against an {@code http} source expression, which reads like it should work and
+     * does not.
+     */
+    static String connectSrc(String app) {
+        URI uri;
+        try {
+            uri = URI.create(app);
+        } catch (IllegalArgumentException e) {
+            return "'self'";
+        }
+        String host = uri.getHost();
+        if (host == null || !isLoopbackName(host)) {
+            return "'self'";
+        }
+        String origin = originOf(app);
+        return "'self' " + origin + " " + origin.replaceFirst("^http", "ws");
+    }
 
     /** The scheme-and-host of the app URL, for the CSP that names what may run on the page. */
     static String originOf(String url) {

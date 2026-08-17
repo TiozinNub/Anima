@@ -133,7 +133,27 @@ class WebDebuggerTest {
     void clearLauncherOverrides() {
         System.clearProperty(WebDebugger.PORT_PROPERTY);
         System.clearProperty(WebDebugger.AUTOSTART_PROPERTY);
+        System.clearProperty(WebDebugger.APP_URL_PROPERTY);
         Config.reset();
+    }
+
+    @Test
+    @DisplayName("the launcher's app URL is a DEFAULT — a knob somebody set beats it")
+    void launcherAppUrlLosesToAnEditedKnob() {
+        String dev = "http://localhost:25597/src/dev.tsx";
+        System.setProperty(WebDebugger.APP_URL_PROPERTY, dev);
+        assertEquals(dev, WebDebugger.appUrl(), "a dev world loads the UI from the server beside it");
+
+        Config.install(Config.get().with(Knob.WEB_APP_URL, "https://elsewhere.example/app.v1.js"));
+        assertEquals("https://elsewhere.example/app.v1.js", WebDebugger.appUrl(),
+                "an operator who edited web_debugger.app_url must get what they typed");
+    }
+
+    @Test
+    @DisplayName("an empty app-URL property is no property at all")
+    void launcherAppUrlIgnoresBlanks() {
+        System.setProperty(WebDebugger.APP_URL_PROPERTY, "   ");
+        assertEquals(Knob.WEB_APP_URL.defText(), WebDebugger.appUrl());
     }
 
     @Test
@@ -235,6 +255,25 @@ class WebDebuggerTest {
         assertEquals("http://localhost:5173", WebDebugger.originOf("http://localhost:5173/app.js"));
         for (String nonsense : List.of("", "not a url", "/relative/app.js", "app.js")) {
             assertEquals("'none'", WebDebugger.originOf(nonsense), nonsense);
+        }
+    }
+
+    @Test
+    @DisplayName("only a loopback UI may be connected to — the site never can, which is the guarantee")
+    void connectSrcOpensForADevServerOnly() {
+        // A dev server's HMR socket, and the ws: origin spelled out because Chrome will not read
+        // it out of the http: one.
+        assertEquals("'self' http://localhost:25597 ws://localhost:25597",
+                WebDebugger.connectSrc("http://localhost:25597/src/dev.tsx"));
+        assertEquals("'self' http://127.0.0.1:25597 ws://127.0.0.1:25597",
+                WebDebugger.connectSrc("http://127.0.0.1:25597/src/dev.tsx"));
+
+        // Everything else, including the shipped default: the page may talk to the mod and to
+        // nothing else, so a bundle that wanted to phone home cannot.
+        for (String remote : List.of("https://anima-debugger.tioz.in/app.v1.js",
+                "http://127.0.0.1.evil.example/app.js", "https://localhost.evil.example/app.js",
+                "not a url", "")) {
+            assertEquals("'self'", WebDebugger.connectSrc(remote), remote);
         }
     }
 }
