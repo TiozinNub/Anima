@@ -23,20 +23,45 @@ import java.util.Optional;
  */
 public interface KnobSpec {
 
-    /** What a knob holds. Everything is stored as a double; the kind decides how it reads back. */
-    enum Kind { DOUBLE, INT, BOOL }
+    /**
+     * What a knob holds. The three numeric kinds are stored as a double and the kind decides how
+     * it reads back; {@link #STRING} is stored as text beside them.
+     *
+     * <p><b>{@code STRING} is a knob kind only.</b> {@code ProfileAspect} and {@code NeedKind}
+     * share this enum, and both are numeric dials — a species aspect or a need gauge holding text
+     * has no meaning, so both reject it at registration.
+     */
+    enum Kind {
+        DOUBLE, INT, BOOL, STRING;
+
+        /** Whether values of this kind live in the double array rather than beside it. */
+        public boolean numeric() {
+            return this != STRING;
+        }
+    }
 
     /** The dotted, snake_case key — the name used in the file, in commands, and in log messages. */
     String key();
 
     Kind kind();
 
-    /** The documented default — also what an absent file means. */
+    /** The documented default — also what an absent file means. Unused by {@link Kind#STRING}. */
     double def();
 
+    /** For {@link Kind#STRING}, the shortest legal text rather than a numeric floor. */
     double min();
 
+    /** For {@link Kind#STRING}, the longest legal text rather than a numeric ceiling. */
     double max();
+
+    /**
+     * A {@link Kind#STRING} knob's documented default. The text-side twin of {@link #def()}; the
+     * length bounds stay on {@link #min()}/{@link #max()} rather than growing two more accessors
+     * every numeric knob would have to answer for.
+     */
+    default String defText() {
+        return "";
+    }
 
     /** One sentence for the operator — shown by {@code config show} and in the GUI. */
     String doc();
@@ -97,6 +122,7 @@ public interface KnobSpec {
             case BOOL -> "true or false";
             case INT -> "a whole number in [" + format(min()) + ", " + format(max()) + "]";
             case DOUBLE -> "a number in [" + format(min()) + ", " + format(max()) + "]";
+            case STRING -> "text of " + (long) min() + " to " + (long) max() + " characters";
         };
     }
 
@@ -111,13 +137,50 @@ public interface KnobSpec {
         return Double.isFinite(raw) && clamp(raw) == raw;
     }
 
-    /** Renders a stored value the way it should appear in the file and in command output. */
+    /**
+     * {@link #clamp} for {@link Kind#STRING}: always returns a legal value, so a hand-edited file
+     * degrades to the default instead of failing.
+     *
+     * <p>Out-of-range falls back to {@link #defText()} rather than truncating — half a URL is a
+     * value that looks set and does not work, which is worse than the default it replaced. The
+     * text is trimmed first: trailing whitespace in a quoted TOML string is invisible in an editor
+     * and would otherwise be a length violation nobody can see.
+     */
+    default String sanitise(String raw) {
+        String trimmed = raw.strip();
+        return acceptsText(trimmed) ? trimmed : defText();
+    }
+
+    /** Whether {@code raw} would survive {@link #sanitise} untouched. */
+    default boolean acceptsText(String raw) {
+        return raw.equals(raw.strip()) && raw.length() >= (long) min() && raw.length() <= (long) max();
+    }
+
+    /** Renders a {@link Kind#STRING} value the way it should appear in command output. */
+    default String formatText(String value) {
+        return "\"" + value + "\"";
+    }
+
+    /**
+     * Renders a stored numeric value the way it should appear in the file and in command output.
+     *
+     * @throws UnsupportedOperationException for a {@link Kind#STRING} knob, which has no numeric
+     *     value — the caller wants {@link #formatText} or {@link ConfigValues#text}. Thrown rather
+     *     than fudged so a generic loop that forgot the kind fails where the bug is.
+     */
     default String format(double value) {
         return switch (kind()) {
             case BOOL -> value != 0.0 ? "true" : "false";
             case INT -> Long.toString((long) value);
             case DOUBLE -> String.format(Locale.ROOT, "%s", value);
+            case STRING -> throw new UnsupportedOperationException(
+                    key() + " holds text — use formatText or ConfigValues.text");
         };
+    }
+
+    /** This knob's documented default, rendered for display, whatever the kind. */
+    default String formatDefault() {
+        return kind() == Kind.STRING ? formatText(defText()) : format(def());
     }
 
     /**
@@ -127,6 +190,9 @@ public interface KnobSpec {
      */
     default Optional<Double> parse(String text) {
         String trimmed = text.trim();
+        if (kind() == Kind.STRING) {
+            return Optional.empty(); // no numeric reading exists; sanitise() is the text path
+        }
         if (kind() == Kind.BOOL) {
             if (trimmed.equalsIgnoreCase("true")) {
                 return Optional.of(1.0);

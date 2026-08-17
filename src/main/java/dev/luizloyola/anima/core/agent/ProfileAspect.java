@@ -304,6 +304,12 @@ public final class ProfileAspect {
             throw new IllegalArgumentException(
                     "an aspect key is a dotted snake_case config path: " + key);
         }
+        // A species aspect is a numeric dial the brain arithmetics on — interpolated, compared,
+        // scaled by a modifier. STRING exists on Kind for the knob stack alone.
+        if (kind == Kind.STRING) {
+            throw new IllegalArgumentException(
+                    "aspect \"" + key + "\" cannot hold text — a species aspect is a numeric dial");
+        }
         ProfileAspect existing = REGISTERED.get(key);
         if (existing != null) {
             if (existing.kind != kind || existing.min != min || existing.max != max

@@ -100,9 +100,9 @@ public final class ConfigCommands {
         KnobSpec knob = store.set().byKey(key).orElse(null);
         if (knob == null) return unknown(source, store, key);
         ConfigValues config = store.get();
-        Replies.send(source, () -> Component.literal(knob.key() + " = " + knob.format(config.get(knob))
+        Replies.send(source, () -> Component.literal(knob.key() + " = " + config.text(knob)
                 + (config.isDefault(knob) ? " (default)"
-                        : " — default is " + knob.format(knob.def())))
+                        : " — default is " + knob.formatDefault()))
                 .withStyle(ChatFormatting.AQUA));
         Replies.send(source, () -> Component.literal("  " + knob.doc())
                 .withStyle(ChatFormatting.GRAY));
@@ -115,6 +115,9 @@ public final class ConfigCommands {
             String key, String value) {
         KnobSpec knob = store.set().byKey(key).orElse(null);
         if (knob == null) return unknown(source, store, key);
+        if (knob.kind() == KnobSpec.Kind.STRING) {
+            return setText(source, store, file, knob, value);
+        }
         Double parsed = knob.parse(value).orElse(null);
         if (parsed == null) {
             Replies.fail(source, Component.literal(knob.key() + " accepts " + knob.expects()
@@ -131,13 +134,35 @@ public final class ConfigCommands {
         return 1;
     }
 
+    /**
+     * A text knob's half of {@link #set}. Refuses rather than silently substituting the default:
+     * {@code sanitise} exists so a hand-edited FILE degrades instead of failing, but an operator
+     * who just typed the value is owed the news that it did not take.
+     */
+    private static int setText(CommandSourceStack source, ConfigStore store, ConfigFile file,
+            KnobSpec knob, String value) {
+        String landed = knob.sanitise(value);
+        if (!landed.equals(value.strip())) {
+            Replies.fail(source, Component.literal(knob.key() + " accepts " + knob.expects()
+                    + " — \"" + value + "\" is not one"));
+            return 0;
+        }
+        store.install(store.get().with(knob, landed));
+        file.save(store.get());
+        Replies.send(source, () -> Component.literal(knob.key() + " = " + knob.formatText(landed))
+                .withStyle(ChatFormatting.GREEN), true);
+        return 1;
+    }
+
     private static int reset(CommandSourceStack source, ConfigStore store, ConfigFile file,
             String key) {
         KnobSpec knob = store.set().byKey(key).orElse(null);
         if (knob == null) return unknown(source, store, key);
-        store.install(store.get().with(knob, knob.def()));
+        store.install(knob.kind() == KnobSpec.Kind.STRING
+                ? store.get().with(knob, knob.defText())
+                : store.get().with(knob, knob.def()));
         file.save(store.get());
-        Replies.send(source, () -> Component.literal(knob.key() + " = " + knob.format(knob.def())
+        Replies.send(source, () -> Component.literal(knob.key() + " = " + knob.formatDefault()
                 + " (default)").withStyle(ChatFormatting.GREEN), true);
         return 1;
     }

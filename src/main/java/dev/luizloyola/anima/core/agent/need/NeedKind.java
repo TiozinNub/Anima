@@ -184,6 +184,11 @@ public final class NeedKind {
         if (key == null || key.isBlank()) {
             throw new IllegalArgumentException("a need kind needs a key");
         }
+        // A gauge reads somewhere on an axis and its levels ramp between them; text has no ramp.
+        if (kind == Kind.STRING) {
+            throw new IllegalArgumentException(
+                    "need \"" + key + "\" cannot hold text — a gauge reads a point on an axis");
+        }
         return new Builder(key, kind, axisMin, axisMax, unit);
     }
 

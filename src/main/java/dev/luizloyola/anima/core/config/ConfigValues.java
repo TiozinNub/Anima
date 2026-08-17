@@ -24,10 +24,18 @@ public final class ConfigValues {
 
     private final KnobSet set;
     private final double[] values;
+    /**
+     * Text for the {@link KnobSpec.Kind#STRING} knobs, at the same slots. A parallel array rather
+     * than a boxed {@code Object[]}: every numeric read stays a primitive load on a hot path, and
+     * the slot a knob owns is still whatever {@link KnobSet#indexOf} says. Entries for numeric
+     * knobs are never read.
+     */
+    private final String[] texts;
 
-    private ConfigValues(KnobSet set, double[] values) {
+    private ConfigValues(KnobSet set, double[] values, String[] texts) {
         this.set = set;
         this.values = values;
+        this.texts = texts;
     }
 
     public KnobSet set() {
@@ -35,7 +43,7 @@ public final class ConfigValues {
     }
 
     public static ConfigValues defaults(KnobSet set) {
-        return new ConfigValues(set, defaultValues(set));
+        return new ConfigValues(set, defaultValues(set), defaultTexts(set));
     }
 
     /** The raw stored value. Prefer {@link #i}/{@link #b}/{@link #d} at call sites. */
@@ -58,25 +66,76 @@ public final class ConfigValues {
         return values[set.indexOf(knob)] != 0.0;
     }
 
-    /** This configuration with one knob changed (clamped), leaving the original untouched. */
-    public ConfigValues with(KnobSpec knob, double raw) {
-        double[] copy = values.clone();
-        copy[set.indexOf(knob)] = knob.clamp(raw);
-        return new ConfigValues(set, copy);
+    /** A {@link KnobSpec.Kind#STRING} knob. Never null — an unset one reads as its default. */
+    public String s(KnobSpec knob) {
+        return texts[set.indexOf(knob)];
     }
 
-    /** Every knob and its current value — the encoding side of the file round trip. */
+    /**
+     * This knob's current value rendered for display, whatever its kind — what {@code config show},
+     * {@code config get} and {@link #describeOverrides} print, so none of them has to branch.
+     */
+    public String text(KnobSpec knob) {
+        return knob.kind() == KnobSpec.Kind.STRING ? knob.formatText(s(knob)) : knob.format(get(knob));
+    }
+
+    /**
+     * This configuration with one numeric knob changed (clamped), leaving the original untouched.
+     *
+     * @throws IllegalArgumentException for a {@link KnobSpec.Kind#STRING} knob — its value would
+     *     land in the double array where nothing reads it, silently keeping the old text.
+     */
+    public ConfigValues with(KnobSpec knob, double raw) {
+        if (knob.kind() == KnobSpec.Kind.STRING) {
+            throw new IllegalArgumentException(knob.key() + " holds text — use with(knob, String)");
+        }
+        double[] copy = values.clone();
+        copy[set.indexOf(knob)] = knob.clamp(raw);
+        return new ConfigValues(set, copy, texts);
+    }
+
+    /**
+     * This configuration with one text knob changed (sanitised), leaving the original untouched.
+     *
+     * @throws IllegalArgumentException for a numeric knob, for the mirror of the reason above.
+     */
+    public ConfigValues with(KnobSpec knob, String raw) {
+        if (knob.kind() != KnobSpec.Kind.STRING) {
+            throw new IllegalArgumentException(knob.key() + " holds a number — use with(knob, double)");
+        }
+        String[] copy = texts.clone();
+        copy[set.indexOf(knob)] = knob.sanitise(raw);
+        return new ConfigValues(set, values, copy);
+    }
+
+    /** Every NUMERIC knob and its current value — the encoding side of the file round trip. */
     public Map<KnobSpec, Double> toMap() {
         Map<KnobSpec, Double> map = new LinkedHashMap<>();
         for (KnobSpec knob : set.knobs()) {
-            map.put(knob, values[set.indexOf(knob)]);
+            if (knob.kind().numeric()) {
+                map.put(knob, values[set.indexOf(knob)]);
+            }
+        }
+        return map;
+    }
+
+    /** Every {@link KnobSpec.Kind#STRING} knob and its current text — {@link #toMap}'s other half. */
+    public Map<KnobSpec, String> toTextMap() {
+        Map<KnobSpec, String> map = new LinkedHashMap<>();
+        for (KnobSpec knob : set.knobs()) {
+            if (knob.kind() == KnobSpec.Kind.STRING) {
+                map.put(knob, texts[set.indexOf(knob)]);
+            }
         }
         return map;
     }
 
     /** Whether this knob still sits at its default — what {@code show} marks. */
     public boolean isDefault(KnobSpec knob) {
-        return values[set.indexOf(knob)] == knob.def();
+        int slot = set.indexOf(knob);
+        return knob.kind() == KnobSpec.Kind.STRING
+                ? texts[slot].equals(knob.defText())
+                : values[slot] == knob.def();
     }
 
     /**
@@ -86,7 +145,17 @@ public final class ConfigValues {
      * already clean.
      */
     public static Loaded from(KnobSet set, Map<KnobSpec, Double> raw) {
+        return from(set, raw, Map.of());
+    }
+
+    /**
+     * {@link #from(KnobSet, Map)} with the {@link KnobSpec.Kind#STRING} knobs too. Two maps rather
+     * than one of {@code Object}: the kinds are disjoint by knob, and a single map would make every
+     * caller cast and every mistake a runtime one.
+     */
+    public static Loaded from(KnobSet set, Map<KnobSpec, Double> raw, Map<KnobSpec, String> rawText) {
         double[] built = defaultValues(set);
+        String[] builtText = defaultTexts(set);
         List<String> problems = new ArrayList<>();
         for (Map.Entry<KnobSpec, Double> entry : raw.entrySet()) {
             KnobSpec knob = entry.getKey();
@@ -99,7 +168,18 @@ public final class ConfigValues {
                         knob.format(knob.max()), knob.format(clamped)));
             }
         }
-        return new Loaded(new ConfigValues(set, built), List.copyOf(problems));
+        for (Map.Entry<KnobSpec, String> entry : rawText.entrySet()) {
+            KnobSpec knob = entry.getKey();
+            String supplied = entry.getValue() == null ? knob.defText() : entry.getValue();
+            String sane = knob.sanitise(supplied);
+            builtText[set.indexOf(knob)] = sane;
+            if (!sane.equals(supplied)) {
+                problems.add(String.format(Locale.ROOT, "%s: %s is not %s — using %s",
+                        knob.key(), knob.formatText(supplied), knob.expects(),
+                        knob.formatText(sane)));
+            }
+        }
+        return new Loaded(new ConfigValues(set, built, builtText), List.copyOf(problems));
     }
 
     /** A configuration plus whatever had to be corrected to make it legal. @see #from */
@@ -117,7 +197,24 @@ public final class ConfigValues {
     private static double[] defaultValues(KnobSet set) {
         double[] built = new double[set.size()];
         for (KnobSpec knob : set.knobs()) {
-            built[set.indexOf(knob)] = knob.def();
+            if (knob.kind().numeric()) {
+                built[set.indexOf(knob)] = knob.def();
+            }
+        }
+        return built;
+    }
+
+    /**
+     * Text defaults for every slot. Numeric slots hold {@code ""} rather than null, so
+     * {@link #s} can never return null and {@link Arrays#equals} needs no null handling.
+     */
+    private static String[] defaultTexts(KnobSet set) {
+        String[] built = new String[set.size()];
+        Arrays.fill(built, "");
+        for (KnobSpec knob : set.knobs()) {
+            if (knob.kind() == KnobSpec.Kind.STRING) {
+                built[set.indexOf(knob)] = knob.defText();
+            }
         }
         return built;
     }
@@ -127,8 +224,8 @@ public final class ConfigValues {
         List<String> lines = new ArrayList<>();
         for (KnobSpec knob : set.knobs()) {
             if (!isDefault(knob)) {
-                lines.add(knob.key() + " = " + knob.format(get(knob))
-                        + " (default " + knob.format(knob.def()) + ")");
+                lines.add(knob.key() + " = " + text(knob)
+                        + " (default " + knob.formatDefault() + ")");
             }
         }
         return Collections.unmodifiableList(lines);
@@ -138,12 +235,13 @@ public final class ConfigValues {
     public boolean equals(Object other) {
         return other instanceof ConfigValues that
                 && set.equals(that.set)
-                && Arrays.equals(values, that.values);
+                && Arrays.equals(values, that.values)
+                && Arrays.equals(texts, that.texts);
     }
 
     @Override
     public int hashCode() {
-        return 31 * set.hashCode() + Arrays.hashCode(values);
+        return 31 * (31 * set.hashCode() + Arrays.hashCode(values)) + Arrays.hashCode(texts);
     }
 
     @Override

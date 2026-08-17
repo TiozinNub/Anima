@@ -95,22 +95,32 @@ public final class ConfigFile {
 
         List<String> problems = new ArrayList<>();
         Map<KnobSpec, Double> supplied = new LinkedHashMap<>();
+        Map<KnobSpec, String> suppliedText = new LinkedHashMap<>();
         for (KnobSpec knob : set.knobs()) {
             Object value = lookup(root, knob);
             if (value == null) {
                 continue; // absent: the default stands, silently — that is what a fresh file means
             }
+            if (knob.kind() == KnobSpec.Kind.STRING) {
+                if (value instanceof String s) {
+                    suppliedText.put(knob, s);
+                } else {
+                    problems.add(knob.key() + ": expected " + knob.expects()
+                            + ", found " + describe(value) + " — using " + knob.formatDefault());
+                }
+                continue;
+            }
             Double read = asNumber(value, knob);
             if (read == null) {
                 problems.add(knob.key() + ": expected " + knob.expects()
-                        + ", found " + describe(value) + " — using " + knob.format(knob.def()));
+                        + ", found " + describe(value) + " — using " + knob.formatDefault());
                 continue;
             }
             supplied.put(knob, read);
         }
         problems.addAll(unknownKeys(root));
 
-        ConfigValues.Loaded loaded = ConfigValues.from(set, supplied);
+        ConfigValues.Loaded loaded = ConfigValues.from(set, supplied, suppliedText);
         problems.addAll(loaded.problems());
         store.install(loaded.config());
 
@@ -140,7 +150,7 @@ public final class ConfigFile {
         CommentedConfig root = TomlDocument.document();
         for (KnobSpec knob : set.knobs()) {
             List<String> path = knob.path();
-            root.set(path, toToml(knob, config.get(knob)));
+            root.set(path, toToml(knob, config));
             root.setComment(path, TomlDocument.comment(knob.doc()));
         }
         return TomlDocument.render(root);
@@ -209,11 +219,12 @@ public final class ConfigFile {
      * The value as TOML should hold it: a whole number as a TOML integer rather than
      * {@code 256.0}, so the file reads hand-written rather than dumped.
      */
-    private static Object toToml(KnobSpec knob, double value) {
+    private static Object toToml(KnobSpec knob, ConfigValues config) {
         return switch (knob.kind()) {
-            case BOOL -> value != 0.0;
-            case INT -> (long) value;
-            case DOUBLE -> value;
+            case BOOL -> config.b(knob);
+            case INT -> (long) config.get(knob);
+            case DOUBLE -> config.get(knob);
+            case STRING -> config.s(knob);
         };
     }
 

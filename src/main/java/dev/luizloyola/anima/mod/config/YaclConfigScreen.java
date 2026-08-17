@@ -6,6 +6,7 @@ import dev.isxander.yacl3.api.OptionDescription;
 import dev.isxander.yacl3.api.YetAnotherConfigLib;
 import dev.isxander.yacl3.api.controller.DoubleFieldControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerFieldControllerBuilder;
+import dev.isxander.yacl3.api.controller.StringControllerBuilder;
 import dev.isxander.yacl3.api.controller.TickBoxControllerBuilder;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.ConfigStore;
@@ -51,6 +52,7 @@ public final class YaclConfigScreen {
         // Staged rather than applied per-option: YACL calls the setters as the user edits, and one
         // atomic install on Save keeps a half-applied config from being observed mid-tick.
         Map<KnobSpec, Double> staged = new LinkedHashMap<>();
+        Map<KnobSpec, String> stagedText = new LinkedHashMap<>();
 
         // Sections in declaration order, each becoming one category tab.
         Map<String, ConfigCategory.Builder> categories = new LinkedHashMap<>();
@@ -58,7 +60,7 @@ public final class YaclConfigScreen {
             categories.computeIfAbsent(knob.category(), category -> ConfigCategory.createBuilder()
                     .name(Component.translatableWithFallback(
                             set.langRoot() + ".category." + category, prettify(category))))
-                    .option(option(set, knob, live, staged));
+                    .option(option(set, knob, live, staged, stagedText));
         }
 
         YetAnotherConfigLib.Builder builder = YetAnotherConfigLib.createBuilder()
@@ -66,11 +68,12 @@ public final class YaclConfigScreen {
         for (ConfigCategory.Builder category : categories.values()) {
             builder.category(category.build());
         }
-        return builder.save(() -> apply(store, file, staged)).build().generateScreen(parent);
+        return builder.save(() -> apply(store, file, staged, stagedText)).build()
+                .generateScreen(parent);
     }
 
     private static Option<?> option(KnobSet set, KnobSpec knob, ConfigValues live,
-            Map<KnobSpec, Double> staged) {
+            Map<KnobSpec, Double> staged, Map<KnobSpec, String> stagedText) {
         // Translation keys with the knob as fallback, so a knob with no lang entry reads sensibly
         // and any label is overridable in any language without touching Java. The last tooltip
         // line stays literal: the dotted key and range are typed into the config command.
@@ -97,6 +100,17 @@ public final class YaclConfigScreen {
                                 value -> staged.put(knob, (double) value))
                         .controller(opt -> IntegerFieldControllerBuilder.create(opt)
                                 .range((int) knob.min(), (int) knob.max()))
+                        .build();
+            case STRING:
+                // No range on the controller: YACL's text field has no length bound, so the
+                // sanitise in ConfigValues.with is the only gate — and it is the one the file
+                // takes too, so the screen cannot admit what a reload would reject.
+                return Option.<String>createBuilder()
+                        .name(name)
+                        .description(description)
+                        .binding(knob.defText(), () -> live.s(knob),
+                                value -> stagedText.put(knob, value))
+                        .controller(StringControllerBuilder::create)
                         .build();
             case DOUBLE:
             default:
@@ -135,9 +149,12 @@ public final class YaclConfigScreen {
 
     /** Install the edited values as one config, then persist — the same path {@code config set} takes. */
     private static void apply(ConfigStore store, ConfigFile file,
-            Map<KnobSpec, Double> staged) {
+            Map<KnobSpec, Double> staged, Map<KnobSpec, String> stagedText) {
         ConfigValues updated = store.get();
         for (Map.Entry<KnobSpec, Double> change : staged.entrySet()) {
+            updated = updated.with(change.getKey(), change.getValue());
+        }
+        for (Map.Entry<KnobSpec, String> change : stagedText.entrySet()) {
             updated = updated.with(change.getKey(), change.getValue());
         }
         store.install(updated);
