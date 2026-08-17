@@ -7,6 +7,7 @@ import dev.luizloyola.anima.mod.debug.DebugLayer;
 import dev.luizloyola.anima.mod.debug.DebugView;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import org.jspecify.annotations.Nullable;
@@ -34,18 +35,28 @@ final class DashActions {
 
     /** Runs one verb. Unknown verbs and impossible ones are logged, never thrown at the browser. */
     static void run(MinecraftServer server, DashWatch watch, String verb, Map<String, String> args) {
+        // The switch comes first so an unknown verb is NAMED as one. Looking the player up here
+        // instead would answer every typo with "nobody is online", which is the wrong bug.
+        switch (verb) {
+            case "pin" -> asPlayer(server, watch, verb, player -> pin(player, args.get("id")));
+            case "unpin" -> asPlayer(server, watch, verb, AgentSelection::clear);
+            case "layer" -> asPlayer(server, watch, verb, player ->
+                    layer(server, player, args.get("key"), !"0".equals(args.get("on"))));
+            case "layers-clear" -> asPlayer(server, watch, verb, player ->
+                    DebugView.clear(server, player.getUUID()));
+            default -> AnimaMod.LOGGER.warn("dash: unknown verb \"{}\"", verb);
+        }
+    }
+
+    /** Runs {@code action} as the player the panel is driving, or says why it could not. */
+    private static void asPlayer(MinecraftServer server, DashWatch watch, String verb,
+            Consumer<ServerPlayer> action) {
         ServerPlayer player = actor(server, watch);
         if (player == null) {
             AnimaMod.LOGGER.warn("dash: \"{}\" needs a player to act as, and none is online", verb);
             return;
         }
-        switch (verb) {
-            case "pin" -> pin(player, args.get("id"));
-            case "unpin" -> AgentSelection.clear(player);
-            case "layer" -> layer(server, player, args.get("key"), !"0".equals(args.get("on")));
-            case "layers-clear" -> DebugView.clear(server, player.getUUID());
-            default -> AnimaMod.LOGGER.warn("dash: unknown verb \"{}\"", verb);
-        }
+        action.accept(player);
     }
 
     /** The player the panel is driving — its choice, or the only one online. */
