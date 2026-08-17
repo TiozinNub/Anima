@@ -3,6 +3,7 @@ package dev.luizloyola.anima.mod.webdebug;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import dev.luizloyola.anima.core.config.Config;
+import dev.luizloyola.anima.core.config.ConfigValues;
 import dev.luizloyola.anima.core.config.Keys;
 import dev.luizloyola.anima.core.config.Knob;
 import dev.luizloyola.anima.mod.AnimaMod;
@@ -47,13 +48,19 @@ import org.jspecify.annotations.Nullable;
  *       guarantee is structural rather than a promise.
  * </ul>
  *
- * <p><b>Off by default, loopback by default, and a generated key.</b> The key is
- * required on every route, so a page that guessed the port still cannot read a frame, and the
- * {@code Host} check is what a DNS-rebinding attempt fails — see {@link #isAcceptableHost}, which
- * refuses DNS names outright and so holds at any bind address.
+ * <p><b>Two guards, and they do not cover the same routes.</b> Every route requires a loopback
+ * {@code Host} — that is what a DNS-rebinding attempt fails, and {@link #isAcceptableHost} refuses
+ * DNS names outright so it holds at any bind address. Only the routes that return or change world
+ * state require the key, in an {@code X-Api-Key} header.
+ *
+ * <p>{@code GET /} is deliberately open, because it carries nothing: a fixed page naming the app
+ * to load. The <b>app</b> owns the key from there — it reads it out of the {@code ?key=} the
+ * operator opened, stores it, strips it from the address bar, and sends the header on every call.
+ * Keeping the key out of the served HTML is what lets the page be cached-never and shared freely
+ * while the data behind it is not.
  *
  * <p><b>{@link Knob#WEB_HOST} can widen that, and nothing else about the design changes to
- * compensate.</b> There is no TLS and no login; the key rides in the URL. Bound anywhere but
+ * compensate.</b> There is no TLS and no login. Bound anywhere but
  * loopback, every mind is readable and drivable by whatever can reach the port, so the bind is
  * announced with a warning rather than left to be discovered. A non-loopback origin also is not
  * <em>potentially trustworthy</em>, so the page stops being a secure context and the APIs that
@@ -65,6 +72,19 @@ public final class WebDebugger {
 
     /** Snapshot cadence. {@code DebugView}'s: four ticks reads as instant and costs nothing. */
     private static final int SEND_INTERVAL_TICKS = 4;
+
+    /** Where the key travels. Not the query string — see {@link #keyed}. */
+    public static final String KEY_HEADER = "X-Api-Key";
+
+    /**
+     * Development-launcher overrides. Properties rather than knobs because they must not reach a
+     * shipped config file: a mod that defaulted to serving its debugger would be a mod that opens a
+     * socket on somebody's machine without being asked.
+     */
+    public static final String AUTOSTART_PROPERTY = "anima.web_debugger.autostart";
+
+    /** @see #port() */
+    public static final String PORT_PROPERTY = "anima.web_debugger.port";
 
     /** How long an idle stream waits before emitting a keepalive — and noticing a dead socket. */
     private static final long KEEPALIVE_MILLIS = 15_000L;
@@ -79,14 +99,39 @@ public final class WebDebugger {
     private WebDebugger() {
     }
 
-    /** Whether the dashboard is switched on. @see Knob#WEB_ENABLED */
+    /**
+     * Whether a loading world should bring the web debugger up with it.
+     *
+     * <p>{@link #AUTOSTART_PROPERTY} is how a development launcher says yes without writing it into
+     * a config file that a real installation might inherit — see the run configs in Autarkia's
+     * build. It only ever turns this ON: nothing that ships defaults to serving.
+     *
+     * @see Knob#WEB_ENABLED
+     */
     public static boolean enabled() {
-        return Config.get().b(Knob.WEB_ENABLED);
+        return Config.get().b(Knob.WEB_ENABLED) || Boolean.getBoolean(AUTOSTART_PROPERTY);
     }
 
-    /** The port to listen on. @see Knob#WEB_PORT */
+    /**
+     * The port to listen on.
+     *
+     * <p>{@link #PORT_PROPERTY} supplies a development default, and <b>loses to a knob anybody
+     * actually set</b>. That order matters: in single-player the client hosts its own integrated
+     * server, so a dev client and a dev server both want a port and cannot share one — the
+     * launcher hands each a different default, exactly as it already does for the JDWP ports —
+     * while an operator who edits {@code web_debugger.port} still gets what they typed.
+     *
+     * @see Knob#WEB_PORT
+     */
     public static int port() {
-        return Config.get().i(Knob.WEB_PORT);
+        ConfigValues config = Config.get();
+        if (config.isDefault(Knob.WEB_PORT)) {
+            int fromLauncher = Integer.getInteger(PORT_PROPERTY, 0);
+            if (fromLauncher >= 1024 && fromLauncher <= 65_535) {
+                return fromLauncher;
+            }
+        }
+        return config.i(Knob.WEB_PORT);
     }
 
     /** The address to bind to — {@code 127.0.0.1} unless an operator widened it. @see Knob#WEB_HOST */
@@ -110,7 +155,7 @@ public final class WebDebugger {
      * <p>Normally {@code ConfigFile} has already generated and saved it on load, and this is a
      * field read. The generate-and-persist here is the safety net for a config that was never
      * loaded from a file at all (a test, an embedded run): without it the key would be empty,
-     * {@link #authorised} would refuse everything, and the failure would read as a broken server
+     * {@link #keyed} would refuse everything, and the failure would read as a broken server
      * rather than a missing key.
      *
      * <p>Synchronised so two requests arriving together cannot generate two different keys and
@@ -258,12 +303,21 @@ public final class WebDebugger {
     // --- routes ---------------------------------------------------------------------------------
 
     /**
-     * The stub. No inline script, so the page needs no {@code 'unsafe-inline'} in its CSP and the
-     * one origin it will run code from is stated in the header for anyone to read: the key
-     * travels in a data attribute instead.
+     * The stub, served to anything on this machine that asks — <b>no key required</b>.
+     *
+     * <p>It can be, because it carries no secret: it is a fixed page naming the app to load, and
+     * the key never enters it. The app reads the key out of the query string the operator opened,
+     * puts it in local storage, strips it from the address bar, and sends it as {@code X-Api-Key}
+     * from then on. Everything worth guarding is behind {@link #keyed}.
+     *
+     * <p>That is also why this page must stay boring. Anything the stub learned about the world
+     * would be readable by any local page that guessed the port.
+     *
+     * <p>No inline script, so the page needs no {@code 'unsafe-inline'} in its CSP and the one
+     * origin it will run code from is stated in the header for anyone to read.
      */
     private static void serveStub(HttpExchange exchange) throws IOException {
-        if (!authorised(exchange)) {
+        if (!fromLoopback(exchange)) {
             return;
         }
         String app = appUrl();
@@ -273,18 +327,22 @@ public final class WebDebugger {
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width,initial-scale=1">
                 <title>Anima</title>
-                <div id="anima-dash" data-key="%s" data-app="%s">
-                  <noscript>The dashboard needs JavaScript.</noscript>
+                <div id="anima-dash" data-app="%s">
+                  <noscript>The web debugger needs JavaScript.</noscript>
                 </div>
                 <script type="module" src="%s"></script>
-                """.formatted(key(), escape(app), escape(app));
+                """.formatted(escape(app), escape(app));
         exchange.getResponseHeaders().add("Content-Type", "text/html; charset=utf-8");
         exchange.getResponseHeaders().add("Content-Security-Policy",
                 "default-src 'none'; script-src " + origin + "; style-src " + origin
                         + " 'unsafe-inline'; img-src 'self' data: " + origin
                         + "; font-src " + origin + "; connect-src 'self'; base-uri 'none'");
-        // The key is in the body; a referrer carrying it to the app's host would leak it.
+        // Load-bearing: the URL that opened this page still carries ?key=, and fetching the app
+        // script from another origin would otherwise send that whole URL in a Referer header.
         exchange.getResponseHeaders().add("Referrer-Policy", "no-referrer");
+        // The key handoff is per-visit and the app rewrites the address bar; a cached stub would
+        // also pin an app_url the operator has since changed.
+        exchange.getResponseHeaders().add("Cache-Control", "no-store");
         send(exchange, 200, html.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -294,7 +352,7 @@ public final class WebDebugger {
      * a write being the only thing that finds that out.
      */
     private static void serveStream(HttpExchange exchange) throws IOException {
-        if (!authorised(exchange)) {
+        if (!keyed(exchange)) {
             return;
         }
         exchange.getResponseHeaders().add("Content-Type", "text/event-stream; charset=utf-8");
@@ -323,7 +381,7 @@ public final class WebDebugger {
 
     /** What the browser has expanded, and who it is acting as. */
     private static void serveWatch(HttpExchange exchange) throws IOException {
-        if (!authorised(exchange)) {
+        if (!keyed(exchange)) {
             return;
         }
         Map<String, String> query = query(exchange.getRequestURI());
@@ -346,7 +404,7 @@ public final class WebDebugger {
      * {@link WebFeed}; an HTTP thread touching an agent is the race this whole design avoids.
      */
     private static void serveCommand(HttpExchange exchange) throws IOException {
-        if (!authorised(exchange)) {
+        if (!keyed(exchange)) {
             return;
         }
         MinecraftServer server = world;
@@ -364,20 +422,37 @@ public final class WebDebugger {
     // --- guards ---------------------------------------------------------------------------------
 
     /**
-     * The two checks every route makes, answering the exchange itself when either fails.
+     * The check <b>every</b> route makes: the request came from this machine, under a name that
+     * cannot have been forged.
      *
-     * <p>The {@code Host} check is the anti-rebinding one: a name that resolves to 127.0.0.1 today
-     * gets the browser to send the request, but it cannot forge the header it arrives with. The
-     * key is what a local page that guessed the port does not have.
+     * <p>The anti-rebinding one. A name that resolves to 127.0.0.1 today gets the browser to send
+     * the request, but it cannot forge the {@code Host} header it arrives with — see
+     * {@link #isAcceptableHost}.
      */
-    private static boolean authorised(HttpExchange exchange) throws IOException {
+    private static boolean fromLoopback(HttpExchange exchange) throws IOException {
         String host = exchange.getRequestHeaders().getFirst("Host");
         if (host == null || !isAcceptableHost(host, host())) {
             send(exchange, 421, "wrong host".getBytes(StandardCharsets.UTF_8));
             return false;
         }
+        return true;
+    }
+
+    /**
+     * {@link #fromLoopback} plus the key — what everything that returns or changes world state
+     * asks for, and the stub does not.
+     *
+     * <p><b>The key arrives in {@code X-Api-Key}, never the query string.</b> A header does not
+     * land in the address bar, in browser history, or in a {@code Referer}; it is also the one
+     * place a same-origin request can carry a secret without a preflight. The query string is the
+     * one-time handoff into the page and nothing reads it here.
+     */
+    private static boolean keyed(HttpExchange exchange) throws IOException {
+        if (!fromLoopback(exchange)) {
+            return false;
+        }
         String expected = key();
-        String supplied = query(exchange.getRequestURI()).get("key");
+        String supplied = exchange.getRequestHeaders().getFirst(KEY_HEADER);
         // Constant-time: a byte-at-a-time compare leaks the key's prefix to anything that can time
         // the reply, and this endpoint answers as fast as an attacker cares to ask.
         if (expected.isEmpty() || supplied == null || !constantTimeEquals(expected, supplied)) {

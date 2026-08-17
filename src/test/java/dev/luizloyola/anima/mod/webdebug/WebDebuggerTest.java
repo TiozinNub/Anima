@@ -7,11 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.config.Config;
+import dev.luizloyola.anima.core.config.Knob;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -122,6 +125,48 @@ class WebDebuggerTest {
         assertEquals(player, watch.actingAs());
         assertTrue(watch.isExpanded(one));
         assertNull(watch.actingAs(null).actingAs());
+    }
+
+    // --- the launcher overrides -------------------------------------------------------------------
+
+    @AfterEach
+    void clearLauncherOverrides() {
+        System.clearProperty(WebDebugger.PORT_PROPERTY);
+        System.clearProperty(WebDebugger.AUTOSTART_PROPERTY);
+        Config.reset();
+    }
+
+    @Test
+    @DisplayName("the launcher's port is a DEFAULT — a knob somebody set beats it")
+    void launcherPortLosesToAnEditedKnob() {
+        System.setProperty(WebDebugger.PORT_PROPERTY, "25598");
+        assertEquals(25598, WebDebugger.port(), "an untouched knob takes the launcher's port");
+
+        Config.install(Config.get().with(Knob.WEB_PORT, 30_000.0));
+        assertEquals(30_000, WebDebugger.port(),
+                "an operator who edited web_debugger.port must get what they typed");
+    }
+
+    @Test
+    @DisplayName("a nonsense launcher port is ignored rather than crashing the bind")
+    void launcherPortIsBoundsChecked() {
+        for (String nonsense : List.of("0", "80", "99999", "not-a-port", "")) {
+            System.setProperty(WebDebugger.PORT_PROPERTY, nonsense);
+            assertEquals((int) Knob.WEB_PORT.def(), WebDebugger.port(), nonsense);
+        }
+    }
+
+    @Test
+    @DisplayName("the launcher can only turn autostart ON, never off")
+    void autostartIsOneWay() {
+        assertFalse(WebDebugger.enabled(), "nothing that ships defaults to serving");
+
+        System.setProperty(WebDebugger.AUTOSTART_PROPERTY, "true");
+        assertTrue(WebDebugger.enabled(), "the dev launcher opts in");
+
+        System.clearProperty(WebDebugger.AUTOSTART_PROPERTY);
+        Config.install(Config.get().with(Knob.WEB_ENABLED, 1.0));
+        assertTrue(WebDebugger.enabled(), "and the knob still works on its own");
     }
 
     // --- the guards -----------------------------------------------------------------------------
