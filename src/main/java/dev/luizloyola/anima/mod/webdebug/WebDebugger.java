@@ -86,9 +86,6 @@ public final class WebDebugger {
     /** @see #port() */
     public static final String PORT_PROPERTY = "anima.web_debugger.port";
 
-    /** @see #appUrl() */
-    public static final String APP_URL_PROPERTY = "anima.web_debugger.app_url";
-
     /** How long an idle stream waits before emitting a keepalive — and noticing a dead socket. */
     private static final long KEEPALIVE_MILLIS = 15_000L;
 
@@ -148,24 +145,15 @@ public final class WebDebugger {
     }
 
     /**
-     * Where the stub loads the UI from.
-     *
-     * <p>{@link #APP_URL_PROPERTY} is {@link #PORT_PROPERTY}'s shape exactly: a development
-     * default that <b>loses to a knob anybody actually set</b>. It is how a dev world loads the UI
-     * from the Vite server beside it (scripts/frontend.sh) rather than from the site, without that
-     * address ever being written into a config file a real installation might inherit.
+     * Where the stub loads the UI from — the knob and nothing else. Working on the UI means
+     * pointing it at a dev server, which is an edit to the config file like any other; the
+     * workspace's {@code scripts/frontend.sh} makes that edit rather than the launcher smuggling
+     * an address past the file that is supposed to be the record of it.
      *
      * @see Knob#WEB_APP_URL
      */
     public static String appUrl() {
-        ConfigValues config = Config.get();
-        if (config.isDefault(Knob.WEB_APP_URL)) {
-            String fromLauncher = System.getProperty(APP_URL_PROPERTY, "").trim();
-            if (!fromLauncher.isEmpty()) {
-                return fromLauncher;
-            }
-        }
-        return config.s(Knob.WEB_APP_URL);
+        return Config.get().s(Knob.WEB_APP_URL);
     }
 
     /**

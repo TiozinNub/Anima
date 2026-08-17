@@ -133,27 +133,17 @@ class WebDebuggerTest {
     void clearLauncherOverrides() {
         System.clearProperty(WebDebugger.PORT_PROPERTY);
         System.clearProperty(WebDebugger.AUTOSTART_PROPERTY);
-        System.clearProperty(WebDebugger.APP_URL_PROPERTY);
         Config.reset();
     }
 
     @Test
-    @DisplayName("the launcher's app URL is a DEFAULT — a knob somebody set beats it")
-    void launcherAppUrlLosesToAnEditedKnob() {
-        String dev = "http://localhost:25597/src/dev.tsx";
-        System.setProperty(WebDebugger.APP_URL_PROPERTY, dev);
-        assertEquals(dev, WebDebugger.appUrl(), "a dev world loads the UI from the server beside it");
-
-        Config.install(Config.get().with(Knob.WEB_APP_URL, "https://elsewhere.example/app.v1.js"));
-        assertEquals("https://elsewhere.example/app.v1.js", WebDebugger.appUrl(),
-                "an operator who edited web_debugger.app_url must get what they typed");
-    }
-
-    @Test
-    @DisplayName("an empty app-URL property is no property at all")
-    void launcherAppUrlIgnoresBlanks() {
-        System.setProperty(WebDebugger.APP_URL_PROPERTY, "   ");
+    @DisplayName("the UI address is the file's to state — no launcher override reads over it")
+    void appUrlComesFromTheKnobAlone() {
         assertEquals(Knob.WEB_APP_URL.defText(), WebDebugger.appUrl());
+
+        String dev = "http://localhost:25597/src/dev.tsx";
+        Config.install(Config.get().with(Knob.WEB_APP_URL, dev));
+        assertEquals(dev, WebDebugger.appUrl(), "a config pointed at a dev server must be obeyed");
     }
 
     @Test
