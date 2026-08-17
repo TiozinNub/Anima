@@ -1,0 +1,159 @@
+# Anima's CI: build every Minecraft node, publish the library where its consumers look for it,
+# and release it when a tag says to.
+#
+# What this file cannot do is boot the game. Anima names no body of its own — that is the whole
+# boundary — so standalone it has nothing to spawn, and a green build here means "compiles and
+# unit-tests", not "works". The pair is exercised by the integration workflow in Anima-Workspace,
+# which the last job pokes whenever main moves. A `testmod` source set would close that gap in
+# this repo; it is designed and unbuilt (2026-08-16-repo-split-design.md, slice 2).
+name: CI
+
+on:
+  push:
+    branches: [main]
+    # Release tags carry the mod id — `anima-v0.2.0`. A bare `v*` tag matches nothing on purpose:
+    # each mod is cut on its own now, so a tag that cannot say what it releases releases nothing.
+    tags: ['anima-v*']
+  pull_request:
+  # The STRICT run. Non-primary nodes are allowed to lag during development, so on an ordinary
+  # push their failures are swallowed by continue-on-error below — which means a broken node
+  # reports green and stays broken until a release tag finds it, months later and at the worst
+  # possible moment. This is what turns that into a signal that arrives the next morning.
+  # Staggered from the other two repos: one runner serves all three.
+  schedule:
+    - cron: '7 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # 1.20.1 and 1.21.1 are temporarily dropped — the constraint is Autarkia's (Person needs
+        # the 1.21.9+ Avatar pipeline) and this node set is kept identical to it deliberately.
+        version: ['1.21.11', '26.1.x', '26.2.x']
+    continue-on-error: >-
+      ${{ matrix.version != '26.1.x'
+          && github.event_name != 'schedule'
+          && !startsWith(github.ref, 'refs/tags/') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The version is derived from `git describe --tags --exact-match`, and a default shallow
+          # checkout fetches no tags — which silently stamps a RELEASE build with a snapshot
+          # version and publishes it under that name. The repo is small; a full fetch removes the
+          # failure mode for nothing.
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # Both, because the toolchain is per node: 26.x compiles on 25, 1.21.11 on 21. Installing
+          # only the newest leaves Gradle to auto-provision the other one over the network on every
+          # run. JAVA_HOME follows the last entry, so Gradle itself runs on 25.
+          java-version: |
+            21
+            25
+
+      # Gradle finds a JDK in JAVA_HOME and in the usual system locations; the runner's live under
+      # /opt/hostedtoolcache, which is neither. setup-java exports a JAVA_HOME_<major>_<arch> for
+      # each, and this is what makes the toolchain resolve them instead of downloading its own.
+      - name: Point Gradle at the installed JDKs
+        run: |
+          mkdir -p ~/.gradle
+          echo 'org.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64' > ~/.gradle/gradle.properties
+
+      # Loom's per-version Minecraft, mappings and remapped dependencies are the whole cost of a
+      # cold build. v3 rather than v4: the newer cache protocol is a github.com assumption, the
+      # same one that makes upload-artifact@v4 hard-fail here. Never fatal — a cache that cannot
+      # be reached is a slow build, not a broken one.
+      - name: Cache the Gradle and Loom caches
+        uses: actions/cache@v3
+        continue-on-error: true
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/fabric-loom
+            ~/.gradle/wrapper
+            ~/.gradle/jdks
+          key: gradle-${{ matrix.version }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties', 'stonecutter.properties.toml') }}
+          restore-keys: gradle-${{ matrix.version }}-
+
+      # The same label the Gradle build derives: the tag, or the commit timestamp — deterministic,
+      # so every matrix job of one run agrees on it.
+      - name: Compute the build label
+        id: ver
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "label=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "label=build.$(git log -1 --format=%cd --date=format:%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+          fi
+
+      # One segment: this is a ROOT branch, so a node path is `:26.1.x`, never `:anima:26.1.x`.
+      # `build` runs `check`, which is where ArchitectureTest enforces the core/compat/mod layering.
+      - name: Build ${{ matrix.version }}
+        run: ./gradlew ":${{ matrix.version }}:build" --no-daemon
+
+      - name: Upload jars
+        # v4 hard-fails on non-github.com hosts (its GHES check); v3 is the Gitea-supported path.
+        uses: actions/upload-artifact@v3
+        with:
+          name: anima-${{ steps.ver.outputs.label }}-mc${{ matrix.version }}
+          path: versions/${{ matrix.version }}/build/libs/*.jar
+          retention-days: 14
+
+      # Only on red, and only then: on green nobody reads them and they are pure storage.
+      - name: Upload the test reports
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: anima-test-reports-mc${{ matrix.version }}
+          path: versions/${{ matrix.version }}/build/reports/tests/
+          retention-days: 14
+
+      # Autarkia and Fidelia resolve `dev.luizloyola:anima-<mc>` from this registry, so a library
+      # change that is never published is a change its consumers cannot see. Off a tag this
+      # rewrites the one `0.1.0-SNAPSHOT` slot rather than minting a version per build — the
+      # registry is a working surface here, not an archive.
+      #
+      # Per node, because the Minecraft version lives in the ARTIFACT ID (`anima-26.1.2`): the
+      # three jobs publish three coordinates, and a red node simply leaves its own unpublished.
+      - name: Publish ${{ matrix.version }} to the Gitea maven
+        if: github.event_name == 'push'
+        run: ./gradlew ":${{ matrix.version }}:publishModPublicationToGiteaRepository" --no-daemon
+        env:
+          GITEA_USER: ${{ github.repository_owner }}
+          # A PAT with write:package. Not named GITEA_* — Gitea reserves that prefix for the
+          # token it injects itself, which is repo-scoped and cannot write to the registry.
+          GITEA_TOKEN: ${{ secrets.CI_TOKEN }}
+
+      # Reuses the jar built above (Gradle sees it as up to date) — this is an upload, not a
+      # rebuild. Without MODRINTH_TOKEN the plugin runs dry, so a missing secret publishes nothing
+      # instead of failing loudly; that is the plugin's choice, not this file's.
+      - name: Release ${{ matrix.version }} to Modrinth
+        if: startsWith(github.ref, 'refs/tags/anima-v')
+        run: ./gradlew ":${{ matrix.version }}:publishMods" --no-daemon
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+
+  # Nothing here can boot a game, and a library that compiles is not a library that works. The
+  # workspace can boot one — it is the only place both mods and the headless harness exist — so
+  # ask it to, and let THAT run be the thing that goes red.
+  #
+  # Its own job so a failed dispatch is legible as what it is: the build stays green and this
+  # says, in one line, that the pair was never exercised.
+  integration:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask the workspace to run the pair end to end
+        run: |
+          curl -fsS -X POST \
+            -H "Authorization: token ${{ secrets.CI_TOKEN }}" \
+            -H 'Content-Type: application/json' \
+            -d '{"ref":"refs/heads/main","inputs":{"reason":"anima ${{ github.ref_name }} @ ${{ github.sha }}"}}' \
+            "${{ github.server_url }}/api/v1/repos/${{ github.repository_owner }}/Anima-Workspace/actions/workflows/integration.yml/dispatches"
