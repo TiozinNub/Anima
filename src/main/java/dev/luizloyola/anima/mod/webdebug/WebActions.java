@@ -1,4 +1,4 @@
-package dev.luizloyola.anima.mod.dash;
+package dev.luizloyola.anima.mod.webdebug;
 
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.mod.AnimaMod;
@@ -14,8 +14,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * What a dashboard button does. One static verb table, <b>always on the tick thread</b> —
- * {@code DashServer} queues these through {@code server.execute}, because an HTTP thread touching
- * an agent is the race {@link DashFeed} exists to prevent.
+ * {@code WebDebugger} queues these through {@code server.execute}, because an HTTP thread touching
+ * an agent is the race {@link WebFeed} exists to prevent.
  *
  * <p>Every verb here is <b>per-player</b>: a pin and a debug layer belong to whoever is watching,
  * not to the world. So each needs the player the panel is acting as, and with nobody online there
@@ -28,13 +28,13 @@ import org.jspecify.annotations.Nullable;
  * <p>The movement, brain and world verbs are reserved and not built — see
  * {@code docs/superpowers/specs/2026-08-17-dashboard-design.md}.
  */
-final class DashActions {
+final class WebActions {
 
-    private DashActions() {
+    private WebActions() {
     }
 
     /** Runs one verb. Unknown verbs and impossible ones are logged, never thrown at the browser. */
-    static void run(MinecraftServer server, DashWatch watch, String verb, Map<String, String> args) {
+    static void run(MinecraftServer server, WebWatch watch, String verb, Map<String, String> args) {
         // The switch comes first so an unknown verb is NAMED as one. Looking the player up here
         // instead would answer every typo with "nobody is online", which is the wrong bug.
         switch (verb) {
@@ -49,7 +49,7 @@ final class DashActions {
     }
 
     /** Runs {@code action} as the player the panel is driving, or says why it could not. */
-    private static void asPlayer(MinecraftServer server, DashWatch watch, String verb,
+    private static void asPlayer(MinecraftServer server, WebWatch watch, String verb,
             Consumer<ServerPlayer> action) {
         ServerPlayer player = actor(server, watch);
         if (player == null) {
@@ -60,7 +60,7 @@ final class DashActions {
     }
 
     /** The player the panel is driving — its choice, or the only one online. */
-    private static @Nullable ServerPlayer actor(MinecraftServer server, DashWatch watch) {
+    private static @Nullable ServerPlayer actor(MinecraftServer server, WebWatch watch) {
         UUID acting = watch.actingAs();
         if (acting != null) {
             return server.getPlayerList().getPlayer(acting);

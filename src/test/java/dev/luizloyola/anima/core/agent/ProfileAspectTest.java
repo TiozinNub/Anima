@@ -63,10 +63,11 @@ class ProfileAspectTest {
             // A socket, a port and a URL. Nothing about a mind at all: the dashboard watches every
             // species at once and there is one of it per server, so a species answering for any of
             // these would be answering for what everybody else's debugging looks like.
-            Knob.DASH_ENABLED,
-            Knob.DASH_PORT,
-            Knob.DASH_HOST,
-            Knob.DASH_APP_URL);
+            Knob.WEB_ENABLED,
+            Knob.WEB_PORT,
+            Knob.WEB_HOST,
+            Knob.WEB_KEY,
+            Knob.WEB_APP_URL);
 
     @Test
     @DisplayName("anima.toml holds only what no species may answer for itself")

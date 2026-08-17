@@ -1,4 +1,4 @@
-package dev.luizloyola.anima.mod.dash;
+package dev.luizloyola.anima.mod.webdebug;
 
 /**
  * The hand-off between the server tick and the HTTP threads: one rendered frame, replaced whole,
@@ -7,13 +7,13 @@ package dev.luizloyola.anima.mod.dash;
  * <p><b>This is the whole thread-safety story of the dashboard.</b> {@code HttpServer} handlers run
  * on their own pool, and reading an {@code AgentBody}, a {@code Navigator} or the directory off the
  * server thread is a data race that will crash or, worse, quietly report a torn half-state. So no
- * handler reads the world at all: {@link DashSnapshot} builds the frame ON the tick thread, hands
+ * handler reads the world at all: {@link WebSnapshot} builds the frame ON the tick thread, hands
  * the finished string here, and a handler only ever copies out a reference to an immutable String.
  * It is {@code DebugViewClient}'s volatile-swap idiom pointed the other way.
  *
  * <p>{@link #publish} must stay cheap and non-blocking — it runs inside the tick.
  */
-final class DashFeed {
+final class WebFeed {
 
     /** The latest rendered frame, or null before the first tick has produced one. */
     private volatile String frame;

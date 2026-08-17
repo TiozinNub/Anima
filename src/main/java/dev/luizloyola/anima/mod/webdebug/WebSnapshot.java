@@ -1,4 +1,4 @@
-package dev.luizloyola.anima.mod.dash;
+package dev.luizloyola.anima.mod.webdebug;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -32,27 +32,27 @@ import org.jspecify.annotations.Nullable;
  * One frame of the dashboard, built on the server tick thread.
  *
  * <p><b>Everything that reads the world happens here</b>, inside the tick, and leaves as a String —
- * see {@link DashFeed} for why that is not negotiable.
+ * see {@link WebFeed} for why that is not negotiable.
  *
  * <p>The roster is the whole {@link AgentDirectory}: loaded, unloaded and dead alike, because the
  * question a radius cannot answer is "where did they go". An unloaded row carries only what the
  * directory and the records know and says so — it must read as <em>elsewhere</em>, never as
  * <em>gone</em>.
  *
- * <p>Detail is built only for the agents {@link DashWatch} says are expanded, and every section is
+ * <p>Detail is built only for the agents {@link WebWatch} says are expanded, and every section is
  * a readout {@code /anima} already prints. Nothing is invented here: a section that disagrees with
  * its command is a bug in one of the two.
  */
-final class DashSnapshot {
+final class WebSnapshot {
 
     /** Journal lines per expanded agent — the tail that makes the last few seconds readable. */
     private static final int JOURNAL_TAIL = 24;
 
-    private DashSnapshot() {
+    private WebSnapshot() {
     }
 
     /** The whole frame. Runs on the tick thread; returns the text an HTTP thread will hand out. */
-    static String render(MinecraftServer server, DashWatch watch) {
+    static String render(MinecraftServer server, WebWatch watch) {
         JsonObject root = new JsonObject();
         root.addProperty("tick", server.getTickCount());
         root.add("players", players(server));
@@ -75,7 +75,7 @@ final class DashSnapshot {
      * Who commands would run as. The watch's choice when it named one, otherwise the only player
      * online — with one player, which is the dev case, picking is noise.
      */
-    private static @Nullable ServerPlayer viewer(MinecraftServer server, DashWatch watch) {
+    private static @Nullable ServerPlayer viewer(MinecraftServer server, WebWatch watch) {
         UUID acting = watch.actingAs();
         if (acting != null) {
             return server.getPlayerList().getPlayer(acting);
@@ -96,7 +96,7 @@ final class DashSnapshot {
     }
 
     /** The viewing player's debug layers, so the panel's toggles show what is actually on. */
-    private static JsonArray layers(MinecraftServer server, DashWatch watch) {
+    private static JsonArray layers(MinecraftServer server, WebWatch watch) {
         JsonArray out = new JsonArray();
         UUID acting = watch.actingAs();
         var on = acting == null ? java.util.EnumSet.noneOf(DebugLayer.class)
@@ -116,7 +116,7 @@ final class DashSnapshot {
      * would read as "it has no navigator".
      */
     private static JsonObject row(MinecraftServer server, AgentId id, PrivateIdentity identity,
-            Graves graves, @Nullable ServerPlayer viewer, @Nullable AgentId pinned, DashWatch watch) {
+            Graves graves, @Nullable ServerPlayer viewer, @Nullable AgentId pinned, WebWatch watch) {
         JsonObject row = new JsonObject();
         row.addProperty("id", id.value().toString());
         row.addProperty("name", identity.name());

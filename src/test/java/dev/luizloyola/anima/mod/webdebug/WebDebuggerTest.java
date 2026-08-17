@@ -1,4 +1,4 @@
-package dev.luizloyola.anima.mod.dash;
+package dev.luizloyola.anima.mod.webdebug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -21,18 +21,18 @@ import org.junit.jupiter.api.Test;
  *
  * <p>The frame builder itself needs a running server and is exercised in-game.
  */
-class DashTest {
+class WebDebuggerTest {
 
     // --- the hand-off ---------------------------------------------------------------------------
 
     @Test
     @DisplayName("a reader parked on the feed is woken by the next publish, and sees that frame")
     void publishWakesAReader() throws Exception {
-        DashFeed feed = new DashFeed();
+        WebFeed feed = new WebFeed();
         feed.publish("{\"tick\":0}");
         long caughtUp = feed.version();
 
-        AtomicReference<DashFeed.Snapshot> got = new AtomicReference<>();
+        AtomicReference<WebFeed.Snapshot> got = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
         Thread reader = new Thread(() -> {
             try {
@@ -58,13 +58,13 @@ class DashTest {
     void nothingToSendBeforeTheFirstFrame() throws Exception {
         // A browser can connect between the server starting and the first cadence tick. It must
         // get a keepalive and loop, not a frame of null.
-        assertNull(new DashFeed().awaitAfter(-1, 50));
+        assertNull(new WebFeed().awaitAfter(-1, 50));
     }
 
     @Test
     @DisplayName("a reader that already saw the latest version waits rather than re-sending it")
     void anUpToDateReaderWaits() throws Exception {
-        DashFeed feed = new DashFeed();
+        WebFeed feed = new WebFeed();
         feed.publish("{\"tick\":1}");
         long version = feed.version();
         // Nothing new: this is the keepalive path, and re-sending here would spin the socket.
@@ -74,11 +74,11 @@ class DashTest {
     @Test
     @DisplayName("closing releases parked readers instead of leaking their threads")
     void closeReleasesReaders() throws Exception {
-        DashFeed feed = new DashFeed();
+        WebFeed feed = new WebFeed();
         feed.publish("{\"tick\":1}");
         CountDownLatch done = new CountDownLatch(1);
-        AtomicReference<DashFeed.Snapshot> got = new AtomicReference<>(
-                new DashFeed.Snapshot(-1, "sentinel"));
+        AtomicReference<WebFeed.Snapshot> got = new AtomicReference<>(
+                new WebFeed.Snapshot(-1, "sentinel"));
         Thread reader = new Thread(() -> {
             try {
                 got.set(feed.awaitAfter(feed.version(), 30_000));
@@ -103,11 +103,11 @@ class DashTest {
     void watchTogglesOneAgent() {
         AgentId one = new AgentId(UUID.randomUUID());
         AgentId two = new AgentId(UUID.randomUUID());
-        DashWatch watch = DashWatch.NONE.toggled(one, true).toggled(two, true);
+        WebWatch watch = WebWatch.NONE.toggled(one, true).toggled(two, true);
         assertTrue(watch.isExpanded(one));
         assertTrue(watch.isExpanded(two));
 
-        DashWatch collapsed = watch.toggled(one, false);
+        WebWatch collapsed = watch.toggled(one, false);
         assertFalse(collapsed.isExpanded(one));
         assertTrue(collapsed.isExpanded(two), "collapsing one card closed another");
         assertTrue(watch.isExpanded(one), "the original was mutated — it must be copy-on-write");
@@ -118,7 +118,7 @@ class DashTest {
     void actingAsIsIndependentOfExpansion() {
         AgentId one = new AgentId(UUID.randomUUID());
         UUID player = UUID.randomUUID();
-        DashWatch watch = DashWatch.NONE.toggled(one, true).actingAs(player);
+        WebWatch watch = WebWatch.NONE.toggled(one, true).actingAs(player);
         assertEquals(player, watch.actingAs());
         assertTrue(watch.isExpanded(one));
         assertNull(watch.actingAs(null).actingAs());
@@ -131,13 +131,13 @@ class DashTest {
     void hostCheckOnALoopbackBind() {
         for (String good : List.of("127.0.0.1:25599", "localhost:25599", "LOCALHOST:25599",
                 "[::1]:25599", "127.0.0.1", "127.1.2.3:25599")) {
-            assertTrue(DashServer.isAcceptableHost(good, "127.0.0.1"), good);
+            assertTrue(WebDebugger.isAcceptableHost(good, "127.0.0.1"), good);
         }
         // A name that resolves to 127.0.0.1 gets the browser to send the request; what it cannot
         // do is forge the header the request arrives with.
         for (String bad : List.of("evil.example:25599", "anima-debugger.tioz.in",
                 "127.0.0.1.evil.example:25599", "127.evil.example:25599", "")) {
-            assertFalse(DashServer.isAcceptableHost(bad, "127.0.0.1"), bad);
+            assertFalse(WebDebugger.isAcceptableHost(bad, "127.0.0.1"), bad);
         }
     }
 
@@ -146,50 +146,50 @@ class DashTest {
     void hostCheckOnALanBind() {
         // The point of generalising rather than dropping the check: bound to a LAN address, the
         // browser sends that literal, and a rebinding attempt still arrives as a name.
-        assertTrue(DashServer.isAcceptableHost("192.168.1.5:25599", "192.168.1.5"));
-        assertTrue(DashServer.isAcceptableHost("127.0.0.1:25599", "192.168.1.5"),
+        assertTrue(WebDebugger.isAcceptableHost("192.168.1.5:25599", "192.168.1.5"));
+        assertTrue(WebDebugger.isAcceptableHost("127.0.0.1:25599", "192.168.1.5"),
                 "the box it runs on must still reach it");
-        assertTrue(DashServer.isAcceptableHost("10.0.0.9:25599", "0.0.0.0"),
+        assertTrue(WebDebugger.isAcceptableHost("10.0.0.9:25599", "0.0.0.0"),
                 "a wildcard bind is reached at whichever literal the client used");
-        assertFalse(DashServer.isAcceptableHost("evil.example:25599", "192.168.1.5"));
-        assertFalse(DashServer.isAcceptableHost("evil.example:25599", "0.0.0.0"),
+        assertFalse(WebDebugger.isAcceptableHost("evil.example:25599", "192.168.1.5"));
+        assertFalse(WebDebugger.isAcceptableHost("evil.example:25599", "0.0.0.0"),
                 "a wildcard bind must not become a wildcard Host check");
         // An operator who bound to a name is served under that name and no other.
-        assertTrue(DashServer.isAcceptableHost("devbox.lan:25599", "devbox.lan"));
-        assertFalse(DashServer.isAcceptableHost("other.lan:25599", "devbox.lan"));
+        assertTrue(WebDebugger.isAcceptableHost("devbox.lan:25599", "devbox.lan"));
+        assertFalse(WebDebugger.isAcceptableHost("other.lan:25599", "devbox.lan"));
     }
 
     @Test
     @DisplayName("loopbackOnly answers for the knob, and 127/8 is not a prefix match on a name")
     void loopbackOnlyIsLiteralAware() {
-        assertTrue(DashServer.isLoopbackName("127.0.0.1"));
-        assertTrue(DashServer.isLoopbackName("127.0.0.53"));
-        assertTrue(DashServer.isLoopbackName("::1"));
-        assertTrue(DashServer.isLoopbackName("localhost"));
-        assertFalse(DashServer.isLoopbackName("0.0.0.0"));
-        assertFalse(DashServer.isLoopbackName("192.168.1.5"));
-        assertFalse(DashServer.isLoopbackName("127.evil.example"),
+        assertTrue(WebDebugger.isLoopbackName("127.0.0.1"));
+        assertTrue(WebDebugger.isLoopbackName("127.0.0.53"));
+        assertTrue(WebDebugger.isLoopbackName("::1"));
+        assertTrue(WebDebugger.isLoopbackName("localhost"));
+        assertFalse(WebDebugger.isLoopbackName("0.0.0.0"));
+        assertFalse(WebDebugger.isLoopbackName("192.168.1.5"));
+        assertFalse(WebDebugger.isLoopbackName("127.evil.example"),
                 "a DNS name starting \"127.\" is not loopback");
     }
 
     @Test
     @DisplayName("a Host header is split without ever resolving it")
     void hostNameParsing() {
-        assertEquals("127.0.0.1", DashServer.hostName("127.0.0.1:25599"));
-        assertEquals("127.0.0.1", DashServer.hostName("127.0.0.1"));
-        assertEquals("::1", DashServer.hostName("[::1]:25599"));
-        assertEquals("fe80::1%eth0", DashServer.hostName("[fe80::1%eth0]:25599"));
-        assertEquals("", DashServer.hostName("[unclosed:25599"));
+        assertEquals("127.0.0.1", WebDebugger.hostName("127.0.0.1:25599"));
+        assertEquals("127.0.0.1", WebDebugger.hostName("127.0.0.1"));
+        assertEquals("::1", WebDebugger.hostName("[::1]:25599"));
+        assertEquals("fe80::1%eth0", WebDebugger.hostName("[fe80::1%eth0]:25599"));
+        assertEquals("", WebDebugger.hostName("[unclosed:25599"));
     }
 
     @Test
     @DisplayName("the CSP origin fails closed — a knob holding nonsense must not widen the policy")
     void cspOriginFailsClosed() {
         assertEquals("https://anima-debugger.tioz.in",
-                DashServer.originOf("https://anima-debugger.tioz.in/app.v1.js"));
-        assertEquals("http://localhost:5173", DashServer.originOf("http://localhost:5173/app.js"));
+                WebDebugger.originOf("https://anima-debugger.tioz.in/app.v1.js"));
+        assertEquals("http://localhost:5173", WebDebugger.originOf("http://localhost:5173/app.js"));
         for (String nonsense : List.of("", "not a url", "/relative/app.js", "app.js")) {
-            assertEquals("'none'", DashServer.originOf(nonsense), nonsense);
+            assertEquals("'none'", WebDebugger.originOf(nonsense), nonsense);
         }
     }
 }

@@ -59,7 +59,7 @@ public final class AnimaMod implements ModInitializer {
         dev.luizloyola.anima.mod.nav.Escorts.init();
         // The browser debug dashboard. Registers its lifecycle hooks only — it listens on nothing
         // until dash.enabled says so.
-        dev.luizloyola.anima.mod.dash.DashServer.install();
+        dev.luizloyola.anima.mod.webdebug.WebDebugger.install();
         AnimaCommands.register(CONFIG);
         LOGGER.info("Anima loaded — the machinery is ready for whoever wants a mind.");
     }

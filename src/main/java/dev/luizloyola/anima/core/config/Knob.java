@@ -148,40 +148,53 @@ public enum Knob implements KnobSpec {
                     + "a body standing near others spends most of its lines noticing them: 24 "
                     + "measured out at twelve seconds, nearly all of it peer chatter."),
 
-    // --- dash: the browser debug dashboard, off unless asked for ------------------------------
+    // --- web_debugger: the browser debug UI, off unless asked for -----------------------------
 
-    /** @see dev.luizloyola.anima.mod.dash.DashServer */
-    DASH_ENABLED("dash.enabled", Kind.BOOL, 0, 0, 1,
-            "Serve the debug dashboard on localhost. A development tool: it exposes every agent's "
-                    + "mind, and its commands drive them. Bound to 127.0.0.1 only and guarded by a "
-                    + "token regenerated each start — neither is configurable, because a dashboard "
-                    + "reachable from the network is one somebody else can drive."),
-    /** @see dev.luizloyola.anima.mod.dash.DashServer#port() */
-    DASH_PORT("dash.port", Kind.INT, 25_599, 1024, 65_535,
-            "Port the dashboard listens on. Change it when something else already holds this one; "
-                    + "the server logs the address to open either way."),
-    /** @see dev.luizloyola.anima.mod.dash.DashServer#host() */
-    DASH_HOST("dash.host", Kind.STRING, "127.0.0.1", 1, 64,
-            "Address the dashboard binds to. 127.0.0.1 keeps it on this machine, which is the only "
-                    + "setting the security story is written for: the dashboard exposes every "
-                    + "agent's mind and its commands drive them, and the per-start token is the "
-                    + "ONLY thing guarding it. Anything else — a LAN address, or 0.0.0.0 for every "
-                    + "interface — puts that on the network in the clear, over plain HTTP, where "
-                    + "the token is readable by anything on the path. The server logs a warning "
-                    + "when it binds anywhere but loopback. A non-loopback address also stops the "
-                    + "page being a secure context, which some browser APIs need."),
+    /** @see dev.luizloyola.anima.mod.webdebug.WebDebugger */
+    WEB_ENABLED("web_debugger.enabled", Kind.BOOL, 0, 0, 1,
+            "Start the web debugger automatically when a world loads. This is the AUTO-START "
+                    + "switch only — /anima web-debugger start runs it for one session whatever "
+                    + "this says, which is what you want for an occasional look. A development "
+                    + "tool: it exposes every agent's mind and its commands drive them."),
+    /** @see dev.luizloyola.anima.mod.webdebug.WebDebugger#port() */
+    WEB_PORT("web_debugger.port", Kind.INT, 25_599, 1024, 65_535,
+            "Port the web debugger listens on. Change it when something else already holds this "
+                    + "one; the server logs the address to open either way."),
+    /** @see dev.luizloyola.anima.mod.webdebug.WebDebugger#host() */
+    WEB_HOST("web_debugger.host", Kind.STRING, "127.0.0.1", 1, 64,
+            "Address the web debugger binds to. 127.0.0.1 keeps it on this machine, which is the "
+                    + "only setting the security story is written for: it exposes every agent's "
+                    + "mind and its commands drive them, and the key below is the ONLY thing "
+                    + "guarding it. Anything else — a LAN address, or 0.0.0.0 for every interface "
+                    + "— puts that on the network in the clear, over plain HTTP, where the key is "
+                    + "readable by anything on the path. The server logs a warning when it binds "
+                    + "anywhere but loopback. A non-loopback address also stops the page being a "
+                    + "secure context, which some browser APIs need."),
+    /**
+     * The one secret guarding the whole thing. Generated rather than defaulted — a shipped default
+     * would be the same on every install, which is no guard at all.
+     *
+     * @see dev.luizloyola.anima.mod.webdebug.WebDebugger#key()
+     */
+    WEB_KEY("web_debugger.key", Kind.KEY, "", Keys.LENGTH, 64,
+            "The key that must appear in the web debugger's URL. Left empty, this installation "
+                    + "generates one the first time the config is loaded and writes it here, so "
+                    + "the address stays the same across restarts and can be bookmarked. Clear it "
+                    + "to have a fresh one generated on the next load — which is how you revoke a "
+                    + "key you have pasted somewhere you should not have. Run /anima web-debugger "
+                    + "to see the current address."),
     /**
      * Text rather than a bundled asset: the page served from here is a stub, and the UI itself is
-     * fetched from this URL. @see dev.luizloyola.anima.mod.dash.DashServer
+     * fetched from this URL. @see dev.luizloyola.anima.mod.webdebug.WebDebugger
      */
-    DASH_APP_URL("dash.app_url", Kind.STRING, "https://anima-debugger.tioz.in/app.v1.js",
+    WEB_APP_URL("web_debugger.app_url", Kind.STRING, "https://anima-debugger.tioz.in/app.v1.js",
             8, 512,
-            "Where the dashboard's UI is loaded from. The mod serves only a stub page: the stub's "
-                    + "origin is localhost, so its calls to this server are same-origin — which is "
-                    + "what avoids the mixed-content and Local Network Access rules that block a "
-                    + "hosted page from reaching 127.0.0.1. The site therefore sees one asset "
-                    + "request and no world data at all. Point it at a local dev server to work on "
-                    + "the UI itself.");
+            "Where the web debugger's UI is loaded from. The mod serves only a stub page: the "
+                    + "stub's origin is localhost, so its calls to this server are same-origin — "
+                    + "which is what avoids the mixed-content and Local Network Access rules that "
+                    + "block a hosted page from reaching 127.0.0.1. The site therefore sees one "
+                    + "asset request and no world data at all. Point it at a local dev server to "
+                    + "work on the UI itself.");
 
     private final String key;
     private final Kind kind;
