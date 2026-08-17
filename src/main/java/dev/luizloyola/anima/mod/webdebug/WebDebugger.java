@@ -247,7 +247,7 @@ public final class WebDebugger {
             // would keep a crashed server's JVM alive.
             AtomicInteger counter = new AtomicInteger();
             ExecutorService created_pool = Executors.newCachedThreadPool(runnable -> {
-                Thread thread = new Thread(runnable, "anima-dash-" + counter.incrementAndGet());
+                Thread thread = new Thread(runnable, "anima-web-debugger-" + counter.incrementAndGet());
                 thread.setDaemon(true);
                 return thread;
             });
@@ -264,7 +264,7 @@ public final class WebDebugger {
             return null;
         } catch (UnknownHostException e) {
             AnimaMod.LOGGER.warn("web-debugger: \"{}\" is not an address this machine can bind", host());
-            return "dash.host \"" + host() + "\" is not an address this machine can bind";
+            return "web_debugger.host \"" + host() + "\" is not an address this machine can bind";
         } catch (IOException e) {
             AnimaMod.LOGGER.warn("web-debugger: could not listen on {}:{} ({})", host(), port(), e.toString());
             return "could not listen on " + host() + ":" + port() + " — " + e.getMessage();
