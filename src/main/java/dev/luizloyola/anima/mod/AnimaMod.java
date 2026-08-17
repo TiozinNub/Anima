@@ -57,6 +57,9 @@ public final class AnimaMod implements ModInitializer {
         // The follow-me leash's tick. Here rather than in a consumer: `/anima follow` is on the
         // library's own root, so the order must be drivable with Anima alone.
         dev.luizloyola.anima.mod.nav.Escorts.init();
+        // The browser debug dashboard. Registers its lifecycle hooks only — it listens on nothing
+        // until dash.enabled says so.
+        dev.luizloyola.anima.mod.dash.DashServer.install();
         AnimaCommands.register(CONFIG);
         LOGGER.info("Anima loaded — the machinery is ready for whoever wants a mind.");
     }

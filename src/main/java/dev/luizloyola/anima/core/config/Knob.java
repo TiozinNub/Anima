@@ -146,21 +146,57 @@ public enum Knob implements KnobSpec {
                     + "afterwards — the fall, the fight or the slow starve that led into it. 0 "
                     + "keeps the grave a bare tombstone. 64 rather than a couple of dozen because "
                     + "a body standing near others spends most of its lines noticing them: 24 "
-                    + "measured out at twelve seconds, nearly all of it peer chatter.");
+                    + "measured out at twelve seconds, nearly all of it peer chatter."),
+
+    // --- dash: the browser debug dashboard, off unless asked for ------------------------------
+
+    /** @see dev.luizloyola.anima.mod.dash.DashServer */
+    DASH_ENABLED("dash.enabled", Kind.BOOL, 0, 0, 1,
+            "Serve the debug dashboard on localhost. A development tool: it exposes every agent's "
+                    + "mind, and its commands drive them. Bound to 127.0.0.1 only and guarded by a "
+                    + "token regenerated each start — neither is configurable, because a dashboard "
+                    + "reachable from the network is one somebody else can drive."),
+    /** @see dev.luizloyola.anima.mod.dash.DashServer#port() */
+    DASH_PORT("dash.port", Kind.INT, 25_599, 1024, 65_535,
+            "Port the dashboard listens on, loopback only. Change it when something else already "
+                    + "holds this one; the server logs the address to open either way."),
+    /**
+     * Text rather than a bundled asset: the page served from here is a stub, and the UI itself is
+     * fetched from this URL. @see dev.luizloyola.anima.mod.dash.DashServer
+     */
+    DASH_APP_URL("dash.app_url", Kind.STRING, "https://anima-debugger.tioz.in/app.v1.js",
+            8, 512,
+            "Where the dashboard's UI is loaded from. The mod serves only a stub page: the stub's "
+                    + "origin is localhost, so its calls to this server are same-origin — which is "
+                    + "what avoids the mixed-content and Local Network Access rules that block a "
+                    + "hosted page from reaching 127.0.0.1. The site therefore sees one asset "
+                    + "request and no world data at all. Point it at a local dev server to work on "
+                    + "the UI itself.");
 
     private final String key;
     private final Kind kind;
     private final double def;
     private final double min;
     private final double max;
+    private final String defText;
     private final String doc;
 
     Knob(String key, Kind kind, double def, double min, double max, String doc) {
+        this(key, kind, def, min, max, "", doc);
+    }
+
+    /** A {@link Kind#STRING} knob: {@code min}/{@code max} bound the LENGTH, not the value. */
+    Knob(String key, Kind kind, String defText, double minLength, double maxLength, String doc) {
+        this(key, kind, 0.0, minLength, maxLength, defText, doc);
+    }
+
+    Knob(String key, Kind kind, double def, double min, double max, String defText, String doc) {
         this.key = key;
         this.kind = kind;
         this.def = def;
         this.min = min;
         this.max = max;
+        this.defText = defText;
         this.doc = doc;
     }
 
@@ -187,6 +223,11 @@ public enum Knob implements KnobSpec {
     @Override
     public double max() {
         return max;
+    }
+
+    @Override
+    public String defText() {
+        return defText;
     }
 
     @Override

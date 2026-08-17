@@ -52,6 +52,9 @@ public final class AnimaCommands {
                         // What this one is running: species -> modifiers -> effective.
                         .then(AgentCommands.profile())
                         .then(AgentCommands.debug())
+                        // The browser dashboard's address, and its on/off switch. Anima's root
+                        // only: the port and the token are the library's, not any consumer's.
+                        .then(dev.luizloyola.anima.mod.dash.DashCommands.tree())
                         .then(AgentCommands.inv(registry))
                         .then(ConfigCommands.tree(Config.store(), configFile))));
     }

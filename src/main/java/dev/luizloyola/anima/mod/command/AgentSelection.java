@@ -61,6 +61,14 @@ public final class AgentSelection {
         sync(player, id);
     }
 
+    /** Drops {@code player}'s pin — {@link #pin(ServerPlayer, AgentId)}'s twin, for a caller that
+     *  holds a player rather than a command source (the wand, the dashboard). */
+    public static boolean clear(ServerPlayer player) {
+        boolean had = PINS.remove(player.getUUID()) != null;
+        sync(player, null);
+        return had;
+    }
+
     /** Drops this source's pin; returns whether one was actually present. */
     public static boolean clear(CommandSourceStack source) {
         boolean had = PINS.remove(key(source)) != null;

@@ -59,7 +59,13 @@ class ProfileAspectTest {
             Knob.JOURNAL_KEEP_RUNS,
             // How much of the journal a grave keeps: not how much a body remembers, but what an
             // OPERATOR wants left behind to read.
-            Knob.JOURNAL_DEATH_TAIL);
+            Knob.JOURNAL_DEATH_TAIL,
+            // A socket, a port and a URL. Nothing about a mind at all: the dashboard watches every
+            // species at once and there is one of it per server, so a species answering for any of
+            // these would be answering for what everybody else's debugging looks like.
+            Knob.DASH_ENABLED,
+            Knob.DASH_PORT,
+            Knob.DASH_APP_URL);
 
     @Test
     @DisplayName("anima.toml holds only what no species may answer for itself")

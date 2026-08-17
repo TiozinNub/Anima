@@ -76,6 +76,14 @@ class ConfigValuesTest {
         assertEquals(13, Config.SET.defaults().with(Knob.RAY_BUDGET, 12.6).i(Knob.RAY_BUDGET),
                 "a fractional value for a whole-number knob is rounded, not truncated");
         for (Knob knob : Knob.values()) {
+            if (knob.kind() == KnobSpec.Kind.STRING) {
+                // The same "no illegal value can be built" guarantee, through the text overload:
+                // an over-long string falls back to the default rather than being stored.
+                ConfigValues absurd = Config.SET.defaults().with(knob, "x".repeat(4096));
+                assertTrue(knob.acceptsText(absurd.s(knob)),
+                        knob.key() + " survived an absurd value");
+                continue;
+            }
             ConfigValues absurd = Config.SET.defaults().with(knob, Double.MAX_VALUE);
             assertTrue(knob.accepts(absurd.get(knob)), knob.key() + " survived an absurd value");
         }
