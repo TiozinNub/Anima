@@ -40,6 +40,13 @@ public final class NeedKind {
     private static final Map<String, NeedKind> REGISTERED = new LinkedHashMap<>();
 
     /**
+     * Where Anima's own needs keep their words. A consumer's needs keep theirs under its own
+     * namespace — see {@link Builder#lang}, which is the one thing a mod declaring a need must
+     * remember to say.
+     */
+    private static final String ANIMA_LANG = "anima.needs.";
+
+    /**
      * Hunger — a VIEW over the body's {@code Metabolism}, never a second number (see
      * {@link FoodNeed}). The ramp through its levels is the {@code 1 - food/20} the brain
      * has always read: {@code sated} anchors the full bar at no pressure, the empty end pins at
@@ -97,25 +104,61 @@ public final class NeedKind {
             .drive(Binding.Side.ABOVE, "stray_away")
             .build();
 
+    /**
+     * How much of a beating this body can still take — health, less what is dragging it down, plus
+     * what is holding it up (see {@link Vigor}). The first need whose value is a composite, which
+     * is what makes it the one that proves the {@link Reason} machinery.
+     *
+     * <p><b>It drives nothing, and its tolerances are zero for that reason</b>: it modulates —
+     * declared here so the registry can say so, and weighing nothing yet because there is no fight
+     * drive for it to weigh flee against (decision: Luiz, 2026-08-17).
+     *
+     * <p>The axis runs to vanilla's attribute ceiling rather than to a settler's twenty: it bounds
+     * what any body may DECLARE, not what this one has. {@code Vigor} stops reading at whatever
+     * {@code healthy} is declared at, so the unanchored stretch above it is unreachable.
+     */
+    public static final NeedKind VIGOR = declare("vigor", Kind.DOUBLE, 0.0, 1024.0, "hit points")
+            .level("dying", 2, 0.85, 0)
+            .level("wounded", 7, 0.60, 0)
+            .level("hurt", 14, 0.30, 0)
+            .level("healthy", 20, 0.00, 0)
+            .modulate("flee_or_fight")
+            .build();
+
+    /**
+     * The line a source's own reading prints on — {@code "%s is %s"}, filled with what the source
+     * is called and the number. Shared by every need, like the three param labels, which is what
+     * keeps an itemised readout from costing a string per need per source.
+     */
+    public static final String REASON_VALUE = ANIMA_LANG + "reason.value";
+
+    /** {@code "%s is %s because:"} — the sentence every itemisation opens with. */
+    public static final String REASON_HEADER = ANIMA_LANG + "reason.header";
+
     private final String key;
     private final Kind kind;
     private final double axisMin;
     private final double axisMax;
     private final String unit;
+    private final String lang;
     private final List<NeedLevel> levels;
     private final List<Binding> bindings;
     private final Ramp ramp;
 
     private NeedKind(String key, Kind kind, double axisMin, double axisMax, String unit,
-            List<NeedLevel> levels, List<Binding> bindings) {
+            String lang, List<NeedLevel> levels, List<Binding> bindings) {
         this.key = key;
         this.kind = kind;
         this.axisMin = axisMin;
         this.axisMax = axisMax;
         this.unit = unit;
+        this.lang = lang;
         this.levels = List.copyOf(levels);
         this.bindings = List.copyOf(bindings);
         this.ramp = levels.isEmpty() ? null : new Ramp(this.levels, axisMin, axisMax);
+        for (NeedLevel level : this.levels) {
+            level.attach(this);
+        }
         for (Binding binding : this.bindings) {
             binding.attach(this);
         }
@@ -149,7 +192,8 @@ public final class NeedKind {
         }
         NeedKind existing = REGISTERED.get(key);
         return existing != null ? existing : put(
-                new NeedKind(key, Kind.DOUBLE, 0.0, 1.0, "", List.of(), List.of()));
+                new NeedKind(key, Kind.DOUBLE, 0.0, 1.0, "", ANIMA_LANG + key,
+                        List.of(), List.of()));
     }
 
     /**
@@ -208,6 +252,19 @@ public final class NeedKind {
     /** What the value is counted in, for generated docs and readouts. */
     public String unit() {
         return unit;
+    }
+
+    /**
+     * Where this need's words live — {@code anima.needs.hunger}, and a consumer's own namespace for
+     * a need it declared. The levels hang their names off it; see {@link NeedLevel#nameKey()}.
+     */
+    public String lang() {
+        return lang;
+    }
+
+    /** What to call this need to a reader: {@code anima.needs.vigor.name} → "Vigor". */
+    public String nameKey() {
+        return lang + ".name";
     }
 
     public double axisMin() {
@@ -275,6 +332,7 @@ public final class NeedKind {
         private final String unit;
         private final List<NeedLevel> levels = new ArrayList<>();
         private final List<Binding> bindings = new ArrayList<>();
+        private String lang;
         private NeedKind pending;
 
         private Builder(String key, Kind kind, double axisMin, double axisMax, String unit) {
@@ -283,6 +341,18 @@ public final class NeedKind {
             this.axisMin = axisMin;
             this.axisMax = axisMax;
             this.unit = unit;
+            this.lang = ANIMA_LANG + key;
+        }
+
+        /**
+         * Where this need's words live, if not under Anima's own namespace — {@code
+         * "fidelia.needs.boredom"}. Anima cannot work this out: it does not know which mod is
+         * calling, and defaulting to its own namespace would have a consumer's need read as a
+         * missing Anima string in every language.
+         */
+        public Builder lang(String root) {
+            this.lang = Objects.requireNonNull(root, "root");
+            return this;
         }
 
         /**
@@ -326,13 +396,13 @@ public final class NeedKind {
             if (existing != null) {
                 return existing;
             }
-            return put(new NeedKind(key, kind, axisMin, axisMax, unit, levels, bindings));
+            return put(new NeedKind(key, kind, axisMin, axisMax, unit, lang, levels, bindings));
         }
 
         /** A stand-in the levels and bindings can name while they are still being collected. */
         private NeedKind pending() {
             if (pending == null) {
-                pending = new NeedKind(key, kind, axisMin, axisMax, unit, List.of(), List.of());
+                pending = new NeedKind(key, kind, axisMin, axisMax, unit, lang, List.of(), List.of());
             }
             return pending;
         }

@@ -50,6 +50,22 @@ public interface Gauge {
     String describe();
 
     /**
+     * What made this reading, itemised — the {@code because:} readout. Groups print in order, and
+     * an empty one still prints ({@link ReasonGroup}).
+     *
+     * <p>Empty by default, and that is not the same as an empty group: a gauge whose number has no
+     * parts has nothing to explain, and a readout still prints its value. Only a composite —
+     * {@link Vigor}, health plus what is acting on it — has an answer here.
+     *
+     * <p><b>Never cache what this returns past the tick that built it.</b> It is a reading of live
+     * state, and a stale itemisation is worse than none: it explains a number the body no longer
+     * has.
+     */
+    default java.util.List<ReasonGroup> reasons() {
+        return java.util.List.of();
+    }
+
+    /**
      * Advance one tick. The default does nothing — correct for a <em>view</em> over state the body
      * ticks elsewhere ({@link FoodNeed} over the metabolism). A gauge that owns its number overrides
      * this; what it needs from outside arrives through its own typed observers, so this one call

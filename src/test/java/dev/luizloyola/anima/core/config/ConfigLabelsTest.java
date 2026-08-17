@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.SpeciesKnobs;
 import dev.luizloyola.anima.core.agent.need.NeedKind;
+import dev.luizloyola.anima.core.agent.need.NeedLevel;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -117,6 +118,31 @@ class ConfigLabelsTest {
                 "en_us.json aspect labels have drifted from ProfileAspect — a generated species "
                         + "knob in ANY consumer reads its label from here, so a missing one shows "
                         + "as a raw key on somebody else's screen");
+    }
+
+    /**
+     * The words the generated aspects deliberately do NOT carry: a need's own name, and per level
+     * the label and the mid-sentence form the {@code because:} header is assembled from. Three
+     * strings per level is what buys forty generated aspects their three shared param labels.
+     */
+    @Test
+    @DisplayName("every need and every level of it has words")
+    void needsAndLevelsAreNamed() {
+        Set<String> keys = langKeys();
+        for (NeedKind need : NeedKind.all()) {
+            if (need.levels().isEmpty()) {
+                continue; // a need that answers for its own pressure has nothing to name
+            }
+            assertTrue(keys.contains(need.nameKey()),
+                    "need \"" + need.key() + "\" has no name: add " + need.nameKey());
+            for (NeedLevel level : need.levels()) {
+                assertTrue(keys.contains(level.nameKey()),
+                        "no label for " + need.key() + "'s \"" + level.key() + "\"");
+                assertTrue(keys.contains(level.personIsKey()),
+                        "no way to say a body IS " + need.key() + "'s \"" + level.key()
+                                + "\" — the because: header is built from it");
+            }
+        }
     }
 
     @Test

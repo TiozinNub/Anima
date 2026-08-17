@@ -91,11 +91,11 @@ class NeedsTest {
         metabolism.setSaturation(1.0F);
         // The drain gate is a strict > (vanilla): exactly 4.0 banked sits still, so bank past it.
         metabolism.setExhaustion(Metabolism.EXHAUSTION_DROP + 0.1F);
-        metabolism.tick(false, false);
+        metabolism.tick(false, 20.0F, 20.0F);
         assertEquals(0.0F, metabolism.saturation());
         assertEquals(20, metabolism.foodLevel(), "food untouched while saturation remains");
         metabolism.setExhaustion(Metabolism.EXHAUSTION_DROP + 0.1F);
-        metabolism.tick(false, false);
+        metabolism.tick(false, 20.0F, 20.0F);
         assertEquals(19, metabolism.foodLevel(), "saturation gone -> the next drain hits food");
     }
 
@@ -103,7 +103,7 @@ class NeedsTest {
     void drainFloorsFoodAtZero() {
         Metabolism metabolism = atFood(0);
         metabolism.setExhaustion(Metabolism.EXHAUSTION_DROP);
-        metabolism.tick(false, false);
+        metabolism.tick(false, 20.0F, 20.0F);
         assertEquals(0, metabolism.foodLevel());
     }
 
@@ -115,7 +115,7 @@ class NeedsTest {
     void idlePersonNeverGetsHungry() {
         Metabolism metabolism = new Metabolism();
         for (int i = 0; i < 50_000; i++) {
-            assertEquals(Metabolism.TickResult.NONE, metabolism.tick(true, false));
+            assertEquals(Metabolism.TickResult.NONE, metabolism.tick(true, 20.0F, 20.0F));
         }
         assertEquals(20, metabolism.foodLevel());
         assertEquals(5.0F, metabolism.saturation(), "spawn saturation untouched without activity");
@@ -127,10 +127,10 @@ class NeedsTest {
         Metabolism metabolism = new Metabolism();
         metabolism.setSaturation(3.0F);
         for (int i = 1; i <= 9; i++) {
-            assertEquals(Metabolism.TickResult.NONE, metabolism.tick(true, true), "tick " + i + " is quiet");
+            assertEquals(Metabolism.TickResult.NONE, metabolism.tick(true, 10.0F, 20.0F), "tick " + i + " is quiet");
         }
         assertEquals(9, metabolism.tickTimer());
-        Metabolism.TickResult tenth = metabolism.tick(true, true);
+        Metabolism.TickResult tenth = metabolism.tick(true, 10.0F, 20.0F);
         assertEquals(0.5F, tenth.heal(), 1e-6F, "min(sat 3, 6) / 6");
         assertFalse(tenth.starve());
         assertEquals(0, metabolism.tickTimer(), "cadence resets after the heal");
@@ -143,9 +143,9 @@ class NeedsTest {
     void normalRegenHealsOnTheEightiethTick() {
         Metabolism metabolism = atFood(18);
         for (int i = 1; i <= 79; i++) {
-            assertEquals(Metabolism.TickResult.NONE, metabolism.tick(true, true), "tick " + i + " is quiet");
+            assertEquals(Metabolism.TickResult.NONE, metabolism.tick(true, 10.0F, 20.0F), "tick " + i + " is quiet");
         }
-        Metabolism.TickResult eightieth = metabolism.tick(true, true);
+        Metabolism.TickResult eightieth = metabolism.tick(true, 10.0F, 20.0F);
         assertEquals(1.0F, eightieth.heal(), 1e-6F);
         assertFalse(eightieth.starve());
         assertEquals(0, metabolism.tickTimer());
@@ -156,13 +156,13 @@ class NeedsTest {
     void noRegenCadenceWithoutTheGameruleOrWithoutBeingHurt() {
         Metabolism gameruleOff = new Metabolism();
         for (int i = 0; i < 50; i++) {
-            assertEquals(Metabolism.TickResult.NONE, gameruleOff.tick(false, true));
+            assertEquals(Metabolism.TickResult.NONE, gameruleOff.tick(false, 10.0F, 20.0F));
         }
         assertEquals(0, gameruleOff.tickTimer(), "naturalRegen off -> the timer never starts");
 
         Metabolism unhurt = new Metabolism();
         for (int i = 0; i < 50; i++) {
-            assertEquals(Metabolism.TickResult.NONE, unhurt.tick(true, false));
+            assertEquals(Metabolism.TickResult.NONE, unhurt.tick(true, 20.0F, 20.0F));
         }
         assertEquals(0, unhurt.tickTimer(), "not hurt -> the timer never starts");
     }
@@ -172,7 +172,7 @@ class NeedsTest {
         Metabolism metabolism = atFood(0);
         List<Integer> hits = new ArrayList<>();
         for (int i = 1; i <= 240; i++) {
-            Metabolism.TickResult result = metabolism.tick(true, false);
+            Metabolism.TickResult result = metabolism.tick(true, 20.0F, 20.0F);
             assertEquals(0.0F, result.heal(), "an empty bar never heals");
             if (result.starve()) {
                 hits.add(i);
@@ -186,9 +186,9 @@ class NeedsTest {
         // Food 20 qualifies for both arms (>= 18 too); saturation > 0 must pick the 10-tick one.
         Metabolism metabolism = new Metabolism();
         for (int i = 1; i <= 9; i++) {
-            metabolism.tick(true, true);
+            metabolism.tick(true, 10.0F, 20.0F);
         }
-        Metabolism.TickResult tenth = metabolism.tick(true, true);
+        Metabolism.TickResult tenth = metabolism.tick(true, 10.0F, 20.0F);
         assertEquals(Math.min(5.0F, 6.0F) / 6.0F, tenth.heal(), 1e-6F,
                 "healed on the 10-tick saturated cadence, not the 80-tick one");
     }

@@ -28,6 +28,13 @@ public final class NeedLevel {
     private final ProfileAspect pressure;
     private final ProfileAspect tolerance;
 
+    /**
+     * The need this belongs to — where {@link #nameKey()} gets its namespace. Written once, from
+     * that need's own constructor, because a level is declared while its need is still being built
+     * and {@code lang()} may be said after the levels are.
+     */
+    private NeedKind need;
+
     NeedLevel(NeedKind need, String key, double axisMin, double axisMax,
             double defaultValue, double defaultPressure, double defaultTolerance) {
         this.key = Objects.requireNonNull(key, "key");
@@ -52,9 +59,27 @@ public final class NeedLevel {
     private final double defaultPressure;
     private final double defaultTolerance;
 
+    void attach(NeedKind owner) {
+        this.need = owner;
+    }
+
     /** Stable id — the config path segment, the lang key, and what a readout prints. */
     public String key() {
         return key;
+    }
+
+    /** What to call this level: {@code anima.needs.vigor.healthy.name} → "Healthy". */
+    public String nameKey() {
+        return need.lang() + "." + key + ".name";
+    }
+
+    /**
+     * How to say a body <em>is</em> this, mid-sentence: {@code …person_is} → "healthy", for
+     * {@code "John is healthy because:"}. A second string rather than lower-casing the first,
+     * because which words a language capitalises mid-sentence is not ours to guess.
+     */
+    public String personIsKey() {
+        return need.lang() + "." + key + ".person_is";
     }
 
     /** The boundary at which a body becomes this level, in the source's own units. */

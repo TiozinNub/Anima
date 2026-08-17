@@ -1125,7 +1125,8 @@ public final class AgentCommands {
     }
 
     /**
-     * Every gauge the resolved body has, one line each and its declared {@link Binding}s under it,
+     * Every gauge the resolved body has, one line each, its declared {@link Binding}s under it, and
+     * — for a gauge whose number has parts — the {@code because:} block itemising them. All of it
      * without knowing what any of them are.
      */
     private static int needsShow(CommandSourceStack source) {
@@ -1152,6 +1153,9 @@ public final class AgentCommands {
             for (Binding binding : gauge.kind().bindings()) {
                 Replies.send(source, () -> Component.literal("    " + binding.describe())
                         .withStyle(ChatFormatting.DARK_GRAY));
+            }
+            for (Component because : Because.lines(name, gauge)) {
+                Replies.send(source, () -> because);
             }
         }
         return 1;

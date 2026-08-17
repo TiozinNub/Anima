@@ -23,7 +23,8 @@ import java.util.Locale;
  * <p>The organ, not the need: hunger appears on
  * {@link dev.luizloyola.anima.core.agent.need.Needs} as a
  * {@link dev.luizloyola.anima.core.agent.need.FoodNeed} view over {@link #hunger()}, never a second
- * number.
+ * number. {@link #health()} is here on the same terms — the organ is where a body's vitals are
+ * read from, and {@link dev.luizloyola.anima.core.agent.need.Vigor} is the need built over it.
  *
  * <p>BODY state. The body owns it, ticks it once per game tick, feeds it activity exhaustion
  * ({@link #exhaust(float)} with the {@code EXHAUSTION_*} costs) and applies the returned
@@ -56,11 +57,21 @@ public final class Metabolism {
     /** Reserved: no block breaking yet. */
     public static final float EXHAUSTION_MINE = 0.005F;
 
+    /** What {@link #health()} is called in a readout — see {@code Vigor}'s itemisation. */
+    public static final String HEALTH_NAME_KEY = "anima.metabolism.health.name";
+
     // State — vanilla FoodData defaults: a Person spawns fed like a fresh player spawns.
     private int foodLevel = MAX_FOOD;
     private float saturation = 5.0F;
     private float exhaustion;
     private int tickTimer;
+
+    /**
+     * Hit points, pushed by the body on every {@link #tick} — see {@link #health()}. Not persisted:
+     * the body's own health is, and a copy saved beside it is a second answer waiting to drift.
+     */
+    private float health;
+    private float maxHealth;
 
     /**
      * What the body must apply this tick: a heal amount (0 = none) and whether a starvation hit
@@ -77,11 +88,20 @@ public final class Metabolism {
      * drain accumulated exhaustion into saturation-then-food, then run exactly one of the vanilla
      * regen/starvation arms.
      *
+     * <p><b>Hit points arrive here</b> rather than through a setter of their own: this is already
+     * the call the body makes every tick with what only the body knows, and vanilla's
+     * {@code isHurt()} was always just these two numbers compared. See {@link #health()}.
+     *
      * @param naturalRegen the {@code naturalRegeneration} gamerule
-     * @param isHurt       whether the entity is below max health (vanilla {@code isHurt()})
+     * @param health       the entity's hit points right now
+     * @param maxHealth    what full means for this body — an attribute, so it moves
      * @return what the body must apply; {@link TickResult#NONE} on the quiet path
      */
-    public TickResult tick(boolean naturalRegen, boolean isHurt) {
+    public TickResult tick(boolean naturalRegen, float health, float maxHealth) {
+        this.health = health;
+        this.maxHealth = maxHealth;
+        // Vanilla isHurt(), inlined: it is Player-only, and it is this comparison.
+        boolean isHurt = health > 0.0F && health < maxHealth;
         if (exhaustion > EXHAUSTION_DROP) {
             exhaustion -= EXHAUSTION_DROP;
             if (saturation > 0.0F) {
@@ -196,6 +216,23 @@ public final class Metabolism {
      */
     public double hunger() {
         return 1.0 - foodLevel / (double) MAX_FOOD;
+    }
+
+    /**
+     * Hit points as of the last {@link #tick} — a VIEW, beside {@link #foodLevel()} and for the
+     * same reason (decision: Luiz, 2026-08-06): the body owns the number, the metabolism exposes a
+     * reading of it, and nothing copies it. Core cannot name an entity, so it arrives pushed.
+     *
+     * <p>Zero before the first tick, which is what a body that has not lived yet is worth to
+     * anything reading this.
+     */
+    public float health() {
+        return health;
+    }
+
+    /** What full means for this body as of the last {@link #tick} — an attribute, so it moves. */
+    public float maxHealth() {
+        return maxHealth;
     }
 
     /**
