@@ -102,6 +102,7 @@ public final class YaclConfigScreen {
                                 .range((int) knob.min(), (int) knob.max()))
                         .build();
             case STRING:
+            case KEY:
                 // No range on the controller: YACL's text field has no length bound, so the
                 // sanitise in ConfigValues.with is the only gate — and it is the one the file
                 // takes too, so the screen cannot admit what a reload would reject.

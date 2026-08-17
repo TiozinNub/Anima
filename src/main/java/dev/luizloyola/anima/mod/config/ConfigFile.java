@@ -5,6 +5,7 @@ import com.electronwill.nightconfig.core.UnmodifiableConfig;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.ConfigStore;
 import dev.luizloyola.anima.core.config.ConfigValues;
+import dev.luizloyola.anima.core.config.Keys;
 import dev.luizloyola.anima.core.config.KnobSet;
 import dev.luizloyola.anima.core.config.KnobSpec;
 import dev.luizloyola.anima.mod.AnimaMod;
@@ -76,8 +77,12 @@ public final class ConfigFile {
         // fails, and a file that will not parse needs an untouched one to compare against.
         DefaultsFile.write(path, render(set.defaults()), set.title() + " config");
         if (!Files.exists(path)) {
-            store.install(set.defaults());
-            save(set.defaults());
+            // Through materialise, not straight from defaults: a KEY generates on FIRST load, and
+            // this branch IS the first load. Writing set.defaults() here left key = "" in the file
+            // and put generation off until the second boot.
+            ConfigValues fresh = Keys.materialise(set.defaults());
+            store.install(fresh);
+            save(fresh);
             AnimaMod.LOGGER.info("{} config: wrote defaults to {}", set.title(), path);
             return List.of();
         }
@@ -101,7 +106,7 @@ public final class ConfigFile {
             if (value == null) {
                 continue; // absent: the default stands, silently — that is what a fresh file means
             }
-            if (knob.kind() == KnobSpec.Kind.STRING) {
+            if (knob.kind().textual()) {
                 if (value instanceof String s) {
                     suppliedText.put(knob, s);
                 } else {
@@ -122,12 +127,33 @@ public final class ConfigFile {
 
         ConfigValues.Loaded loaded = ConfigValues.from(set, supplied, suppliedText);
         problems.addAll(loaded.problems());
-        store.install(loaded.config());
+        store.install(generateMissingKeys(loaded.config()));
 
         for (String problem : problems) {
             AnimaMod.LOGGER.warn("{} config: {}", set.title(), problem);
         }
         return List.copyOf(problems);
+    }
+
+    /**
+     * Fills in any {@link KnobSpec.Kind#KEY} the file did not carry, and writes it straight back.
+     *
+     * <p>Persisting here rather than at first use is what makes a generated key <em>stable</em>: an
+     * installation's key survives restarts, so the URL it appears in can be bookmarked. A key
+     * regenerated per boot would be safer by a hair and unusable in practice.
+     *
+     * <p>Only writes when something was actually generated — {@link Keys#materialise} returns the
+     * same instance otherwise, so an ordinary load does not rewrite the operator's file.
+     */
+    private ConfigValues generateMissingKeys(ConfigValues loaded) {
+        ConfigValues filled = Keys.materialise(loaded);
+        if (filled == loaded) {
+            return loaded;
+        }
+        save(filled);
+        AnimaMod.LOGGER.info("{} config: generated a key for this installation and saved it to {}",
+                set.title(), path());
+        return filled;
     }
 
     /**
@@ -224,7 +250,7 @@ public final class ConfigFile {
             case BOOL -> config.b(knob);
             case INT -> (long) config.get(knob);
             case DOUBLE -> config.get(knob);
-            case STRING -> config.s(knob);
+            case STRING, KEY -> config.s(knob);
         };
     }
 

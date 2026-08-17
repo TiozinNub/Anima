@@ -306,7 +306,7 @@ public final class ProfileAspect {
         }
         // A species aspect is a numeric dial the brain arithmetics on — interpolated, compared,
         // scaled by a modifier. STRING exists on Kind for the knob stack alone.
-        if (kind == Kind.STRING) {
+        if (kind.textual()) {
             throw new IllegalArgumentException(
                     "aspect \"" + key + "\" cannot hold text — a species aspect is a numeric dial");
         }

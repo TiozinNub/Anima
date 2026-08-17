@@ -20,7 +20,7 @@ class KnobTest {
         // Guards the commonest way to break this file: adding a knob whose default and bounds
         // disagree, which would silently clamp on every single load.
         for (Knob knob : Knob.values()) {
-            if (knob.kind() == KnobSpec.Kind.STRING) {
+            if (knob.kind().textual()) {
                 // Same guarantee, read off the other half: min/max bound the LENGTH for a text
                 // knob, so a default outside them is the one that would be silently replaced.
                 assertTrue(knob.acceptsText(knob.defText()),

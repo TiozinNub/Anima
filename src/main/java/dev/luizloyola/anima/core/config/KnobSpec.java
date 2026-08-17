@@ -25,18 +25,33 @@ public interface KnobSpec {
 
     /**
      * What a knob holds. The three numeric kinds are stored as a double and the kind decides how
-     * it reads back; {@link #STRING} is stored as text beside them.
+     * it reads back; {@link #STRING} and {@link #KEY} are stored as text beside them.
      *
-     * <p><b>{@code STRING} is a knob kind only.</b> {@code ProfileAspect} and {@code NeedKind}
+     * <p><b>The text kinds are knob kinds only.</b> {@code ProfileAspect} and {@code NeedKind}
      * share this enum, and both are numeric dials — a species aspect or a need gauge holding text
-     * has no meaning, so both reject it at registration.
+     * has no meaning, so both reject them at registration.
      */
     enum Kind {
-        DOUBLE, INT, BOOL, STRING;
+        DOUBLE, INT, BOOL, STRING,
+        /**
+         * A secret this installation generates for itself: empty until first needed, then a random
+         * {@link Keys#LENGTH}-character alphanumeric string written to the config file and reused
+         * from then on.
+         *
+         * <p>Stored and edited exactly like {@link #STRING}; what differs is that <b>empty is
+         * legal</b> — it is what "not generated yet" looks like — and that {@code ConfigFile}
+         * fills it in on load rather than leaving it at its default.
+         */
+        KEY;
 
         /** Whether values of this kind live in the double array rather than beside it. */
         public boolean numeric() {
-            return this != STRING;
+            return this != STRING && this != KEY;
+        }
+
+        /** Whether values of this kind live in the text array beside it. */
+        public boolean textual() {
+            return !numeric();
         }
     }
 
@@ -45,17 +60,18 @@ public interface KnobSpec {
 
     Kind kind();
 
-    /** The documented default — also what an absent file means. Unused by {@link Kind#STRING}. */
+    /** The documented default — also what an absent file means. Unused by the text kinds. */
     double def();
 
-    /** For {@link Kind#STRING}, the shortest legal text rather than a numeric floor. */
+    /** For a text kind, the shortest legal value rather than a numeric floor. */
     double min();
 
-    /** For {@link Kind#STRING}, the longest legal text rather than a numeric ceiling. */
+    /** For a text kind, the longest legal value rather than a numeric ceiling. */
     double max();
 
     /**
-     * A {@link Kind#STRING} knob's documented default. The text-side twin of {@link #def()}; the
+     * A text knob's documented default — always {@code ""} for a {@link Kind#KEY}, which is what
+     * "not generated yet" looks like. The text-side twin of {@link #def()}; the
      * length bounds stay on {@link #min()}/{@link #max()} rather than growing two more accessors
      * every numeric knob would have to answer for.
      */
@@ -123,6 +139,8 @@ public interface KnobSpec {
             case INT -> "a whole number in [" + format(min()) + ", " + format(max()) + "]";
             case DOUBLE -> "a number in [" + format(min()) + ", " + format(max()) + "]";
             case STRING -> "text of " + (long) min() + " to " + (long) max() + " characters";
+            case KEY -> "letters and digits, " + (long) min() + " to " + (long) max()
+                    + " of them — or empty to have one generated";
         };
     }
 
@@ -138,7 +156,7 @@ public interface KnobSpec {
     }
 
     /**
-     * {@link #clamp} for {@link Kind#STRING}: always returns a legal value, so a hand-edited file
+     * {@link #clamp} for the text kinds: always returns a legal value, so a hand-edited file
      * degrades to the default instead of failing.
      *
      * <p>Out-of-range falls back to {@link #defText()} rather than truncating — half a URL is a
@@ -153,7 +171,18 @@ public interface KnobSpec {
 
     /** Whether {@code raw} would survive {@link #sanitise} untouched. */
     default boolean acceptsText(String raw) {
-        return raw.equals(raw.strip()) && raw.length() >= (long) min() && raw.length() <= (long) max();
+        if (!raw.equals(raw.strip())) {
+            return false;
+        }
+        if (kind() == Kind.KEY) {
+            // Empty is the legal "not generated yet" — ConfigFile fills it in on load. Anything
+            // else must be something generate() could have produced, so a hand-typed key cannot
+            // smuggle a character that would need escaping in the URL it ends up in.
+            return raw.isEmpty()
+                    || (raw.length() >= (long) min() && raw.length() <= (long) max()
+                            && Keys.wellFormed(raw));
+        }
+        return raw.length() >= (long) min() && raw.length() <= (long) max();
     }
 
     /** Renders a {@link Kind#STRING} value the way it should appear in command output. */
@@ -173,14 +202,14 @@ public interface KnobSpec {
             case BOOL -> value != 0.0 ? "true" : "false";
             case INT -> Long.toString((long) value);
             case DOUBLE -> String.format(Locale.ROOT, "%s", value);
-            case STRING -> throw new UnsupportedOperationException(
+            case STRING, KEY -> throw new UnsupportedOperationException(
                     key() + " holds text — use formatText or ConfigValues.text");
         };
     }
 
     /** This knob's documented default, rendered for display, whatever the kind. */
     default String formatDefault() {
-        return kind() == Kind.STRING ? formatText(defText()) : format(def());
+        return kind().textual() ? formatText(defText()) : format(def());
     }
 
     /**
@@ -190,7 +219,7 @@ public interface KnobSpec {
      */
     default Optional<Double> parse(String text) {
         String trimmed = text.trim();
-        if (kind() == Kind.STRING) {
+        if (kind().textual()) {
             return Optional.empty(); // no numeric reading exists; sanitise() is the text path
         }
         if (kind() == Kind.BOOL) {

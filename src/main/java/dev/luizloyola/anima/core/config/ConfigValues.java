@@ -76,7 +76,7 @@ public final class ConfigValues {
      * {@code config get} and {@link #describeOverrides} print, so none of them has to branch.
      */
     public String text(KnobSpec knob) {
-        return knob.kind() == KnobSpec.Kind.STRING ? knob.formatText(s(knob)) : knob.format(get(knob));
+        return knob.kind().textual() ? knob.formatText(s(knob)) : knob.format(get(knob));
     }
 
     /**
@@ -86,7 +86,7 @@ public final class ConfigValues {
      *     land in the double array where nothing reads it, silently keeping the old text.
      */
     public ConfigValues with(KnobSpec knob, double raw) {
-        if (knob.kind() == KnobSpec.Kind.STRING) {
+        if (knob.kind().textual()) {
             throw new IllegalArgumentException(knob.key() + " holds text — use with(knob, String)");
         }
         double[] copy = values.clone();
@@ -100,7 +100,7 @@ public final class ConfigValues {
      * @throws IllegalArgumentException for a numeric knob, for the mirror of the reason above.
      */
     public ConfigValues with(KnobSpec knob, String raw) {
-        if (knob.kind() != KnobSpec.Kind.STRING) {
+        if (!knob.kind().textual()) {
             throw new IllegalArgumentException(knob.key() + " holds a number — use with(knob, double)");
         }
         String[] copy = texts.clone();
@@ -123,7 +123,7 @@ public final class ConfigValues {
     public Map<KnobSpec, String> toTextMap() {
         Map<KnobSpec, String> map = new LinkedHashMap<>();
         for (KnobSpec knob : set.knobs()) {
-            if (knob.kind() == KnobSpec.Kind.STRING) {
+            if (knob.kind().textual()) {
                 map.put(knob, texts[set.indexOf(knob)]);
             }
         }
@@ -133,7 +133,7 @@ public final class ConfigValues {
     /** Whether this knob still sits at its default — what {@code show} marks. */
     public boolean isDefault(KnobSpec knob) {
         int slot = set.indexOf(knob);
-        return knob.kind() == KnobSpec.Kind.STRING
+        return knob.kind().textual()
                 ? texts[slot].equals(knob.defText())
                 : values[slot] == knob.def();
     }
@@ -212,7 +212,7 @@ public final class ConfigValues {
         String[] built = new String[set.size()];
         Arrays.fill(built, "");
         for (KnobSpec knob : set.knobs()) {
-            if (knob.kind() == KnobSpec.Kind.STRING) {
+            if (knob.kind().textual()) {
                 built[set.indexOf(knob)] = knob.defText();
             }
         }

@@ -115,7 +115,7 @@ public final class ConfigCommands {
             String key, String value) {
         KnobSpec knob = store.set().byKey(key).orElse(null);
         if (knob == null) return unknown(source, store, key);
-        if (knob.kind() == KnobSpec.Kind.STRING) {
+        if (knob.kind().textual()) {
             return setText(source, store, file, knob, value);
         }
         Double parsed = knob.parse(value).orElse(null);
@@ -158,7 +158,7 @@ public final class ConfigCommands {
             String key) {
         KnobSpec knob = store.set().byKey(key).orElse(null);
         if (knob == null) return unknown(source, store, key);
-        store.install(knob.kind() == KnobSpec.Kind.STRING
+        store.install(knob.kind().textual()
                 ? store.get().with(knob, knob.defText())
                 : store.get().with(knob, knob.def()));
         file.save(store.get());

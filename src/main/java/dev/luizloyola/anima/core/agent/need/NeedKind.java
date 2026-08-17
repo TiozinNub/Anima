@@ -185,7 +185,7 @@ public final class NeedKind {
             throw new IllegalArgumentException("a need kind needs a key");
         }
         // A gauge reads somewhere on an axis and its levels ramp between them; text has no ramp.
-        if (kind == Kind.STRING) {
+        if (kind.textual()) {
             throw new IllegalArgumentException(
                     "need \"" + key + "\" cannot hold text — a gauge reads a point on an axis");
         }
