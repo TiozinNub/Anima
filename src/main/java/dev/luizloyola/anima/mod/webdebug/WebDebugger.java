@@ -136,9 +136,11 @@ public final class WebDebugger {
      * What holds each section of the frame to its own rate. Read and written only on the server
      * tick thread — except {@link WebClocks#force}, which a watch change calls from an HTTP one.
      *
-     * <p>Not replaced by {@link #start}: a deadline left over from a previous run is already past,
-     * so the first tick of the next one builds everything, which is what a reconnecting browser
-     * needs anyway.
+     * <p>Not replaced by {@link #start}: {@link #start} forces every clock instead, right where it
+     * installs the fresh {@link #feed}. A quick stop and restart can land inside a slower clock's
+     * own gap — up to 500ms for {@link WebClock#SLOW} — and that old {@link WebPace} deadline would
+     * still be in the future, so relying on time having passed would leave the new run's first
+     * {@link WebFeed#hello} with holes where that section belongs.
      */
     private static final WebClocks CLOCKS = new WebClocks();
 
@@ -276,8 +278,11 @@ public final class WebDebugger {
             var due = CLOCKS.due(now);
             WebModel.Update update = feed.model()
                     .against(server.getTickCount(), WebSnapshot.build(server, watch, due));
-            // Nothing survived and no heartbeat is owed: a frozen or unwatched world costs the
-            // clock read above and not one byte more.
+            // Nothing survived the diff and no heartbeat is owed: the frame itself is skipped, but
+            // WebSnapshot.build has already paid for every section whose clock fired this tick —
+            // HEALTH's is 20/s, so a frozen, browserless world still rebuilds and discards a health
+            // reading many times a second. What this DOES cost is exactly CLOCKS.due() plus those
+            // builds, never a publish nobody needed.
             if (update.delta().isEmpty() && !CLOCKS.beat(now)) {
                 return;
             }
@@ -299,6 +304,12 @@ public final class WebDebugger {
         // A fresh one, because stop() closed the last for good. This is the line whose absence
         // made a restarted debugger serve keepalives and nothing else.
         feed = new WebFeed();
+        // Every clock, whether or not its old WebPace deadline has actually passed — see CLOCKS.
+        // A stop this close to a start is ordinary (the same command driving both), not a rare
+        // edge, so the first tick of a new run must build the whole world regardless of timing.
+        for (WebClock clock : WebClock.values()) {
+            CLOCKS.force(clock);
+        }
         try {
             HttpServer created = HttpServer.create(new InetSocketAddress(bindAddress(), port()), 0);
             // Cached and daemon: an SSE stream holds its thread for as long as the browser is
@@ -554,10 +565,9 @@ public final class WebDebugger {
      * <p><b>Gzipped when the browser offers it</b>, and the compression is worth far more here than
      * the ratio on any one frame suggests: <em>one</em> deflate stream spans the whole connection,
      * so its window still holds the last frame when the next one — near-identical, a tick later —
-     * goes through, and most of it leaves as back-references. The measured ratios this paragraph
-     * used to quote were taken against the old whole-frame feed; now that a frame carries only what
-     * survived a clock and a diff, both the raw size and the ratio against it are different numbers,
-     * and worth re-measuring in a running game rather than carried over unchanged.
+     * goes through, and most of it leaves as back-references. The ratio has not been measured
+     * against a feed that is already only the differences, and is worth measuring in a running
+     * game rather than guessed at here.
      */
     private static void serveStream(HttpExchange exchange) throws IOException {
         if (!keyed(exchange)) {
