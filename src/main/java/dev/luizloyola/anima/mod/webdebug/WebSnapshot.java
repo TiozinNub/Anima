@@ -55,10 +55,10 @@ import org.jspecify.annotations.Nullable;
  * <p><b>The dead are counted, not built</b>, until {@link WebWatch#dead()} says the browser has
  * that section open. They are the one part of the roster that never shrinks — identity survives
  * death by decision — so a world's every grave was being rebuilt twenty times a second for a
- * section read once a session. The count itself goes out with every {@link WebClock#ROSTER} build,
- * the same clock the grave rows themselves are on — never {@link WebClock#SLOW}, or the footer's
- * census and the dead table could disagree by one for as long as the slower clock takes to catch
- * up. It is what the closed section, and the footer's census, actually read.
+ * section read once a session. The count is taken in the same walk that builds the rows, and goes
+ * out with them on {@link WebClock#ROSTER} — never {@link WebClock#SLOW}, or the footer's census
+ * and the dead table could disagree by one for as long as the slower clock takes to catch up. It
+ * is what the closed section, and the footer's census, actually read.
  *
  * <p>Detail is built only for the agents {@link WebWatch} says are expanded, and it is its own
  * section on its own {@link WebClock#DETAIL} clock now — a journal tail and a position have no
@@ -100,10 +100,12 @@ final class WebSnapshot {
             out.put("actingAs", acting == null ? "null" : "\"" + acting + "\"");
         }
         if (due.contains(WebClock.ROSTER)) {
-            out.put("agents", agents(server, watch).toString());
-            // Same clock as the rows agents() builds, not SLOW's: split across two rates, the
-            // footer's census and the dead table could disagree by one after a death.
-            out.put("dead", Integer.toString(Graves.get(server).size()));
+            // Both keys out of one walk: same clock as the rows, and the same pass over the
+            // directory that produced them. Split across two rates, the footer's census and the
+            // dead table could disagree by one after a death.
+            Roster roster = agents(server, watch);
+            out.put("agents", roster.rows().toString());
+            out.put("dead", Integer.toString(roster.dead()));
         }
         if (due.contains(WebClock.DETAIL)) {
             out.put("detail", details(server, watch).toString());
@@ -111,15 +113,25 @@ final class WebSnapshot {
         return out;
     }
 
+    /** The roster rows, and the grave count taken in the same walk. @see #agents */
+    private record Roster(JsonArray rows, int dead) {
+    }
+
     /**
-     * The roster: every agent the directory knows, living, elsewhere or buried.
+     * The roster: every agent the directory knows, living, elsewhere or buried — and how many of
+     * them are buried.
+     *
+     * <p><b>The count is taken here rather than from {@code Graves.size()}</b>, so it counts graves
+     * <em>among</em> the directory's entries. A grave that outlives its directory entry is a row
+     * the dead table cannot draw, and a footer census larger than the table it summarises is
+     * exactly the one-off disagreement the shared clock exists to prevent.
      *
      * <p><b>The loaded bodies are indexed once.</b> {@code AgentBodies.findLoaded} takes a lock on
      * the shared index and allocates a copy of every loaded body on each call, and this loop used to
      * make one call per known agent — fifty lock acquisitions and fifty array copies to answer fifty
      * lookups, sixty times a second.
      */
-    private static JsonArray agents(MinecraftServer server, WebWatch watch) {
+    private static Roster agents(MinecraftServer server, WebWatch watch) {
         Graves graves = Graves.get(server);
         ServerPlayer viewer = viewer(server, watch);
         AgentId pinned = viewer == null ? null : AgentSelection.pinned(viewer).orElse(null);
@@ -127,14 +139,18 @@ final class WebSnapshot {
         Map<AgentId, AgentBody> loaded = loaded(server);
 
         JsonArray out = new JsonArray();
+        int dead = 0;
         for (Map.Entry<AgentId, PrivateIdentity> known : directory.known().entrySet()) {
             AgentId id = known.getKey();
-            if (graves.isDead(id) && !watch.dead()) {
-                continue;
+            if (graves.isDead(id)) {
+                dead++;
+                if (!watch.dead()) {
+                    continue;
+                }
             }
             out.add(row(directory, id, known.getValue(), graves, loaded.get(id), viewer, pinned));
         }
-        return out;
+        return new Roster(out, dead);
     }
 
     /** Every expanded agent's sections, keyed by id — the object a card reads its own slice out of. */
