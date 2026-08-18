@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.EnumSet;
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -73,25 +72,16 @@ class WebClocksTest {
     }
 
     @Test
-    @DisplayName("the clocks' keys and rates are pinned to the wire")
-    void keysAndRatesAreLiteral() {
-        // These strings name top-level frame keys the browser reads; a typo is invisible until the
-        // dashboard fails to parse. Rates are equally wire-bound: the browser's update cadence
-        // depends on them.
-
+    @DisplayName("the clocks' rates are pinned — they are what the browser's cadence comes out as")
+    void ratesAreLiteral() {
+        // Rates are wire-bound: every pace is built from one, so a change here is a change in how
+        // often the dashboard moves. Which key rides which clock is NOT pinned here — WebSnapshot
+        // .build is the only place that mapping exists, and a test of a second copy of it would
+        // only ever confirm the copy.
         assertEquals(20, WebClock.HEALTH.perSecond());
-        assertEquals(List.of("health"), WebClock.HEALTH.keys());
-
         assertEquals(10, WebClock.ROSTER.perSecond());
-        assertEquals(List.of("agents", "dead"), WebClock.ROSTER.keys());
-
         assertEquals(4, WebClock.DETAIL.perSecond());
-        assertEquals(List.of("detail"), WebClock.DETAIL.keys());
-
         assertEquals(4, WebClock.CHART.perSecond());
-        assertEquals(List.of("samples"), WebClock.CHART.keys());
-
         assertEquals(2, WebClock.SLOW.perSecond());
-        assertEquals(List.of("players", "layers", "actingAs"), WebClock.SLOW.keys());
     }
 }
