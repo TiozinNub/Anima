@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.ServerTickRateManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import org.jspecify.annotations.Nullable;
@@ -45,6 +46,9 @@ import org.jspecify.annotations.Nullable;
  */
 final class WebSnapshot {
 
+    /** The rate the game runs at when nobody has told it otherwise. */
+    private static final float VANILLA_TICKRATE = 20.0f;
+
     /** Journal lines per expanded agent — the tail that makes the last few seconds readable. */
     private static final int JOURNAL_TAIL = 24;
 
@@ -55,6 +59,7 @@ final class WebSnapshot {
     static String render(MinecraftServer server, WebWatch watch) {
         JsonObject root = new JsonObject();
         root.addProperty("tick", server.getTickCount());
+        root.add("health", health(server));
         root.add("players", players(server));
         root.addProperty("actingAs", watch.actingAs() == null ? null : watch.actingAs().toString());
         root.add("layers", layers(server, watch));
@@ -84,6 +89,54 @@ final class WebSnapshot {
     private static @Nullable ServerPlayer viewer(MinecraftServer server, WebWatch watch) {
         UUID acting = watch.actingAs();
         return acting == null ? null : server.getPlayerList().getPlayer(acting);
+    }
+
+    /**
+     * How hard the server is finding it. The browser can time its own frames — one is published per
+     * tick — but a tick's <em>cost</em> leaves no trace on the wire, and cost is what says whether a
+     * slow world is overloaded or merely paused.
+     *
+     * <p><b>{@code tps} is not a count.</b> It is what the configured rate and the measured cost
+     * allow, whichever is lower: a server told to run at 20 and spending 4ms a tick is at 20, and
+     * the 46ms of headroom is not speed. One spending 80ms is at 12.5, which is the number worth
+     * showing.
+     */
+    private static JsonObject health(MinecraftServer server) {
+        double mspt = server.getAverageTickTimeNanos() / 1_000_000.0;
+        float wanted = server.tickRateManager().tickrate();
+
+        JsonObject health = new JsonObject();
+        health.addProperty("mspt", round(mspt));
+        health.addProperty("tps", round(mspt <= 0 ? wanted : Math.min(wanted, 1_000.0 / mspt)));
+        health.addProperty("mode", mode(server.tickRateManager()));
+        return health;
+    }
+
+    /**
+     * What the clock is <em>doing</em>, which no rate can say on its own: zero ticks a second is a
+     * frozen world and a dead one in the same two characters, and a sprinting server is one
+     * deliberately running flat out rather than one in trouble. Unsaid, every one of those reads as
+     * a crash and sends whoever is debugging after the wrong thing.
+     */
+    private static String mode(ServerTickRateManager ticks) {
+        if (ticks.isFrozen()) {
+            return "frozen";
+        }
+        if (ticks.isSprinting()) {
+            return "sprinting";
+        }
+        // Against vanilla's own 20 rather than a number of ours: `/tick rate` is what moves it, and
+        // "slower than the game means to run" is the fact worth showing.
+        float rate = ticks.tickrate();
+        if (rate < VANILLA_TICKRATE) {
+            return "slow";
+        }
+        return rate > VANILLA_TICKRATE ? "fast" : "normal";
+    }
+
+    /** Two decimals is the whole useful precision of a tick cost, and the frame is sent 20x a second. */
+    private static double round(double value) {
+        return Math.round(value * 100.0) / 100.0;
     }
 
     /**
