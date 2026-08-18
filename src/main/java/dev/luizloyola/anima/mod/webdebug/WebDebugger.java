@@ -408,8 +408,37 @@ public final class WebDebugger {
         server.execute(() -> WebCommands.tellOperators(server, key, from));
     }
 
-    /** The one answer every refusal gets. @see #serveRegister */
+    /**
+     * The one answer every refusal gets — <b>held</b> for {@link WebBrowsers#LOCKOUT_MILLIS}, not
+     * sent at once.
+     *
+     * <p>Refusing instantly caps how fast a guess is <em>evaluated</em> and not how fast one can be
+     * <em>sent</em>, so a retry loop still spins the socket flat out and being wrong costs nothing.
+     * Making the answer itself cost three seconds is what actually stops the retries, and it paces
+     * the caller without the caller cooperating.
+     *
+     * <p><b>The same three seconds for every refusal, whatever the reason.</b> Holding only the
+     * ones that armed the lockout was the first shape, and it leaks: a key already known to be
+     * wrong came back in under a millisecond where a fresh one took three seconds, so the
+     * <em>timing</em> answered the question the status code refuses to — has this key been seen
+     * here before. A uniform hold is the only version that says nothing.
+     *
+     * <p>Applied to every route, not only {@code /api/register}: they all refuse without comparing
+     * the key while a lockout runs, so an attacker would otherwise guess against whichever answered
+     * fastest.
+     *
+     * <p>Slept <b>outside</b> {@link WebBrowsers}'s monitor. Holding it here would queue the
+     * operator's own {@code browser accept} behind whoever is hammering the port. The parked thread
+     * is affordable because the pool is unbounded and its threads are daemons — a stopping server
+     * interrupts them rather than waiting. It does mean a flood of refusals parks a thread each,
+     * which on loopback is a thing its author could do to themselves by other means anyway.
+     */
     private static void refuse(HttpExchange exchange) throws IOException {
+        try {
+            Thread.sleep(WebBrowsers.LOCKOUT_MILLIS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // shutting down: answer now and let go
+        }
         send(exchange, 401, "{\"ok\":false}".getBytes(StandardCharsets.UTF_8));
     }
 

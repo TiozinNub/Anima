@@ -86,13 +86,22 @@ public final class WebCommands {
         return 1;
     }
 
-    /** Starts it whatever {@code web_debugger.enabled} says, and restarts a running one. */
+    /**
+     * Starts it whatever {@code web_debugger.enabled} says, and restarts a running one.
+     *
+     * <p><b>Opens the door on the way</b>, which auto-start deliberately does not. Typing this is a
+     * person saying they are about to look at the thing, and making them type a second command
+     * first would be ceremony; a world booting with {@code enabled} set is nobody saying anything,
+     * and a door left open on an unattended server is the case the door exists for.
+     */
     private static int start(CommandSourceStack source) {
         String problem = WebDebugger.start(source.getServer());
         if (problem != null) {
             Replies.fail(source, Component.literal("The web debugger did not start — " + problem));
             return 0;
         }
+        // After the start, not before: it restarts a running server, and stopping clears the door.
+        WebDebugger.browsers().open();
         link(source);
         return 1;
     }
@@ -128,7 +137,11 @@ public final class WebCommands {
                     "  this session only — set web_debugger.enabled for it to start with a world")
                     .withStyle(ChatFormatting.DARK_GRAY));
         }
-        if (WebDebugger.browsers().accepted().isEmpty()) {
+        long open = WebDebugger.browsers().openSecondsLeft();
+        if (open > 0) {
+            Replies.send(source, () -> Component.literal("  open to a new browser for " + open
+                    + "s — load the page now").withStyle(ChatFormatting.YELLOW));
+        } else if (WebDebugger.browsers().accepted().isEmpty()) {
             Replies.send(source, () -> Component.literal(
                     "  no browser is accepted yet — run browser open, then load the page")
                     .append(button(" [open]", "/anima web-debugger browser open",
