@@ -227,8 +227,8 @@ public final class WebDebugger {
      * each re-check its own key at once, which is a no-op for everyone but the one just revoked —
      * cheaper and simpler than tracking which socket belongs to which key.
      */
-    public static boolean revoke(String key) {
-        if (!BROWSERS.revoke(key)) {
+    public static boolean remove(String key) {
+        if (!BROWSERS.remove(key)) {
             return false;
         }
         feed.wake();
@@ -339,8 +339,8 @@ public final class WebDebugger {
             created.start();
             http = created;
             pool = created_pool;
-            AnimaMod.LOGGER.info("web-debugger: listening — open {} ({} browser(s) accepted)",
-                    address(), BROWSERS.accepted().size());
+            AnimaMod.LOGGER.info("web-debugger: listening — open {} ({} browser(s) allowed)",
+                    address(), BROWSERS.allowed().size());
             warnIfExposed();
             return null;
         } catch (UnknownHostException e) {
@@ -483,7 +483,7 @@ public final class WebDebugger {
         if (outcome == WebBrowsers.Outcome.ASKED) {
             announce(key, from);
         }
-        if (outcome == WebBrowsers.Outcome.ACCEPTED) {
+        if (outcome == WebBrowsers.Outcome.ALLOWED) {
             send(exchange, 200, "{\"ok\":true}".getBytes(StandardCharsets.UTF_8));
         } else {
             refuse(exchange);
@@ -566,7 +566,7 @@ public final class WebDebugger {
      * <p><b>The key is checked between frames, not just at the handshake.</b> This is the one route
      * that outlives its own request: authenticating once and then holding the socket open meant a
      * revoked browser kept streaming every mind in the world until it happened to reconnect, which
-     * is a revoke that does not revoke. {@link #revoke} pairs with this by waking the parked
+     * is a revoke that does not revoke. {@link #remove} pairs with this by waking the parked
      * readers, so a quiet world does not delay the hang-up by a keepalive.
      *
      * <p>It ends with {@link #STOP_EVENT} when the debugger is what stopped, and silently for every
@@ -600,7 +600,7 @@ public final class WebDebugger {
         // syncFlush, and it is load-bearing: without it a flushed frame sits in the deflater until
         // enough of the next ones arrive to fill a block, and the dashboard goes still.
         try (OutputStream out = zip ? new GZIPOutputStream(wire, true) : wire) {
-            pump(out, wire::written, live, () -> running() && BROWSERS.stillAccepted(key));
+            pump(out, wire::written, live, () -> running() && BROWSERS.stillAllowed(key));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (IOException e) {
@@ -845,7 +845,7 @@ public final class WebDebugger {
             return false;
         }
         if (BROWSERS.check(exchange.getRequestHeaders().getFirst(KEY_HEADER))
-                == WebBrowsers.Outcome.ACCEPTED) {
+                == WebBrowsers.Outcome.ALLOWED) {
             return true;
         }
         refuse(exchange);

@@ -48,7 +48,7 @@ public final class WebCommands {
                         WebDebugger.browsers().waiting().stream()
                                 .map(WebBrowsers.Waiting::key).toList(), builder);
         SuggestionProvider<CommandSourceStack> accepted = (ctx, builder) ->
-                SharedSuggestionProvider.suggest(WebDebugger.browsers().accepted(), builder);
+                SharedSuggestionProvider.suggest(WebDebugger.browsers().allowed(), builder);
         return Commands.literal("browser")
                 .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                 .executes(ctx -> list(ctx.getSource()))
@@ -130,7 +130,7 @@ public final class WebCommands {
             Replies.send(source, () -> indent(Component.translatable(
                     "anima.webdebug.session_only").withStyle(ChatFormatting.DARK_GRAY)));
         }
-        if (WebDebugger.browsers().accepted().isEmpty()) {
+        if (WebDebugger.browsers().allowed().isEmpty()) {
             Replies.send(source, () -> indent(Component.translatable("anima.webdebug.none_accepted")
                     .withStyle(ChatFormatting.YELLOW)));
         }
@@ -147,7 +147,7 @@ public final class WebCommands {
     private static int list(CommandSourceStack source) {
         WebBrowsers browsers = WebDebugger.browsers();
         List<WebBrowsers.Waiting> waiting = browsers.waiting();
-        List<String> accepted = browsers.accepted();
+        List<String> accepted = browsers.allowed();
 
         Replies.send(source, () -> Component.translatable("anima.webdebug.list_closed")
                 .withStyle(ChatFormatting.AQUA));
@@ -184,7 +184,7 @@ public final class WebCommands {
     }
 
     private static int accept(CommandSourceStack source, String key) {
-        WebBrowsers.Admission admission = WebDebugger.browsers().accept(key);
+        WebBrowsers.Admission admission = WebDebugger.browsers().allow(key);
         switch (admission) {
             case MALFORMED -> {
                 Replies.fail(source, Component.translatable("anima.webdebug.malformed_key", key));
@@ -205,7 +205,7 @@ public final class WebCommands {
     }
 
     private static int reject(CommandSourceStack source, String key) {
-        if (!WebDebugger.browsers().reject(key)) {
+        if (!WebDebugger.browsers().dismiss(key)) {
             Replies.send(source, () -> Component.translatable("anima.webdebug.not_asking", key)
                     .withStyle(ChatFormatting.GRAY));
             return 0;
@@ -218,7 +218,7 @@ public final class WebCommands {
     private static int revoke(CommandSourceStack source, String key) {
         // Through WebDebugger, not the register: revoking has to close the stream that browser is
         // already holding, or it takes effect whenever the page next happens to reconnect.
-        if (!WebDebugger.revoke(key)) {
+        if (!WebDebugger.remove(key)) {
             Replies.send(source, () -> Component.translatable("anima.webdebug.not_accepted", key)
                     .withStyle(ChatFormatting.GRAY));
             return 0;

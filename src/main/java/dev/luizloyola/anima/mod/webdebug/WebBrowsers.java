@@ -86,8 +86,8 @@ public final class WebBrowsers {
 
     /** What a browser presenting a key was told. */
     public enum Outcome {
-        /** Accepted: 200, and every other route opens. */
-        ACCEPTED,
+        /** Allowed: 200, and every other route opens. */
+        ALLOWED,
         /** Already in the queue: keep polling, an operator has not answered yet. */
         WAITING,
         /** Just joined the queue — the one outcome the operators are told about. */
@@ -123,7 +123,7 @@ public final class WebBrowsers {
      * the queue.
      *
      * <p>Idempotent by construction: the same key asked twice gets the same answer, and the answer
-     * changes to {@link Outcome#ACCEPTED} the moment an operator accepts it. That is what lets the
+     * changes to {@link Outcome#ALLOWED} the moment an operator accepts it. That is what lets the
      * page simply keep asking.
      */
     public Outcome register(String key, String from) {
@@ -139,8 +139,8 @@ public final class WebBrowsers {
         if (locked(now)) {
             return Outcome.REFUSED;
         }
-        if (isAccepted(key)) {
-            return Outcome.ACCEPTED;
+        if (isAllowed(key)) {
+            return Outcome.ALLOWED;
         }
         Waiting known = queue.get(key);
         if (known != null) {
@@ -178,8 +178,8 @@ public final class WebBrowsers {
         if (locked(now)) {
             return Outcome.REFUSED;
         }
-        if (isAccepted(key)) {
-            return Outcome.ACCEPTED;
+        if (isAllowed(key)) {
+            return Outcome.ALLOWED;
         }
         if (queue.containsKey(key)) {
             return Outcome.WAITING; // impatient, not hostile
@@ -190,34 +190,34 @@ public final class WebBrowsers {
 
     // --- what an operator does --------------------------------------------------------------
 
-    /** Lets {@code key} in from now on, writing it to the config file. */
-    public synchronized Admission accept(String key) {
+    /** Allows {@code name} from now on, writing it to the config file. */
+    public synchronized Admission allow(String key) {
         if (!wellFormed(key)) {
             return Admission.MALFORMED;
         }
-        if (isAccepted(key)) {
+        if (isAllowed(key)) {
             return Admission.ALREADY;
         }
-        List<String> keys = new ArrayList<>(accepted());
+        List<String> keys = new ArrayList<>(allowed());
         keys.add(key);
         install(keys);
         queue.remove(key);
         return Admission.ADDED;
     }
 
-    /** Drops a waiting browser from the queue. It may ask again through an open door. */
-    public synchronized boolean reject(String key) {
+    /** Drops a waiting browser from the queue. It can ask again. */
+    public synchronized boolean dismiss(String key) {
         return queue.remove(key) != null;
     }
 
     /**
-     * Takes an accepted browser back off the list. It may ask again through an open door — there
-     * is no memory of a refusal, deliberately: a permanent block would need its own list, its own
-     * command to undo, and a way to tell a mistake from an attack that nothing here has.
+     * Takes an accepted browser back off the list. It can ask again — there is no memory of a
+     * refusal, deliberately: a permanent block would need its own list, its own command to undo,
+     * and a way to tell a mistake from an attack that nothing here has.
      */
-    public synchronized boolean revoke(String key) {
+    public synchronized boolean remove(String key) {
         boolean queued = queue.remove(key) != null;
-        List<String> keys = new ArrayList<>(accepted());
+        List<String> keys = new ArrayList<>(allowed());
         if (!keys.remove(key)) {
             return queued;
         }
@@ -236,7 +236,7 @@ public final class WebBrowsers {
     }
 
     /** Everyone let in, as the config file holds them. */
-    public List<String> accepted() {
+    public List<String> allowed() {
         return KnobSpec.splitList(Config.get().s(Knob.WEB_ALLOWED_NAMES));
     }
 
@@ -248,8 +248,8 @@ public final class WebBrowsers {
      * hung up on because an operator revoked it is not guessing, and three seconds of shut door is
      * the opposite of what that operator is in the middle of doing.
      */
-    public boolean stillAccepted(@Nullable String key) {
-        return key != null && accepted().contains(key);
+    public boolean stillAllowed(@Nullable String key) {
+        return key != null && allowed().contains(key);
     }
 
     /** Forgets the queue — what stopping the server means for this. */
@@ -266,8 +266,8 @@ public final class WebBrowsers {
         return key != null && key.length() <= MAX_KEY_LENGTH && SHAPE.matcher(key).matches();
     }
 
-    private boolean isAccepted(String key) {
-        return accepted().contains(key);
+    private boolean isAllowed(String key) {
+        return allowed().contains(key);
     }
 
     /**
