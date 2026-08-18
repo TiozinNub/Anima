@@ -221,7 +221,7 @@ public final class WebDebugger {
         return Config.get().s(Knob.WEB_APP_URL);
     }
 
-    /** Who may read this world, who is asking, and what a guess costs — {@code /anima web-debugger access}. */
+    /** Who may read this world and who is asking — {@code /anima web-debugger access}. */
     public static WebBrowsers browsers() {
         return BROWSERS;
     }

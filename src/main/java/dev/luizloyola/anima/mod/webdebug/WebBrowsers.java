@@ -96,7 +96,7 @@ public final class WebBrowsers {
         WAITING,
         /** Just joined the queue — the one outcome the operators are told about. */
         ASKED,
-        /** Anything else: malformed, never seen before, or inside the lockout. */
+        /** Anything else: malformed, unknown, or inside the lockout. */
         REFUSED
     }
 
