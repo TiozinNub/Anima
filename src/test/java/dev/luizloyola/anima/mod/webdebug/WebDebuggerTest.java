@@ -208,8 +208,16 @@ class WebDebuggerTest {
         feed.wake();
         reader.join(5_000);
 
-        assertFalse(out.toString(StandardCharsets.UTF_8).contains("data:"),
-                "an empty model must not be greeted as a world of nothing");
+        String sent = out.toString(StandardCharsets.UTF_8);
+        assertFalse(sent.contains("data:"), "an empty model must not be greeted as a world of nothing");
+
+        // A reader parked correctly writes no keepalive inside a 100ms window — the interval is
+        // 15 seconds — and exactly one when wake() releases it above. A reader that instead
+        // busy-spins on a feed with nothing published writes thousands in the same window, so the
+        // count is the whole test: 2 passes a parked reader, thousands fails a spinning one.
+        int keepalives = sent.split(": keepalive", -1).length - 1;
+        assertTrue(keepalives <= 2,
+                "a reader before the first frame must park, not spin: " + keepalives + " keepalives");
     }
 
     // --- the goodbye ----------------------------------------------------------------------------
