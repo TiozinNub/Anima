@@ -14,10 +14,8 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -91,12 +89,6 @@ public final class WebDebugger {
     private static final long KEEPALIVE_MILLIS = 15_000L;
 
     /**
-     * The most frames a second the feed carries, however fast the world is ticking. A screen
-     * refresh, and nothing a person reads off a dashboard needs more than one of. @see WebPace
-     */
-    private static final long MAX_FRAMES_PER_SECOND = 60L;
-
-    /**
      * The last thing a stream writes when the debugger is going down on purpose.
      *
      * <p>A browser cannot tell a stopped server from a dropped socket by the socket alone, and the
@@ -140,18 +132,14 @@ public final class WebDebugger {
     private static volatile WebFeed feed = new WebFeed();
 
     /**
-     * What holds the feed to {@link #MAX_FRAMES_PER_SECOND}. Read and written only on the server
-     * tick thread, which is why it is neither volatile nor replaced by {@link #start}: a deadline
-     * left over from a previous run is already past, so the first tick of the next one publishes.
+     * What holds each section of the frame to its own rate. Read and written only on the server
+     * tick thread — except {@link WebClocks#force}, which a watch change calls from an HTTP one.
+     *
+     * <p>Not replaced by {@link #start}: a deadline left over from a previous run is already past,
+     * so the first tick of the next one builds everything, which is what a reconnecting browser
+     * needs anyway.
      */
-    private static final WebPace PACE = new WebPace(MAX_FRAMES_PER_SECOND);
-
-    /**
-     * Every clock, asked for on every tick — the bridge's due set until the clocked hook replaces
-     * it. Held as a constant so the tick handler is not allocating a fresh {@link EnumSet} on every
-     * frame it publishes.
-     */
-    private static final Set<WebClock> ALL_CLOCKS = EnumSet.allOf(WebClock.class);
+    private static final WebClocks CLOCKS = new WebClocks();
 
     /** Saving is passed in rather than called: {@link WebBrowsers} is core-shaped and has no file. */
     private static final WebBrowsers BROWSERS =
@@ -279,15 +267,21 @@ public final class WebDebugger {
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             // The one place the world is read. Guarded on running(), so a switched-off dashboard
-            // costs a field read per tick — and on the pace, so a sprinting one costs a clock read
-            // rather than the whole roster rendered to JSON inside the tick.
-            if (running() && PACE.due(System.nanoTime())) {
-                // Every section is asked for on every tick, so this still ships whole frames; and
-                // WebModel.EMPTY is what is passed to publish, so hello() stays silent — until the
-                // clocked, diffed hook replaces both of those.
-                feed.publish(WebModel.EMPTY, WebModel.frame(server.getTickCount(),
-                        WebSnapshot.build(server, watch, ALL_CLOCKS)));
+            // costs a field read per tick.
+            if (!running()) {
+                return;
             }
+            long now = System.nanoTime();
+            var due = CLOCKS.due(now);
+            WebModel.Update update = feed.model()
+                    .against(server.getTickCount(), WebSnapshot.build(server, watch, due));
+            // Nothing survived and no heartbeat is owed: a frozen or unwatched world costs the
+            // clock read above and not one byte more.
+            if (update.delta().isEmpty() && !CLOCKS.beat(now)) {
+                return;
+            }
+            CLOCKS.published(now);
+            feed.publish(update.model(), WebModel.frame(update.model().tick(), update.delta()));
         });
     }
 
@@ -542,6 +536,10 @@ public final class WebDebugger {
      * for {@link #KEEPALIVE_MILLIS} — which is also how a browser that has gone away is noticed,
      * a write being the only thing that finds that out.
      *
+     * <p><b>Every frame after the first is a delta.</b> The first is the whole retained model, which
+     * is what makes the rest safe to merge — see {@link WebModel}. A section absent from a frame is
+     * unchanged; one carrying JSON null is being dropped.
+     *
      * <p><b>The key is checked between frames, not just at the handshake.</b> This is the one route
      * that outlives its own request: authenticating once and then holding the socket open meant a
      * revoked browser kept streaming every mind in the world until it happened to reconnect, which
@@ -555,9 +553,10 @@ public final class WebDebugger {
      * <p><b>Gzipped when the browser offers it</b>, and the compression is worth far more here than
      * the ratio on any one frame suggests: <em>one</em> deflate stream spans the whole connection,
      * so its window still holds the last frame when the next one — near-identical, a tick later —
-     * goes through, and most of it leaves as back-references. Measured against a synthetic roster
-     * of twelve, it is ~18x with nothing expanded and ~20x with eight cards open, where the raw
-     * feed is over a megabyte a second. Per-frame gzip with no shared history is only 5-14x.
+     * goes through, and most of it leaves as back-references. The measured ratios this paragraph
+     * used to quote were taken against the old whole-frame feed; now that a frame carries only what
+     * survived a clock and a diff, both the raw size and the ratio against it are different numbers,
+     * and worth re-measuring in a running game rather than carried over unchanged.
      */
     private static void serveStream(HttpExchange exchange) throws IOException {
         if (!keyed(exchange)) {
@@ -708,17 +707,23 @@ public final class WebDebugger {
         if (id != null) {
             next = next.toggled(new dev.luizloyola.anima.core.agent.AgentId(UUID.fromString(id)),
                     !"0".equals(query.get("open")) && !"false".equals(query.get("open")));
+            CLOCKS.force(WebClock.DETAIL);
         }
         if (acting != null) {
             next = next.actingAs(acting.isEmpty() ? null : UUID.fromString(acting));
+            // Every distance in the roster is measured from this player, and the layers are theirs.
+            CLOCKS.force(WebClock.ROSTER);
+            CLOCKS.force(WebClock.SLOW);
         }
         String ticks = query.get("ticks");
         if (ticks != null) {
             next = next.ticks(!"0".equals(ticks) && !"false".equals(ticks));
+            CLOCKS.force(WebClock.CHART);
         }
         String dead = query.get("dead");
         if (dead != null) {
             next = next.withDead(!"0".equals(dead) && !"false".equals(dead));
+            CLOCKS.force(WebClock.ROSTER);
         }
         watch = next;
         send(exchange, 200, "{\"ok\":true}".getBytes(StandardCharsets.UTF_8));
