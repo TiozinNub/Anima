@@ -17,7 +17,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -147,6 +149,12 @@ public final class WebDebugger {
     /** Saving is passed in rather than called: {@link WebBrowsers} is core-shaped and has no file. */
     private static final WebBrowsers BROWSERS =
             new WebBrowsers(() -> AnimaMod.CONFIG.save(Config.get()));
+
+    /**
+     * Names already announced this session. With no door, a removed browser re-queues on its very
+     * next poll — announcing that again would spam every operator for as long as the tab is open.
+     */
+    private static final Set<String> ANNOUNCED = ConcurrentHashMap.newKeySet();
 
     private static @Nullable HttpServer http;
     private static @Nullable ExecutorService pool;
@@ -413,6 +421,7 @@ public final class WebDebugger {
         // The queue and the door are per-session: a browser that was waiting will ask again, and
         // a door left open across a restart is one nobody remembers opening.
         BROWSERS.clear();
+        ANNOUNCED.clear();
         AnimaMod.LOGGER.info("web-debugger: stopped");
     }
 
@@ -499,8 +508,11 @@ public final class WebDebugger {
      * chat unless it asks, which means nothing would say a browser is waiting at all.
      */
     private static void announce(String key, String from) {
+        if (!ANNOUNCED.add(key)) {
+            return;
+        }
         AnimaMod.LOGGER.info("web-debugger: a browser is asking to connect — \"{}\" from {}. "
-                + "Let it in with /anima web-debugger browser accept {}", key, from, key);
+                + "Let it in with /anima web-debugger allow {}", key, from, key);
         MinecraftServer server = world;
         if (server == null) {
             return;
@@ -530,7 +542,7 @@ public final class WebDebugger {
      * fastest.
      *
      * <p>Slept <b>outside</b> {@link WebBrowsers}'s monitor. Holding it here would queue the
-     * operator's own {@code browser accept} behind whoever is hammering the port. The parked thread
+     * operator's own {@code allow} behind whoever is hammering the port. The parked thread
      * is affordable because the pool is unbounded and its threads are daemons — a stopping server
      * interrupts them rather than waiting. It does mean a flood of refusals parks a thread each,
      * which on loopback is a thing its author could do to themselves by other means anyway.

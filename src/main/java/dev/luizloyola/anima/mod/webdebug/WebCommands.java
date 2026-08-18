@@ -17,17 +17,15 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * {@code /anima web-debugger} — the discovery path, the switch, and the door.
+ * {@code /anima web-debugger} — the discovery path, the switch, and who may look.
  *
  * <p><b>{@code start} runs it for this session and touches no setting.</b> That is the split worth
  * knowing: {@code web_debugger.enabled} is the AUTO-START switch, consulted once when a world
- * loads, and taking a look at a running world is not a decision about every future world. An
- * operator who wants it up every time sets the knob; an operator who wants it now types this.
+ * loads, and taking a look at a running world is not a decision about every future world.
  *
- * <p><b>{@code browser} is the only gated node under {@code /anima}</b>, which is otherwise
- * ungated to match {@code /autarkia}. Everything else here reads or drives agents, which is what
- * the root is for; this one hands a browser standing permission to do the same, and that is an
- * operator's decision even on a server where the rest is not.
+ * <p><b>Gated whole, unlike the rest of {@code /anima}.</b> Every node here either exposes a debug
+ * surface or hands a browser standing permission to drive agents. There is no longer a node in the
+ * group that does neither, so the gate sits on the root rather than on one child.
  */
 public final class WebCommands {
 
@@ -35,40 +33,38 @@ public final class WebCommands {
     }
 
     public static LiteralArgumentBuilder<CommandSourceStack> tree() {
-        return Commands.literal("web-debugger")
-                .executes(ctx -> show(ctx.getSource()))
-                .then(Commands.literal("start").executes(ctx -> start(ctx.getSource())))
-                .then(Commands.literal("stop").executes(ctx -> stop(ctx.getSource())))
-                .then(browser());
-    }
-
-    private static LiteralArgumentBuilder<CommandSourceStack> browser() {
         SuggestionProvider<CommandSourceStack> waiting = (ctx, builder) ->
                 SharedSuggestionProvider.suggest(
                         WebDebugger.browsers().waiting().stream()
                                 .map(WebBrowsers.Waiting::key).toList(), builder);
-        SuggestionProvider<CommandSourceStack> accepted = (ctx, builder) ->
+        SuggestionProvider<CommandSourceStack> allowed = (ctx, builder) ->
                 SharedSuggestionProvider.suggest(WebDebugger.browsers().allowed(), builder);
-        return Commands.literal("browser")
+        return Commands.literal("web-debugger")
+                // The one gated root under /anima, which is otherwise ungated. Every node here
+                // either exposes a debug surface or hands a browser standing permission to drive
+                // agents, so there is no node left that an ordinary player wants.
                 .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
-                .executes(ctx -> list(ctx.getSource()))
-                .then(Commands.literal("list").executes(ctx -> list(ctx.getSource())))
-                .then(Commands.literal("accept")
-                        .then(Commands.argument("key", StringArgumentType.word())
+                .executes(ctx -> show(ctx.getSource()))
+                .then(Commands.literal("start").executes(ctx -> start(ctx.getSource())))
+                .then(Commands.literal("stop").executes(ctx -> stop(ctx.getSource())))
+                .then(Commands.literal("access").executes(ctx -> access(ctx.getSource())))
+                .then(Commands.literal("allow")
+                        .then(Commands.argument("name", StringArgumentType.word())
                                 .suggests(waiting)
-                                .executes(ctx -> accept(ctx.getSource(), key(ctx)))))
-                .then(Commands.literal("reject")
-                        .then(Commands.argument("key", StringArgumentType.word())
+                                .executes(ctx -> allow(ctx.getSource(), name(ctx)))))
+                .then(Commands.literal("dismiss")
+                        .then(Commands.argument("name", StringArgumentType.word())
                                 .suggests(waiting)
-                                .executes(ctx -> reject(ctx.getSource(), key(ctx)))))
-                .then(Commands.literal("revoke")
-                        .then(Commands.argument("key", StringArgumentType.word())
-                                .suggests(accepted)
-                                .executes(ctx -> revoke(ctx.getSource(), key(ctx)))));
+                                .executes(ctx -> dismiss(ctx.getSource(), name(ctx)))))
+                .then(Commands.literal("remove")
+                        .then(Commands.argument("name", StringArgumentType.word())
+                                .suggests(allowed)
+                                .executes(ctx -> remove(ctx.getSource(), name(ctx)))));
     }
 
-    private static String key(com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx) {
-        return StringArgumentType.getString(ctx, "key").toLowerCase(Locale.ROOT);
+    private static String name(
+            com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx) {
+        return StringArgumentType.getString(ctx, "name").toLowerCase(Locale.ROOT);
     }
 
     // --- the server -------------------------------------------------------------------------
@@ -131,7 +127,7 @@ public final class WebCommands {
                     "anima.webdebug.session_only").withStyle(ChatFormatting.DARK_GRAY)));
         }
         if (WebDebugger.browsers().allowed().isEmpty()) {
-            Replies.send(source, () -> indent(Component.translatable("anima.webdebug.none_accepted")
+            Replies.send(source, () -> indent(Component.translatable("anima.webdebug.none_allowed")
                     .withStyle(ChatFormatting.YELLOW)));
         }
         // Said here as well as in the log: whoever is reading this is the person who can undo it,
@@ -144,12 +140,12 @@ public final class WebCommands {
 
     // --- the door ---------------------------------------------------------------------------
 
-    private static int list(CommandSourceStack source) {
+    private static int access(CommandSourceStack source) {
         WebBrowsers browsers = WebDebugger.browsers();
         List<WebBrowsers.Waiting> waiting = browsers.waiting();
         List<String> allowed = browsers.allowed();
 
-        Replies.send(source, () -> Component.translatable("anima.webdebug.list_closed")
+        Replies.send(source, () -> Component.translatable("anima.webdebug.list_title")
                 .withStyle(ChatFormatting.AQUA));
 
         if (waiting.isEmpty()) {
@@ -161,12 +157,12 @@ public final class WebCommands {
                     .withStyle(ChatFormatting.WHITE)
                     .append(Component.translatable("anima.webdebug.asked_from", browser.from(),
                             since(browser.askedAtMillis())).withStyle(ChatFormatting.DARK_GRAY))
-                    .append(button(" [accept]",
-                            "/anima web-debugger browser accept " + browser.key(),
-                            "anima.webdebug.hover.accept"))
-                    .append(button(" [reject]",
-                            "/anima web-debugger browser reject " + browser.key(),
-                            "anima.webdebug.hover.reject"))));
+                    .append(button(" [allow]",
+                            "/anima web-debugger allow " + browser.key(),
+                            "anima.webdebug.hover.allow"))
+                    .append(button(" [dismiss]",
+                            "/anima web-debugger dismiss " + browser.key(),
+                            "anima.webdebug.hover.dismiss"))));
         }
         if (allowed.isEmpty()) {
             Replies.send(source, () -> indent(Component.translatable("anima.webdebug.none_yet")
@@ -175,19 +171,19 @@ public final class WebCommands {
         for (String key : allowed) {
             Replies.send(source, () -> indent(Component.literal(key)
                     .withStyle(ChatFormatting.GREEN)
-                    .append(Component.translatable("anima.webdebug.is_accepted")
+                    .append(Component.translatable("anima.webdebug.is_allowed")
                             .withStyle(ChatFormatting.DARK_GRAY))
-                    .append(button(" [revoke]", "/anima web-debugger browser revoke " + key,
-                            "anima.webdebug.hover.revoke"))));
+                    .append(button(" [remove]", "/anima web-debugger remove " + key,
+                            "anima.webdebug.hover.remove"))));
         }
         return waiting.size() + allowed.size();
     }
 
-    private static int accept(CommandSourceStack source, String key) {
+    private static int allow(CommandSourceStack source, String key) {
         WebBrowsers.Admission admission = WebDebugger.browsers().allow(key);
         switch (admission) {
             case MALFORMED -> {
-                Replies.fail(source, Component.translatable("anima.webdebug.malformed_key", key));
+                Replies.fail(source, Component.translatable("anima.webdebug.malformed_name", key));
                 return 0;
             }
             case ALREADY -> {
@@ -197,34 +193,34 @@ public final class WebCommands {
             }
             default -> {
                 // LOGGED: this is the grant. Nothing else in the world records that it happened.
-                Replies.send(source, () -> Component.translatable("anima.webdebug.accepted", key)
+                Replies.send(source, () -> Component.translatable("anima.webdebug.allowed", key)
                         .withStyle(ChatFormatting.GREEN), true);
                 return 1;
             }
         }
     }
 
-    private static int reject(CommandSourceStack source, String key) {
+    private static int dismiss(CommandSourceStack source, String key) {
         if (!WebDebugger.browsers().dismiss(key)) {
             Replies.send(source, () -> Component.translatable("anima.webdebug.not_asking", key)
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        Replies.send(source, () -> Component.translatable("anima.webdebug.rejected", key)
+        Replies.send(source, () -> Component.translatable("anima.webdebug.dismissed", key)
                 .withStyle(ChatFormatting.GRAY), true);
         return 1;
     }
 
-    private static int revoke(CommandSourceStack source, String key) {
-        // Through WebDebugger, not the register: revoking has to close the stream that browser is
+    private static int remove(CommandSourceStack source, String key) {
+        // Through WebDebugger, not the register: removing has to close the stream that browser is
         // already holding, or it takes effect whenever the page next happens to reconnect.
         if (!WebDebugger.remove(key)) {
-            Replies.send(source, () -> Component.translatable("anima.webdebug.not_accepted", key)
+            Replies.send(source, () -> Component.translatable("anima.webdebug.not_allowed", key)
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        // LOGGED, for the reason accept is: it is the other half of the same decision.
-        Replies.send(source, () -> Component.translatable("anima.webdebug.revoked", key)
+        // LOGGED, for the reason allow is: it is the other half of the same decision.
+        Replies.send(source, () -> Component.translatable("anima.webdebug.removed", key)
                 .withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
@@ -242,10 +238,10 @@ public final class WebCommands {
                 .withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal(key).withStyle(ChatFormatting.WHITE))
                 .append(Component.literal(" (" + from + ")").withStyle(ChatFormatting.DARK_GRAY))
-                .append(button(" [accept]", "/anima web-debugger browser accept " + key,
-                        "anima.webdebug.hover.accept_this"))
-                .append(button(" [reject]", "/anima web-debugger browser reject " + key,
-                        "anima.webdebug.hover.reject"));
+                .append(button(" [allow]", "/anima web-debugger allow " + key,
+                        "anima.webdebug.hover.allow_this"))
+                .append(button(" [dismiss]", "/anima web-debugger dismiss " + key,
+                        "anima.webdebug.hover.dismiss"));
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             // Through a source stack rather than the player: the permission API moved in 26.1 and
             // this is the one spelling both targets share.
