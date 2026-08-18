@@ -11,9 +11,9 @@ name: CI
 on:
   push:
     branches: [main]
-    # Release tags carry the mod id — `anima-v0.2.0`. A bare `v*` tag matches nothing on purpose:
-    # each mod is cut on its own now, so a tag that cannot say what it releases releases nothing.
-    tags: ['anima-v*']
+    # A bare `v0.2.0` is unambiguous here: one repo, one mod, one version. The `anima-v` prefix
+    # this used to require was a leftover from the combined tree (dropped 2026-08-18).
+    tags: ['v*']
   pull_request:
   # The STRICT run. Non-primary nodes are allowed to lag during development, so on an ordinary
   # push their failures are swallowed by continue-on-error below — which means a broken node
@@ -134,7 +134,7 @@ jobs:
       # rebuild. Without MODRINTH_TOKEN the plugin runs dry, so a missing secret publishes nothing
       # instead of failing loudly; that is the plugin's choice, not this file's.
       - name: Release ${{ matrix.version }} to Modrinth
-        if: startsWith(github.ref, 'refs/tags/anima-v')
+        if: startsWith(github.ref, 'refs/tags/v')
         run: ./gradlew ":${{ matrix.version }}:publishMods" --no-daemon
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}

@@ -36,14 +36,11 @@ plugins {
 // `buildSrc` convention plugin.
 
 // Same versioning rule as Autarkia: an exact `v*` tag on HEAD is a release, anything else is
-// `<mod.version>-build.<commit timestamp>` (valid semver, which Loader requires of anything it
-// resolves).
+// `<mod.version>-SNAPSHOT` (valid semver, which Loader requires of anything it resolves).
 //
-// The tag is PREFIXED with the MOD ID — `anima-v0.2.0`, never a bare `v0.2.0`. One repo no longer
-// means one version: each mod carries its own number in its own `[<mod>]` table and is released
-// by its own tag, so cutting Anima does not drag Autarkia's number along behind it. A bare `v*`
-// tag now releases nothing at all, which is the intended failure — it is ambiguous about which
-// mod it means. See docs/superpowers/specs/2026-08-16-repo-split-design.md, slice 1.
+// A BARE `v0.2.0` — the `anima-v` prefix is gone (2026-08-18). It dated from the combined tree,
+// where a tag had to say which of two mods it cut; this repo holds one mod and one version, so
+// there is nothing left for a prefix to disambiguate.
 fun git(vararg args: String): String = providers.exec {
     workingDir(rootDir)
     commandLine("git", *args)
@@ -52,10 +49,9 @@ fun git(vararg args: String): String = providers.exec {
 
 // Top-level `mod.id` in stonecutter.properties.toml. This repo has a ROOT branch and one mod,
 // so there are no `[<mod>]` tables and no `sc.branch.id` tag shortening a path to reach them.
-// Read before the version, which is derived from it.
 val modId: String = sc.properties["mod.id"]
 
-val tagPrefix = "$modId-v"
+val tagPrefix = "v"
 val exactTag = git("describe", "--tags", "--exact-match", "--match", "$tagPrefix*")
 val isRelease = exactTag.startsWith(tagPrefix)
 
@@ -420,7 +416,7 @@ publishMods {
 // the artifact id keeps the version a clean semver string and the snapshot a real snapshot:
 //
 //     dev.luizloyola:anima-26.1.2:0.1.0-SNAPSHOT     (dev)
-//     dev.luizloyola:anima-26.1.2:0.2.0              (released by an `anima-v0.2.0` tag)
+//     dev.luizloyola:anima-26.1.2:0.2.0              (released by a `v0.2.0` tag)
 //
 // The jar on disk still encodes it the other way round (`anima-0.1.0-SNAPSHOT+26.1.2.jar`) because
 // that is the Fabric convention for a FILE a player downloads. Same two facts, two audiences.

@@ -5,8 +5,8 @@
 mod.id = "anima"
 mod.name = "Anima"
 mod.group = "dev.luizloyola"
-# Released by an `anima-v<version>` tag on HEAD. Anything else builds as
-# `<mod.version>-build.<commit timestamp>`. Autarkia carries its own number and is cut separately.
+# Released by a `v<version>` tag on HEAD. Anything else builds as `<mod.version>-SNAPSHOT`.
+# Autarkia carries its own number in its own repo and is cut separately.
 mod.version = "0.1.0"
 
 # Modrinth project id (slug "anima"); the create-version API needs the base62 id
