@@ -38,7 +38,7 @@ class WebDebuggerTest {
     @DisplayName("a reader parked on the feed is woken by the next publish, and sees that frame")
     void publishWakesAReader() throws Exception {
         WebFeed feed = new WebFeed();
-        feed.publish("{\"tick\":0}");
+        feed.publish(WebModel.EMPTY, "{\"tick\":0}");
         long caughtUp = feed.version();
 
         AtomicReference<WebFeed.Snapshot> got = new AtomicReference<>();
@@ -56,7 +56,7 @@ class WebDebuggerTest {
         reader.start();
         Thread.sleep(50); // let it reach the wait; publishing first would pass without parking
 
-        feed.publish("{\"tick\":1}");
+        feed.publish(WebModel.EMPTY, "{\"tick\":1}");
         assertTrue(done.await(5, TimeUnit.SECONDS), "the reader was never woken");
         assertNotNull(got.get());
         assertEquals("{\"tick\":1}", got.get().json());
@@ -74,7 +74,7 @@ class WebDebuggerTest {
     @DisplayName("a reader that already saw the latest version waits rather than re-sending it")
     void anUpToDateReaderWaits() throws Exception {
         WebFeed feed = new WebFeed();
-        feed.publish("{\"tick\":1}");
+        feed.publish(WebModel.EMPTY, "{\"tick\":1}");
         long version = feed.version();
         // Nothing new: this is the keepalive path, and re-sending here would spin the socket.
         assertNull(feed.awaitAfter(version, 50));
@@ -88,7 +88,7 @@ class WebDebuggerTest {
         // so the keepalive branch wrote eleven million lines in four seconds. The fix is a new
         // feed per run; this pins the property that made the old bug so loud.
         WebFeed feed = new WebFeed();
-        feed.publish("{\"tick\":1}");
+        feed.publish(WebModel.EMPTY, "{\"tick\":1}");
         feed.close(true);
 
         assertTrue(feed.isClosed());
@@ -104,7 +104,7 @@ class WebDebuggerTest {
         // A quiet world publishes nothing, so without this a revoked browser would keep streaming
         // until its keepalive came due fifteen seconds later.
         WebFeed feed = new WebFeed();
-        feed.publish("{\"tick\":1}");
+        feed.publish(WebModel.EMPTY, "{\"tick\":1}");
         long caughtUp = feed.version();
 
         AtomicReference<WebFeed.Snapshot> got = new AtomicReference<>(
@@ -133,7 +133,7 @@ class WebDebuggerTest {
     @DisplayName("closing releases parked readers instead of leaking their threads")
     void closeReleasesReaders() throws Exception {
         WebFeed feed = new WebFeed();
-        feed.publish("{\"tick\":1}");
+        feed.publish(WebModel.EMPTY, "{\"tick\":1}");
         CountDownLatch done = new CountDownLatch(1);
         AtomicReference<WebFeed.Snapshot> got = new AtomicReference<>(
                 new WebFeed.Snapshot(-1, "sentinel"));
@@ -154,13 +154,67 @@ class WebDebuggerTest {
         assertNull(got.get());
     }
 
+    @Test
+    @DisplayName("a reader's first write is the whole retained world, not the next delta")
+    void aReaderIsGreetedWithTheWholeModel() throws Exception {
+        WebFeed feed = new WebFeed();
+        WebModel model = WebModel.EMPTY
+                .against(4, java.util.Map.of("agents", "[]", "health", "{\"tps\":20}")).model();
+        feed.publish(model, "{\"tick\":4,\"agents\":[],\"health\":{\"tps\":20}}");
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        AtomicBoolean welcome = new AtomicBoolean(true);
+        Thread reader = new Thread(() -> {
+            try {
+                WebDebugger.pump(out, () -> 0L, feed, welcome::get);
+            } catch (IOException | InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        reader.setDaemon(true);
+        reader.start();
+        Thread.sleep(100);
+        welcome.set(false);
+        feed.wake();
+        reader.join(5_000);
+
+        assertTrue(out.toString(StandardCharsets.UTF_8)
+                        .startsWith("data: {\"tick\":4,\"agents\":[],\"health\":{\"tps\":20}}"),
+                "a partial frame merged onto nothing is a dashboard with holes in it");
+    }
+
+    @Test
+    @DisplayName("a reader arriving before the first frame is greeted with nothing at all")
+    void nothingToSayHelloWith() throws Exception {
+        WebFeed feed = new WebFeed();
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        AtomicBoolean welcome = new AtomicBoolean(true);
+        Thread reader = new Thread(() -> {
+            try {
+                WebDebugger.pump(out, () -> 0L, feed, welcome::get);
+            } catch (IOException | InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        reader.setDaemon(true);
+        reader.start();
+        Thread.sleep(100);
+        welcome.set(false);
+        feed.wake();
+        reader.join(5_000);
+
+        assertFalse(out.toString(StandardCharsets.UTF_8).contains("data:"),
+                "an empty model must not be greeted as a world of nothing");
+    }
+
     // --- the goodbye ----------------------------------------------------------------------------
 
     @Test
     @DisplayName("a stream whose feed closes signs off with a stop event")
     void aClosedFeedEndsTheStreamWithStop() throws Exception {
         WebFeed feed = new WebFeed();
-        feed.publish("{\"tick\":1}");
+        feed.publish(WebModel.EMPTY, "{\"tick\":1}");
         ByteArrayOutputStream wire = new ByteArrayOutputStream();
 
         CountDownLatch done = new CountDownLatch(1);
@@ -190,7 +244,7 @@ class WebDebuggerTest {
     void anUnwelcomeStreamDoesNotSayStop() throws Exception {
         // The two endings must not look alike: a revoke is worth reconnecting into, a stop is not.
         WebFeed feed = new WebFeed();
-        feed.publish("{\"tick\":1}");
+        feed.publish(WebModel.EMPTY, "{\"tick\":1}");
         ByteArrayOutputStream wire = new ByteArrayOutputStream();
 
         WebDebugger.pump(wire, wire::size, feed, () -> false);
@@ -201,7 +255,7 @@ class WebDebuggerTest {
     @DisplayName("a restart says nothing — the browser reconnects into the server already coming up")
     void aRestartDoesNotSayStop() throws Exception {
         WebFeed feed = new WebFeed();
-        feed.publish("{\"tick\":1}");
+        feed.publish(WebModel.EMPTY, "{\"tick\":1}");
         feed.close(false);
         ByteArrayOutputStream wire = new ByteArrayOutputStream();
 
@@ -219,7 +273,7 @@ class WebDebuggerTest {
         // flushed frame back until later ones fill a block, so the dashboard connects, shows
         // nothing, and looks like a dead server.
         WebFeed feed = new WebFeed();
-        feed.publish("{\"tick\":1}");
+        feed.publish(WebModel.EMPTY, "{\"tick\":1}");
         ByteArrayOutputStream socket = new ByteArrayOutputStream();
         WebDebugger.Counted wire = new WebDebugger.Counted(socket);
         GZIPOutputStream zipped = new GZIPOutputStream(wire, true);
@@ -264,7 +318,7 @@ class WebDebuggerTest {
         // honest one there is — and it has to be the small number, not the JSON's length.
         WebFeed feed = new WebFeed();
         String frame = "{\"tick\":1,\"agents\":[" + "\"aaaaaaaaaaaaaaaaaaaa\",".repeat(200) + "\"z\"]}";
-        feed.publish(frame);
+        feed.publish(WebModel.EMPTY, frame);
         ByteArrayOutputStream socket = new ByteArrayOutputStream();
         WebDebugger.Counted wire = new WebDebugger.Counted(socket);
 
