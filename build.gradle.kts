@@ -339,11 +339,10 @@ tasks {
     // because the LGPL is not a whole licence: it is additional permissions written on top of the
     // GPL and incorporates it by reference.
     //
-    // TRADEMARKS.md and THIRD-PARTY.md were dropped on 2026-08-16 while the legal docs are
-    // reworked (the files themselves are gone). A `from()` naming a missing file is a silent
-    // no-op in Gradle, so these lines went too rather than staying as decoration that looks like
-    // it does something. What lapsed is the PROSE — the name reservation, and the sentence saying
-    // which library the GNU texts below belong to — not the licence terms.
+    // NOTICE is the prose those texts need to mean anything: two GNU documents in a jar name no
+    // library on their own, and the name reservation lives nowhere else a downloader can read. A
+    // `from()` naming a missing file is a silent no-op in Gradle, so JarContentsTest asserts the
+    // file landed rather than trusting this line.
     named<Jar>("jar") {
         // Which commit this is. The version string stopped saying so when dev builds became
         // `-SNAPSHOT`, and "is the running game the code I just compiled" is a question this
@@ -356,6 +355,7 @@ tasks {
         )
 
         from(rootProject.file("LICENSE"))
+        from(rootProject.file("NOTICE"))
         from(rootProject.file("licenses")) { into("licenses") }
     }
 

@@ -43,14 +43,13 @@ class JarContentsTest {
             "META-INF/", "licenses/");
 
     /**
-     * Top-level files that belong in the jar by name. {@code TRADEMARKS.md} and
-     * {@code THIRD-PARTY.md} went with the files on 2026-08-16 while the legal docs are reworked;
-     * the licence TEXTS still ship — {@code LICENSE}, and the GNU pair under {@code licenses/} for
-     * the nested night-config.
+     * Top-level files that belong in the jar by name: {@code LICENSE} for this mod's own terms,
+     * {@code NOTICE} for the prose around them, and the GNU pair under {@code licenses/} for the
+     * nested night-config.
      */
     private static final List<String> ALLOWED_FILES = List.of(
             "fabric.mod.json", MOD_ID + ".mixins.json", MOD_ID + ".accesswidener", MOD_ID + ".ct",
-            "LICENSE");
+            "LICENSE", "NOTICE");
 
     /**
      * The nested jars this mod is allowed to carry, BY NAME rather than under a blanket
@@ -84,14 +83,15 @@ class JarContentsTest {
                         + LICENCE + " — one of the two is wrong");
         assertEquals(LICENCE, METADATA.get("license").getAsString(),
                 "fabric.mod.json declares a licence this mod does not ship");
+        assertTrue(JAR.has("NOTICE"), JAR.name() + " ships no NOTICE");
     }
 
     @Test
     @DisplayName("the nested library's terms travel with it")
     void nestedLicenceTextIsPackaged() {
-        // The THIRD-PARTY.md assertion went with the file on 2026-08-16. night-config's own jars
-        // carry no licence text, so these two files are the only place a holder of this jar can
-        // read the terms of the code nested inside it.
+        // night-config's own jars carry no licence text, so these two files are the only place a
+        // holder of this jar can read the terms of the code nested inside it — and NOTICE is the
+        // only place that says the texts are night-config's rather than this mod's.
         for (String text : List.of("licenses/LGPL-3.0.txt", "licenses/GPL-3.0.txt")) {
             assertTrue(JAR.has(text), text + " is missing — LGPL-3.0 is not conveyed by naming it");
         }
@@ -99,6 +99,8 @@ class JarContentsTest {
                         .startsWith("                   GNU LESSER GENERAL PUBLIC LICENSE"),
                 "licenses/LGPL-3.0.txt is not the verbatim LGPL — the file night-config is "
                         + "actually licensed under is the one that has to be in here");
+        assertTrue(JAR.text("NOTICE").contains("night-config"),
+                "NOTICE does not name night-config, so the GNU texts beside it identify nothing");
     }
 
     @Test
@@ -112,8 +114,8 @@ class JarContentsTest {
         assertEquals(ALLOWED_NESTED_JARS.stream().sorted().toList(), nested,
                 "the nested jars are not the ones this mod declares. Anima nests night-config and "
                         + "nothing else, and each nested jar carries a licence somebody has to "
-                        + "have read: a new one here needs a row in THIRD-PARTY.md and its text "
-                        + "in licenses/ before it ships");
+                        + "have read: a new one here needs naming in NOTICE and its text in "
+                        + "licenses/ before it ships");
     }
 
     @Test

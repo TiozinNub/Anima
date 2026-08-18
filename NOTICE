@@ -1,0 +1,43 @@
+Anima
+
+Copyright 2026 Luiz Loyola
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+---
+
+Full text in LICENSE, beside this file.
+
+## The library inside this jar
+
+night-config (`core` and `toml`), by TheElectronWill, is the TOML reader and writer behind Anima's
+config files. It rides nested at `META-INF/jars/`, unmodified, exactly as published to Maven
+Central: https://github.com/TheElectronWill/night-config
+
+It is LGPL-3.0, and its own jars carry no licence text — so `licenses/LGPL-3.0.txt` and
+`licenses/GPL-3.0.txt` in this jar are the only place a holder of this file can read its terms.
+Both texts, because the LGPL is not a whole licence: it is additional permissions written on top of
+the GPL, and one without the other conveys nothing.
+
+Replacing it is meant to work. Drop a newer night-config into `mods/` and Fabric Loader prefers it
+over the copy nested here; nothing is shaded or relocated, so nothing needs recompiling.
+
+## About the name
+
+"Anima" is Latin — soul, breath, the thing that animates. It is an old word and I did not invent
+it, but the association between that name and this library is mine, as is the mod id `anima` that
+identifies it to the game. Neither is covered by the Apache licence: the licence is about code, and
+says nothing about naming.
+
+Fork freely, rename before you publish or clearly state it's a fork. Let me know if you do, I'd love
+to see other people's work on it.

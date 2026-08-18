@@ -51,6 +51,8 @@ Writing this to clarify that there is a very big difference between a literal ch
 
 This library is licensed under the **Apache License 2.0** (`Apache-2.0`).
 
-TL;DR: Build whatever you want on it — open, closed, free, paid, no obligation to share your own code. Keep the notice, and say what you changed if you ship a modified Anima. Comes with an explicit patent grant. Do not claim it as your own. Do not come complaining if the mod corrupts your world. Full license here.
+TL;DR: Build whatever you want on it — open, closed, free, paid, no obligation to share your own code. Keep the notice, and say what you changed if you ship a modified Anima. Comes with an explicit patent grant. Do not claim it as your own. Do not come complaining if the mod corrupts your world. [Full license here](https://www.apache.org/licenses/LICENSE-2.0).
 
-One third-party library rides inside this jar: [night-config](https://github.com/TheElectronWill/night-config) (LGPL-3.0), the TOML reader behind the config files. See THIRD-PARTY.md.
+One third-party library rides inside this jar: [night-config](https://github.com/TheElectronWill/night-config) (LGPL-3.0), the TOML reader behind the config files. It is nested unmodified, and its terms travel in the jar at `licenses/` — drop a newer one into `mods/` and Fabric Loader prefers it.
+
+The name is not part of the license. *Anima* is Latin and I did not invent it, but the association between that name and this library is mine, as is the mod id `anima`. Fork freely, rename before you publish or clearly state it's a fork. Let me know if you do, I'd love to see other people's work on it. `LICENSE` and `NOTICE` ride inside every jar.
