@@ -4,7 +4,6 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.ConfigValues;
-import dev.luizloyola.anima.core.config.Keys;
 import dev.luizloyola.anima.core.config.Knob;
 import dev.luizloyola.anima.mod.AnimaMod;
 import java.io.IOException;
@@ -14,7 +13,6 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -51,20 +49,20 @@ import org.jspecify.annotations.Nullable;
  * <p><b>Two guards, and they do not cover the same routes.</b> Every route requires a loopback
  * {@code Host} — that is what a DNS-rebinding attempt fails, and {@link #isAcceptableHost} refuses
  * DNS names outright so it holds at any bind address. Only the routes that return or change world
- * state require the key, in an {@code X-Api-Key} header.
+ * state require a key an operator has accepted, in an {@code X-Api-Key} header.
  *
  * <p>{@code GET /} is deliberately open, because it carries nothing: a fixed page naming the app
- * to load. The <b>app</b> owns the key from there — it reads it out of the {@code ?key=} the
- * operator opened, stores it, strips it from the address bar, and sends the header on every call.
- * Keeping the key out of the served HTML is what lets the page be cached-never and shared freely
- * while the data behind it is not.
+ * to load. The <b>app</b> owns its key from there — it makes one, keeps it, and offers it at
+ * {@code /api/register} until somebody in the game admits it. Nothing in the served HTML and
+ * nothing in the address is worth having, which is what lets the page be cached-never and shared
+ * freely while the data behind it is not. See {@link WebBrowsers} for why a key that weak is
+ * enough.
  *
  * <p><b>{@link Knob#WEB_HOST} can widen that, and nothing else about the design changes to
- * compensate.</b> There is no TLS and no login. Bound anywhere but
- * loopback, every mind is readable and drivable by whatever can reach the port, so the bind is
- * announced with a warning rather than left to be discovered. A non-loopback origin also is not
- * <em>potentially trustworthy</em>, so the page stops being a secure context and the APIs that
- * needs go with it.
+ * compensate.</b> There is no TLS. Bound anywhere but loopback, every mind is readable and
+ * drivable by whatever can reach the port and holds an accepted key, so the bind is announced with
+ * a warning rather than left to be discovered. A non-loopback origin also is not <em>potentially
+ * trustworthy</em>, so the page stops being a secure context and the APIs that needs go with it.
  *
  * <p>See {@code docs/superpowers/specs/2026-08-17-dashboard-design.md}.
  */
@@ -73,7 +71,7 @@ public final class WebDebugger {
     /** Snapshot cadence. {@code DebugView}'s: four ticks reads as instant and costs nothing. */
     private static final int SEND_INTERVAL_TICKS = 4;
 
-    /** Where the key travels. Not the query string — see {@link #keyed}. */
+    /** Where a browser's key travels. Not the query string — see {@link #keyed}. */
     public static final String KEY_HEADER = "X-Api-Key";
 
     /**
@@ -90,6 +88,10 @@ public final class WebDebugger {
     private static final long KEEPALIVE_MILLIS = 15_000L;
 
     private static final WebFeed FEED = new WebFeed();
+
+    /** Saving is passed in rather than called: {@link WebBrowsers} is core-shaped and has no file. */
+    private static final WebBrowsers BROWSERS =
+            new WebBrowsers(() -> AnimaMod.CONFIG.save(Config.get()));
 
     private static @Nullable HttpServer http;
     private static @Nullable ExecutorService pool;
@@ -156,28 +158,9 @@ public final class WebDebugger {
         return Config.get().s(Knob.WEB_APP_URL);
     }
 
-    /**
-     * This installation's key — the one thing guarding every route.
-     *
-     * <p>Normally {@code ConfigFile} has already generated and saved it on load, and this is a
-     * field read. The generate-and-persist here is the safety net for a config that was never
-     * loaded from a file at all (a test, an embedded run): without it the key would be empty,
-     * {@link #keyed} would refuse everything, and the failure would read as a broken server
-     * rather than a missing key.
-     *
-     * <p>Synchronised so two requests arriving together cannot generate two different keys and
-     * leave whichever lost holding an address that no longer works.
-     */
-    public static synchronized String key() {
-        String existing = Config.get().s(Knob.WEB_KEY);
-        if (!existing.isEmpty()) {
-            return existing;
-        }
-        String fresh = Keys.generate();
-        Config.install(Config.get().with(Knob.WEB_KEY, fresh));
-        AnimaMod.CONFIG.save(Config.get());
-        AnimaMod.LOGGER.info("web-debugger: generated a key for this installation");
-        return fresh;
+    /** Who may read this world, who is asking, and the door — {@code /anima web-debugger browser}. */
+    public static WebBrowsers browsers() {
+        return BROWSERS;
     }
 
     /** Whether a server is listening right now. */
@@ -186,7 +169,8 @@ public final class WebDebugger {
     }
 
     /**
-     * The address to open, key included — what {@code /anima web-debugger} prints.
+     * The address to open — what {@code /anima web-debugger} prints. It carries nothing: the
+     * browser brings its own key and asks to be let in, so this can be pasted anywhere.
      *
      * <p>A wildcard bind has no address to name, so it prints as loopback: every interface includes
      * this one, and the operator who set {@code 0.0.0.0} knows their own LAN address better than
@@ -197,7 +181,7 @@ public final class WebDebugger {
         String reachable = bound.equals("0.0.0.0") || bound.equals("::") ? "127.0.0.1" : bound;
         // An IPv6 literal needs brackets in a URL; a bare ::1 would parse as host "" port ":1".
         String inUrl = reachable.contains(":") ? "[" + reachable + "]" : reachable;
-        return "http://" + inUrl + ":" + port() + "/?key=" + key();
+        return "http://" + inUrl + ":" + port() + "/";
     }
 
     /** Call once from common mod init. */
@@ -241,13 +225,15 @@ public final class WebDebugger {
             });
             created.setExecutor(created_pool);
             created.createContext("/", WebDebugger::serveStub);
+            created.createContext("/api/register", WebDebugger::serveRegister);
             created.createContext("/api/stream", WebDebugger::serveStream);
             created.createContext("/api/watch", WebDebugger::serveWatch);
             created.createContext("/api/command", WebDebugger::serveCommand);
             created.start();
             http = created;
             pool = created_pool;
-            AnimaMod.LOGGER.info("web-debugger: listening — open {}", address());
+            AnimaMod.LOGGER.info("web-debugger: listening — open {} ({} browser(s) accepted)",
+                    address(), BROWSERS.accepted().size());
             warnIfExposed();
             return null;
         } catch (UnknownHostException e) {
@@ -285,9 +271,10 @@ public final class WebDebugger {
             return;
         }
         AnimaMod.LOGGER.warn("web-debugger: bound to {} — NOT loopback. Every agent's mind is readable, "
-                + "and its commands drivable, by anything that can reach {}:{} and read the key "
-                + "off the URL. There is no TLS and no login. Set web_debugger.host back to "
-                + "127.0.0.1 unless you meant this.", host(), host(), port());
+                + "and its commands drivable, by anything that can reach {}:{} and holds an "
+                + "accepted browser key — which travels in the clear, there being no TLS. Set "
+                + "web_debugger.host back to 127.0.0.1 unless you meant this.",
+                host(), host(), port());
     }
 
     /** Stops listening and releases every parked stream. Safe to call when nothing is running. */
@@ -304,6 +291,9 @@ public final class WebDebugger {
             pool = null;
         }
         watch = WebWatch.NONE;
+        // The queue and the door are per-session: a browser that was waiting will ask again, and
+        // a door left open across a restart is one nobody remembers opening.
+        BROWSERS.clear();
         AnimaMod.LOGGER.info("web-debugger: stopped");
     }
 
@@ -312,10 +302,9 @@ public final class WebDebugger {
     /**
      * The stub, served to anything on this machine that asks — <b>no key required</b>.
      *
-     * <p>It can be, because it carries no secret: it is a fixed page naming the app to load, and
-     * the key never enters it. The app reads the key out of the query string the operator opened,
-     * puts it in local storage, strips it from the address bar, and sends it as {@code X-Api-Key}
-     * from then on. Everything worth guarding is behind {@link #keyed}.
+     * <p>It can be, because it carries no secret: it is a fixed page naming the app to load. The
+     * app makes its own key, keeps it in local storage, and sends it as {@code X-Api-Key} from
+     * then on. Everything worth guarding is behind {@link #keyed}.
      *
      * <p>That is also why this page must stay boring. Anything the stub learned about the world
      * would be readable by any local page that guessed the port.
@@ -348,13 +337,71 @@ public final class WebDebugger {
                         + " 'unsafe-inline'; img-src 'self' data: " + origin
                         + "; font-src " + origin + "; connect-src " + connectSrc(app)
                         + "; base-uri 'none'");
-        // Load-bearing: the URL that opened this page still carries ?key=, and fetching the app
-        // script from another origin would otherwise send that whole URL in a Referer header.
+        // Nothing in the URL to leak any more, but the site has no business seeing the port and
+        // path a private tool runs on either.
         exchange.getResponseHeaders().add("Referrer-Policy", "no-referrer");
-        // The key handoff is per-visit and the app rewrites the address bar; a cached stub would
-        // also pin an app_url the operator has since changed.
+        // A cached stub would pin an app_url the operator has since changed.
         exchange.getResponseHeaders().add("Cache-Control", "no-store");
         send(exchange, 200, html.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * A browser offering its key — the only way into {@link WebBrowsers}'s queue, and the only
+     * route a page with no standing here may usefully call.
+     *
+     * <p><b>200 or 401, and 401 says nothing about which.</b> Refused, queued, malformed and
+     * locked out are one answer on the wire: telling them apart would hand a guesser the oracle
+     * the whole design is built to withhold. The page's job is simply to keep asking.
+     */
+    private static void serveRegister(HttpExchange exchange) throws IOException {
+        if (!fromLoopback(exchange)) {
+            return;
+        }
+        String supplied = exchange.getRequestHeaders().getFirst(KEY_HEADER);
+        String key = supplied == null ? "" : supplied;
+        String from = remoteAddress(exchange);
+        WebBrowsers.Outcome outcome = BROWSERS.register(key, from);
+        if (outcome == WebBrowsers.Outcome.ASKED) {
+            announce(key, from);
+        }
+        if (outcome == WebBrowsers.Outcome.ACCEPTED) {
+            send(exchange, 200, "{\"ok\":true}".getBytes(StandardCharsets.UTF_8));
+        } else {
+            refuse(exchange);
+        }
+    }
+
+    /**
+     * Tells whoever can act on it that a browser is waiting, in the log and to every operator in
+     * the game with the two commands as buttons.
+     *
+     * <p>This is the discovery path, and it replaces one: the address used to carry the key, so
+     * printing it was the whole handoff. Now the key belongs to the browser and never appears in
+     * chat unless it asks, which means nothing would say a browser is waiting at all.
+     */
+    private static void announce(String key, String from) {
+        AnimaMod.LOGGER.info("web-debugger: a browser is asking to connect — \"{}\" from {}. "
+                + "Let it in with /anima web-debugger browser accept {}", key, from, key);
+        MinecraftServer server = world;
+        if (server == null) {
+            return;
+        }
+        // Off the HTTP thread: the player list is the server's, and this is the same hand-off
+        // every other route makes for the same reason.
+        server.execute(() -> WebCommands.tellOperators(server, key, from));
+    }
+
+    /** The one answer every refusal gets. @see #serveRegister */
+    private static void refuse(HttpExchange exchange) throws IOException {
+        send(exchange, 401, "{\"ok\":false}".getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** Who is calling, for the queue and the log. Never resolved to a name. */
+    private static String remoteAddress(HttpExchange exchange) {
+        InetSocketAddress remote = exchange.getRemoteAddress();
+        return remote == null || remote.getAddress() == null
+                ? "?"
+                : remote.getAddress().getHostAddress();
     }
 
     /**
@@ -450,27 +497,27 @@ public final class WebDebugger {
     }
 
     /**
-     * {@link #fromLoopback} plus the key — what everything that returns or changes world state
-     * asks for, and the stub does not.
+     * {@link #fromLoopback} plus an accepted key — what everything that returns or changes world
+     * state asks for, and the stub does not.
      *
      * <p><b>The key arrives in {@code X-Api-Key}, never the query string.</b> A header does not
      * land in the address bar, in browser history, or in a {@code Referer}; it is also the one
-     * place a same-origin request can carry a secret without a preflight. The query string is the
-     * one-time handoff into the page and nothing reads it here.
+     * place a same-origin request can carry a secret without a preflight.
+     *
+     * <p>401 rather than 403, and the same 401 {@code /api/register} gives: a browser that has not
+     * been accepted <em>yet</em> is the ordinary state here, not an error, and the page must read
+     * it as "keep asking" rather than as "forget your key".
      */
     private static boolean keyed(HttpExchange exchange) throws IOException {
         if (!fromLoopback(exchange)) {
             return false;
         }
-        String expected = key();
-        String supplied = exchange.getRequestHeaders().getFirst(KEY_HEADER);
-        // Constant-time: a byte-at-a-time compare leaks the key's prefix to anything that can time
-        // the reply, and this endpoint answers as fast as an attacker cares to ask.
-        if (expected.isEmpty() || supplied == null || !constantTimeEquals(expected, supplied)) {
-            send(exchange, 403, "bad key".getBytes(StandardCharsets.UTF_8));
-            return false;
+        if (BROWSERS.check(exchange.getRequestHeaders().getFirst(KEY_HEADER))
+                == WebBrowsers.Outcome.ACCEPTED) {
+            return true;
         }
-        return true;
+        refuse(exchange);
+        return false;
     }
 
     /**
@@ -502,12 +549,6 @@ public final class WebDebugger {
         }
         int colon = trimmed.indexOf(':');
         return colon < 0 ? trimmed : trimmed.substring(0, colon);
-    }
-
-    /** Compares without an early exit, so the time taken says nothing about how much matched. */
-    private static boolean constantTimeEquals(String expected, String supplied) {
-        return MessageDigest.isEqual(
-                expected.getBytes(StandardCharsets.UTF_8), supplied.getBytes(StandardCharsets.UTF_8));
     }
 
     /** {@code localhost}, {@code ::1}, or anything in {@code 127/8} — all of which stay on this box. */

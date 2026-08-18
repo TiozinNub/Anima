@@ -102,10 +102,11 @@ public final class YaclConfigScreen {
                                 .range((int) knob.min(), (int) knob.max()))
                         .build();
             case STRING:
-            case KEY:
+            case LIST:
                 // No range on the controller: YACL's text field has no length bound, so the
                 // sanitise in ConfigValues.with is the only gate — and it is the one the file
-                // takes too, so the screen cannot admit what a reload would reject.
+                // takes too, so the screen cannot admit what a reload would reject. A LIST edits
+                // as its comma-joined text, which sanitise normalises on the way back in.
                 return Option.<String>createBuilder()
                         .name(name)
                         .description(description)

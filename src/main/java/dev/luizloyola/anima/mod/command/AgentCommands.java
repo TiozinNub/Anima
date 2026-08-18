@@ -838,7 +838,7 @@ public final class AgentCommands {
             case INT -> Long.toString((long) value);
             case DOUBLE -> String.format(Locale.ROOT, "%s", value);
             // Unreachable: ProfileAspect.register refuses STRING, an aspect being a numeric dial.
-            case STRING, KEY -> throw new IllegalStateException(aspect.key() + " holds text");
+            case STRING, LIST -> throw new IllegalStateException(aspect.key() + " holds text");
         };
     }
 

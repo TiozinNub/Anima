@@ -164,25 +164,26 @@ public enum Knob implements KnobSpec {
     WEB_HOST("web_debugger.host", Kind.STRING, "127.0.0.1", 1, 64,
             "Address the web debugger binds to. 127.0.0.1 keeps it on this machine, which is the "
                     + "only setting the security story is written for: it exposes every agent's "
-                    + "mind and its commands drive them, and the key below is the ONLY thing "
-                    + "guarding it. Anything else — a LAN address, or 0.0.0.0 for every interface "
-                    + "— puts that on the network in the clear, over plain HTTP, where the key is "
-                    + "readable by anything on the path. The server logs a warning when it binds "
-                    + "anywhere but loopback. A non-loopback address also stops the page being a "
-                    + "secure context, which some browser APIs need."),
+                    + "mind and its commands drive them, and the accepted browser keys below are "
+                    + "the ONLY thing guarding it. Anything else — a LAN address, or 0.0.0.0 for "
+                    + "every interface — puts that on the network in the clear, over plain HTTP, "
+                    + "where a key is readable by anything on the path. The server logs a warning "
+                    + "when it binds anywhere but loopback. A non-loopback address also stops the "
+                    + "page being a secure context, which some browser APIs need."),
     /**
-     * The one secret guarding the whole thing. Generated rather than defaulted — a shipped default
-     * would be the same on every install, which is no guard at all.
+     * Who may read this world through a browser. Written by
+     * {@code /anima web-debugger browser accept}, not by hand.
      *
-     * @see dev.luizloyola.anima.mod.webdebug.WebDebugger#key()
+     * @see dev.luizloyola.anima.mod.webdebug.WebBrowsers
      */
-    WEB_KEY("web_debugger.key", Kind.KEY, "", Keys.LENGTH, 64,
-            "The key that must appear in the web debugger's URL. Left empty, this installation "
-                    + "generates one the first time the config is loaded and writes it here, so "
-                    + "the address stays the same across restarts and can be bookmarked. Clear it "
-                    + "to have a fresh one generated on the next load — which is how you revoke a "
-                    + "key you have pasted somewhere you should not have. Run /anima web-debugger "
-                    + "to see the current address."),
+    WEB_ACCEPTED_KEYS("web_debugger.accepted_keys", Kind.LIST, "", 0, 512,
+            "Browsers allowed to read this world. Each browser makes its own key, keeps it, and "
+                    + "asks to be let in; an operator admits it with /anima web-debugger browser "
+                    + "accept, which writes it here. Nothing is admitted automatically and the "
+                    + "list starts empty. Remove a line — or run browser revoke — to shut that "
+                    + "browser out; it can ask again, but only while an operator has run browser "
+                    + "open. A key here is a password: anything that presents one reads every "
+                    + "mind and drives it."),
     /**
      * Text rather than a bundled asset: the page served from here is a stub, and the UI itself is
      * fetched from this URL. @see dev.luizloyola.anima.mod.webdebug.WebDebugger

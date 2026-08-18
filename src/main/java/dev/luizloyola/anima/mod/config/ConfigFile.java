@@ -5,7 +5,6 @@ import com.electronwill.nightconfig.core.UnmodifiableConfig;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.ConfigStore;
 import dev.luizloyola.anima.core.config.ConfigValues;
-import dev.luizloyola.anima.core.config.Keys;
 import dev.luizloyola.anima.core.config.KnobSet;
 import dev.luizloyola.anima.core.config.KnobSpec;
 import dev.luizloyola.anima.mod.AnimaMod;
@@ -77,12 +76,8 @@ public final class ConfigFile {
         // fails, and a file that will not parse needs an untouched one to compare against.
         DefaultsFile.write(path, render(set.defaults()), set.title() + " config");
         if (!Files.exists(path)) {
-            // Through materialise, not straight from defaults: a KEY generates on FIRST load, and
-            // this branch IS the first load. Writing set.defaults() here left key = "" in the file
-            // and put generation off until the second boot.
-            ConfigValues fresh = Keys.materialise(set.defaults());
-            store.install(fresh);
-            save(fresh);
+            store.install(set.defaults());
+            save(set.defaults());
             AnimaMod.LOGGER.info("{} config: wrote defaults to {}", set.title(), path);
             return List.of();
         }
@@ -107,11 +102,12 @@ public final class ConfigFile {
                 continue; // absent: the default stands, silently — that is what a fresh file means
             }
             if (knob.kind().textual()) {
-                if (value instanceof String s) {
-                    suppliedText.put(knob, s);
-                } else {
+                String text = asText(value, knob);
+                if (text == null) {
                     problems.add(knob.key() + ": expected " + knob.expects()
                             + ", found " + describe(value) + " — using " + knob.formatDefault());
+                } else {
+                    suppliedText.put(knob, text);
                 }
                 continue;
             }
@@ -127,33 +123,12 @@ public final class ConfigFile {
 
         ConfigValues.Loaded loaded = ConfigValues.from(set, supplied, suppliedText);
         problems.addAll(loaded.problems());
-        store.install(generateMissingKeys(loaded.config()));
+        store.install(loaded.config());
 
         for (String problem : problems) {
             AnimaMod.LOGGER.warn("{} config: {}", set.title(), problem);
         }
         return List.copyOf(problems);
-    }
-
-    /**
-     * Fills in any {@link KnobSpec.Kind#KEY} the file did not carry, and writes it straight back.
-     *
-     * <p>Persisting here rather than at first use is what makes a generated key <em>stable</em>: an
-     * installation's key survives restarts, so the URL it appears in can be bookmarked. A key
-     * regenerated per boot would be safer by a hair and unusable in practice.
-     *
-     * <p>Only writes when something was actually generated — {@link Keys#materialise} returns the
-     * same instance otherwise, so an ordinary load does not rewrite the operator's file.
-     */
-    private ConfigValues generateMissingKeys(ConfigValues loaded) {
-        ConfigValues filled = Keys.materialise(loaded);
-        if (filled == loaded) {
-            return loaded;
-        }
-        save(filled);
-        AnimaMod.LOGGER.info("{} config: generated a key for this installation and saved it to {}",
-                set.title(), path());
-        return filled;
     }
 
     /**
@@ -236,6 +211,31 @@ public final class ConfigFile {
         return null;
     }
 
+    /**
+     * The stored text for a parsed TOML value, or null when it isn't the knob's kind.
+     *
+     * <p>A {@link KnobSpec.Kind#LIST} is an array in the file and a comma-joined string in memory,
+     * so this is where the two meet. A non-string element is refused rather than stringified: a
+     * bare {@code [1, 2]} is a mistake worth naming, and {@code String.valueOf} would quietly make
+     * it look accepted.
+     */
+    private static String asText(Object value, KnobSpec knob) {
+        if (knob.kind() != KnobSpec.Kind.LIST) {
+            return value instanceof String s ? s : null;
+        }
+        if (!(value instanceof List<?> entries)) {
+            return null;
+        }
+        List<String> strings = new ArrayList<>(entries.size());
+        for (Object entry : entries) {
+            if (!(entry instanceof String s)) {
+                return null;
+            }
+            strings.add(s);
+        }
+        return KnobSpec.joinList(strings);
+    }
+
     /** How a rejected value should read back to the operator, quoted the way TOML would write it. */
     private static String describe(Object value) {
         return value instanceof String s ? "\"" + s + "\"" : String.valueOf(value);
@@ -250,7 +250,8 @@ public final class ConfigFile {
             case BOOL -> config.b(knob);
             case INT -> (long) config.get(knob);
             case DOUBLE -> config.get(knob);
-            case STRING, KEY -> config.s(knob);
+            case STRING -> config.s(knob);
+            case LIST -> KnobSpec.splitList(config.s(knob));
         };
     }
 

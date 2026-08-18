@@ -138,11 +138,15 @@ public final class ConfigCommands {
      * A text knob's half of {@link #set}. Refuses rather than silently substituting the default:
      * {@code sanitise} exists so a hand-edited FILE degrades instead of failing, but an operator
      * who just typed the value is owed the news that it did not take.
+     *
+     * <p>The test is <b>did it fall back</b>, not <b>did it change</b>: a {@link KnobSpec.Kind#LIST}
+     * also normalises spacing, and refusing {@code "a-b, c-d"} for the space would be a puzzle
+     * rather than a correction. Falling back always lands on the default, which is what this reads.
      */
     private static int setText(CommandSourceStack source, ConfigStore store, ConfigFile file,
             KnobSpec knob, String value) {
         String landed = knob.sanitise(value);
-        if (!landed.equals(value.strip())) {
+        if (landed.equals(knob.defText()) && !landed.equals(value.strip())) {
             Replies.fail(source, Component.literal(knob.key() + " accepts " + knob.expects()
                     + " — \"" + value + "\" is not one"));
             return 0;

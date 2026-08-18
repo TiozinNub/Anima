@@ -25,7 +25,7 @@ public final class ConfigValues {
     private final KnobSet set;
     private final double[] values;
     /**
-     * Text for the {@link KnobSpec.Kind#STRING} knobs, at the same slots. A parallel array rather
+     * Text for the {@linkplain KnobSpec.Kind#textual textual} knobs, at the same slots. A parallel array rather
      * than a boxed {@code Object[]}: every numeric read stays a primitive load on a hot path, and
      * the slot a knob owns is still whatever {@link KnobSet#indexOf} says. Entries for numeric
      * knobs are never read.
@@ -66,7 +66,11 @@ public final class ConfigValues {
         return values[set.indexOf(knob)] != 0.0;
     }
 
-    /** A {@link KnobSpec.Kind#STRING} knob. Never null — an unset one reads as its default. */
+    /**
+     * A text knob's stored value — a {@link KnobSpec.Kind#STRING} as itself, a
+     * {@link KnobSpec.Kind#LIST} as its comma-joined spelling ({@link KnobSpec#splitList}). Never
+     * null: an unset one reads as its default.
+     */
     public String s(KnobSpec knob) {
         return texts[set.indexOf(knob)];
     }

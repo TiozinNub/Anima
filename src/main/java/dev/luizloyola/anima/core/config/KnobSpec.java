@@ -1,8 +1,11 @@
 package dev.luizloyola.anima.core.config;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * What a single tunable is: a dotted key, a type, a default, safety bounds and a sentence for the
@@ -25,7 +28,7 @@ public interface KnobSpec {
 
     /**
      * What a knob holds. The three numeric kinds are stored as a double and the kind decides how
-     * it reads back; {@link #STRING} and {@link #KEY} are stored as text beside them.
+     * it reads back; {@link #STRING} and {@link #LIST} are stored as text beside them.
      *
      * <p><b>The text kinds are knob kinds only.</b> {@code ProfileAspect} and {@code NeedKind}
      * share this enum, and both are numeric dials — a species aspect or a need gauge holding text
@@ -34,19 +37,23 @@ public interface KnobSpec {
     enum Kind {
         DOUBLE, INT, BOOL, STRING,
         /**
-         * A secret this installation generates for itself: empty until first needed, then a random
-         * {@link Keys#LENGTH}-character alphanumeric string written to the config file and reused
-         * from then on.
+         * Several short text values — a TOML array in the file, {@code ["one", "two"]}.
          *
-         * <p>Stored and edited exactly like {@link #STRING}; what differs is that <b>empty is
-         * legal</b> — it is what "not generated yet" looks like — and that {@code ConfigFile}
-         * fills it in on load rather than leaving it at its default.
+         * <p><b>Stored as one comma-joined string</b>, in the same slot a {@link #STRING} would
+         * use, and split at the edges by {@link #splitList}. That is what keeps a list kind from
+         * rippling through {@link ConfigValues}, whose whole shape is two flat arrays: a third
+         * would touch every read, every write and every round trip to add one knob. The joining is
+         * an encoding and nothing else — {@code min}/{@code max} bound the joined text, an
+         * operator sees only the array, and {@code config set} takes either form.
+         *
+         * <p>Only for values that cannot contain a comma; the encoding has no escape and is not
+         * getting one. Today: the web debugger's accepted browser keys.
          */
-        KEY;
+        LIST;
 
         /** Whether values of this kind live in the double array rather than beside it. */
         public boolean numeric() {
-            return this != STRING && this != KEY;
+            return this != STRING && this != LIST;
         }
 
         /** Whether values of this kind live in the text array beside it. */
@@ -70,10 +77,9 @@ public interface KnobSpec {
     double max();
 
     /**
-     * A text knob's documented default — always {@code ""} for a {@link Kind#KEY}, which is what
-     * "not generated yet" looks like. The text-side twin of {@link #def()}; the
-     * length bounds stay on {@link #min()}/{@link #max()} rather than growing two more accessors
-     * every numeric knob would have to answer for.
+     * A text knob's documented default — the text-side twin of {@link #def()}; the length bounds
+     * stay on {@link #min()}/{@link #max()} rather than growing two more accessors every numeric
+     * knob would have to answer for.
      */
     default String defText() {
         return "";
@@ -139,8 +145,7 @@ public interface KnobSpec {
             case INT -> "a whole number in [" + format(min()) + ", " + format(max()) + "]";
             case DOUBLE -> "a number in [" + format(min()) + ", " + format(max()) + "]";
             case STRING -> "text of " + (long) min() + " to " + (long) max() + " characters";
-            case KEY -> "letters and digits, " + (long) min() + " to " + (long) max()
-                    + " of them — or empty to have one generated";
+            case LIST -> "a comma-separated list, " + (long) max() + " characters in all";
         };
     }
 
@@ -165,6 +170,12 @@ public interface KnobSpec {
      * and would otherwise be a length violation nobody can see.
      */
     default String sanitise(String raw) {
+        if (kind() == Kind.LIST) {
+            // Normalised rather than rejected: one stray space between entries would otherwise
+            // take the fall-back below and drop the operator's whole list to the default.
+            String joined = joinList(splitList(raw));
+            return joined.length() <= (long) max() ? joined : defText();
+        }
         String trimmed = raw.strip();
         return acceptsText(trimmed) ? trimmed : defText();
     }
@@ -174,20 +185,50 @@ public interface KnobSpec {
         if (!raw.equals(raw.strip())) {
             return false;
         }
-        if (kind() == Kind.KEY) {
-            // Empty is the legal "not generated yet" — ConfigFile fills it in on load. Anything
-            // else must be something generate() could have produced, so a hand-typed key cannot
-            // smuggle a character that would need escaping in the URL it ends up in.
-            return raw.isEmpty()
-                    || (raw.length() >= (long) min() && raw.length() <= (long) max()
-                            && Keys.wellFormed(raw));
+        if (kind() == Kind.LIST) {
+            return sanitise(raw).equals(raw);
         }
         return raw.length() >= (long) min() && raw.length() <= (long) max();
     }
 
-    /** Renders a {@link Kind#STRING} value the way it should appear in command output. */
+    /**
+     * Renders a text value the way it should appear in command output — a {@link Kind#LIST} as the
+     * array the file holds rather than as its stored comma-joined spelling, which is an encoding
+     * nobody reading {@code config show} should have to know about.
+     */
     default String formatText(String value) {
+        if (kind() == Kind.LIST) {
+            List<String> entries = splitList(value);
+            return entries.isEmpty()
+                    ? "[]"
+                    : entries.stream().map(entry -> "\"" + entry + "\"")
+                            .collect(Collectors.joining(", ", "[", "]"));
+        }
         return "\"" + value + "\"";
+    }
+
+    /**
+     * What a {@link Kind#LIST} knob's stored text holds: comma-separated, each entry trimmed,
+     * blanks dropped, first occurrence of a repeat kept.
+     */
+    static List<String> splitList(String text) {
+        List<String> entries = new ArrayList<>();
+        for (String part : text.split(",", -1)) {
+            String entry = part.strip();
+            if (!entry.isEmpty() && !entries.contains(entry)) {
+                entries.add(entry);
+            }
+        }
+        return List.copyOf(entries);
+    }
+
+    /**
+     * {@link #splitList}'s inverse. Round-trips through it rather than joining straight, so the
+     * stored spelling is the same whoever built the list — a caller's stray blank or repeat cannot
+     * write a value that reads back as something else.
+     */
+    static String joinList(Collection<String> entries) {
+        return String.join(",", splitList(String.join(",", entries)));
     }
 
     /**
@@ -202,7 +243,7 @@ public interface KnobSpec {
             case BOOL -> value != 0.0 ? "true" : "false";
             case INT -> Long.toString((long) value);
             case DOUBLE -> String.format(Locale.ROOT, "%s", value);
-            case STRING, KEY -> throw new UnsupportedOperationException(
+            case STRING, LIST -> throw new UnsupportedOperationException(
                     key() + " holds text — use formatText or ConfigValues.text");
         };
     }
