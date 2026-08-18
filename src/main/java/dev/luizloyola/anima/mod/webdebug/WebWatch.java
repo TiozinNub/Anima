@@ -11,7 +11,7 @@ import org.jspecify.annotations.Nullable;
  * one level up.
  *
  * <p><b>The browser declares its interest; the server publishes exactly that.</b> Detail for every
- * agent on every frame would be most of a settlement's mind four times a second, and a per-click
+ * agent on every frame would be most of a settlement's mind twenty times a second, and a per-click
  * request would have to read the world from an HTTP thread, which is the one thing
  * {@link WebFeed} exists to prevent. So expanding a card POSTs the id here and the next tick-side
  * build includes that agent's sections and nobody else's.

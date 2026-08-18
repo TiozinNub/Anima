@@ -69,9 +69,6 @@ import org.jspecify.annotations.Nullable;
  */
 public final class WebDebugger {
 
-    /** Snapshot cadence. {@code DebugView}'s: four ticks reads as instant and costs nothing. */
-    private static final int SEND_INTERVAL_TICKS = 4;
-
     /** Where a browser's key travels. Not the query string — see {@link #keyed}. */
     public static final String KEY_HEADER = "X-Api-Key";
 
@@ -257,8 +254,8 @@ public final class WebDebugger {
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             // The one place the world is read. Guarded on running(), so a switched-off dashboard
-            // costs a modulo and a field read per tick.
-            if (running() && server.getTickCount() % SEND_INTERVAL_TICKS == 0) {
+            // costs a field read per tick.
+            if (running()) {
                 feed.publish(WebSnapshot.render(server, watch));
             }
         });
