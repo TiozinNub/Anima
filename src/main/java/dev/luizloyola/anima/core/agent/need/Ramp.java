@@ -36,6 +36,33 @@ public final class Ramp {
     }
 
     /**
+     * The bottom of the stretch worth drawing — the axis, always.
+     *
+     * <p>Not the mirror of {@link #top}: the axis floor is reachable and is usually the half that
+     * matters. Hunger's lowest knee is {@code starving} at 3, and 0..3 is where you die of it.
+     */
+    public double floor() {
+        return axisMin;
+    }
+
+    /**
+     * The top of the stretch worth drawing — the highest knee, which is rarely the axis.
+     *
+     * <p><b>An axis bounds what any body may DECLARE; a knee is what THIS one reaches.</b> Breath
+     * declares to 1200 so a species can say how deep its lungs are, and a settler's hold 300; vigor
+     * declares to the attribute ceiling and a settler tops out at 20. Above the top knee the ramp is
+     * unanchored and the reading cannot get there, so a gauge drawn on the axis instead would spend
+     * three quarters of its bar on a stretch that never moves.
+     *
+     * <p>Read live and by value rather than by name, so a species that retunes its top knee — or a
+     * consumer that renamed it — takes this with it.
+     */
+    public double top(AgentProfile profile) {
+        NeedLevel[] sorted = sorted(profile);
+        return sorted[sorted.length - 1].value(profile);
+    }
+
+    /**
      * What this body is called at that value: the level whose boundary it has reached, keeping the
      * better name until the worse level's own value is met. With {@code sated} at 20 and
      * {@code peckish} at 14, food 17 is sated and food 14 is peckish.

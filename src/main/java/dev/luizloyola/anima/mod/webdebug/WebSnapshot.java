@@ -3,8 +3,12 @@ package dev.luizloyola.anima.mod.webdebug;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.PrivateIdentity;
 import dev.luizloyola.anima.core.agent.need.Gauge;
+import dev.luizloyola.anima.core.agent.need.NeedKind;
+import dev.luizloyola.anima.core.agent.need.NeedLevel;
+import dev.luizloyola.anima.core.agent.need.Ramp;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.sense.Being;
@@ -19,7 +23,10 @@ import dev.luizloyola.anima.mod.debug.DebugView;
 import dev.luizloyola.anima.mod.identity.AgentDirectory;
 import dev.luizloyola.anima.mod.identity.Graves;
 import dev.luizloyola.anima.mod.nav.Navigator;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -300,18 +307,62 @@ final class WebSnapshot {
     }
 
     /**
-     * What the body wants. Written against the roster rather than a list of needs — it walks
-     * {@code needs().all()}, so a gauge a consumer registers is drawn the day it exists.
+     * What the body wants, and the shape of the ramp it wants it on. Written against the roster
+     * rather than a list of needs — it walks {@code needs().all()} and asks each gauge's own
+     * {@link NeedKind} for its knees, so a gauge a consumer registers is drawn, ticks and all, the
+     * day it exists.
+     *
+     * <p><b>{@code min} and {@code max} are the drawable span, not the axis</b> — see
+     * {@link Ramp#floor()} and {@link Ramp#top}. A bar drawn on breath's declared 0..1200 would
+     * show a settler's full lungs as a quarter of a track that never moves again.
+     *
+     * <p>The numbers are this body's, read live: two species with the same needs draw different
+     * knees, and a retune moves them under a browser that is already watching.
      */
     private static JsonArray needs(AgentBody body) {
         JsonArray out = new JsonArray();
+        AgentProfile profile = body.profile();
         for (Gauge gauge : body.needs().all()) {
+            NeedKind kind = gauge.kind();
             JsonObject row = new JsonObject();
-            row.addProperty("key", gauge.kind().key());
+            row.addProperty("key", kind.key());
             row.addProperty("value", gauge.value());
             row.addProperty("pressure", gauge.pressure());
             row.addProperty("says", gauge.describe());
+            row.addProperty("unit", kind.unit());
+            row.addProperty("severity", gauge.severity().name().toLowerCase(Locale.ROOT));
+            NeedLevel level = gauge.level();
+            if (level != null) {
+                row.addProperty("level", level.key());
+            }
+            Ramp ramp = kind.ramp();
+            if (ramp != null) {
+                row.addProperty("min", ramp.floor());
+                row.addProperty("max", ramp.top(profile));
+                row.addProperty("side", ramp.side(profile, gauge.value()));
+                row.add("levels", knees(ramp, profile));
+            }
             out.add(row);
+        }
+        return out;
+    }
+
+    /**
+     * A need's knees, ascending — where each band starts, what it bids there, and what it will
+     * spend to get it. Ascending rather than in declaration order because a readout draws them
+     * along an axis, and config is free to reorder them.
+     */
+    private static JsonArray knees(Ramp ramp, AgentProfile profile) {
+        List<NeedLevel> sorted = new ArrayList<>(ramp.levels());
+        sorted.sort(Comparator.comparingDouble(level -> level.value(profile)));
+        JsonArray out = new JsonArray();
+        for (NeedLevel level : sorted) {
+            JsonObject knee = new JsonObject();
+            knee.addProperty("key", level.key());
+            knee.addProperty("at", level.value(profile));
+            knee.addProperty("pressure", level.pressure(profile));
+            knee.addProperty("tolerance", level.tolerance(profile));
+            out.add(knee);
         }
         return out;
     }

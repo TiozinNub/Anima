@@ -113,4 +113,39 @@ class RampTest {
         assertEquals(Severity.URGENT, Severity.of(hunger.pressureAt(SETTLER, 8)));
         assertEquals(Severity.CRITICAL, Severity.of(hunger.pressureAt(SETTLER, 3)));
     }
+
+    @Test
+    @DisplayName("the drawable top is the highest knee, not the axis a need may declare")
+    void topIsTheHighestKnee() {
+        // An axis bounds what any body may DECLARE; the top knee is what THIS one reaches. Breath
+        // declares to 1200 so a species may say how deep its lungs are, and a settler's hold 300 —
+        // drawn on the axis, a full lungful would be a quarter of a bar that never moves again.
+        assertEquals(300.0, NeedKind.BREATH.ramp().top(SETTLER), DELTA);
+        assertEquals(1200.0, NeedKind.BREATH.axisMax(), DELTA);
+        assertEquals(20.0, NeedKind.VIGOR.ramp().top(SETTLER), DELTA);
+        assertEquals(1024.0, NeedKind.VIGOR.axisMax(), DELTA);
+        // Hunger and company anchor their own ceilings, so for them the two agree.
+        assertEquals(20.0, NeedKind.HUNGER.ramp().top(SETTLER), DELTA);
+        assertEquals(1.0, NeedKind.COMPANY.ramp().top(SETTLER), DELTA);
+    }
+
+    @Test
+    @DisplayName("a species that moves its top knee takes the drawable top with it")
+    void topFollowsTheProfile() {
+        // Read live and by value rather than by name, so this holds for a consumer that renamed
+        // `healthy` as much as for one that only retuned it.
+        AgentProfile tough = TestSpecies.with(
+                NeedKind.VIGOR.level("healthy").orElseThrow().valueAspect(), 40.0);
+        assertEquals(40.0, NeedKind.VIGOR.ramp().top(tough), DELTA);
+    }
+
+    @Test
+    @DisplayName("the drawable floor is the axis, because under the lowest knee is where you die")
+    void floorIsTheAxisMinimum() {
+        // The mirror of `top` does NOT hold: hunger's lowest knee is `starving` at 3, and the 0..3
+        // under it is both reachable and the stretch that matters.
+        assertEquals(0.0, NeedKind.HUNGER.ramp().floor(), DELTA);
+        assertEquals(0.0, NeedKind.VIGOR.ramp().floor(), DELTA);
+        assertEquals(0.0, NeedKind.COMPANY.ramp().floor(), DELTA);
+    }
 }
