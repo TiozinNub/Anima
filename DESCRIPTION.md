@@ -51,6 +51,6 @@ Writing this to clarify that there is a very big difference between a literal ch
 
 This library is licensed under the **Apache License 2.0** (`Apache-2.0`).
 
-TL;DR: Build whatever you want on it — open, closed, free, paid, no obligation to share your own code. Keep the notice, and say what you changed if you ship a modified Anima. Comes with an explicit patent grant. Do not claim it as your own. Do not come complaining if the mod corrupts your world. Full license [here](LICENSE).
+TL;DR: Build whatever you want on it — open, closed, free, paid, no obligation to share your own code. Keep the notice, and say what you changed if you ship a modified Anima. Comes with an explicit patent grant. Do not claim it as your own. Do not come complaining if the mod corrupts your world. Full license here.
 
-One third-party library rides inside this jar: [night-config](https://github.com/TheElectronWill/night-config) (LGPL-3.0), the TOML reader behind the config files. See [THIRD-PARTY.md](THIRD-PARTY.md).
+One third-party library rides inside this jar: [night-config](https://github.com/TheElectronWill/night-config) (LGPL-3.0), the TOML reader behind the config files. See THIRD-PARTY.md.
