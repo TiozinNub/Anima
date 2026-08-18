@@ -46,12 +46,29 @@ final class WebFeed {
         }
     }
 
-    /** Releases every parked reader. After this {@link #awaitAfter} returns null forever. */
+    /**
+     * Releases every parked reader. After this {@link #awaitAfter} returns null forever — <b>and
+     * returns it immediately</b>, without waiting out the timeout. A reader that treats that as
+     * its keepalive tick and loops therefore spins as fast as the CPU allows; see
+     * {@link #isClosed}. There is no reopening: a feed belongs to one run of the server.
+     */
     void close() {
         synchronized (this) {
             closed = true;
             notifyAll();
         }
+    }
+
+    /**
+     * Whether this feed is done. <b>A reader must check it, not just loop on the null.</b>
+     *
+     * <p>Stopping and restarting the debugger left every stream parked on the feed the old run
+     * closed, where {@link #awaitAfter} answers null with no delay at all: the loop wrote a
+     * keepalive, asked again, and got another instant null — eleven million of them in four
+     * seconds, on a socket nobody was reading.
+     */
+    boolean isClosed() {
+        return closed;
     }
 
     long version() {

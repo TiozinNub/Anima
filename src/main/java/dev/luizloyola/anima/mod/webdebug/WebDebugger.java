@@ -101,7 +101,14 @@ public final class WebDebugger {
      */
     private static final String FACES = "https://mc-heads.net";
 
-    private static final WebFeed FEED = new WebFeed();
+    /**
+     * The feed for the <b>current</b> run of the server. Replaced by {@link #start} and closed by
+     * {@link #stop}, rather than being one singleton reopened — a closed feed cannot come back, and
+     * a stopped-then-started debugger kept handing new readers the dead one: no frame ever arrived
+     * again, and the keepalive branch span at full tilt because a closed feed answers instantly.
+     * A reader captures the feed it started on, so the two runs cannot be confused.
+     */
+    private static volatile WebFeed feed = new WebFeed();
 
     /** Saving is passed in rather than called: {@link WebBrowsers} is core-shaped and has no file. */
     private static final WebBrowsers BROWSERS =
@@ -190,7 +197,7 @@ public final class WebDebugger {
         if (!BROWSERS.revoke(key)) {
             return false;
         }
-        FEED.wake();
+        feed.wake();
         return true;
     }
 
@@ -231,7 +238,7 @@ public final class WebDebugger {
             // The one place the world is read. Guarded on running(), so a switched-off dashboard
             // costs a modulo and a field read per tick.
             if (running() && server.getTickCount() % SEND_INTERVAL_TICKS == 0) {
-                FEED.publish(WebSnapshot.render(server, watch));
+                feed.publish(WebSnapshot.render(server, watch));
             }
         });
     }
@@ -243,6 +250,9 @@ public final class WebDebugger {
     public static synchronized @Nullable String start(MinecraftServer server) {
         stop();
         world = server;
+        // A fresh one, because stop() closed the last for good. This is the line whose absence
+        // made a restarted debugger serve keepalives and nothing else.
+        feed = new WebFeed();
         try {
             HttpServer created = HttpServer.create(new InetSocketAddress(bindAddress(), port()), 0);
             // Cached and daemon: an SSE stream holds its thread for as long as the browser is
@@ -315,7 +325,7 @@ public final class WebDebugger {
             return;
         }
         http = null;
-        FEED.close();
+        feed.close();
         running.stop(0);
         if (pool != null) {
             pool.shutdownNow();
@@ -480,13 +490,18 @@ public final class WebDebugger {
             return;
         }
         String key = exchange.getRequestHeaders().getFirst(KEY_HEADER);
+        // Captured once. A restart installs a new feed, and this reader belongs to the run it
+        // started in — asking the field again each pass would have it drift onto the other one.
+        WebFeed live = feed;
         exchange.getResponseHeaders().add("Content-Type", "text/event-stream; charset=utf-8");
         exchange.getResponseHeaders().add("Cache-Control", "no-store");
         exchange.sendResponseHeaders(200, 0); // 0 = chunked, the stream stays open
         long seen = -1;
         try (OutputStream out = exchange.getResponseBody()) {
-            while (running() && BROWSERS.stillAccepted(key)) {
-                WebFeed.Snapshot snapshot = FEED.awaitAfter(seen, KEEPALIVE_MILLIS);
+            // isClosed, and not just running(): a restart makes running() true again while THIS
+            // feed stays dead, and a dead feed answers instantly — the loop would spin.
+            while (running() && !live.isClosed() && BROWSERS.stillAccepted(key)) {
+                WebFeed.Snapshot snapshot = live.awaitAfter(seen, KEEPALIVE_MILLIS);
                 if (snapshot == null) {
                     out.write(": keepalive\n\n".getBytes(StandardCharsets.UTF_8));
                 } else {

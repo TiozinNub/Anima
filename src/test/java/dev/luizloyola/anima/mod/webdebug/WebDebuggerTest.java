@@ -75,6 +75,24 @@ class WebDebuggerTest {
     }
 
     @Test
+    @DisplayName("a closed feed answers instantly, which is why a reader must check it and not loop")
+    void aClosedFeedDoesNotBlock() throws Exception {
+        // The shape behind "stopping and restarting broke it": stop() closed the feed, a restart
+        // handed readers that same dead one, and awaitAfter returned null with no delay at all —
+        // so the keepalive branch wrote eleven million lines in four seconds. The fix is a new
+        // feed per run; this pins the property that made the old bug so loud.
+        WebFeed feed = new WebFeed();
+        feed.publish("{\"tick\":1}");
+        feed.close();
+
+        assertTrue(feed.isClosed());
+        long startedNanos = System.nanoTime();
+        assertNull(feed.awaitAfter(-1, 30_000));
+        assertTrue(System.nanoTime() - startedNanos < TimeUnit.SECONDS.toNanos(5),
+                "a closed feed does not wait out its timeout — the caller has to stop asking");
+    }
+
+    @Test
     @DisplayName("a wake releases parked readers without a frame — how a revoke hangs up at once")
     void wakeReleasesReadersWithoutPublishing() throws Exception {
         // A quiet world publishes nothing, so without this a revoked browser would keep streaming
