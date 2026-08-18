@@ -388,6 +388,16 @@ publishMods {
         // Resolves to l8eKuisB from the top-level `publish.modrinth_id`
         val modrinthId: String = sc.properties["publish.modrinth_id"]
         projectId = modrinthId
+        // fabric.mod.json has always required it; the PAGE did not say so, and a launcher only
+        // auto-installs what the page declares. A downloader got a mod that dies in Loader before
+        // the title screen. No version bound — the jar asks for `*`, and pinning here would age.
+        requires { id = "P7dR8mSH" }
+        // The two `recommends` in fabric.mod.json, said where a launcher can act on them. Optional
+        // rather than required: the config FILE is the whole config either way — these two only add
+        // the in-game screen that edits it, and Mod Menu is Fabric/Quilt-only, so under Sinytra
+        // Connector both are expected to be absent.
+        optional { id = "1eAoo2KR" } // YetAnotherConfigLib
+        optional { id = "mOgUt4GM" } // Mod Menu
         accessToken = providers.environmentVariable("MODRINTH_TOKEN")
         minecraftVersions.addAll(compatibleVersions)
         // The page body IS DESCRIPTION.md. The plugin PATCHes it on every publish, so this repo is
