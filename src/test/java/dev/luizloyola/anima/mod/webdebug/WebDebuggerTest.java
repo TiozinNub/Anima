@@ -225,6 +225,21 @@ class WebDebuggerTest {
     }
 
     @Test
+    @DisplayName("the dead section is watched on its own, and starts closed")
+    void theDeadAreWatchedIndependently() {
+        // The roster's other rows cost one frame each; the dead accumulate forever and are read
+        // once a session, so they are off until somebody asks — which is a flag, not an id.
+        AgentId one = new AgentId(UUID.randomUUID());
+        assertFalse(WebWatch.NONE.dead(), "the dead were being built before anyone asked for them");
+
+        WebWatch watch = WebWatch.NONE.toggled(one, true).withDead(true);
+        assertTrue(watch.dead());
+        assertTrue(watch.isExpanded(one), "opening the dead section closed a card");
+        assertFalse(watch.withDead(false).dead());
+        assertTrue(watch.dead(), "the original was mutated — it must be copy-on-write");
+    }
+
+    @Test
     @DisplayName("choosing who to act as leaves the expansion alone")
     void actingAsIsIndependentOfExpansion() {
         AgentId one = new AgentId(UUID.randomUUID());

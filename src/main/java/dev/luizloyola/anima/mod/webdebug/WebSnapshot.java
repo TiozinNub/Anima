@@ -21,6 +21,7 @@ import dev.luizloyola.anima.mod.identity.Graves;
 import dev.luizloyola.anima.mod.nav.Navigator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -35,10 +36,15 @@ import org.jspecify.annotations.Nullable;
  * <p><b>Everything that reads the world happens here</b>, inside the tick, and leaves as a String —
  * see {@link WebFeed} for why that is not negotiable.
  *
- * <p>The roster is the whole {@link AgentDirectory}: loaded, unloaded and dead alike, because the
- * question a radius cannot answer is "where did they go". An unloaded row carries only what the
- * directory and the records know and says so — it must read as <em>elsewhere</em>, never as
- * <em>gone</em>.
+ * <p>The roster is the whole {@link AgentDirectory} rather than a radius, because the question a
+ * radius cannot answer is "where did they go". An unloaded row carries only what the directory and
+ * the records know and says so — it must read as <em>elsewhere</em>, never as <em>gone</em>.
+ *
+ * <p><b>The dead are counted, not built</b>, until {@link WebWatch#dead()} says the browser has
+ * that section open. They are the one part of the roster that never shrinks — identity survives
+ * death by decision — so a world's every grave was being rebuilt twenty times a second for a
+ * section read once a session. The count itself goes out on every frame: it is what the closed
+ * section, and the footer's census, actually read.
  *
  * <p>Detail is built only for the agents {@link WebWatch} says are expanded, and every section is
  * a readout {@code /anima} already prints. Nothing is invented here: a section that disagrees with
@@ -68,10 +74,22 @@ final class WebSnapshot {
         Graves graves = Graves.get(server);
         AgentId pinned = viewer == null ? null : AgentSelection.pinned(viewer).orElse(null);
 
+        AgentDirectory directory = AgentDirectory.of(server);
         JsonArray agents = new JsonArray();
-        for (Map.Entry<AgentId, PrivateIdentity> known : AgentDirectory.of(server).known().entrySet()) {
-            agents.add(row(server, known.getKey(), known.getValue(), graves, viewer, pinned, watch));
+        int dead = 0;
+        for (Map.Entry<AgentId, PrivateIdentity> known : directory.known().entrySet()) {
+            AgentId id = known.getKey();
+            if (graves.isDead(id)) {
+                dead++;
+                if (!watch.dead()) {
+                    continue;
+                }
+            }
+            agents.add(row(server, directory, id, known.getValue(), graves, viewer, pinned, watch));
         }
+        // Always, even while the section is shut: the count is what the closed section reads, and a
+        // footer census that had to infer it from the rows would say zero.
+        root.addProperty("dead", dead);
         root.add("agents", agents);
         return root.toString();
     }
@@ -204,8 +222,9 @@ final class WebSnapshot {
      * a body to ask, so every live reading below is guarded by it rather than by a null check that
      * would read as "it has no navigator".
      */
-    private static JsonObject row(MinecraftServer server, AgentId id, PrivateIdentity identity,
-            Graves graves, @Nullable ServerPlayer viewer, @Nullable AgentId pinned, WebWatch watch) {
+    private static JsonObject row(MinecraftServer server, AgentDirectory directory, AgentId id,
+            PrivateIdentity identity, Graves graves, @Nullable ServerPlayer viewer,
+            @Nullable AgentId pinned, WebWatch watch) {
         JsonObject row = new JsonObject();
         row.addProperty("id", id.value().toString());
         row.addProperty("name", identity.name());
@@ -214,6 +233,7 @@ final class WebSnapshot {
         AgentBody body = AgentBodies.findLoaded(server, id);
         boolean dead = graves.isDead(id);
         row.addProperty("state", dead ? "dead" : body == null ? "unloaded" : "loaded");
+        species(directory, id, body).ifPresent(species -> row.addProperty("species", species));
 
         if (dead) {
             graves.deathOf(id).ifPresent(death -> {
@@ -244,6 +264,26 @@ final class WebSnapshot {
             row.add("detail", detail(server, body, brain));
         }
         return row;
+    }
+
+    /**
+     * What kind of body this is, asked of the directory first.
+     *
+     * <p>The body is the FALLBACK, not the source: it answers only for the loaded, which would
+     * leave the column blank on exactly the rows — unloaded, dead — where "what even is that" is
+     * the hardest question. A consumer that has not taught its directory
+     * {@link AgentDirectory#speciesOf} still gets its loaded rows labelled this way.
+     *
+     * <p>Empty rather than {@code ""} when neither answers: the key is then absent from the frame,
+     * and a missing species reads as unknown instead of as a species called nothing.
+     */
+    private static Optional<String> species(AgentDirectory directory, AgentId id,
+            @Nullable AgentBody body) {
+        Optional<String> known = directory.speciesOf(id);
+        if (known.isPresent()) {
+            return known;
+        }
+        return body == null ? Optional.empty() : Optional.ofNullable(body.profile().species());
     }
 
     /** Everything an expanded card shows — one key per section, each its own command's readout. */

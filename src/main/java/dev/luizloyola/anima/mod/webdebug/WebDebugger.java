@@ -593,6 +593,10 @@ public final class WebDebugger {
         if (ticks != null) {
             next = next.ticks(!"0".equals(ticks) && !"false".equals(ticks));
         }
+        String dead = query.get("dead");
+        if (dead != null) {
+            next = next.withDead(!"0".equals(dead) && !"false".equals(dead));
+        }
         watch = next;
         send(exchange, 200, "{\"ok\":true}".getBytes(StandardCharsets.UTF_8));
     }

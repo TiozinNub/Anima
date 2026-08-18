@@ -25,10 +25,10 @@ import org.jspecify.annotations.Nullable;
  *     hundred bytes twenty times a second — nothing beside a settlement's roster, and pure waste on
  *     every frame nobody is looking at a chart.
  */
-record WebWatch(Set<AgentId> expanded, @Nullable UUID actingAs, boolean ticks) {
+record WebWatch(Set<AgentId> expanded, @Nullable UUID actingAs, boolean ticks, boolean dead) {
 
     /** Nothing expanded and nobody to act as — what a fresh server and a closed browser both mean. */
-    static final WebWatch NONE = new WebWatch(Set.of(), null, false);
+    static final WebWatch NONE = new WebWatch(Set.of(), null, false, false);
 
     WebWatch {
         expanded = Set.copyOf(expanded);
@@ -50,16 +50,28 @@ record WebWatch(Set<AgentId> expanded, @Nullable UUID actingAs, boolean ticks) {
         } else {
             next.remove(id);
         }
-        return new WebWatch(next, actingAs, ticks);
+        return new WebWatch(next, actingAs, ticks, dead);
     }
 
     /** This watch driving commands as {@code player} — the per-player half of pin, layers and glow. */
     WebWatch actingAs(@Nullable UUID player) {
-        return new WebWatch(expanded, player, ticks);
+        return new WebWatch(expanded, player, ticks, dead);
     }
 
     /** This watch with the tick-time chart open or closed. */
     WebWatch ticks(boolean open) {
-        return new WebWatch(expanded, actingAs, open);
+        return new WebWatch(expanded, actingAs, open, dead);
+    }
+
+    /**
+     * This watch with the dead section open or closed.
+     *
+     * <p><b>A flag rather than a set of ids</b>, because the dead are asked for as a group. They
+     * are also the one part of the roster that only ever grows — identity survives death by
+     * decision, so every grave a world has dug would otherwise be rebuilt twenty times a second
+     * for a section read once a session.
+     */
+    WebWatch withDead(boolean open) {
+        return new WebWatch(expanded, actingAs, ticks, open);
     }
 }
