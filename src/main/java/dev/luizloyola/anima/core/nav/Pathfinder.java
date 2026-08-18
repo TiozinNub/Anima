@@ -322,9 +322,10 @@ public final class Pathfinder {
     /**
      * Asks, of nowhere in particular: can this body leave where it is standing?
      *
-     * <p>The same expansion as {@link #find} with the goal taken away, so it never stops early — it
-     * runs until there is nothing left to reach or the budget is spent, then applies the same four
-     * guards. The request's goal is ignored; only its start, body and budget matter.
+     * <p>The same expansion as {@link #find} with the goal taken away: it runs until there is
+     * nothing left to reach, the budget is spent, or a reached cell touches the rim of the capture
+     * — that last one settles a NOT-sealed verdict on the spot, since the closed set only grows.
+     * The request's goal is ignored; only its start, body and budget matter.
      *
      * <p><b>Asked, never overheard.</b> As a by-product of whatever walk the body last
      * attempted it is wrong exactly where it is needed: a body cutting its way out asks for one
@@ -346,6 +347,7 @@ public final class Pathfinder {
         this.nodes.put(start, origin);
         this.open.push(start, 0.0);
 
+        int margin = rimMargin();
         int expanded = 0;
         boolean exhausted = true;
         while (!this.open.isEmpty()) {
@@ -353,7 +355,15 @@ public final class Pathfinder {
             Node node = this.nodes.get(current);
             if (node.closed) continue;
             node.closed = true;
-            if (++expanded >= request.maxNodes()) {
+            expanded++;
+            // Settled: the closed set only grows, so one cell at the rim voids the claim for good
+            // and nothing expanded afterwards can put it back. Worth testing here rather than only
+            // at the end, because the case that pays for it is a body in the OPEN — which reaches
+            // the rim early and would otherwise enumerate the whole capture box to learn nothing.
+            if (touchesRim(unpackX(current), unpackY(current), unpackZ(current), margin)) {
+                return new Confinement(false, expanded, List.of());
+            }
+            if (expanded >= request.maxNodes()) {
                 exhausted = false;
                 break;
             }
@@ -456,25 +466,35 @@ public final class Pathfinder {
         if (!this.domain.isEverywhere() || this.boundsRefused || this.breathRefused) {
             return false;
         }
-        int margin = Math.max(Math.max(MAX_STRIDE + 1, this.profile.maxLeap() + 2),
-                Math.max(this.profile.maxDrop() + 2,
-                        this.profile.clearCells() + this.profile.jumpHeight() + 1));
+        int margin = rimMargin();
         for (int slot = 0; slot < this.nodes.capacity(); slot++) {
             Node reached = this.nodes.valueAt(slot);
             if (reached == null || !reached.closed) {
                 continue; // free slot, or opened but never reached: never anywhere to stand
             }
             long cell = this.nodes.keyAt(slot);
-            int x = unpackX(cell);
-            int y = unpackY(cell);
-            int z = unpackZ(cell);
-            if (!this.grid.inBounds(x - margin, y, z) || !this.grid.inBounds(x + margin, y, z)
-                    || !this.grid.inBounds(x, y - margin, z) || !this.grid.inBounds(x, y + margin, z)
-                    || !this.grid.inBounds(x, y, z - margin) || !this.grid.inBounds(x, y, z + margin)) {
+            if (touchesRim(unpackX(cell), unpackY(cell), unpackZ(cell), margin)) {
                 return false; // this region reaches the edge of what we captured; no claim to make
             }
         }
         return true;
+    }
+
+    /**
+     * How far a reached cell must sit from the edge of the capture before the region around it can
+     * be called a prison: what a single move can CARRY the body, not how far a probe READS.
+     */
+    private int rimMargin() {
+        return Math.max(Math.max(MAX_STRIDE + 1, this.profile.maxLeap() + 2),
+                Math.max(this.profile.maxDrop() + 2,
+                        this.profile.clearCells() + this.profile.jumpHeight() + 1));
+    }
+
+    /** Whether a move out of this cell could land past the edge of what was captured. */
+    private boolean touchesRim(int x, int y, int z, int margin) {
+        return !this.grid.inBounds(x - margin, y, z) || !this.grid.inBounds(x + margin, y, z)
+                || !this.grid.inBounds(x, y - margin, z) || !this.grid.inBounds(x, y + margin, z)
+                || !this.grid.inBounds(x, y, z - margin) || !this.grid.inBounds(x, y, z + margin);
     }
 
     /** Probes every move the agent could make out of {@code current} and relaxes the reached cells. */

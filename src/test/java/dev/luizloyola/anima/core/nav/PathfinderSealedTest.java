@@ -203,6 +203,55 @@ class PathfinderSealedTest {
         }
     }
 
+    // ── the cost of proving the NEGATIVE ─────────────────────────────────────────────────────
+
+    /**
+     * A body standing in the open pays to enumerate its whole capture box in order to learn what
+     * the first cell at the rim already settled.
+     *
+     * <p>"Not sealed" is MONOTONE over the closed set: {@code sealedIn} fails the verdict as soon
+     * as one closed cell sits within {@code margin} of the capture edge, and the closed set only
+     * ever grows, so no later expansion can restore the claim. Every expansion after the first
+     * such cell is work that cannot change the answer — and in the open that is the common case,
+     * run per body per second on the server thread.
+     *
+     * <p>The box here is the one {@code PathfinderService.surveyFrom} builds: HORIZONTAL_MARGIN
+     * either side of the body, DOWN_MARGIN under it and UP_MARGIN over it.
+     */
+    @Test
+    void theSurveyStopsOnceTheRegionHasTouchedTheRim() {
+        Confinement verdict = Pathfinder.survey(
+                window(flatGround(), -16, -9, -16, 16, 7, 16),
+                PathRequest.of(0, 1, 0, 0, 1, 0, TestBodies.BIPED));
+
+        assertFalse(verdict.sealed(), "open ground inside a window claims nothing");
+        // The box holds 33x33 = 1089 standable cells and the survey used to close every one of
+        // them. The rim is 12 out, so the wavefront settles it around 440 — the disc it has to
+        // fill to get there. Pinned loosely: this guards the box-enumerating regression, not the
+        // exact shape of the wavefront.
+        assertTrue(verdict.cells() < 550,
+                "settled at the rim, not by enumerating the box; expanded " + verdict.cells());
+    }
+
+    /** The proof still has to be a proof: stopping early must never invent a sealed verdict. */
+    @Test
+    void stoppingEarlyNeverTurnsOpenGroundIntoAPrison() {
+        for (int dx = -8; dx <= 8; dx += 4) {
+            for (int dz = -8; dz <= 8; dz += 4) {
+                Confinement verdict = Pathfinder.survey(
+                        window(flatGround(), -16, -9, -16, 16, 7, 16),
+                        PathRequest.of(dx, 1, dz, dx, 1, dz, TestBodies.BIPED));
+                assertFalse(verdict.sealed(),
+                        "open ground at (" + dx + ", 1, " + dz + ")");
+            }
+        }
+    }
+
+    /** Ground with nothing under the horizon — what a settler stands on away from any wall. */
+    private static NavGrid flatGround() {
+        return (x, y, z) -> y <= 0 ? CellType.GROUND : CellType.PASSABLE;
+    }
+
     /**
      * A grid that behaves like a {@code WorldSnapshot}: past the captured box, {@code cell} reads
      * OBSTACLE and {@code inBounds} says so. Kept out of the fixtures because a fixture that
