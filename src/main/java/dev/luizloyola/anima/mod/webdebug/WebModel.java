@@ -1,7 +1,9 @@
 package dev.luizloyola.anima.mod.webdebug;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -19,7 +21,9 @@ import java.util.Map;
  * <p><b>Two kinds of null, and they are not the same one.</b> A Java {@code null} value in a fresh
  * build means <em>remove this key</em> — it leaves the model and the browser is told to drop it. A
  * JSON null is the four-character fragment {@code "null"}, which is an ordinary value: it is what
- * {@code actingAs} carries when nobody is being acted as.
+ * {@code actingAs} carries when nobody is being acted as. Because JSON cannot distinguish these two,
+ * the wire format does not encode removals as null values; instead, {@link #frame} collects them
+ * in a {@code "drop"} array, leaving null free for its ordinary meaning.
  */
 record WebModel(int tick, Map<String, String> keys) {
 
@@ -72,9 +76,22 @@ record WebModel(int tick, Map<String, String> keys) {
      */
     static String frame(int tick, Map<String, String> keys) {
         StringBuilder out = new StringBuilder(64).append("{\"tick\":").append(tick);
+        List<String> dropped = new ArrayList<>();
         for (Map.Entry<String, String> key : keys.entrySet()) {
-            out.append(",\"").append(key.getKey()).append("\":")
-                    .append(key.getValue() == null ? "null" : key.getValue());
+            if (key.getValue() == null) {
+                dropped.add(key.getKey());
+            } else {
+                out.append(",\"").append(key.getKey()).append("\":")
+                        .append(key.getValue());
+            }
+        }
+        if (!dropped.isEmpty()) {
+            out.append(",\"drop\":[");
+            for (int i = 0; i < dropped.size(); i++) {
+                if (i > 0) out.append(",");
+                out.append("\"").append(dropped.get(i)).append("\"");
+            }
+            out.append("]");
         }
         return out.append('}').toString();
     }
