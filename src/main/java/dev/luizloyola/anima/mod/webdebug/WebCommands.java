@@ -147,7 +147,7 @@ public final class WebCommands {
     private static int list(CommandSourceStack source) {
         WebBrowsers browsers = WebDebugger.browsers();
         List<WebBrowsers.Waiting> waiting = browsers.waiting();
-        List<String> accepted = browsers.allowed();
+        List<String> allowed = browsers.allowed();
 
         Replies.send(source, () -> Component.translatable("anima.webdebug.list_closed")
                 .withStyle(ChatFormatting.AQUA));
@@ -168,11 +168,11 @@ public final class WebCommands {
                             "/anima web-debugger browser reject " + browser.key(),
                             "anima.webdebug.hover.reject"))));
         }
-        if (accepted.isEmpty()) {
+        if (allowed.isEmpty()) {
             Replies.send(source, () -> indent(Component.translatable("anima.webdebug.none_yet")
                     .withStyle(ChatFormatting.DARK_GRAY)));
         }
-        for (String key : accepted) {
+        for (String key : allowed) {
             Replies.send(source, () -> indent(Component.literal(key)
                     .withStyle(ChatFormatting.GREEN)
                     .append(Component.translatable("anima.webdebug.is_accepted")
@@ -180,7 +180,7 @@ public final class WebCommands {
                     .append(button(" [revoke]", "/anima web-debugger browser revoke " + key,
                             "anima.webdebug.hover.revoke"))));
         }
-        return waiting.size() + accepted.size();
+        return waiting.size() + allowed.size();
     }
 
     private static int accept(CommandSourceStack source, String key) {

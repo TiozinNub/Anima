@@ -190,7 +190,7 @@ public final class WebBrowsers {
 
     // --- what an operator does --------------------------------------------------------------
 
-    /** Allows {@code name} from now on, writing it to the config file. */
+    /** Allows {@code key} from now on, writing it to the config file. */
     public synchronized Admission allow(String key) {
         if (!wellFormed(key)) {
             return Admission.MALFORMED;
