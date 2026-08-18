@@ -14,8 +14,10 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -143,6 +145,13 @@ public final class WebDebugger {
      * left over from a previous run is already past, so the first tick of the next one publishes.
      */
     private static final WebPace PACE = new WebPace(MAX_FRAMES_PER_SECOND);
+
+    /**
+     * Every clock, asked for on every tick — the bridge's due set until the clocked hook replaces
+     * it. Held as a constant so the tick handler is not allocating a fresh {@link EnumSet} on every
+     * frame it publishes.
+     */
+    private static final Set<WebClock> ALL_CLOCKS = EnumSet.allOf(WebClock.class);
 
     /** Saving is passed in rather than called: {@link WebBrowsers} is core-shaped and has no file. */
     private static final WebBrowsers BROWSERS =
@@ -273,10 +282,11 @@ public final class WebDebugger {
             // costs a field read per tick — and on the pace, so a sprinting one costs a clock read
             // rather than the whole roster rendered to JSON inside the tick.
             if (running() && PACE.due(System.nanoTime())) {
-                // Bridge until Task 6 wires up WebClocks and the diff: every section is asked for
-                // on every tick, so the model stays EMPTY and this still ships whole frames.
+                // Every section is asked for on every tick, so this still ships whole frames; and
+                // WebModel.EMPTY is what is passed to publish, so hello() stays silent — until the
+                // clocked, diffed hook replaces both of those.
                 feed.publish(WebModel.EMPTY, WebModel.frame(server.getTickCount(),
-                        WebSnapshot.build(server, watch, java.util.EnumSet.allOf(WebClock.class))));
+                        WebSnapshot.build(server, watch, ALL_CLOCKS)));
             }
         });
     }

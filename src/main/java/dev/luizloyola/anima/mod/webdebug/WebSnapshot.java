@@ -147,7 +147,7 @@ final class WebSnapshot {
     }
 
     /**
-     * The loaded bodies by id, taken in one pass. @see #agents
+     * The loaded bodies by id, taken in one pass. See {@link #agents}.
      *
      * <p>Built once per section rather than once per frame, so a tick where the roster and the
      * detail clocks both fire builds it twice. That is two walks of the loaded list against the
