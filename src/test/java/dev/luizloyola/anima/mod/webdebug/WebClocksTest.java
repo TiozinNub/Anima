@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.EnumSet;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -69,5 +70,28 @@ class WebClocksTest {
     @DisplayName("a feed that has never published owes a heartbeat immediately")
     void heartbeatBeforeAnyFrame() {
         assertTrue(new WebClocks().beat(START));
+    }
+
+    @Test
+    @DisplayName("the clocks' keys and rates are pinned to the wire")
+    void keysAndRatesAreLiteral() {
+        // These strings name top-level frame keys the browser reads; a typo is invisible until the
+        // dashboard fails to parse. Rates are equally wire-bound: the browser's update cadence
+        // depends on them.
+
+        assertEquals(20, WebClock.HEALTH.perSecond());
+        assertEquals(List.of("health"), WebClock.HEALTH.keys());
+
+        assertEquals(10, WebClock.ROSTER.perSecond());
+        assertEquals(List.of("agents"), WebClock.ROSTER.keys());
+
+        assertEquals(4, WebClock.DETAIL.perSecond());
+        assertEquals(List.of("detail"), WebClock.DETAIL.keys());
+
+        assertEquals(4, WebClock.CHART.perSecond());
+        assertEquals(List.of("samples"), WebClock.CHART.keys());
+
+        assertEquals(2, WebClock.SLOW.perSecond());
+        assertEquals(List.of("players", "layers", "actingAs", "dead"), WebClock.SLOW.keys());
     }
 }
