@@ -131,6 +131,14 @@ public final class AgentCommands {
     /** How far the bare resolve ladder looks for a body when nothing is pinned. */
     private static final double NEAREST_RADIUS = 32.0;
 
+    /**
+     * One line nested under the one above it. The gutter stays in Java rather than in every
+     * translation of the line, where it is one edit away from being trimmed off.
+     */
+    private static MutableComponent indent(Component line) {
+        return Component.literal("  ").append(line);
+    }
+
     private AgentCommands() {
     }
 
@@ -334,20 +342,21 @@ public final class AgentCommands {
         }
         if (known.isEmpty()) {
             String asked = label;
-            Replies.send(source, () -> Component.literal("Nobody knows a way to craft " + asked
-                    + ".").withStyle(ChatFormatting.GRAY));
+            Replies.send(source, () -> Component.translatable("anima.command.recipes.none", asked)
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         int count = known.size();
         String header = label;
-        Replies.send(source, () -> Component.literal(header + ": " + count
-                + (count == 1 ? " recipe" : " recipes")).withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable(count == 1
+                        ? "anima.command.recipes.header_one" : "anima.command.recipes.header",
+                header, count).withStyle(ChatFormatting.AQUA));
         int shown = 0;
         for (dev.luizloyola.anima.core.craft.CraftRecipe recipe : known) {
             if (shown++ == RECIPE_ROWS_CAP) {
                 int rest = known.size() - RECIPE_ROWS_CAP;
-                Replies.send(source, () -> Component.literal("  …and " + rest
-                        + " more — narrow the name.").withStyle(ChatFormatting.GRAY));
+                Replies.send(source, () -> indent(Component.translatable(
+                        "anima.command.recipes.more", rest).withStyle(ChatFormatting.GRAY)));
                 break;
             }
             StringBuilder bill = new StringBuilder();
@@ -357,10 +366,14 @@ public final class AgentCommands {
                 }
                 bill.append(line.count()).append("×").append(billLabel(line.acceptedIds()));
             }
-            String row = "  " + shortItem(recipe.outputId())
+            String row = shortItem(recipe.outputId())
                     + (recipe.outputCount() > 1 ? " x" + recipe.outputCount() : "")
-                    + " ← " + bill + (recipe.needsTable() ? "  [table]" : "");
-            Replies.send(source, () -> Component.literal(row).withStyle(ChatFormatting.GRAY));
+                    + " ← " + bill;
+            boolean table = recipe.needsTable();
+            Replies.send(source, () -> indent(Component.literal(row)
+                    .append(table ? Component.translatable("anima.command.recipes.needs_table")
+                            : Component.empty())
+                    .withStyle(ChatFormatting.GRAY)));
         }
         return known.size();
     }
@@ -539,9 +552,7 @@ public final class AgentCommands {
                 person.entity().blockPosition().getY(), person.entity().blockPosition().getZ());
         Survey survey = new Survey(person.profile(), feet);
         if (!survey.possible()) {
-            Replies.send(source, () -> Component.literal(name
-                            + " has nothing to survey — places.horizon_radius is inside the "
-                            + "sense radius, so there is no range the near field does not own.")
+            Replies.send(source, () -> Component.translatable("anima.command.survey.nothing", name)
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
@@ -563,11 +574,12 @@ public final class AgentCommands {
         int finalReads = reads;
         int finalKept = kept;
         boolean finished = survey.done();
-        Replies.send(source, () -> Component.literal(name + " looked all the way round from "
-                        + feet.x() + ", " + feet.y() + ", " + feet.z() + ": "
-                        + finalKept + " made out in " + finalReads + " reads"
-                        + (finished ? "." : " — gave up at " + survey.progress()
-                                + "% of the turn, which is a bug or a very strange world."))
+        Replies.send(source, () -> (finished
+                        ? Component.translatable("anima.command.survey.done", name,
+                                feet.x(), feet.y(), feet.z(), finalKept, finalReads)
+                        : Component.translatable("anima.command.survey.gave_up", name,
+                                feet.x(), feet.y(), feet.z(), finalKept, finalReads,
+                                survey.progress()))
                 .withStyle(finished ? ChatFormatting.AQUA : ChatFormatting.YELLOW));
         return kept;
     }
@@ -579,14 +591,13 @@ public final class AgentCommands {
         String name = person.entity().getName().getString();
         int radius = HorizonScanner.radius(person.profile());
         if (radius <= CrescentSampler.radius(person.profile())) {
-            Replies.send(source, () -> Component.literal(name
-                            + " has no skyline — places.horizon_radius is inside the sense radius.")
+            Replies.send(source, () -> Component.translatable("anima.command.horizon.none", name)
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         HorizonBuffer buffer = person.poiSensor() == null ? null : person.poiSensor().horizon();
         if (buffer == null) {
-            Replies.fail(source, Component.literal(name + " hasn't perceived anything yet."));
+            Replies.fail(source, Component.translatable("anima.command.horizon.nothing_seen", name));
             return 0;
         }
         int swept = 0;
@@ -602,15 +613,18 @@ public final class AgentCommands {
         int finalSwept = swept;
         int finalCutShort = cutShort;
         double finalHighest = highest;
-        Replies.send(source, () -> Component.literal(name + " — skyline to " + radius
-                        + " blocks across a " + CrescentSampler.coneDegrees(person.profile())
-                        + "° cone: " + finalSwept + " of " + HorizonBuffer.BINS
-                        + " bearings walked, " + knowledge.glimpseCount() + " glimpsed"
-                        + (finalCutShort > 0 ? ", " + finalCutShort + " ran out of loaded world" : "")
-                        + (finalHighest > Double.NEGATIVE_INFINITY
-                                ? ", steepest " + Math.round(Math.toDegrees(Math.atan(finalHighest)))
-                                        + "° up"
-                                : ""))
+        // Two tails rather than two keys per combination: either can be absent, and four whole
+        // sentences would be four chances for one of them to drift.
+        Replies.send(source, () -> Component.translatable("anima.command.horizon.header", name,
+                        radius, CrescentSampler.coneDegrees(person.profile()), finalSwept,
+                        HorizonBuffer.BINS, knowledge.glimpseCount())
+                .append(finalCutShort > 0
+                        ? Component.translatable("anima.command.horizon.cut_short", finalCutShort)
+                        : Component.empty())
+                .append(finalHighest > Double.NEGATIVE_INFINITY
+                        ? Component.translatable("anima.command.horizon.steepest",
+                                Math.round(Math.toDegrees(Math.atan(finalHighest))))
+                        : Component.empty())
                 .withStyle(ChatFormatting.AQUA));
         return swept;
     }
@@ -711,19 +725,18 @@ public final class AgentCommands {
         if (person == null) return 0;
         ProfileAspect aspect = ProfileAspect.byKey(aspectKey).orElse(null);
         if (aspect == null) {
-            Replies.fail(source, Component.literal("No such aspect \"" + aspectKey + "\""));
+            Replies.fail(source, Component.translatable("anima.command.profile.no_such_aspect",
+                    aspectKey));
             return 0;
         }
         if (person.modifiers() == AgentModifiers.NONE) {
-            Replies.fail(source, Component.literal(person.entity().getName().getString()
-                    + " has no modifier set — this body's mod has not given it one, so it is "
-                    + "exactly its species and cannot be shifted"));
+            Replies.fail(source, Component.translatable("anima.command.profile.no_modifiers",
+                    person.entity().getName()));
             return 0;
         }
         person.modifiers().apply(AspectModifier.add(DEBUG_MODIFIER, aspect, amount));
-        for (String line : explain(person.profile(), aspect, true)) {
-            Replies.send(source, () -> Component.literal("  " + line)
-                    .withStyle(ChatFormatting.YELLOW), true);
+        for (Component line : explain(person.profile(), aspect, true)) {
+            Replies.send(source, () -> indent(line.copy().withStyle(ChatFormatting.YELLOW)), true);
         }
         return 1;
     }
@@ -734,10 +747,11 @@ public final class AgentCommands {
         if (person == null) return 0;
         boolean removed = person.modifiers() != AgentModifiers.NONE
                 && person.modifiers().remove(DEBUG_MODIFIER);
-        Replies.send(source, () -> Component.literal(removed
-                        ? person.entity().getName().getString() + " is exactly a "
-                                + person.profile().species() + " again"
-                        : "nothing to clear").withStyle(ChatFormatting.GREEN), true);
+        Replies.send(source, () -> (removed
+                        ? Component.translatable("anima.command.profile.cleared",
+                                person.entity().getName(), person.profile().species())
+                        : Component.translatable("anima.command.profile.nothing_to_clear"))
+                .withStyle(ChatFormatting.GREEN), true);
         return removed ? 1 : 0;
     }
 
@@ -751,14 +765,14 @@ public final class AgentCommands {
         if (aspectKey != null) {
             ProfileAspect aspect = ProfileAspect.byKey(aspectKey).orElse(null);
             if (aspect == null) {
-                Replies.fail(source, Component.literal("No such aspect \"" + aspectKey
-                        + "\" — try tab-completion, or \"profile all\""));
+                Replies.fail(source, Component.translatable(
+                        "anima.command.profile.no_such_aspect_hint", aspectKey));
                 return 0;
             }
-            Replies.send(source, () -> Component.literal(name + " — " + profile.species())
-                    .withStyle(ChatFormatting.AQUA));
-            for (String line : explain(profile, aspect, true)) {
-                Replies.send(source, () -> Component.literal("  " + line));
+            Replies.send(source, () -> Component.translatable("anima.command.profile.species",
+                    name, profile.species()).withStyle(ChatFormatting.AQUA));
+            for (Component line : explain(profile, aspect, true)) {
+                Replies.send(source, () -> indent(line));
             }
             return 1;
         }
@@ -766,21 +780,23 @@ public final class AgentCommands {
         List<ProfileAspect> shifted = ProfileAspect.all().stream()
                 .filter(aspect -> !profile.modifiers(aspect).isEmpty())
                 .toList();
-        Replies.send(source, () -> Component.literal(name + " is a " + profile.species()
-                + (shifted.isEmpty() ? ", exactly" : " with " + shifted.size() + " aspect(s) shifted"))
+        Replies.send(source, () -> (shifted.isEmpty()
+                        ? Component.translatable("anima.command.profile.is_a",
+                                name, profile.species())
+                        : Component.translatable("anima.command.profile.is_a_shifted",
+                                name, profile.species(), shifted.size()))
                 .withStyle(ChatFormatting.AQUA));
         if (shifted.isEmpty()) {
             // No root in the hint: this subcommand is mounted by every consumer as well as by
             // /anima, so naming one would be wrong under all the others.
-            Replies.send(source, () -> Component.literal(
-                    "  nothing is modifying " + person.pronouns().object()
-                            + " — \"profile all\" shows every aspect")
-                    .withStyle(ChatFormatting.GRAY));
+            Replies.send(source, () -> indent(Component.translatable(
+                    "anima.command.profile.nothing_modifying", person.pronouns().object())
+                    .withStyle(ChatFormatting.GRAY)));
             return 0;
         }
         for (ProfileAspect aspect : shifted) {
-            for (String line : explain(profile, aspect, true)) {
-                Replies.send(source, () -> Component.literal("  " + line));
+            for (Component line : explain(profile, aspect, true)) {
+                Replies.send(source, () -> indent(line));
             }
         }
         return shifted.size();
@@ -791,20 +807,23 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         AgentProfile profile = person.profile();
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString()
-                + " — " + profile.species()).withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.profile.species",
+                person.entity().getName(), profile.species()).withStyle(ChatFormatting.AQUA));
         String section = null;
         for (ProfileAspect aspect : ProfileAspect.all()) {
             if (!aspect.section().equals(section)) {
                 section = aspect.section();
+                // The GUI's own tab names — one word per section, already translated for the
+                // config screen, and a second set would be the same words disagreeing.
                 String heading = section;
-                Replies.send(source, () -> Component.literal("  " + heading)
-                        .withStyle(ChatFormatting.DARK_AQUA));
+                Replies.send(source, () -> indent(Component.translatableWithFallback(
+                        "anima.config.category." + heading, heading)
+                        .withStyle(ChatFormatting.DARK_AQUA)));
             }
-            for (String line : explain(profile, aspect, false)) {
-                Replies.send(source, () -> Component.literal("    " + line)
+            for (Component line : explain(profile, aspect, false)) {
+                Replies.send(source, () -> indent(indent(line.copy()
                         .withStyle(profile.modifiers(aspect).isEmpty()
-                                ? ChatFormatting.GRAY : ChatFormatting.YELLOW));
+                                ? ChatFormatting.GRAY : ChatFormatting.YELLOW))));
             }
         }
         return ProfileAspect.count();
@@ -815,19 +834,20 @@ public final class AgentCommands {
      * something to derive get more than a line — an unmodified aspect is its species value, and
      * printing "24 -> 24" thirty times would bury the two that matter.
      */
-    private static List<String> explain(AgentProfile profile, ProfileAspect aspect,
+    private static List<Component> explain(AgentProfile profile, ProfileAspect aspect,
             boolean withKey) {
         List<AspectModifier> applied = profile.modifiers(aspect);
         String label = withKey ? aspect.key() : aspect.key().substring(aspect.key().indexOf('.') + 1);
         String effective = format(aspect, profile.raw(aspect));
         if (applied.isEmpty()) {
-            return List.of(label + " = " + effective);
+            return List.of(Component.translatable("anima.command.profile.aspect", label, effective));
         }
-        List<String> lines = new ArrayList<>();
-        lines.add(label + " = " + effective + "  (species " + format(aspect, profile.base(aspect))
-                + ")");
+        List<Component> lines = new ArrayList<>();
+        lines.add(Component.translatable("anima.command.profile.aspect_shifted", label, effective,
+                format(aspect, profile.base(aspect))));
         for (AspectModifier modifier : applied) {
-            lines.add("    " + modifier.describe() + "  from " + modifier.id());
+            lines.add(indent(indent(Component.translatable("anima.command.profile.modifier",
+                    modifier.describe(), modifier.id()))));
         }
         return lines;
     }
@@ -880,8 +900,8 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         person.navigateTo(Vec3.atBottomCenterOf(pos));
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " -> "
-                + pos.toShortString()).withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.nav.goto",
+                person.entity().getName(), pos.toShortString()).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -889,8 +909,8 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         person.navigator().stop();
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " stopped.")
-                .withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.nav.stopped",
+                person.entity().getName()).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -910,8 +930,9 @@ public final class AgentCommands {
         // Where the eyes are, on the same line and for the same reason as the swimmer: a head
         // aimed somewhere reasonable and a head aimed nowhere look identical for the first second.
         String looking = "  [" + person.gaze().describe() + "]";
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
-                + person.navigator().describe() + water + escort + looking)
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                person.entity().getName(),
+                person.navigator().describe() + water + escort + looking)
                 .withStyle(ChatFormatting.AQUA));
         return 1;
     }
@@ -919,9 +940,7 @@ public final class AgentCommands {
     /** Bare {@code follow}: the player who typed it is the one to follow. */
     private static int followMe(CommandSourceStack source) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
-            Replies.fail(source, Component.literal(
-                    "Follow whom? Bare `follow` means \"follow me\", which only a player can say"
-                            + " — name a target: /anima follow <player>."));
+            Replies.fail(source, Component.translatable("anima.command.follow.whom"));
             return 0;
         }
         return followTarget(source, player, Escorts.DEFAULT_NEAR, Escorts.DEFAULT_FAR);
@@ -939,27 +958,26 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.translatable("anima.command.not_identified"));
             return 0;
         }
         String name = person.entity().getName().getString();
         if (target == person.entity()) {
-            Replies.fail(source, Component.literal(name + " can't follow " + name + "."));
+            Replies.fail(source, Component.translatable("anima.command.follow.self", name));
             return 0;
         }
         if (target.level() != person.entity().level()) {
-            Replies.fail(source, Component.literal(target.getName().getString()
-                    + " is in another dimension — there is nothing to walk toward."));
+            Replies.fail(source, Component.translatable("anima.command.follow.elsewhere",
+                    target.getName()));
             return 0;
         }
         // A leash shorter than the distance it aims for is a body that arrives and is immediately
         // told to set off again. Rejected rather than silently widened: a number quietly not being
         // yours is worse than a retype.
         if (far < near) {
-            Replies.fail(source, Component.literal(String.format(Locale.ROOT,
-                    "far (%.1f) must be at least near (%.1f) — the order reads \"get within near, "
-                            + "once they are far away\", so a shorter leash never lets them settle.",
-                    far, near)));
+            Replies.fail(source, Component.translatable("anima.command.follow.bad_leash",
+                    String.format(Locale.ROOT, "%.1f", far),
+                    String.format(Locale.ROOT, "%.1f", near)));
             return 0;
         }
         person.brain().cancel();
@@ -970,10 +988,11 @@ public final class AgentCommands {
         ServerPlayer asked = source.getPlayer();
         Escorts.follow(source.getServer(), id, target, near, far,
                 asked == null ? null : asked.getUUID());
-        Replies.send(source, () -> Component.literal(String.format(Locale.ROOT,
-                        "%s is following %s — settling %.1fm away, setting off again past %.1fm.%s",
-                        name, target.getName().getString(), near, far,
-                        autoDisabledSuffix(autoDisabled)))
+        Replies.send(source, () -> Component.translatable("anima.command.follow.started",
+                        name, target.getName(),
+                        String.format(Locale.ROOT, "%.1f", near),
+                        String.format(Locale.ROOT, "%.1f", far))
+                .append(autoDisabledNote(autoDisabled))
                 .withStyle(ChatFormatting.AQUA));
         return 1;
     }
@@ -984,21 +1003,21 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.translatable("anima.command.not_identified"));
             return 0;
         }
         String name = person.entity().getName().getString();
         if (!Escorts.stop(source.getServer(), id)) {
-            Replies.send(source, () -> Component.literal(name + " wasn't following anybody.")
-                    .withStyle(ChatFormatting.GRAY));
+            Replies.send(source, () -> Component.translatable("anima.command.follow.not_following",
+                    name).withStyle(ChatFormatting.GRAY));
             return 0;
         }
         // Autonomy stays where the order left it, like every other manual override here — but say
         // so, because a body standing perfectly still is what a stuck brain looks like.
-        String manual = person.brain().isAuto() ? ""
-                : " (still on manual — /anima brain auto true)";
-        Replies.send(source, () -> Component.literal(name + " stopped following." + manual)
-                .withStyle(ChatFormatting.AQUA));
+        Component manual = person.brain().isAuto() ? Component.empty()
+                : Component.translatable("anima.command.follow.still_manual");
+        Replies.send(source, () -> Component.translatable("anima.command.follow.stopped", name)
+                .append(manual).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -1007,12 +1026,12 @@ public final class AgentCommands {
         MinecraftServer server = source.getServer();
         Map<AgentId, Escorts.Order> orders = Escorts.all(server);
         if (orders.isEmpty()) {
-            Replies.send(source, () -> Component.literal("Nobody is following anybody.")
+            Replies.send(source, () -> Component.translatable("anima.command.follow.nobody")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        Replies.send(source, () -> Component.literal(orders.size() + " following:")
-                .withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.follow.list_header",
+                orders.size()).withStyle(ChatFormatting.AQUA));
         orders.forEach((agent, order) -> {
             AgentBody body = AgentBodies.findLoaded(server, agent);
             Entity target = Escorts.following(server, agent);
@@ -1023,8 +1042,8 @@ public final class AgentCommands {
                     || target.level() != body.entity().level() ? ""
                     : String.format(Locale.ROOT, "  %.1fm",
                             Math.sqrt(body.entity().distanceToSqr(target)));
-            Replies.send(source, () -> Component.literal(String.format(Locale.ROOT,
-                    "  %s -> %s%s  [%.1f–%.1f]", who, whom, gap, order.near(), order.far())));
+            Replies.send(source, () -> indent(Component.literal(String.format(Locale.ROOT,
+                    "%s -> %s%s  [%.1f–%.1f]", who, whom, gap, order.near(), order.far()))));
         });
         return orders.size();
     }
@@ -1035,9 +1054,10 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         boolean autoDisabled = person.brain().run(new GoTo(pos.getX(), pos.getY(), pos.getZ()));
-        String suffix = autoDisabledSuffix(autoDisabled);
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
-                + person.brain().describe() + suffix).withStyle(ChatFormatting.AQUA));
+        Component suffix = autoDisabledNote(autoDisabled);
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                person.entity().getName(), person.brain().describe())
+                .append(suffix).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -1047,9 +1067,10 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         boolean autoDisabled = person.brain().run(new BreakBlock(pos.getX(), pos.getY(), pos.getZ()));
-        String suffix = autoDisabledSuffix(autoDisabled);
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
-                + person.brain().describe() + suffix).withStyle(ChatFormatting.AQUA));
+        Component suffix = autoDisabledNote(autoDisabled);
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                person.entity().getName(), person.brain().describe())
+                .append(suffix).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -1064,7 +1085,7 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.translatable("anima.command.not_identified"));
             return 0;
         }
         String name = person.entity().getName().getString();
@@ -1091,7 +1112,7 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.translatable("anima.command.not_identified"));
             return 0;
         }
         String name = person.entity().getName().getString();
@@ -1137,24 +1158,25 @@ public final class AgentCommands {
         String name = body.entity().getName().getString();
         Collection<Gauge> gauges = body.needs().all();
         if (gauges.isEmpty()) {
-            Replies.send(source, () -> Component.literal(name + " needs nothing at all.")
+            Replies.send(source, () -> Component.translatable("anima.command.needs.none", name)
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        Replies.send(source, () -> Component.literal(name + " — " + gauges.size() + " needs")
-                .withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.needs.header",
+                name, gauges.size()).withStyle(ChatFormatting.AQUA));
         for (Gauge gauge : gauges) {
             // No key prefix: every gauge's describe() already names itself, and the alternative
             // reads "food: food 14/20".
-            String line = String.format(Locale.ROOT, "  %s  (pressure %.2f)",
-                    gauge.describe(), gauge.pressure());
-            Replies.send(source, () -> Component.literal(line)
-                    .withStyle(gauge.pressure() > 0.0 ? ChatFormatting.YELLOW : ChatFormatting.GRAY));
+            Replies.send(source, () -> indent(Component.translatable("anima.command.needs.gauge",
+                    gauge.describe(), String.format(Locale.ROOT, "%.2f", gauge.pressure()))
+                    .withStyle(gauge.pressure() > 0.0 ? ChatFormatting.YELLOW : ChatFormatting.GRAY)));
             // What this need DOES, from its own declaration — so "why is he walking over there?"
             // is answerable without reading whichever instinct happens to mention the gauge.
             for (Binding binding : gauge.kind().bindings()) {
-                Replies.send(source, () -> Component.literal("    " + binding.describe())
-                        .withStyle(ChatFormatting.DARK_GRAY));
+                Replies.send(source, () -> indent(indent(Component.translatable(binding.nameKey(),
+                        binding.needKey(), binding.key(),
+                        Component.translatable(binding.sideKey()))
+                        .withStyle(ChatFormatting.DARK_GRAY))));
             }
             for (Component because : Because.lines(name, gauge)) {
                 Replies.send(source, () -> because);
@@ -1181,8 +1203,9 @@ public final class AgentCommands {
         metabolism.setExhaustion(0.0F);
         // LOGGED: needs persist on the body and drive the arbiter — a hand-set hunger explains an
         // eat that would otherwise read as the brain deciding something inexplicable.
-        Replies.send(source, () -> Component.literal(body.entity().getName().getString() + ": "
-                + metabolism.describe()).withStyle(ChatFormatting.AQUA), true);
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                body.entity().getName(), metabolism.describe())
+                .withStyle(ChatFormatting.AQUA), true);
         return 1;
     }
 
@@ -1195,14 +1218,15 @@ public final class AgentCommands {
         if (body == null) return 0;
         Optional<Company> gauge = body.needs().gauge(NeedKind.COMPANY, Company.class);
         if (gauge.isEmpty()) {
-            Replies.fail(source, Component.literal(body.entity().getName().getString()
-                    + " has no company gauge — that body's species does not feel lonely."));
+            Replies.fail(source, Component.translatable("anima.command.needs.no_company",
+                    body.entity().getName()));
             return 0;
         }
         Company company = gauge.get();
         company.setValue(level);
-        Replies.send(source, () -> Component.literal(body.entity().getName().getString() + ": "
-                + company.describe()).withStyle(ChatFormatting.AQUA), true);
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                body.entity().getName(), company.describe())
+                .withStyle(ChatFormatting.AQUA), true);
         return 1;
     }
 
@@ -1212,23 +1236,23 @@ public final class AgentCommands {
         List<Being> beings = person.brain().percepts().beings();
         String name = person.entity().getName().getString();
         if (beings.isEmpty()) {
-            Replies.send(source, () -> Component.literal(name + " sees nobody around.")
+            Replies.send(source, () -> Component.translatable("anima.command.peers.none", name)
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        Replies.send(source, () -> Component.literal(name + " — " + beings.size() + " perceived")
-                .withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.peers.header",
+                name, beings.size()).withStyle(ChatFormatting.AQUA));
         String pronoun = person.pronouns().object();
         for (Being being : beings) {
             String kind = being.kind() == Being.Kind.AGENT || being.kind() == Being.Kind.UNKNOWN
                     ? "" : " [" + being.kind().key()
                             + (being.aggressive() ? "!" : "") + "]";
-            String line = String.format(Locale.ROOT, "%s%s (%d, %d, %d) - %.1f blocks away, %s%s",
-                    being.knownAs(), kind, being.pos().x(), being.pos().y(), being.pos().z(),
-                    being.distance(), being.tell(pronoun),
-                    being.awareness() == Being.Awareness.SEEN
-                            ? "" : " [" + being.awareness().name().toLowerCase(Locale.ROOT) + "]");
-            Replies.send(source, () -> Component.literal(line)
+            String awareness = being.awareness() == Being.Awareness.SEEN
+                    ? "" : " [" + being.awareness().name().toLowerCase(Locale.ROOT) + "]";
+            Replies.send(source, () -> Component.translatable("anima.command.peers.row",
+                    being.knownAs() + kind, being.pos().x(), being.pos().y(), being.pos().z(),
+                    String.format(Locale.ROOT, "%.1f", being.distance()),
+                    being.tell(pronoun) + awareness)
                     .withStyle(being.awareness() == Being.Awareness.REMEMBERED
                             ? ChatFormatting.GRAY : ChatFormatting.GREEN));
         }
@@ -1241,17 +1265,19 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         boolean autoDisabled = person.brain().run(new SatisfyHunger());
-        String suffix = autoDisabledSuffix(autoDisabled);
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
-                + person.brain().describe() + suffix).withStyle(ChatFormatting.AQUA));
+        Component suffix = autoDisabledNote(autoDisabled);
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                person.entity().getName(), person.brain().describe())
+                .append(suffix).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
     private static int brainStatus(CommandSourceStack source) {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
-                + person.brain().describe()).withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                person.entity().getName(), person.brain().describe())
+                .withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -1259,8 +1285,9 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         person.brain().cancel();
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " task cancelled; "
-                + person.brain().describe()).withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.brain.cancelled",
+                person.entity().getName(), person.brain().describe())
+                .withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -1270,8 +1297,9 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         person.brain().setAuto(auto);
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
-                + person.brain().describe()).withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                person.entity().getName(), person.brain().describe())
+                .withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -1292,10 +1320,9 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         boolean auto = person.brain().isAuto();
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + "'s brain auto is "
-                        + auto + " — " + (auto
-                                ? "the arbiter is deciding."
-                                : "manual; hand it back with /anima brain auto true."))
+        Replies.send(source, () -> Component.translatable(auto
+                        ? "anima.command.brain.auto_on" : "anima.command.brain.auto_off",
+                person.entity().getName())
                 .withStyle(auto ? ChatFormatting.GREEN : ChatFormatting.GRAY));
         return auto ? 1 : 0;
     }
@@ -1306,8 +1333,9 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         person.brain().setWander(wander);
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + ": "
-                + person.brain().describe()).withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                person.entity().getName(), person.brain().describe())
+                .withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -1316,19 +1344,23 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         boolean wander = person.brain().isWander();
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + "'s brain wander is "
-                        + wander + " — " + (wander
-                                ? "they drift when nothing else is pressing."
-                                : "muted; they stand still when idle. /anima brain wander true to restore."))
+        Replies.send(source, () -> Component.translatable(wander
+                        ? "anima.command.brain.wander_on" : "anima.command.brain.wander_off",
+                person.entity().getName())
                 .withStyle(wander ? ChatFormatting.GREEN : ChatFormatting.GRAY));
         return wander ? 1 : 0;
     }
 
-    /** The note appended to a manual {@code brain goto}/{@code brain eat} reply when that very
-     *  call is what took the wheel from the arbiter. */
-    /** Public: a consumer's own brain verbs report the autonomy switch the same way. */
-    public static String autoDisabledSuffix(boolean autoDisabled) {
-        return autoDisabled ? " (auto disabled — re-enable with /anima brain auto true)" : "";
+    /**
+     * The note appended to a manual {@code brain goto}/{@code brain eat} reply when that very call
+     * is what took the wheel from the arbiter — empty when it did not, so it always appends.
+     *
+     * <p>Public: a consumer's own brain verbs report the autonomy switch the same way.
+     */
+    public static Component autoDisabledNote(boolean autoDisabled) {
+        return autoDisabled
+                ? Component.translatable("anima.command.brain.auto_disabled")
+                : Component.empty();
     }
 
     /** A {@code log <category>} branch: dumps only that subsystem's lines (optionally a count). */
@@ -1361,7 +1393,7 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.translatable("anima.command.not_identified"));
             return 0;
         }
         return dumpJournal(source, id, person.entity().getName().getString(), true, category, count);
@@ -1393,15 +1425,19 @@ public final class AgentCommands {
         List<Entry> matched = category == null ? all
                 : all.stream().filter(entry -> entry.category() == category).toList();
         List<Entry> lines = matched.subList(Math.max(0, matched.size() - count), matched.size());
+        // The category is a journal filter, and the journal is filed under these words — the
+        // scope tag names the filter, not a thing to be renamed per language.
         String scope = category == null ? "" : " (" + category.name().toLowerCase(Locale.ROOT) + ")";
-        String tag = loaded ? "" : " (not loaded)";
+        Component tag = loaded ? Component.empty()
+                : Component.translatable("anima.command.not_loaded_tag");
         if (lines.isEmpty()) {
-            Replies.send(source, () -> Component.literal(name + " has no" + scope + " log yet" + tag + ".")
-                    .withStyle(ChatFormatting.GRAY));
+            Replies.send(source, () -> Component.translatable("anima.command.log.empty", name, scope)
+                    .append(tag).withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        Replies.send(source, () -> Component.literal(name + " — last " + lines.size() + " lines" + scope + tag)
-                .withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.log.header",
+                        name, lines.size(), scope)
+                .append(tag).withStyle(ChatFormatting.AQUA));
         for (Entry entry : lines) {
             Replies.send(source, () -> Component.literal(formatLine(name, entry))
                     .withStyle(colorFor(entry.category())));
@@ -1431,15 +1467,14 @@ public final class AgentCommands {
                     .toList();
         }
         if (matches.isEmpty()) {
-            Replies.fail(source, Component.literal(
-                    "No agent matches '" + token + "' — try a name or id from the list command."));
+            Replies.fail(source, Component.translatable("anima.command.no_match", token));
             return null;
         }
         if (matches.size() > 1) {
             String ids = matches.stream().map(AgentCommands::shortId)
                     .collect(java.util.stream.Collectors.joining(", "));
-            Replies.fail(source, Component.literal(matches.size() + " agents named '" + token
-                    + "' — pick one by id: " + ids));
+            Replies.fail(source, Component.translatable("anima.command.ambiguous_name",
+                    matches.size(), token, ids));
             return null;
         }
         return matches.get(0);
@@ -1469,17 +1504,18 @@ public final class AgentCommands {
         long now = server.overworld().getGameTime();
         List<SiteClaims.Held> sites = Claims.of(server).held(now);
         if (sites.isEmpty()) {
-            Replies.send(source, () -> Component.literal("No site is claimed right now.")
+            Replies.send(source, () -> Component.translatable("anima.command.claims.none")
                     .withStyle(ChatFormatting.GRAY));
         } else {
-            Replies.send(source, () -> Component.literal("Site claims — " + sites.size() + " live:")
-                    .withStyle(ChatFormatting.AQUA));
+            Replies.send(source, () -> Component.translatable("anima.command.claims.header",
+                    sites.size()).withStyle(ChatFormatting.AQUA));
             for (SiteClaims.Held held : sites) {
-                String line = "  " + held.kind().key().toUpperCase(java.util.Locale.ROOT)
+                String what = held.kind().key().toUpperCase(java.util.Locale.ROOT)
                         + " (" + held.anchor().x() + ", " + held.anchor().y() + ", "
-                        + held.anchor().z() + ")"
-                        + " — " + label(server, held.who()) + ", " + held.remaining() + "t left";
-                Replies.send(source, () -> Component.literal(line).withStyle(ChatFormatting.GRAY));
+                        + held.anchor().z() + ")";
+                Replies.send(source, () -> indent(Component.translatable("anima.command.claims.row",
+                        what, label(server, held.who()), held.remaining())
+                        .withStyle(ChatFormatting.GRAY)));
             }
         }
         AgentBody person = resolveBody(source);
@@ -1487,16 +1523,16 @@ public final class AgentCommands {
         String name = person.entity().getName().getString();
         List<WorkLease> leases = person.brain().leases();
         if (leases.isEmpty()) {
-            Replies.send(source, () -> Component.literal(name + "'s boards: nothing leased out.")
+            Replies.send(source, () -> Component.translatable("anima.command.leases.none", name)
                     .withStyle(ChatFormatting.GRAY));
             return 1;
         }
-        Replies.send(source, () -> Component.literal(name + "'s boards — " + leases.size()
-                + " item lease(s):").withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.leases.header",
+                name, leases.size()).withStyle(ChatFormatting.AQUA));
         for (WorkLease lease : leases) {
-            String line = "  " + lease.board() + " · " + lease.item()
-                    + " — " + label(server, lease.who()) + ", " + lease.remaining() + "t left";
-            Replies.send(source, () -> Component.literal(line).withStyle(ChatFormatting.GRAY));
+            Replies.send(source, () -> indent(Component.translatable("anima.command.claims.row",
+                    lease.board() + " · " + lease.item(), label(server, lease.who()),
+                    lease.remaining()).withStyle(ChatFormatting.GRAY)));
         }
         return 1;
     }
@@ -1511,20 +1547,20 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.translatable("anima.command.not_identified"));
             return 0;
         }
         AgentKnowledge knowledge = Knowledges.of(source.getServer()).forPerson(id);
         String name = person.entity().getName().getString();
         if (knowledge.size() == 0 && knowledge.glimpseCount() == 0) {
-            Replies.send(source, () -> Component.literal(name + " remembers no POIs yet.")
+            Replies.send(source, () -> Component.translatable("anima.command.knowledge.none", name)
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         long now = source.getServer().overworld().getGameTime();
-        Replies.send(source, () -> Component.literal(name + " — " + knowledge.size()
-                        + " remembered POI(s), " + knowledge.glimpseCount() + " glimpsed, "
-                        + person.poiSensor().claimCount() + " claimed blocks")
+        Replies.send(source, () -> Component.translatable("anima.command.knowledge.header",
+                        name, knowledge.size(), knowledge.glimpseCount(),
+                        person.poiSensor().claimCount())
                 .withStyle(ChatFormatting.AQUA));
         // The world's line, not theirs — but this is the command somebody reads when they are
         // asking why perception costs what it does, and the hit rate is that answer.
@@ -1556,8 +1592,7 @@ public final class AgentCommands {
                 .withStyle(ChatFormatting.DARK_GRAY));
         for (PoiKind kind : PoiKind.all()) {
             for (PoiMemory memory : knowledge.all(kind)) {
-                String line = formatPoi(person, memory, now);
-                Replies.send(source, () -> Component.literal(line)
+                Replies.send(source, () -> formatPoi(person, memory, now).copy()
                         .withStyle(ChatFormatting.GREEN));
             }
         }
@@ -1565,8 +1600,7 @@ public final class AgentCommands {
         // going to look at.
         for (PoiKind kind : PoiKind.all()) {
             for (Sighting sighting : knowledge.glimpses(kind)) {
-                String line = formatGlimpse(person, sighting, now);
-                Replies.send(source, () -> Component.literal(line)
+                Replies.send(source, () -> formatGlimpse(person, sighting, now).copy()
                         .withStyle(ChatFormatting.AQUA));
             }
         }
@@ -1574,39 +1608,46 @@ public final class AgentCommands {
     }
 
     /** One rumour line: {@code ~TREE (0, 68, 30) - 30 blocks away, made out from 42 off, 12s ago}. */
-    private static String formatGlimpse(AgentBody person, Sighting sighting, long now) {
+    private static Component formatGlimpse(AgentBody person, Sighting sighting, long now) {
         double distance = Math.sqrt(person.entity().distanceToSqr(
                 sighting.at().x() + 0.5, sighting.at().y() + 0.5, sighting.at().z() + 0.5));
-        return "~" + sighting.kind().key().toUpperCase(java.util.Locale.ROOT)
-                + " (" + sighting.at().x() + ", " + sighting.at().y() + ", " + sighting.at().z()
-                + ") - " + Math.round(distance) + " blocks away, made out from "
-                + sighting.range() + " off, " + PoiLabels.ticks(sighting.age(now)) + " ago"
-                + (sighting.provenance() == Sighting.Provenance.PASSIVE
-                        ? "" : ", " + sighting.provenance().name().toLowerCase(java.util.Locale.ROOT));
+        // PoiLabels' spans stay as they are: "32s" is a unit, and the in-world labels it also
+        // feeds have no room for a sentence.
+        return Component.translatable("anima.command.knowledge.glimpse",
+                "~" + sighting.kind().key().toUpperCase(java.util.Locale.ROOT),
+                sighting.at().x(), sighting.at().y(), sighting.at().z(),
+                Math.round(distance), sighting.range(), PoiLabels.ticks(sighting.age(now)))
+                .append(sighting.provenance() == Sighting.Provenance.PASSIVE
+                        ? Component.empty()
+                        : Component.literal(", " + sighting.provenance().name()
+                                .toLowerCase(java.util.Locale.ROOT)));
     }
 
     /** One belief line: {@code TREE (10, 64, 8) - 14 blocks away, 4 logs, seen 32s ago, partial}. */
-    private static String formatPoi(AgentBody person, PoiMemory memory, long now) {
+    private static Component formatPoi(AgentBody person, PoiMemory memory, long now) {
         double distance = Math.sqrt(person.entity().distanceToSqr(
                 memory.anchor().x() + 0.5, memory.anchor().y() + 0.5, memory.anchor().z() + 0.5));
         String age = PoiLabels.age(memory, now);
         int lifetime = memory.kind().lifetimeTicks();
-        StringBuilder line = new StringBuilder(memory.kind().key().toUpperCase(java.util.Locale.ROOT));
-        if (!memory.detail().isEmpty()) {
-            line.append(' ').append(memory.detail());
-        }
-        line.append(" (").append(memory.anchor().x()).append(", ").append(memory.anchor().y())
-                .append(", ").append(memory.anchor().z()).append(") - ")
-                .append(Math.round(distance)).append(" blocks away, ")
-                .append(memory.units()).append(memory.kind().unit().isEmpty() ? " cells" : memory.kind().unit())
-                .append(", seen ").append(age.equals("now") ? "just now" : age + " ago");
+        String what = memory.kind().key().toUpperCase(java.util.Locale.ROOT)
+                + (memory.detail().isEmpty() ? "" : " " + memory.detail());
+        Component amount = memory.kind().unit().isEmpty()
+                ? Component.translatable("anima.command.knowledge.cells", memory.units())
+                : Component.literal(memory.units() + memory.kind().unit());
+        // PoiLabels' spans stay as they are: "32s" is a unit, and the in-world labels it also
+        // feeds have no room for a sentence.
+        MutableComponent line = Component.translatable("anima.command.knowledge.poi",
+                what, memory.anchor().x(), memory.anchor().y(), memory.anchor().z(),
+                Math.round(distance), amount,
+                age.equals("now") ? Component.translatable("anima.command.knowledge.just_now")
+                        : Component.translatable("anima.command.knowledge.seen_ago", age));
         if (lifetime > 0) {
-            line.append(", ").append(PoiLabels.when(memory, now));
+            line.append(Component.literal(", " + PoiLabels.when(memory, now)));
         }
         if (memory.partial()) {
-            line.append(", partial");
+            line.append(Component.translatable("anima.command.knowledge.partial"));
         }
-        return line.toString();
+        return line;
     }
 
     /**
@@ -1619,7 +1660,7 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.translatable("anima.command.not_identified"));
             return 0;
         }
         String name = person.entity().getName().getString();
@@ -1654,7 +1695,7 @@ public final class AgentCommands {
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
-            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.translatable("anima.command.not_identified"));
             return 0;
         }
         String name = person.entity().getName().getString();
@@ -1687,16 +1728,17 @@ public final class AgentCommands {
         if (person == null) return 0;
         List<Inventory.Entry> occupied = person.inventory().occupied();
         if (occupied.isEmpty()) {
-            Replies.send(source, () -> Component.literal(
-                            person.entity().getName().getString() + " carries nothing.")
-                    .withStyle(ChatFormatting.GRAY));
+            Replies.send(source, () -> Component.translatable("anima.command.inv.empty",
+                    person.entity().getName()).withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " carries:")
-                .withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.inv.header",
+                person.entity().getName()).withStyle(ChatFormatting.AQUA));
         for (Inventory.Entry entry : occupied) {
-            String line = "  " + slotLabel(entry.slot()) + "  " + entry.stack().id() + " x" + entry.stack().count();
-            Replies.send(source, () -> Component.literal(line).withStyle(ChatFormatting.GRAY));
+            String line = slotLabel(entry.slot()) + "  " + entry.stack().id()
+                    + " x" + entry.stack().count();
+            Replies.send(source, () -> indent(Component.literal(line)
+                    .withStyle(ChatFormatting.GRAY)));
         }
         return occupied.size();
     }
@@ -1715,8 +1757,12 @@ public final class AgentCommands {
         int placed = count - remainder.count();
         // LOGGED: the pack is persisted, nothing journals a change to it, and layer 3 reads it to
         // decide whether a want is satisfied — a quiet hand-out silently completes an errand.
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " +" + placed + " "
-                + template.id() + (remainder.isEmpty() ? "" : "  (" + remainder.count() + " didn't fit)"))
+        Replies.send(source, () -> (remainder.isEmpty()
+                        ? Component.translatable("anima.command.inv.gave",
+                                person.entity().getName(), placed, template.id())
+                        : Component.translatable("anima.command.inv.gave_partial",
+                                person.entity().getName(), placed, template.id(),
+                                remainder.count()))
                 .withStyle(ChatFormatting.AQUA), true);
         return placed;
     }
@@ -1735,25 +1781,26 @@ public final class AgentCommands {
                 ItemStacks.templateOf(input, source.registryAccess());
         EquipmentSlot slot = ItemStacks.equipmentSlotOf(want);
         if (slot == null) {
-            Replies.fail(source, Component.literal(want.id() + " is not equippable."));
+            Replies.fail(source, Component.translatable("anima.command.inv.not_equippable",
+                    want.id()));
             return 0;
         }
         if (!PERSON_EQUIP_SLOTS.contains(slot)) { // e.g. BODY/SADDLE — no such slot on a Person
-            Replies.fail(source, Component.literal(
-                    want.id() + " can't be worn by a Person (" + slot.getName() + ")."));
+            Replies.fail(source, Component.translatable("anima.command.inv.wrong_slot",
+                    want.id(), slot.getName()));
             return 0;
         }
         Inventory inv = person.inventory();
         dev.luizloyola.anima.core.inv.ItemStack piece = inv.takeOne(want.id());
         if (piece.isEmpty()) {
-            Replies.fail(source, Component.literal(person.entity().getName().getString()
-                    + " has no " + want.id() + " to equip."));
+            Replies.fail(source, Component.translatable("anima.command.inv.not_carried",
+                    person.entity().getName(), want.id()));
             return 0;
         }
         dev.luizloyola.anima.core.inv.ItemStack displaced = placeEquipment(inv, slot, piece);
         if (!displaced.isEmpty()) inv.add(displaced); // whatever was worn there goes back to storage
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " equipped "
-                + want.id() + " (" + slot.getName() + ")")
+        Replies.send(source, () -> Component.translatable("anima.command.inv.equipped",
+                person.entity().getName(), want.id(), slot.getName())
                 .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted, unjournalled
         return 1;
     }
@@ -1762,7 +1809,8 @@ public final class AgentCommands {
         AgentBody person = resolveBody(source);
         if (person == null) return 0;
         person.inventory().clear();
-        Replies.send(source, () -> Component.literal(person.entity().getName().getString() + " inventory cleared.")
+        Replies.send(source, () -> Component.translatable("anima.command.inv.cleared",
+                person.entity().getName())
                 .withStyle(ChatFormatting.AQUA), true); // LOGGED: destroys persisted state
         return 1;
     }
@@ -1788,8 +1836,8 @@ public final class AgentCommands {
                 .map(AgentBody.class::cast)
                 .orElse(null);
         if (nearest == null) {
-            Replies.fail(source, Component.literal(
-                    "Nobody with a mind within " + (int) NEAREST_RADIUS + " blocks."));
+            Replies.fail(source, Component.translatable("anima.command.select.nobody_near",
+                    (int) NEAREST_RADIUS));
         }
         return nearest;
     }
@@ -1803,8 +1851,8 @@ public final class AgentCommands {
     public static @Nullable AgentBody resolveBody(CommandSourceStack source) {
         if (source.getEntity() instanceof AgentBody self) {
             if (!self.entity().isAlive()) {
-                Replies.fail(source, Component.literal(
-                        self.entity().getName().getString() + " is dead — nothing left to command."));
+                Replies.fail(source, Component.translatable("anima.command.select.dead",
+                        self.entity().getName()));
                 return null;
             }
             return self;
@@ -1814,8 +1862,8 @@ public final class AgentCommands {
         AgentId id = pin.get();
         AgentBody live = AgentBodies.findLoaded(source.getServer(), id);
         if (live == null) {
-            Replies.fail(source, Component.literal("Selected " + label(source.getServer(), id)
-                    + " isn't loaded — /anima select clear, or select someone else."));
+            Replies.fail(source, Component.translatable("anima.command.select.not_loaded",
+                    label(source.getServer(), id)));
         }
         return live;
     }
@@ -1866,8 +1914,7 @@ public final class AgentCommands {
                     .toList();
         }
         if (matches.isEmpty()) {
-            Replies.fail(source, Component.literal(
-                    "Nobody loaded matches '" + token + "' — try the list command."));
+            Replies.fail(source, Component.translatable("anima.command.select.no_match", token));
             return 0;
         }
         // Ambiguity FAILS rather than guessing (decision: Luiz): a name collides across kinds once
@@ -1877,14 +1924,14 @@ public final class AgentCommands {
             String ids = matches.stream()
                     .map(b -> shortId(b.agentId()))
                     .collect(java.util.stream.Collectors.joining(", "));
-            Replies.fail(source, Component.literal(matches.size() + " agents match '" + token
-                    + "' — pick one by id: " + ids));
+            Replies.fail(source, Component.translatable("anima.command.select.ambiguous",
+                    matches.size(), token, ids));
             return 0;
         }
         AgentId id = matches.get(0).agentId();
         AgentSelection.pin(source, id);
-        Replies.send(source, () -> Component.literal("Selected " + label(server, id))
-                .withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.select.selected",
+                label(server, id)).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -1906,37 +1953,40 @@ public final class AgentCommands {
         }
         AgentId id = target.agentId();
         if (id == null) {
-            Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
+            Replies.fail(source, Component.translatable("anima.command.not_identified"));
             return 0;
         }
         AgentSelection.pin(source, id);
-        Replies.send(source, () -> Component.literal("Selected " + label(source.getServer(), id))
-                .withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.select.selected",
+                label(source.getServer(), id)).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
     private static int selectClear(CommandSourceStack source) {
         if (AgentSelection.clear(source)) {
-            Replies.send(source, () -> Component.literal(
-                            "Selection cleared — commands use the nearest Person again.")
+            Replies.send(source, () -> Component.translatable("anima.command.select.cleared")
                     .withStyle(ChatFormatting.AQUA));
             return 1;
         }
-        Replies.send(source, () -> Component.literal("No Person was selected.").withStyle(ChatFormatting.GRAY));
+        Replies.send(source, () -> Component.translatable("anima.command.select.none_was")
+                .withStyle(ChatFormatting.GRAY));
         return 0;
     }
 
     private static int selectShow(CommandSourceStack source) {
         Optional<AgentId> pin = AgentSelection.pinned(source);
         if (pin.isEmpty()) {
-            Replies.send(source, () -> Component.literal("No selection — commands use the nearest Person.")
+            Replies.send(source, () -> Component.translatable("anima.command.select.none")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         AgentId id = pin.get();
         boolean loaded = AgentBodies.findLoaded(source.getServer(), id) != null;
-        Replies.send(source, () -> Component.literal("Selected: " + label(source.getServer(), id)
-                + (loaded ? "" : " (not loaded)")).withStyle(loaded ? ChatFormatting.AQUA : ChatFormatting.GRAY));
+        Replies.send(source, () -> Component.translatable("anima.command.select.show",
+                        label(source.getServer(), id))
+                .append(loaded ? Component.empty()
+                        : Component.translatable("anima.command.not_loaded_tag"))
+                .withStyle(loaded ? ChatFormatting.AQUA : ChatFormatting.GRAY));
         return loaded ? 1 : 0;
     }
 
@@ -1994,16 +2044,14 @@ public final class AgentCommands {
         if (self instanceof AgentBody body) {
             AgentId id = body.agentId();
             if (id == null) {
-                Replies.fail(source, Component.literal("That Person isn't identified yet (still spawning)."));
+                Replies.fail(source, Component.translatable("anima.command.not_identified"));
             }
             return id;
         }
         if (self instanceof ServerPlayer player) {
             return AgentId.of(player.getUUID());
         }
-        Replies.fail(source, Component.literal(
-                "The console knows everyone and nobody — run this as a player, or "
-                        + "/execute as <person> run anima contacts …"));
+        Replies.fail(source, Component.translatable("anima.command.contacts.console"));
         return null;
     }
 
@@ -2022,40 +2070,48 @@ public final class AgentCommands {
         }
         MinecraftServer server = source.getServer();
         if (source.getEntity() instanceof ServerPlayer player && ContactsSync.seesEveryone(player)) {
-            String vantage = player.isSpectator() ? "As a spectator" : "In creative";
             return printNames(source, AgentDirectory.of(server).living(server).keySet(),
-                    vantage + ", you know");
+                    Component.translatable(player.isSpectator()
+                            ? "anima.command.contacts.knows_spectator"
+                            : "anima.command.contacts.knows_creative"));
         }
         // The living, by default: the entry is not deleted — "I knew Alice" stays true after Alice
         // dies — but the dead are not people to deal with. `contacts of <name>` shows the book as
         // it is.
         return printNames(source, Set.copyOf(Graves.get(server)
-                .living(ContactData.get(server).contactsOf(self))), "You know");
+                .living(ContactData.get(server).contactsOf(self))),
+                Component.translatable("anima.command.contacts.you_know"));
     }
 
     /** Everyone that Person can name — the omniscient view: a dev tool reads any book. */
     private static int contactsOf(CommandSourceStack source, String token) {
         AgentId who = resolveDirectory(source, token);
         return who == null ? 0
-                : printContacts(source, who, label(source.getServer(), who) + " knows");
+                : printContacts(source, who, Component.translatable(
+                        "anima.command.contacts.agent_knows", label(source.getServer(), who)));
     }
 
-    private static int printContacts(CommandSourceStack source, AgentId who, String heading) {
+    private static int printContacts(CommandSourceStack source, AgentId who, Component heading) {
         return printNames(source, ContactData.get(source.getServer()).contactsOf(who), heading);
     }
 
-    private static int printNames(CommandSourceStack source, Set<AgentId> known, String heading) {
+    private static int printNames(CommandSourceStack source, Set<AgentId> known, Component heading) {
         MinecraftServer server = source.getServer();
         if (known.isEmpty()) {
-            Replies.send(source, () -> Component.literal(heading + " nobody yet.")
+            Replies.send(source, () -> heading.copy()
+                    .append(Component.translatable("anima.command.contacts.nobody"))
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        Replies.send(source, () -> Component.literal(heading + " " + known.size()
-                + (known.size() == 1 ? " person:" : " people:")).withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> heading.copy()
+                .append(Component.translatable(known.size() == 1
+                                ? "anima.command.contacts.count_one"
+                                : "anima.command.contacts.count", known.size()))
+                .withStyle(ChatFormatting.AQUA));
         for (AgentId id : known) {
-            String line = "  " + label(server, id) + "  " + shortId(id);
-            Replies.send(source, () -> Component.literal(line).withStyle(ChatFormatting.GRAY));
+            String line = label(server, id) + "  " + shortId(id);
+            Replies.send(source, () -> indent(Component.literal(line)
+                    .withStyle(ChatFormatting.GRAY)));
         }
         return known.size();
     }
@@ -2072,11 +2128,11 @@ public final class AgentCommands {
         if (other == null) return 0;
         MinecraftServer server = source.getServer();
         if (self.equals(other)) {
-            Replies.fail(source, Component.literal("You have already met yourself."));
+            Replies.fail(source, Component.translatable("anima.command.contacts.met_self"));
             return 0;
         }
         if (!ContactData.get(server).introduce(self, other)) {
-            Replies.send(source, () -> Component.literal("Already acquainted.")
+            Replies.send(source, () -> Component.translatable("anima.command.contacts.already")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
@@ -2084,8 +2140,9 @@ public final class AgentCommands {
         ContactsSync.learned(server, other, self);
         // LOGGED: the contact book is persisted SavedData and nothing journals a change to it —
         // the journal is the agent's own, and an agent does not narrate what was done TO it.
-        Replies.send(source, () -> Component.literal(label(server, self) + " and " + label(server, other)
-                + " have been introduced.").withStyle(ChatFormatting.AQUA), true);
+        Replies.send(source, () -> Component.translatable("anima.command.contacts.introduced",
+                label(server, self), label(server, other))
+                .withStyle(ChatFormatting.AQUA), true);
         return 1;
     }
 
@@ -2097,12 +2154,13 @@ public final class AgentCommands {
         if (other == null) return 0;
         MinecraftServer server = source.getServer();
         if (!ContactData.get(server).forget(self, other)) {
-            Replies.send(source, () -> Component.literal("You never knew who that is.")
+            Replies.send(source, () -> Component.translatable("anima.command.contacts.never_knew")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         resyncIfOnline(server, self);
-        Replies.send(source, () -> Component.literal(label(server, other) + " is a stranger again.")
+        Replies.send(source, () -> Component.translatable("anima.command.contacts.forgotten",
+                label(server, other))
                 .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted, unjournalled
         return 1;
     }
@@ -2112,12 +2170,12 @@ public final class AgentCommands {
         if (self == null) return 0;
         MinecraftServer server = source.getServer();
         if (!ContactData.get(server).clear(self)) {
-            Replies.send(source, () -> Component.literal("You knew nobody to begin with.")
+            Replies.send(source, () -> Component.translatable("anima.command.contacts.knew_nobody")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         resyncIfOnline(server, self);
-        Replies.send(source, () -> Component.literal("Every name forgotten — everyone is a stranger.")
+        Replies.send(source, () -> Component.translatable("anima.command.contacts.cleared")
                 .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted, unjournalled
         return 1;
     }
@@ -2127,7 +2185,8 @@ public final class AgentCommands {
         AgentId self = sourceIdentity(source);
         if (self == null) return 0;
         MinecraftServer server = source.getServer();
-        return printParty(source, PartyData.get(server).partyOf(self), "Your party");
+        return printParty(source, PartyData.get(server).partyOf(self),
+                Component.translatable("anima.command.party.yours"));
     }
 
     /** That agent's party — the omniscient view: a dev tool reads any roster. */
@@ -2136,23 +2195,26 @@ public final class AgentCommands {
         if (who == null) return 0;
         MinecraftServer server = source.getServer();
         return printParty(source, PartyData.get(server).partyOf(who),
-                label(server, who) + "'s party");
+                Component.translatable("anima.command.party.theirs", label(server, who)));
     }
 
-    private static int printParty(CommandSourceStack source, PartyId party, String heading) {
+    private static int printParty(CommandSourceStack source, PartyId party, Component heading) {
         MinecraftServer server = source.getServer();
         List<AgentId> members = PartyData.get(server).members(party);
-        String tagged = heading + " (" + shortId(party) + ")";
+        Component tagged = heading.copy().append(Component.literal(" (" + shortId(party) + ")"));
         if (members.size() == 1) {
-            Replies.send(source, () -> Component.literal(tagged + " — a party of one.")
+            Replies.send(source, () -> tagged.copy()
+                    .append(Component.translatable("anima.command.party.of_one"))
                     .withStyle(ChatFormatting.GRAY));
             return 1;
         }
-        Replies.send(source, () -> Component.literal(tagged + " — " + members.size() + " members:")
+        Replies.send(source, () -> tagged.copy()
+                .append(Component.translatable("anima.command.party.members", members.size()))
                 .withStyle(ChatFormatting.AQUA));
         for (AgentId member : members) {
-            String line = "  " + label(server, member) + "  " + shortId(member);
-            Replies.send(source, () -> Component.literal(line).withStyle(ChatFormatting.GRAY));
+            String line = label(server, member) + "  " + shortId(member);
+            Replies.send(source, () -> indent(Component.literal(line)
+                    .withStyle(ChatFormatting.GRAY)));
         }
         return members.size();
     }
@@ -2169,21 +2231,21 @@ public final class AgentCommands {
         if (other == null) return 0;
         MinecraftServer server = source.getServer();
         if (self.equals(other)) {
-            Replies.fail(source, Component.literal("You are already in your own party."));
+            Replies.fail(source, Component.translatable("anima.command.party.own"));
             return 0;
         }
         PartyData parties = PartyData.get(server);
         PartyId theirs = parties.partyOf(other);
         if (!parties.join(self, theirs)) {
-            Replies.send(source, () -> Component.literal("Already in the same party.")
+            Replies.send(source, () -> Component.translatable("anima.command.party.same")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         // LOGGED: membership is persisted and it is what layer 3 scopes a board to — a party
         // moved out from under someone silently is a board's worth of work changing hands.
-        Replies.send(source, () -> Component.literal(label(server, self) + " joined "
-                + label(server, other) + "'s party (" + parties.members(theirs).size()
-                + " members).").withStyle(ChatFormatting.AQUA), true);
+        Replies.send(source, () -> Component.translatable("anima.command.party.joined",
+                label(server, self), label(server, other), parties.members(theirs).size())
+                .withStyle(ChatFormatting.AQUA), true);
         return 1;
     }
 
@@ -2193,11 +2255,11 @@ public final class AgentCommands {
         if (self == null) return 0;
         MinecraftServer server = source.getServer();
         if (!PartyData.get(server).leave(self)) {
-            Replies.send(source, () -> Component.literal("You are already on your own.")
+            Replies.send(source, () -> Component.translatable("anima.command.party.already_alone")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        Replies.send(source, () -> Component.literal("You left the party — on your own again.")
+        Replies.send(source, () -> Component.translatable("anima.command.party.left")
                 .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted, scopes a board
         return 1;
     }
@@ -2268,35 +2330,42 @@ public final class AgentCommands {
         Map<AgentId, PrivateIdentity> known =
                 includeDead ? directory.known() : directory.living(server);
         if (known.isEmpty()) {
-            Replies.send(source, () -> Component.literal(includeDead
-                    ? "Nobody has ever had a mind here."
-                    : "Nobody living has a mind yet.").withStyle(ChatFormatting.GRAY));
+            Replies.send(source, () -> Component.translatable(includeDead
+                    ? "anima.command.list.none_ever" : "anima.command.list.none")
+                    .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         Vec3 origin = source.getPosition();
         long now = server.overworld().getGameTime();
         known.forEach((id, identity) -> {
             AgentBody body = AgentBodies.findLoaded(server, id);
-            // "dead" before "unloaded" — those two used to be the same word here.
-            String kind = graves.isDead(id) ? "dead"
-                    : body == null ? "unloaded"
-                    : body.entity().getType().getDescription().getString();
+            // "dead" before "unloaded" — those two used to be the same word here. The live row
+            // borrows the entity type's own name rather than flattening it: getString() would
+            // resolve it against the SERVER's language and hand every client that one.
+            Component kind = graves.isDead(id)
+                    ? Component.translatable("anima.command.list.dead")
+                    : body == null ? Component.translatable("anima.command.list.unloaded")
+                    : body.entity().getType().getDescription();
             // A dead row says when and where it happened instead of how far away it is standing —
             // the grave has held that all along.
-            String where = graves.isDead(id)
-                    ? graves.deathOf(id).map(death -> summarise(death, now)).orElse("")
-                    : body == null ? ""
-                    : String.format(Locale.ROOT, "  %s  %.1fm",
+            Component where = graves.isDead(id)
+                    ? graves.deathOf(id).<Component>map(death -> summarise(death, now))
+                            .orElse(Component.empty())
+                    : body == null ? Component.empty()
+                    : Component.literal(String.format(Locale.ROOT, "  %s  %.1fm",
                             body.entity().level().dimension().identifier().getPath(),
-                            Math.sqrt(body.entity().distanceToSqr(origin)));
-            Replies.send(source, () -> Component.literal(String.format(Locale.ROOT,
-                    "  %s: %s (%s)%s", kind, identity.name(), shortId(id), where)));
+                            Math.sqrt(body.entity().distanceToSqr(origin))));
+            Replies.send(source, () -> indent(Component.translatable("anima.command.list.row",
+                    kind, identity.name(), shortId(id)).append(where)));
         });
         int buried = graves.size();
-        Replies.send(source, () -> Component.literal("  " + known.size()
-                + (includeDead ? " known" : " living")
-                + (!includeDead && buried > 0 ? ", " + buried + " buried (list all)" : ""))
-                .withStyle(ChatFormatting.GRAY));
+        Replies.send(source, () -> indent(Component.translatable(includeDead
+                        ? "anima.command.list.total_known" : "anima.command.list.total_living",
+                        known.size())
+                .append(!includeDead && buried > 0
+                        ? Component.translatable("anima.command.list.also_buried", buried)
+                        : Component.empty())
+                .withStyle(ChatFormatting.GRAY)));
         return known.size();
     }
 
@@ -2320,17 +2389,19 @@ public final class AgentCommands {
         MinecraftServer server = source.getServer();
         Graves graves = Graves.get(server);
         if (graves.size() == 0) {
-            Replies.send(source, () -> Component.literal("Nobody has died here.")
+            Replies.send(source, () -> Component.translatable("anima.command.grave.none")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         long now = server.overworld().getGameTime();
-        Replies.send(source, () -> Component.literal(graves.size() + " buried")
-                .withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.command.grave.header",
+                graves.size()).withStyle(ChatFormatting.AQUA));
         for (AgentId id : graves.all()) {
-            String line = "  " + label(server, id) + " (" + shortId(id) + ")"
-                    + graves.deathOf(id).map(death -> summarise(death, now)).orElse("");
-            Replies.send(source, () -> Component.literal(line).withStyle(ChatFormatting.GRAY));
+            Component where = graves.deathOf(id).<Component>map(death -> summarise(death, now))
+                    .orElse(Component.empty());
+            Replies.send(source, () -> indent(Component.literal(
+                    label(server, id) + " (" + shortId(id) + ")").append(where))
+                    .withStyle(ChatFormatting.GRAY));
         }
         return graves.size();
     }
@@ -2352,36 +2423,36 @@ public final class AgentCommands {
         String name = label(server, who);
         Optional<Graves.Death> found = Graves.get(server).deathOf(who);
         if (found.isEmpty()) {
-            Replies.send(source, () -> Component.literal(name + " is alive.")
+            Replies.send(source, () -> Component.translatable("anima.command.grave.alive", name)
                     .withStyle(ChatFormatting.GREEN));
             return 0;
         }
         Graves.Death death = found.orElseThrow();
         long now = server.overworld().getGameTime();
-        Replies.send(source, () -> Component.literal(
-                        name + " (" + shortId(who) + ") — died " + ago(now - death.diedAtTick()))
+        Replies.send(source, () -> Component.translatable("anima.command.grave.died",
+                        name, shortId(who), ago(now - death.diedAtTick()))
                 .withStyle(ChatFormatting.AQUA));
-        Replies.send(source, () -> Component.literal("  where: "
-                + dimensionName(death.dimension()) + " " + death.where()
-                + "  (tick " + death.diedAtTick() + ")"));
+        Replies.send(source, () -> indent(Component.translatable("anima.command.grave.where",
+                dimensionName(death.dimension()) + " " + death.where(), death.diedAtTick())));
         if (!death.cause().isBlank()) {
-            Replies.send(source, () -> Component.literal("  cause: " + death.cause())
-                    .withStyle(ChatFormatting.RED));
+            Replies.send(source, () -> indent(Component.translatable("anima.command.grave.cause",
+                    death.cause()).withStyle(ChatFormatting.RED)));
         }
         if (!death.killer().isBlank()) {
             // The id only when there is one: a zombie has no handle, and printing an empty pair of
             // brackets after every mob would make the ones that DO matter harder to spot.
-            String killer = "  killer: " + death.killer()
+            String killer = death.killer()
                     + death.killerId().map(id -> " (" + shortId(id) + ")").orElse("")
                     + (death.damageType().isBlank() ? "" : "  [" + death.damageType() + "]");
-            Replies.send(source, () -> Component.literal(killer).withStyle(ChatFormatting.RED));
+            Replies.send(source, () -> indent(Component.translatable("anima.command.grave.killer",
+                    killer).withStyle(ChatFormatting.RED)));
         } else if (!death.damageType().isBlank()) {
-            Replies.send(source, () -> Component.literal("  damage: " + death.damageType())
-                    .withStyle(ChatFormatting.RED));
+            Replies.send(source, () -> indent(Component.translatable("anima.command.grave.damage",
+                    death.damageType()).withStyle(ChatFormatting.RED)));
         }
         if (!death.mind().isEmpty()) {
-            Replies.send(source, () -> Component.literal("  the mind at the end")
-                    .withStyle(ChatFormatting.AQUA));
+            Replies.send(source, () -> indent(Component.translatable("anima.command.grave.mind")
+                    .withStyle(ChatFormatting.AQUA)));
             for (String line : death.mind()) {
                 Replies.send(source, () -> Component.literal("    " + line)
                         .withStyle(ChatFormatting.GRAY));
@@ -2391,14 +2462,14 @@ public final class AgentCommands {
         if (words.isEmpty()) {
             // Says which of the two it is: a grave dug with the tail switched off is not the same
             // as one whose owner never got a line written about them.
-            Replies.send(source, () -> Component.literal(Burial.tailEntries() == 0
-                            ? "  no last words (journal.death_tail_entries is 0)"
-                            : "  no last words — nothing was in their journal")
-                    .withStyle(ChatFormatting.DARK_GRAY));
+            Replies.send(source, () -> indent(Component.translatable(Burial.tailEntries() == 0
+                            ? "anima.command.grave.no_words_disabled"
+                            : "anima.command.grave.no_words")
+                    .withStyle(ChatFormatting.DARK_GRAY)));
             return 1;
         }
-        Replies.send(source, () -> Component.literal("  last " + words.size() + " lines")
-                .withStyle(ChatFormatting.AQUA));
+        Replies.send(source, () -> indent(Component.translatable("anima.command.grave.last_lines",
+                words.size()).withStyle(ChatFormatting.AQUA)));
         for (Entry entry : words) {
             Replies.send(source, () -> Component.literal("    " + formatLine(name, entry))
                     .withStyle(colorFor(entry.category())));
@@ -2407,10 +2478,13 @@ public final class AgentCommands {
     }
 
     /** One death as a listing's tail: where it happened, how long ago, and what the story was. */
-    private static String summarise(Graves.Death death, long now) {
-        return "  " + dimensionName(death.dimension()) + " " + death.where()
-                + "  " + ago(now - death.diedAtTick())
-                + (death.cause().isBlank() ? "" : " — " + death.cause());
+    private static Component summarise(Graves.Death death, long now) {
+        return indent(Component.translatable("anima.command.grave.summary",
+                dimensionName(death.dimension()) + " " + death.where(),
+                ago(now - death.diedAtTick()))
+                .append(death.cause().isBlank() ? Component.empty()
+                        : Component.translatable("anima.command.grave.summary_cause",
+                                death.cause())));
     }
 
     /** {@code minecraft:overworld} as {@code overworld} — the listing's own shorthand. */
@@ -2426,20 +2500,20 @@ public final class AgentCommands {
      * <p>Clamped at zero: a negative span means the world's clock is behind the grave (a backup
      * restored over a newer save), and "0s ago" confuses less than a negative age does.
      */
-    private static String ago(long ticks) {
+    private static Component ago(long ticks) {
         long seconds = Math.max(0, ticks) / 20;
         if (seconds < 60) {
-            return seconds + "s ago";
+            return Component.translatable("anima.time.seconds_ago", seconds);
         }
         long minutes = seconds / 60;
         if (minutes < 60) {
-            return minutes + "m ago";
+            return Component.translatable("anima.time.minutes_ago", minutes);
         }
         long hours = minutes / 60;
         if (hours < 24) {
-            return hours + "h " + minutes % 60 + "m ago";
+            return Component.translatable("anima.time.hours_ago", hours, minutes % 60);
         }
-        return hours / 24 + "d " + hours % 24 + "h ago";
+        return Component.translatable("anima.time.days_ago", hours / 24, hours % 24);
     }
 
     /**

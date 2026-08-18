@@ -239,11 +239,11 @@ public final class Escorts {
             return null;
         }
         if (!body.entity().isAlive()) {
-            return end(server, body, escort, "died", false);
+            return end(server, body, escort, Ending.DIED, false);
         }
         Entity target = target(server, escort.order.target());
         if (target == null || !target.isAlive()) {
-            return end(server, body, escort, "lost them", true);
+            return end(server, body, escort, Ending.LOST, true);
         }
         if (target.level() != body.entity().level()) {
             // Hold, don't end: somebody nipping through a portal and back should find their escort
@@ -256,7 +256,7 @@ public final class Escorts {
             // Somebody else drove — see the class doc. This is the one ending that must not stop
             // the navigator: the goal it is carrying belongs to whoever just took it, so halting
             // here would cancel the very order that displaced us.
-            return end(server, body, escort, "someone else took the legs", false);
+            return end(server, body, escort, Ending.DISPLACED, false);
         }
 
         double near = escort.order.near();
@@ -357,20 +357,41 @@ public final class Escorts {
      *     progress is still the escort's own; false when it is somebody else's now, or when there
      *     is no body left to steer
      */
-    private static String end(MinecraftServer server, AgentBody body, Escort escort, String why,
+    private static String end(MinecraftServer server, AgentBody body, Escort escort, Ending why,
             boolean halt) {
         if (halt && body.entity().isAlive()) {
             body.navigator().stop();
         }
-        body.journal().record(Category.BRAIN, "follow", "ended: " + why);
+        body.journal().record(Category.BRAIN, "follow", "ended: " + why.journal);
         ServerPlayer issuer = escort.issuer == null ? null
                 : server.getPlayerList().getPlayer(escort.issuer);
         if (issuer != null) {
-            issuer.sendSystemMessage(Component.literal(
-                            body.entity().getName().getString() + " stopped following — " + why + ".")
+            issuer.sendSystemMessage(Component.translatable("anima.follow.ended",
+                            body.entity().getName(), Component.translatable(why.key()))
                     .withStyle(ChatFormatting.YELLOW));
         }
-        return why;
+        return why.journal;
+    }
+
+    /**
+     * Why an order ended, twice over: the word the journal files it under, and the key the issuer
+     * reads it by. Two strings rather than one — the journal is grepped in one language whoever is
+     * looking, and chat is read in the reader's.
+     */
+    private enum Ending {
+        DIED("died"),
+        LOST("lost them"),
+        DISPLACED("someone else took the legs");
+
+        private final String journal;
+
+        Ending(String journal) {
+            this.journal = journal;
+        }
+
+        String key() {
+            return "anima.follow.ended." + name().toLowerCase(java.util.Locale.ROOT);
+        }
     }
 
     /** The followed entity, wherever it is. Players first: that is the overwhelmingly common case. */

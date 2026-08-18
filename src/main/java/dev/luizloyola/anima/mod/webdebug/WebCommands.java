@@ -77,8 +77,7 @@ public final class WebCommands {
 
     private static int show(CommandSourceStack source) {
         if (!WebDebugger.running()) {
-            Replies.send(source, () -> Component.literal(
-                    "The web debugger is not running — /anima web-debugger start brings it up.")
+            Replies.send(source, () -> Component.translatable("anima.webdebug.not_running")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
@@ -97,7 +96,8 @@ public final class WebCommands {
     private static int start(CommandSourceStack source) {
         String problem = WebDebugger.start(source.getServer());
         if (problem != null) {
-            Replies.fail(source, Component.literal("The web debugger did not start — " + problem));
+            // The problem itself is the socket's own complaint, and arrives in one language.
+            Replies.fail(source, Component.translatable("anima.webdebug.start_failed", problem));
             return 0;
         }
         // After the start, not before: it restarts a running server, and stopping clears the door.
@@ -108,13 +108,13 @@ public final class WebCommands {
 
     private static int stop(CommandSourceStack source) {
         if (!WebDebugger.running()) {
-            Replies.send(source, () -> Component.literal("The web debugger was not running.")
+            Replies.send(source, () -> Component.translatable("anima.webdebug.was_not_running")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         WebDebugger.stop();
         // LOGGED: it is a socket somebody may be looking at, and nothing else narrates the close.
-        Replies.send(source, () -> Component.literal("Web debugger stopped.")
+        Replies.send(source, () -> Component.translatable("anima.webdebug.stopped")
                 .withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
@@ -130,32 +130,27 @@ public final class WebCommands {
                         .withColor(ChatFormatting.AQUA)
                         .withUnderlined(true)
                         .withClickEvent(new ClickEvent.OpenUrl(java.net.URI.create(address)))));
-        Replies.send(source, () -> Component.literal(
-                "  the page loads its UI from " + WebDebugger.appUrl())
-                .withStyle(ChatFormatting.DARK_GRAY));
+        Replies.send(source, () -> indent(Component.translatable("anima.webdebug.app_url",
+                WebDebugger.appUrl()).withStyle(ChatFormatting.DARK_GRAY)));
         if (!WebDebugger.enabled()) {
-            Replies.send(source, () -> Component.literal(
-                    "  this session only — set web_debugger.enabled to start it with every world")
-                    .withStyle(ChatFormatting.DARK_GRAY));
+            Replies.send(source, () -> indent(Component.translatable(
+                    "anima.webdebug.session_only").withStyle(ChatFormatting.DARK_GRAY)));
         }
         long open = WebDebugger.browsers().openSecondsLeft();
         if (open > 0) {
-            Replies.send(source, () -> Component.literal("  open to a new browser for another "
-                    + open + "s — load the page now").withStyle(ChatFormatting.YELLOW));
+            Replies.send(source, () -> indent(Component.translatable("anima.webdebug.open_for",
+                    open).withStyle(ChatFormatting.YELLOW)));
         } else if (WebDebugger.browsers().accepted().isEmpty()) {
-            Replies.send(source, () -> Component.literal(
-                    "  no browser is accepted yet — open the door, then load the page")
+            Replies.send(source, () -> indent(Component.translatable("anima.webdebug.none_accepted")
                     .append(button(" [open]", "/anima web-debugger browser open",
-                            "Let a new browser ask to be let in, for a minute"))
-                    .withStyle(ChatFormatting.YELLOW));
+                            "anima.webdebug.hover.open"))
+                    .withStyle(ChatFormatting.YELLOW)));
         }
         // Said here as well as in the log: whoever is reading this is the person who can undo it,
         // and the log line scrolls past on a busy server.
         if (!WebDebugger.loopbackOnly()) {
-            Replies.send(source, () -> Component.literal("  bound to " + WebDebugger.host()
-                    + " — reachable from off this machine, and there is no TLS. An accepted "
-                    + "browser key is the only guard, and it crosses the network in the clear.")
-                    .withStyle(ChatFormatting.RED));
+            Replies.send(source, () -> indent(Component.translatable("anima.webdebug.exposed",
+                    WebDebugger.host()).withStyle(ChatFormatting.RED)));
         }
     }
 
@@ -167,36 +162,38 @@ public final class WebCommands {
         List<String> accepted = browsers.accepted();
 
         long open = browsers.openSecondsLeft();
-        Replies.send(source, () -> Component.literal("Web debugger browsers — "
-                + (open > 0 ? "open to new ones for " + open + "s" : "closed to new ones"))
+        Replies.send(source, () -> (open > 0
+                        ? Component.translatable("anima.webdebug.list_open", open)
+                        : Component.translatable("anima.webdebug.list_closed"))
                 .withStyle(open > 0 ? ChatFormatting.YELLOW : ChatFormatting.AQUA));
 
         if (waiting.isEmpty()) {
-            Replies.send(source, () -> Component.literal("  nobody is asking")
-                    .withStyle(ChatFormatting.DARK_GRAY));
+            Replies.send(source, () -> indent(Component.translatable("anima.webdebug.nobody_asking")
+                    .withStyle(ChatFormatting.DARK_GRAY)));
         }
         for (WebBrowsers.Waiting browser : waiting) {
-            Replies.send(source, () -> Component.literal("  " + browser.key())
+            Replies.send(source, () -> indent(Component.literal(browser.key())
                     .withStyle(ChatFormatting.WHITE)
-                    .append(Component.literal(" from " + browser.from() + ", asked "
-                            + since(browser.askedAtMillis())).withStyle(ChatFormatting.DARK_GRAY))
+                    .append(Component.translatable("anima.webdebug.asked_from", browser.from(),
+                            since(browser.askedAtMillis())).withStyle(ChatFormatting.DARK_GRAY))
                     .append(button(" [accept]",
                             "/anima web-debugger browser accept " + browser.key(),
-                            "Let this browser read every mind here, and drive them"))
+                            "anima.webdebug.hover.accept"))
                     .append(button(" [reject]",
                             "/anima web-debugger browser reject " + browser.key(),
-                            "Drop it from the queue. It may ask again")));
+                            "anima.webdebug.hover.reject"))));
         }
         if (accepted.isEmpty()) {
-            Replies.send(source, () -> Component.literal("  none accepted yet")
-                    .withStyle(ChatFormatting.DARK_GRAY));
+            Replies.send(source, () -> indent(Component.translatable("anima.webdebug.none_yet")
+                    .withStyle(ChatFormatting.DARK_GRAY)));
         }
         for (String key : accepted) {
-            Replies.send(source, () -> Component.literal("  " + key)
+            Replies.send(source, () -> indent(Component.literal(key)
                     .withStyle(ChatFormatting.GREEN)
-                    .append(Component.literal(" accepted").withStyle(ChatFormatting.DARK_GRAY))
+                    .append(Component.translatable("anima.webdebug.is_accepted")
+                            .withStyle(ChatFormatting.DARK_GRAY))
                     .append(button(" [revoke]", "/anima web-debugger browser revoke " + key,
-                            "Shut this browser out. It may ask again")));
+                            "anima.webdebug.hover.revoke"))));
         }
         return waiting.size() + accepted.size();
     }
@@ -205,16 +202,14 @@ public final class WebCommands {
         WebDebugger.browsers().open();
         // LOGGED: for the next minute anything on this machine can put itself in the queue, and
         // whoever else is administering the server should see that happen.
-        Replies.send(source, () -> Component.literal("Open to a new browser for "
-                + WebBrowsers.OPEN_MILLIS / 1000
-                + "s — load the page now. It shuts again as soon as one asks.")
-                .withStyle(ChatFormatting.YELLOW), true);
+        Replies.send(source, () -> Component.translatable("anima.webdebug.opened",
+                WebBrowsers.OPEN_MILLIS / 1000).withStyle(ChatFormatting.YELLOW), true);
         return 1;
     }
 
     private static int close(CommandSourceStack source) {
         WebDebugger.browsers().close();
-        Replies.send(source, () -> Component.literal("Shut — no new browser can ask to be let in.")
+        Replies.send(source, () -> Component.translatable("anima.webdebug.closed")
                 .withStyle(ChatFormatting.GRAY), true);
         return 1;
     }
@@ -223,19 +218,17 @@ public final class WebCommands {
         WebBrowsers.Admission admission = WebDebugger.browsers().accept(key);
         switch (admission) {
             case MALFORMED -> {
-                Replies.fail(source, Component.literal("\"" + key
-                        + "\" is not a browser key — they look like stairs-furnace-cooked."));
+                Replies.fail(source, Component.translatable("anima.webdebug.malformed_key", key));
                 return 0;
             }
             case ALREADY -> {
-                Replies.send(source, () -> Component.literal(key + " was already accepted.")
+                Replies.send(source, () -> Component.translatable("anima.webdebug.already", key)
                         .withStyle(ChatFormatting.GRAY));
                 return 0;
             }
             default -> {
                 // LOGGED: this is the grant. Nothing else in the world records that it happened.
-                Replies.send(source, () -> Component.literal(key
-                        + " may now read every mind here, and drive them.")
+                Replies.send(source, () -> Component.translatable("anima.webdebug.accepted", key)
                         .withStyle(ChatFormatting.GREEN), true);
                 return 1;
             }
@@ -244,11 +237,11 @@ public final class WebCommands {
 
     private static int reject(CommandSourceStack source, String key) {
         if (!WebDebugger.browsers().reject(key)) {
-            Replies.send(source, () -> Component.literal(key + " was not asking.")
+            Replies.send(source, () -> Component.translatable("anima.webdebug.not_asking", key)
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        Replies.send(source, () -> Component.literal(key + " dropped from the queue.")
+        Replies.send(source, () -> Component.translatable("anima.webdebug.rejected", key)
                 .withStyle(ChatFormatting.GRAY), true);
         return 1;
     }
@@ -257,13 +250,12 @@ public final class WebCommands {
         // Through WebDebugger, not the register: revoking has to close the stream that browser is
         // already holding, or it takes effect whenever the page next happens to reconnect.
         if (!WebDebugger.revoke(key)) {
-            Replies.send(source, () -> Component.literal(key + " was not accepted.")
+            Replies.send(source, () -> Component.translatable("anima.webdebug.not_accepted", key)
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         // LOGGED, for the reason accept is: it is the other half of the same decision.
-        Replies.send(source, () -> Component.literal(key
-                + " shut out, and its stream closed. It may ask again.")
+        Replies.send(source, () -> Component.translatable("anima.webdebug.revoked", key)
                 .withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
@@ -277,14 +269,14 @@ public final class WebCommands {
      * and leave them waiting for somebody else to make it work.
      */
     static void tellOperators(MinecraftServer server, String key, String from) {
-        Component line = Component.literal("A browser is asking to read this world: ")
+        Component line = Component.translatable("anima.webdebug.asking")
                 .withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal(key).withStyle(ChatFormatting.WHITE))
                 .append(Component.literal(" (" + from + ")").withStyle(ChatFormatting.DARK_GRAY))
                 .append(button(" [accept]", "/anima web-debugger browser accept " + key,
-                        "Let it read every mind here, and drive them"))
+                        "anima.webdebug.hover.accept_this"))
                 .append(button(" [reject]", "/anima web-debugger browser reject " + key,
-                        "Drop it from the queue. It may ask again"));
+                        "anima.webdebug.hover.reject"));
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             // Through a source stack rather than the player: the permission API moved in 26.1 and
             // this is the one spelling both targets share.
@@ -295,13 +287,23 @@ public final class WebCommands {
         }
     }
 
-    /** A clickable word that runs {@code command}, with {@code hover} explaining what it will do. */
-    private static Component button(String label, String command, String hover) {
+    /**
+     * A clickable word that runs {@code command}, with {@code hoverKey} explaining what it will do.
+     *
+     * <p>The label stays literal: these are bracketed verbs standing in for the command underneath,
+     * and the command is not translated either.
+     */
+    private static Component button(String label, String command, String hoverKey) {
         return Component.literal(label).withStyle(style -> style
                 .withColor(ChatFormatting.AQUA)
                 .withUnderlined(true)
                 .withClickEvent(new ClickEvent.RunCommand(command))
-                .withHoverEvent(new HoverEvent.ShowText(Component.literal(hover))));
+                .withHoverEvent(new HoverEvent.ShowText(Component.translatable(hoverKey))));
+    }
+
+    /** One line nested under the one above it — see {@code ConfigCommands.indent}. */
+    private static Component indent(Component line) {
+        return Component.literal("  ").append(line);
     }
 
     /** Coarse on purpose: an operator wants "just now" or "a while ago", not a duration. */

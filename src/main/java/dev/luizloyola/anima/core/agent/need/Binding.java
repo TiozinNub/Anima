@@ -106,11 +106,38 @@ public final class Binding {
         return side.pressing(rampSide);
     }
 
-    /** {@code hunger drives eat (below)} — one line for a registry listing. */
+    /**
+     * {@code hunger drives eat (below)} — one line for a registry listing.
+     *
+     * <p><b>The untranslated form</b>, for the journal and the debug feed, both of which are
+     * grepped rather than read. {@link #nameKey} is the same line for a player.
+     */
     public String describe() {
         return String.format(Locale.ROOT, "%s %s %s (%s)", needKey,
                 verb == Verb.DRIVE ? "drives" : "modulates", key,
                 side.name().toLowerCase(Locale.ROOT));
+    }
+
+    /**
+     * {@link #describe} as a translation key, taking the need id, this binding's id and
+     * {@link #sideKey}'s translation.
+     *
+     * <p>Only the sentence is translated. The need and the binding stay named by their stable ids,
+     * because those are what an operator types back into a command — a listing that renamed them
+     * per language would stop being a thing you can act on.
+     */
+    public String nameKey() {
+        return "anima.needs.binding." + verb.name().toLowerCase(Locale.ROOT);
+    }
+
+    /** Where the word for this binding's end of the need lives. */
+    public String sideKey() {
+        return "anima.needs.side." + side.name().toLowerCase(Locale.ROOT);
+    }
+
+    /** Which need this binding answers, by id. */
+    public String needKey() {
+        return needKey;
     }
 
     @Override
