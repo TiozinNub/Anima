@@ -23,6 +23,8 @@ import dev.luizloyola.anima.mod.debug.DebugView;
 import dev.luizloyola.anima.mod.identity.AgentDirectory;
 import dev.luizloyola.anima.mod.identity.Graves;
 import dev.luizloyola.anima.mod.nav.Navigator;
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -121,28 +123,66 @@ final class WebSnapshot {
      * tick, up to the cap in {@code WebDebugger} — but a tick's <em>cost</em> leaves no trace on
      * the wire, and cost is what says whether a slow world is overloaded or merely paused.
      *
-     * <p><b>{@code tps} is not a count.</b> It is what the configured rate and the measured cost
-     * allow, whichever is lower: a server told to run at 20 and spending 4ms a tick is at 20, and
-     * the 46ms of headroom is not speed. One spending 80ms is at 12.5, which is the number worth
-     * showing.
+     * <p><b>{@code tps} is not a count</b>, it is {@link #achieved}: what the clock is managing,
+     * which is the rate it was told to run at until the cost of a tick takes that away.
      *
      * <p><b>{@code rate} is what the clock was told to run at</b>, and beside {@code tps} it is the
      * half that says what a tick is <em>allowed</em> to cost: 1000/rate, which is the only honest
      * place to draw a budget. Fixed at 50ms it flatters a fast clock and slanders a slow one.
+     * A sprinting server is told nothing — see {@link #achieved} — and {@code rate} still reports
+     * the {@code /tick rate} underneath, because that is what it is: {@code mode} is what says the
+     * clock is ignoring it.
      */
     private static JsonObject health(MinecraftServer server, WebWatch watch) {
+        ServerTickRateManager clock = server.tickRateManager();
         double mspt = server.getAverageTickTimeNanos() / 1_000_000.0;
-        float wanted = server.tickRateManager().tickrate();
+        float wanted = clock.tickrate();
 
         JsonObject health = new JsonObject();
         health.addProperty("mspt", round(mspt));
-        health.addProperty("tps", round(mspt <= 0 ? wanted : Math.min(wanted, 1_000.0 / mspt)));
+        health.addProperty("tps",
+                round(achieved(mspt, wanted, clock.isSprinting(), clock.isFrozen())));
         health.addProperty("rate", round(wanted));
-        health.addProperty("mode", mode(server.tickRateManager()));
+        health.addProperty("mode", mode(clock));
         if (watch.ticks()) {
             health.add("samples", samples(server));
         }
         return health;
+    }
+
+    /**
+     * Ticks a second the clock is actually managing: the rate it was told and the rate its ticks
+     * cost, whichever is lower.
+     *
+     * <p><b>Headroom is not speed.</b> A server told 20 and spending 4ms a tick is at 20 and sleeps
+     * the other 46; one spending 80ms is at 12.5, which is the number worth showing.
+     *
+     * <p><b>Sprinting takes the told half away</b>, which is the whole of what {@code /tick sprint}
+     * does: no sleep, so the cost of a tick is the only thing left setting the rate. Clamped to the
+     * configured 20 anyway — as this was — a world tearing through two thousand ticks a second
+     * reported 20 and read as idle, which is the opposite of the truth.
+     *
+     * <p><b>A frozen world is at zero</b>, and the distinction that makes that true rather than
+     * merely tidy is whose rate this is: the server thread keeps going at 20 a second under
+     * {@code /tick freeze}, and the tick counter goes with it — the WORLD is what has stopped, and
+     * the world's rate is what a dashboard is asked for. Vanilla's own {@code /tick query} says
+     * "the game is frozen" and declines to name a rate at all.
+     *
+     * <p>An {@code mspt} of zero is a world whose ring has nothing in it yet, not an infinitely
+     * fast one.
+     *
+     * @param mspt the average tick in milliseconds
+     * @param wanted what {@code /tick rate} is set to
+     */
+    static double achieved(double mspt, float wanted, boolean sprinting, boolean frozen) {
+        if (frozen) {
+            return 0;
+        }
+        if (mspt <= 0) {
+            return wanted;
+        }
+        double affordable = 1_000.0 / mspt;
+        return sprinting ? affordable : Math.min(wanted, affordable);
     }
 
     /**
@@ -188,9 +228,20 @@ final class WebSnapshot {
         return rate > VANILLA_TICKRATE ? "fast" : "normal";
     }
 
-    /** Two decimals is the whole useful precision of a tick cost, and a frame goes out every tick. */
-    private static double round(double value) {
-        return Math.round(value * 100.0) / 100.0;
+    /**
+     * Two decimals, which is the whole useful precision of a tick cost — until it isn't.
+     *
+     * <p><b>A sprinting server ticks in microseconds</b>, where two decimals is the number zero:
+     * the chart drew a flat line along the floor, the readout said a tick was free, and anything
+     * dividing 1000 by it to get a rate divided by zero. Two significant digits instead, for the
+     * values two decimals cannot hold at all. Everything above 0.005 is untouched.
+     */
+    static double round(double value) {
+        double twoPlaces = Math.round(value * 100.0) / 100.0;
+        if (twoPlaces != 0 || value == 0) {
+            return twoPlaces;
+        }
+        return BigDecimal.valueOf(value).round(new MathContext(2)).doubleValue();
     }
 
     /**

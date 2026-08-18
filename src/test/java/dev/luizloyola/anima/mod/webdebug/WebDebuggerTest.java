@@ -313,6 +313,65 @@ class WebDebuggerTest {
         return new String(out, 0, size, StandardCharsets.UTF_8);
     }
 
+    // --- the clock ------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a server with headroom runs at the rate it was told, not at the rate it could")
+    void headroomIsNotSpeed() {
+        // 4ms a tick could carry 250, and the server sleeps the other 46 — the 20 is the answer.
+        assertEquals(20.0, WebSnapshot.achieved(4.0, 20.0f, false, false), 0.001);
+        assertEquals(300.0, WebSnapshot.achieved(1.0, 300.0f, false, false), 0.001);
+    }
+
+    @Test
+    @DisplayName("a server that cannot keep up runs at what it costs, whatever it was told")
+    void costWinsWhenItIsTheLowerOfTheTwo() {
+        assertEquals(12.5, WebSnapshot.achieved(80.0, 20.0f, false, false), 0.001);
+        assertEquals(12.5, WebSnapshot.achieved(80.0, 300.0f, false, false), 0.001);
+    }
+
+    @Test
+    @DisplayName("a sprinting server is not held to its rate — that is what sprinting means")
+    void sprintIgnoresTheConfiguredRate() {
+        // The bug this is here for: clamped to the configured 20, a world tearing through 2000
+        // ticks a second reported 20 and read as idle.
+        assertEquals(2000.0, WebSnapshot.achieved(0.5, 20.0f, true, false), 0.001);
+        assertEquals(12.5, WebSnapshot.achieved(80.0, 20.0f, true, false), 0.001,
+                "sprinting does not make a slow tick fast");
+    }
+
+    @Test
+    @DisplayName("a tick too cheap for two decimals is not rounded away to nothing")
+    void aMicrosecondTickSurvivesRounding() {
+        // What two decimals are for, and all that most worlds ever need.
+        assertEquals(4.21, WebSnapshot.round(4.2149), 0.0001);
+        assertEquals(80.23, WebSnapshot.round(80.2345), 0.0001);
+        // A sprinting server ticks in microseconds. Rounded to zero, the chart is a flat line on
+        // the floor and anything dividing 1000 by it to get a rate divides by zero.
+        assertEquals(0.0042, WebSnapshot.round(0.00423), 0.00001);
+        assertEquals(0.00012, WebSnapshot.round(0.000121), 0.000001);
+        // A genuine zero stays one — an unmeasured tick is not an infinitely cheap tick.
+        assertEquals(0.0, WebSnapshot.round(0.0), 0.0);
+    }
+
+    @Test
+    @DisplayName("a frozen world is not moving, whatever the server thread is still doing")
+    void frozenIsNotMoving() {
+        // The server thread keeps going at 20 a second and the tick counter with it — it is the
+        // WORLD that has stopped, and the rate this reports is the world's. Vanilla's own
+        // `/tick query` says "the game is frozen" and declines to name a rate at all.
+        assertEquals(0.0, WebSnapshot.achieved(0.1, 20.0f, false, true), 0.001);
+        assertEquals(0.0, WebSnapshot.achieved(80.0, 20.0f, false, true), 0.001);
+    }
+
+    @Test
+    @DisplayName("an unmeasured tick falls back to the rate rather than dividing by zero")
+    void anUnmeasuredTickIsNotInfinite() {
+        // The first ticks of a world, before the ring has anything in it.
+        assertEquals(20.0, WebSnapshot.achieved(0.0, 20.0f, false, false), 0.001);
+        assertEquals(20.0, WebSnapshot.achieved(0.0, 20.0f, true, false), 0.001);
+    }
+
     // --- the pace -------------------------------------------------------------------------------
 
     /** A second, in the nanoseconds {@link WebPace} is asked in. */
