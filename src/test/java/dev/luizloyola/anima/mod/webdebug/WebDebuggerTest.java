@@ -16,7 +16,10 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.zip.GZIPOutputStream;
+import java.util.zip.Inflater;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -163,7 +166,7 @@ class WebDebuggerTest {
         CountDownLatch done = new CountDownLatch(1);
         Thread stream = new Thread(() -> {
             try {
-                WebDebugger.pump(wire, feed, () -> true);
+                WebDebugger.pump(wire, wire::size, feed, () -> true);
             } catch (IOException | InterruptedException e) {
                 Thread.currentThread().interrupt();
             } finally {
@@ -177,7 +180,7 @@ class WebDebuggerTest {
         feed.close(true);
         assertTrue(done.await(5, TimeUnit.SECONDS), "the stream never ended");
         String sent = wire.toString(StandardCharsets.UTF_8);
-        assertTrue(sent.startsWith("data: {\"tick\":1}\n\n"), sent);
+        assertTrue(sent.startsWith("data: {\"tick\":1}\nwire: 0\n\n"), sent);
         assertTrue(sent.endsWith("event: stop\ndata: {}\n\n"),
                 "a browser cannot tell a stopped server from a dropped socket without this: " + sent);
     }
@@ -190,7 +193,7 @@ class WebDebuggerTest {
         feed.publish("{\"tick\":1}");
         ByteArrayOutputStream wire = new ByteArrayOutputStream();
 
-        WebDebugger.pump(wire, feed, () -> false);
+        WebDebugger.pump(wire, wire::size, feed, () -> false);
         assertEquals("", wire.toString(StandardCharsets.UTF_8));
     }
 
@@ -202,9 +205,112 @@ class WebDebuggerTest {
         feed.close(false);
         ByteArrayOutputStream wire = new ByteArrayOutputStream();
 
-        WebDebugger.pump(wire, feed, () -> true);
+        WebDebugger.pump(wire, wire::size, feed, () -> true);
         assertEquals("", wire.toString(StandardCharsets.UTF_8),
                 "a stop screen behind a listening server is a screen nobody can get past");
+    }
+
+    // --- the wire -------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a gzipped frame is readable the moment it is written, not when the stream ends")
+    void aGzippedFrameArrivesWhole() throws Exception {
+        // The failure this guards is silent and total: without syncFlush the deflater holds a
+        // flushed frame back until later ones fill a block, so the dashboard connects, shows
+        // nothing, and looks like a dead server.
+        WebFeed feed = new WebFeed();
+        feed.publish("{\"tick\":1}");
+        ByteArrayOutputStream socket = new ByteArrayOutputStream();
+        WebDebugger.Counted wire = new WebDebugger.Counted(socket);
+        GZIPOutputStream zipped = new GZIPOutputStream(wire, true);
+
+        CountDownLatch done = new CountDownLatch(1);
+        Thread stream = new Thread(() -> {
+            try {
+                WebDebugger.pump(zipped, wire::written, feed, () -> true);
+            } catch (IOException | InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                done.countDown();
+            }
+        });
+        stream.setDaemon(true);
+        stream.start();
+
+        // GZIPOutputStream's header is ten bytes and is written on construction, so anything past
+        // it is the frame having actually left.
+        long waited = 0;
+        while (socket.size() <= GZIP_HEADER && waited < 5_000) {
+            Thread.sleep(10);
+            waited += 10;
+        }
+        assertTrue(socket.size() > GZIP_HEADER, "the frame never left the deflater");
+
+        feed.close(true);
+        assertTrue(done.await(5, TimeUnit.SECONDS), "the stream never ended");
+
+        // Not `wire: 0`: gzip's own header has already gone down the socket by the time the first
+        // frame names a count. Harmless — a reader takes differences — but it is why nothing here
+        // asserts an absolute.
+        String decoded = inflate(socket.toByteArray());
+        assertTrue(decoded.matches("(?s)data: \\{\"tick\":1}\nwire: \\d+\n\n.*"),
+                "a mid-stream reader must be able to decode what has arrived so far: " + decoded);
+    }
+
+    @Test
+    @DisplayName("the wire count is what the socket took, so gzip cannot flatter the meter")
+    void theWireCountIsTheCompressedSize() throws Exception {
+        // A browser's fetch decodes before JavaScript sees a byte, so this count is the only
+        // honest one there is — and it has to be the small number, not the JSON's length.
+        WebFeed feed = new WebFeed();
+        String frame = "{\"tick\":1,\"agents\":[" + "\"aaaaaaaaaaaaaaaaaaaa\",".repeat(200) + "\"z\"]}";
+        feed.publish(frame);
+        ByteArrayOutputStream socket = new ByteArrayOutputStream();
+        WebDebugger.Counted wire = new WebDebugger.Counted(socket);
+
+        // One pass and out: the loop re-asks before every frame, so a welcome that is true once
+        // writes exactly one and then leaves — with no goodbye, the feed never having closed.
+        AtomicBoolean once = new AtomicBoolean(true);
+        try (GZIPOutputStream zipped = new GZIPOutputStream(wire, true)) {
+            WebDebugger.pump(zipped, wire::written, feed, () -> once.getAndSet(false));
+        }
+
+        assertEquals(socket.size(), wire.written(), "the counter must be the socket, not the input");
+        assertTrue(wire.written() < frame.length() / 4,
+                "a repetitive frame should compress hard: " + wire.written() + " of " + frame.length());
+    }
+
+    @Test
+    @DisplayName("gzip is offered, never assumed — a caller that said nothing still gets text")
+    void gzipIsNegotiated() {
+        assertTrue(WebDebugger.wantsGzip("gzip"));
+        assertTrue(WebDebugger.wantsGzip("gzip, deflate, br"));
+        assertTrue(WebDebugger.wantsGzip("deflate, GZIP;q=1.0"), "the token is case-insensitive");
+        assertTrue(WebDebugger.wantsGzip("gzip;q=0.5"));
+
+        // The one that matters: a `curl` with no header, and a caller actively refusing. Both get
+        // readable text, because binary in a terminal is how this route stops being debuggable.
+        assertFalse(WebDebugger.wantsGzip(null));
+        assertFalse(WebDebugger.wantsGzip("identity"));
+        assertFalse(WebDebugger.wantsGzip("gzip;q=0"));
+        assertFalse(WebDebugger.wantsGzip("gzip;q=0.0"));
+        assertFalse(WebDebugger.wantsGzip("br, deflate"), "not a prefix match on another coding");
+    }
+
+    /** The fixed header {@link GZIPOutputStream} writes before any deflated byte. */
+    private static final int GZIP_HEADER = 10;
+
+    /**
+     * What a browser would have decoded so far. Raw inflate past the header rather than a
+     * {@code GZIPInputStream}, which wants a trailer a live stream has not written yet.
+     */
+    private static String inflate(byte[] sent) throws Exception {
+        Inflater inflater = new Inflater(true);
+        inflater.setInput(sent, GZIP_HEADER, sent.length - GZIP_HEADER);
+        byte[] out = new byte[64 * 1024];
+        int size = inflater.inflate(out);
+        inflater.end();
+        return new String(out, 0, size, StandardCharsets.UTF_8);
     }
 
     // --- the watch ------------------------------------------------------------------------------

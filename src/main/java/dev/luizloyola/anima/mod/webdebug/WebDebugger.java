@@ -6,6 +6,7 @@ import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.ConfigValues;
 import dev.luizloyola.anima.core.config.Knob;
 import dev.luizloyola.anima.mod.AnimaMod;
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetAddress;
@@ -21,6 +22,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
+import java.util.function.LongSupplier;
+import java.util.zip.GZIPOutputStream;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
@@ -521,6 +524,13 @@ public final class WebDebugger {
      * <p>It ends with {@link #STOP_EVENT} when the debugger is what stopped, and silently for every
      * other ending: a revoked browser hears 401 on its next call, and a restart is about to be
      * listening again, so both want the browser reconnecting rather than waiting to be pressed.
+     *
+     * <p><b>Gzipped when the browser offers it</b>, and the compression is worth far more here than
+     * the ratio on any one frame suggests: <em>one</em> deflate stream spans the whole connection,
+     * so its window still holds the last frame when the next one — near-identical, a tick later —
+     * goes through, and most of it leaves as back-references. Measured against a synthetic roster
+     * of twelve, it is ~18x with nothing expanded and ~20x with eight cards open, where the raw
+     * feed is over a megabyte a second. Per-frame gzip with no shared history is only 5-14x.
      */
     private static void serveStream(HttpExchange exchange) throws IOException {
         if (!keyed(exchange)) {
@@ -530,11 +540,19 @@ public final class WebDebugger {
         // Captured once. A restart installs a new feed, and this reader belongs to the run it
         // started in — asking the field again each pass would have it drift onto the other one.
         WebFeed live = feed;
+        boolean zip = wantsGzip(exchange.getRequestHeaders().getFirst("Accept-Encoding"));
         exchange.getResponseHeaders().add("Content-Type", "text/event-stream; charset=utf-8");
         exchange.getResponseHeaders().add("Cache-Control", "no-store");
+        if (zip) {
+            exchange.getResponseHeaders().add("Content-Encoding", "gzip");
+        }
         exchange.sendResponseHeaders(200, 0); // 0 = chunked, the stream stays open
-        try (OutputStream out = exchange.getResponseBody()) {
-            pump(out, live, () -> running() && BROWSERS.stillAccepted(key));
+        // Under the gzip, so it counts what the socket carries rather than what was handed in.
+        Counted wire = new Counted(exchange.getResponseBody());
+        // syncFlush, and it is load-bearing: without it a flushed frame sits in the deflater until
+        // enough of the next ones arrive to fill a block, and the dashboard goes still.
+        try (OutputStream out = zip ? new GZIPOutputStream(wire, true) : wire) {
+            pump(out, wire::written, live, () -> running() && BROWSERS.stillAccepted(key));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (IOException e) {
@@ -545,14 +563,78 @@ public final class WebDebugger {
     }
 
     /**
+     * Whether this caller said it would take gzip, given its {@code Accept-Encoding}. Asked rather
+     * than assumed: {@code /api/stream} is a documented route, and a {@code curl} that offered
+     * nothing has to keep getting text it can read rather than a screenful of binary.
+     *
+     * <p>Takes the header rather than the exchange so it can be tested, which the branch deserves —
+     * getting it wrong is not a degraded feed but an unreadable one.
+     */
+    static boolean wantsGzip(@Nullable String offered) {
+        if (offered == null) {
+            return false;
+        }
+        for (String coding : offered.split(",")) {
+            String[] parts = coding.trim().split(";q=", 2);
+            if (parts[0].equalsIgnoreCase("gzip")) {
+                // `gzip;q=0` is a refusal spelled as an offer.
+                return parts.length < 2 || !parts[1].trim().matches("0(\\.0+)?");
+            }
+        }
+        return false;
+    }
+
+    /**
+     * How many bytes have gone down the socket. <b>This is the only place that number exists.</b>
+     * Gzip is applied above it, and a browser's {@code fetch} hands JavaScript the DECODED bytes
+     * with no way to ask what they arrived as — so a dashboard counting its own reads would report
+     * the feed at twenty times its cost. {@link #pump} puts the count on the wire instead.
+     */
+    static final class Counted extends FilterOutputStream {
+
+        private long written;
+
+        Counted(OutputStream out) {
+            super(out);
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            out.write(b);
+            written++;
+        }
+
+        @Override
+        public void write(byte[] bytes, int off, int len) throws IOException {
+            // Not inherited: FilterOutputStream's own loops byte-by-byte through write(int).
+            out.write(bytes, off, len);
+            written += len;
+        }
+
+        long written() {
+            return written;
+        }
+    }
+
+    /**
      * The stream itself, with no HTTP around it: frames while {@code welcome} holds and the feed
      * lives, then the goodbye if the debugger is what ended it.
      *
      * <p>Split out to be driven by a test. The loop has been wrong twice — once spinning on a feed
      * closed by a previous run, once outliving a revoke — and both were found in a running game,
      * which is the expensive place to find them.
+     *
+     * <p>Every frame carries a {@code wire:} field, and it is the count {@code before} that frame —
+     * so it is what the socket had taken as of the previous one, one frame behind and unnoticeable
+     * at twenty a second. It cannot be the count including itself: the bytes do not exist until the
+     * line naming them has been compressed. A reader takes rates from the differences.
+     *
+     * <p><b>It goes after {@code data:}, and that is the whole reason it is safe to add.</b> SSE
+     * ignores a field it does not know, but a hand-written consumer testing
+     * {@code part.startsWith('data: ')} — which is what {@code docs/DASHBOARD-API.md} has always
+     * shown — stops matching the moment anything precedes it, and stops rendering silently.
      */
-    static void pump(OutputStream out, WebFeed live, BooleanSupplier welcome)
+    static void pump(OutputStream out, LongSupplier wire, WebFeed live, BooleanSupplier welcome)
             throws IOException, InterruptedException {
         long seen = -1;
         // isClosed, and not just welcome: a restart makes running() true again while THIS feed
@@ -563,7 +645,8 @@ public final class WebDebugger {
                 out.write(": keepalive\n\n".getBytes(StandardCharsets.UTF_8));
             } else {
                 seen = snapshot.version();
-                out.write(("data: " + snapshot.json() + "\n\n").getBytes(StandardCharsets.UTF_8));
+                out.write(("data: " + snapshot.json() + "\nwire: " + wire.getAsLong() + "\n\n")
+                        .getBytes(StandardCharsets.UTF_8));
             }
             out.flush();
         }
