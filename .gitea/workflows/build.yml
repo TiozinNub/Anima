@@ -1,11 +1,14 @@
-# Anima's CI: build every Minecraft node, publish the library where its consumers look for it,
-# and release it when a tag says to.
+# Anima's CI: unit-test and build every Minecraft node, boot a real server from the jar that
+# ships, publish the library where its consumers look for it, and release it when a tag says to.
 #
-# What this file cannot do is boot the game. Anima names no body of its own — that is the whole
-# boundary — so standalone it has nothing to spawn, and a green build here means "compiles and
-# unit-tests", not "works". The pair is exercised by the integration workflow in Anima-Workspace,
-# which the last job pokes whenever main moves. A `testmod` source set would close that gap in
-# this repo; it is designed and unbuilt (2026-08-16-repo-split-design.md, slice 2).
+# The smoke boots Anima ALONE, with Fabric API and nothing else. Anima names no body of its own —
+# that is the whole boundary — so there is nothing here to spawn; what it proves is that the
+# library loads, parses its config and answers `/anima`, which is the entire operator surface it
+# offers a world running it on its own. A `testmod` source set carrying a minimal agent on a
+# trivial body would prove more; it is designed and unbuilt (2026-08-16-repo-split-design.md,
+# slice 2), and this is where it would plug in.
+#
+# Nothing in this file reaches a private repository. See 2026-08-18-per-repo-ci-smoke-design.md.
 name: CI
 
 on:
@@ -19,7 +22,7 @@ on:
   # push their failures are swallowed by continue-on-error below — which means a broken node
   # reports green and stays broken until a release tag finds it, months later and at the worst
   # possible moment. This is what turns that into a signal that arrives the next morning.
-  # Staggered from the other two repos: one runner serves all three.
+  # Staggered from Autarkia's: one runner serves both.
   schedule:
     - cron: '7 4 * * *'
   workflow_dispatch:
@@ -92,6 +95,13 @@ jobs:
             echo "label=build.$(git log -1 --format=%cd --date=format:%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
           fi
 
+      # `build` depends on `check`, so these already run — but Gradle does not ORDER test before
+      # assemble, so a unit-test failure can arrive after remapJar has run. Asking for it first
+      # costs nothing (the build below finds it up to date), fails sooner, and names itself in the
+      # step list, which is where somebody actually reads it.
+      - name: Unit-test ${{ matrix.version }}
+        run: ./gradlew ":${{ matrix.version }}:test" --no-daemon
+
       # One segment: this is a ROOT branch, so a node path is `:26.1.x`, never `:anima:26.1.x`.
       # `build` runs `check`, which is where ArchitectureTest enforces the core/compat/mod layering.
       - name: Build ${{ matrix.version }}
@@ -113,6 +123,31 @@ jobs:
           name: anima-test-reports-mc${{ matrix.version }}
           path: versions/${{ matrix.version }}/build/reports/tests/
           retention-days: 14
+
+      - name: Stage the jar for the smoke test
+        run: ./gradlew ":${{ matrix.version }}:smokeMods" --no-daemon
+
+      # Does the library actually RUN — the one question a build cannot answer. A compile cannot
+      # see a mixin that fails to apply, a registry that throws at bootstrap, or a nested jar that
+      # never linked; a REAL server booted from the jar that ships can see all three.
+      #
+      # BEFORE the publish, deliberately: a library that compiles and cannot boot must never reach
+      # the registry for a consumer to resolve.
+      #
+      # No artifact upload for the log. Artifacts are write-only on this Gitea: upload-artifact@v3
+      # finalises successfully and neither the API nor the web route can read the result back
+      # (measured 2026-08-18). smoke.sh tails the last 60 lines into THIS log on failure instead,
+      # which is readable.
+      #
+      # The EULA is the operator's legal choice and the script refuses to make it. This line is the
+      # repository owner recording that choice, which is the only place it belongs.
+      - name: Boot it and read the library back
+        run: scripts/smoke.sh "${{ matrix.version }}"
+        env:
+          SMOKE_EULA: 'true'
+          # A cold runner downloads Minecraft and its libraries before it can log "Done"; the
+          # interactive default is for a machine that already has them.
+          READY_TIMEOUT: '900'
 
       # Autarkia and Fidelia resolve `dev.luizloyola:anima-<mc>` from this registry, so a library
       # change that is never published is a change its consumers cannot see. Off a tag this
@@ -138,22 +173,3 @@ jobs:
         run: ./gradlew ":${{ matrix.version }}:publishMods" --no-daemon
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
-
-  # Nothing here can boot a game, and a library that compiles is not a library that works. The
-  # workspace can boot one — it is the only place both mods and the headless harness exist — so
-  # ask it to, and let THAT run be the thing that goes red.
-  #
-  # Its own job so a failed dispatch is legible as what it is: the build stays green and this
-  # says, in one line, that the pair was never exercised.
-  integration:
-    needs: build
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Ask the workspace to run the pair end to end
-        run: |
-          curl -fsS -X POST \
-            -H "Authorization: token ${{ secrets.CI_TOKEN }}" \
-            -H 'Content-Type: application/json' \
-            -d '{"ref":"refs/heads/main","inputs":{"reason":"anima ${{ github.ref_name }} @ ${{ github.sha }}"}}' \
-            "${{ github.server_url }}/api/v1/repos/${{ github.repository_owner }}/Anima-Workspace/actions/workflows/integration.yml/dispatches"
