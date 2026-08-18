@@ -14,6 +14,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -704,28 +705,41 @@ public final class WebDebugger {
         String id = query.get("id");
         String acting = query.get("as");
         WebWatch next = watch;
+        EnumSet<WebClock> forcing = EnumSet.noneOf(WebClock.class);
         if (id != null) {
             next = next.toggled(new dev.luizloyola.anima.core.agent.AgentId(UUID.fromString(id)),
                     !"0".equals(query.get("open")) && !"false".equals(query.get("open")));
-            CLOCKS.force(WebClock.DETAIL);
+            forcing.add(WebClock.DETAIL);
         }
         if (acting != null) {
             next = next.actingAs(acting.isEmpty() ? null : UUID.fromString(acting));
             // Every distance in the roster is measured from this player, and the layers are theirs.
-            CLOCKS.force(WebClock.ROSTER);
-            CLOCKS.force(WebClock.SLOW);
+            forcing.add(WebClock.ROSTER);
+            forcing.add(WebClock.SLOW);
         }
         String ticks = query.get("ticks");
         if (ticks != null) {
             next = next.ticks(!"0".equals(ticks) && !"false".equals(ticks));
-            CLOCKS.force(WebClock.CHART);
+            forcing.add(WebClock.CHART);
         }
         String dead = query.get("dead");
         if (dead != null) {
             next = next.withDead(!"0".equals(dead) && !"false".equals(dead));
-            CLOCKS.force(WebClock.ROSTER);
+            forcing.add(WebClock.ROSTER);
         }
+        // The assignment MUST precede the forcing — this order is load-bearing, not incidental.
+        // The volatile write to `watch` happening-before the atomic OR into WebClocks' forced bits
+        // is what makes either interleaving on the tick thread safe: a tick that sees a forced bit
+        // is guaranteed to see this watch too, and a tick that misses the bit (it ran before the
+        // OR landed) simply leaves the bit set for the next one. Either way the section is built
+        // from the state that asked for it. Reversed — force first, assign after — a tick landing
+        // in the gap would consume the forced bit, build the section from the OLD watch, produce no
+        // delta, and lose the bit for good: the change would then wait out the clock's own
+        // deadline, up to 500ms for SLOW, instead of jumping the queue.
         watch = next;
+        for (WebClock clock : forcing) {
+            CLOCKS.force(clock);
+        }
         send(exchange, 200, "{\"ok\":true}".getBytes(StandardCharsets.UTF_8));
     }
 
