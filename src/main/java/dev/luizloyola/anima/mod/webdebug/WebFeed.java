@@ -24,6 +24,9 @@ final class WebFeed {
     /** Set once on shutdown, to release every parked reader instead of leaking their threads. */
     private volatile boolean closed;
 
+    /** Whether that shutdown was the debugger stopping rather than a restart. @see #close */
+    private volatile boolean farewell;
+
     /** Replaces the frame and wakes every waiting reader. Called on the server tick thread. */
     void publish(String json) {
         synchronized (this) {
@@ -51,10 +54,15 @@ final class WebFeed {
      * returns it immediately</b>, without waiting out the timeout. A reader that treats that as
      * its keepalive tick and loops therefore spins as fast as the CPU allows; see
      * {@link #isClosed}. There is no reopening: a feed belongs to one run of the server.
+     *
+     * @param farewell whether the debugger is stopping, rather than restarting onto a fresh feed.
+     *     Only the former is announced on the wire: a browser told "it stopped" by a restart would
+     *     sit behind that screen waiting to be pressed, with a server already listening behind it.
      */
-    void close() {
+    void close(boolean farewell) {
         synchronized (this) {
             closed = true;
+            this.farewell = farewell;
             notifyAll();
         }
     }
@@ -69,6 +77,11 @@ final class WebFeed {
      */
     boolean isClosed() {
         return closed;
+    }
+
+    /** Whether this feed closed because the debugger stopped. @see #close */
+    boolean isFarewell() {
+        return farewell;
     }
 
     long version() {

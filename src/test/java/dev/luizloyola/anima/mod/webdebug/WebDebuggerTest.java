@@ -9,6 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -83,7 +86,7 @@ class WebDebuggerTest {
         // feed per run; this pins the property that made the old bug so loud.
         WebFeed feed = new WebFeed();
         feed.publish("{\"tick\":1}");
-        feed.close();
+        feed.close(true);
 
         assertTrue(feed.isClosed());
         long startedNanos = System.nanoTime();
@@ -143,9 +146,65 @@ class WebDebuggerTest {
         reader.setDaemon(true);
         reader.start();
         Thread.sleep(50);
-        feed.close();
+        feed.close(true);
         assertTrue(done.await(5, TimeUnit.SECONDS), "close did not release the reader");
         assertNull(got.get());
+    }
+
+    // --- the goodbye ----------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a stream whose feed closes signs off with a stop event")
+    void aClosedFeedEndsTheStreamWithStop() throws Exception {
+        WebFeed feed = new WebFeed();
+        feed.publish("{\"tick\":1}");
+        ByteArrayOutputStream wire = new ByteArrayOutputStream();
+
+        CountDownLatch done = new CountDownLatch(1);
+        Thread stream = new Thread(() -> {
+            try {
+                WebDebugger.pump(wire, feed, () -> true);
+            } catch (IOException | InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                done.countDown();
+            }
+        });
+        stream.setDaemon(true);
+        stream.start();
+        Thread.sleep(50); // let it send the frame and park; closing first would not test the loop
+
+        feed.close(true);
+        assertTrue(done.await(5, TimeUnit.SECONDS), "the stream never ended");
+        String sent = wire.toString(StandardCharsets.UTF_8);
+        assertTrue(sent.startsWith("data: {\"tick\":1}\n\n"), sent);
+        assertTrue(sent.endsWith("event: stop\ndata: {}\n\n"),
+                "a browser cannot tell a stopped server from a dropped socket without this: " + sent);
+    }
+
+    @Test
+    @DisplayName("a stream the browser lost standing on hangs up silently — 401 says the rest")
+    void anUnwelcomeStreamDoesNotSayStop() throws Exception {
+        // The two endings must not look alike: a revoke is worth reconnecting into, a stop is not.
+        WebFeed feed = new WebFeed();
+        feed.publish("{\"tick\":1}");
+        ByteArrayOutputStream wire = new ByteArrayOutputStream();
+
+        WebDebugger.pump(wire, feed, () -> false);
+        assertEquals("", wire.toString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    @DisplayName("a restart says nothing — the browser reconnects into the server already coming up")
+    void aRestartDoesNotSayStop() throws Exception {
+        WebFeed feed = new WebFeed();
+        feed.publish("{\"tick\":1}");
+        feed.close(false);
+        ByteArrayOutputStream wire = new ByteArrayOutputStream();
+
+        WebDebugger.pump(wire, feed, () -> true);
+        assertEquals("", wire.toString(StandardCharsets.UTF_8),
+                "a stop screen behind a listening server is a screen nobody can get past");
     }
 
     // --- the watch ------------------------------------------------------------------------------

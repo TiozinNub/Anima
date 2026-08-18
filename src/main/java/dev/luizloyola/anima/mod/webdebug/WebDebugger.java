@@ -20,6 +20,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
@@ -86,6 +87,26 @@ public final class WebDebugger {
 
     /** How long an idle stream waits before emitting a keepalive — and noticing a dead socket. */
     private static final long KEEPALIVE_MILLIS = 15_000L;
+
+    /**
+     * The last thing a stream writes when the debugger is going down on purpose.
+     *
+     * <p>A browser cannot tell a stopped server from a dropped socket by the socket alone, and the
+     * two want opposite answers: a drop is worth retrying, a stop is not. Saying so costs one event
+     * and saves a tab reconnecting for as long as it is left open.
+     *
+     * <p>The {@code data:} line carries nothing and is there because it must be: an SSE event with
+     * no data is not an event.
+     */
+    private static final String STOP_EVENT = "event: stop\ndata: {}\n\n";
+
+    /**
+     * How long {@link #stop} lets the parked streams write {@link #STOP_EVENT} before the sockets
+     * go. It returns as soon as they have, so this is a ceiling and not a wait — the one handler
+     * that can spend it all is a refusal being held (see {@link #refuse}), and a stop landing
+     * inside one of those is rare enough to pay a second for.
+     */
+    private static final int STOP_GRACE_SECONDS = 1;
 
     /**
      * Where a player's head is rendered from, for the panel's picker.
@@ -248,7 +269,10 @@ public final class WebDebugger {
      * almost always the port being held — rather than throwing at a command handler.
      */
     public static synchronized @Nullable String start(MinecraftServer server) {
-        stop();
+        // No goodbye: a browser told "it stopped" would sit behind that screen waiting to be
+        // pressed, with the server this line is about to start already listening behind it. Its
+        // stream drops and it reconnects, which is what a restart should look like from a tab.
+        stop(false);
         world = server;
         // A fresh one, because stop() closed the last for good. This is the line whose absence
         // made a restarted debugger serve keepalives and nothing else.
@@ -318,15 +342,27 @@ public final class WebDebugger {
                 host(), host(), port());
     }
 
-    /** Stops listening and releases every parked stream. Safe to call when nothing is running. */
+    /**
+     * Stops listening and releases every parked stream, after each has said goodbye. Safe to call
+     * when nothing is running.
+     */
     public static synchronized void stop() {
+        stop(true);
+    }
+
+    /** @param farewell whether the streams should be told this is the end — see {@link WebFeed#close}. */
+    private static synchronized void stop(boolean farewell) {
         HttpServer running = http;
         if (running == null) {
             return;
         }
+        // Closed BEFORE the field is cleared. A reader that saw running() go false first would
+        // leave its loop with the feed still open, read that as an ordinary hang-up, and write no
+        // stop event — which is the whole difference between a browser that waits and one that
+        // retries a server nobody is bringing back.
+        feed.close(farewell);
         http = null;
-        feed.close();
-        running.stop(0);
+        running.stop(STOP_GRACE_SECONDS);
         if (pool != null) {
             pool.shutdownNow();
             pool = null;
@@ -484,6 +520,10 @@ public final class WebDebugger {
      * revoked browser kept streaming every mind in the world until it happened to reconnect, which
      * is a revoke that does not revoke. {@link #revoke} pairs with this by waking the parked
      * readers, so a quiet world does not delay the hang-up by a keepalive.
+     *
+     * <p>It ends with {@link #STOP_EVENT} when the debugger is what stopped, and silently for every
+     * other ending: a revoked browser hears 401 on its next call, and a restart is about to be
+     * listening again, so both want the browser reconnecting rather than waiting to be pressed.
      */
     private static void serveStream(HttpExchange exchange) throws IOException {
         if (!keyed(exchange)) {
@@ -496,26 +536,43 @@ public final class WebDebugger {
         exchange.getResponseHeaders().add("Content-Type", "text/event-stream; charset=utf-8");
         exchange.getResponseHeaders().add("Cache-Control", "no-store");
         exchange.sendResponseHeaders(200, 0); // 0 = chunked, the stream stays open
-        long seen = -1;
         try (OutputStream out = exchange.getResponseBody()) {
-            // isClosed, and not just running(): a restart makes running() true again while THIS
-            // feed stays dead, and a dead feed answers instantly — the loop would spin.
-            while (running() && !live.isClosed() && BROWSERS.stillAccepted(key)) {
-                WebFeed.Snapshot snapshot = live.awaitAfter(seen, KEEPALIVE_MILLIS);
-                if (snapshot == null) {
-                    out.write(": keepalive\n\n".getBytes(StandardCharsets.UTF_8));
-                } else {
-                    seen = snapshot.version();
-                    out.write(("data: " + snapshot.json() + "\n\n").getBytes(StandardCharsets.UTF_8));
-                }
-                out.flush();
-            }
+            pump(out, live, () -> running() && BROWSERS.stillAccepted(key));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (IOException e) {
             // The browser closed the tab. Not worth a log line — it is the normal ending.
         } finally {
             exchange.close();
+        }
+    }
+
+    /**
+     * The stream itself, with no HTTP around it: frames while {@code welcome} holds and the feed
+     * lives, then the goodbye if the debugger is what ended it.
+     *
+     * <p>Split out to be driven by a test. The loop has been wrong twice — once spinning on a feed
+     * closed by a previous run, once outliving a revoke — and both were found in a running game,
+     * which is the expensive place to find them.
+     */
+    static void pump(OutputStream out, WebFeed live, BooleanSupplier welcome)
+            throws IOException, InterruptedException {
+        long seen = -1;
+        // isClosed, and not just welcome: a restart makes running() true again while THIS feed
+        // stays dead, and a dead feed answers instantly — the loop would spin.
+        while (welcome.getAsBoolean() && !live.isClosed()) {
+            WebFeed.Snapshot snapshot = live.awaitAfter(seen, KEEPALIVE_MILLIS);
+            if (snapshot == null) {
+                out.write(": keepalive\n\n".getBytes(StandardCharsets.UTF_8));
+            } else {
+                seen = snapshot.version();
+                out.write(("data: " + snapshot.json() + "\n\n").getBytes(StandardCharsets.UTF_8));
+            }
+            out.flush();
+        }
+        if (live.isFarewell()) {
+            out.write(STOP_EVENT.getBytes(StandardCharsets.UTF_8));
+            out.flush();
         }
     }
 
