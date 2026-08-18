@@ -89,6 +89,12 @@ public final class WebDebugger {
     private static final long KEEPALIVE_MILLIS = 15_000L;
 
     /**
+     * The most frames a second the feed carries, however fast the world is ticking. A screen
+     * refresh, and nothing a person reads off a dashboard needs more than one of. @see WebPace
+     */
+    private static final long MAX_FRAMES_PER_SECOND = 60L;
+
+    /**
      * The last thing a stream writes when the debugger is going down on purpose.
      *
      * <p>A browser cannot tell a stopped server from a dropped socket by the socket alone, and the
@@ -130,6 +136,13 @@ public final class WebDebugger {
      * A reader captures the feed it started on, so the two runs cannot be confused.
      */
     private static volatile WebFeed feed = new WebFeed();
+
+    /**
+     * What holds the feed to {@link #MAX_FRAMES_PER_SECOND}. Read and written only on the server
+     * tick thread, which is why it is neither volatile nor replaced by {@link #start}: a deadline
+     * left over from a previous run is already past, so the first tick of the next one publishes.
+     */
+    private static final WebPace PACE = new WebPace(MAX_FRAMES_PER_SECOND);
 
     /** Saving is passed in rather than called: {@link WebBrowsers} is core-shaped and has no file. */
     private static final WebBrowsers BROWSERS =
@@ -257,8 +270,9 @@ public final class WebDebugger {
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             // The one place the world is read. Guarded on running(), so a switched-off dashboard
-            // costs a field read per tick.
-            if (running()) {
+            // costs a field read per tick — and on the pace, so a sprinting one costs a clock read
+            // rather than the whole roster rendered to JSON inside the tick.
+            if (running() && PACE.due(System.nanoTime())) {
                 feed.publish(WebSnapshot.render(server, watch));
             }
         });

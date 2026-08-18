@@ -313,6 +313,65 @@ class WebDebuggerTest {
         return new String(out, 0, size, StandardCharsets.UTF_8);
     }
 
+    // --- the pace -------------------------------------------------------------------------------
+
+    /** A second, in the nanoseconds {@link WebPace} is asked in. */
+    private static final long SECOND = 1_000_000_000L;
+
+    @Test
+    @DisplayName("a world ticking slower than the cap publishes every tick — the ordinary case")
+    void everyTickPassesAtTwenty() {
+        WebPace pace = new WebPace(60);
+        int published = 0;
+        // Two seconds of vanilla: a tick every 50ms, none of them due to be dropped.
+        for (long at = 0; at < 2 * SECOND; at += SECOND / 20) {
+            if (pace.due(at)) {
+                published++;
+            }
+        }
+        assertEquals(40, published, "a 20 TPS world lost frames to a 60 a second cap");
+    }
+
+    @Test
+    @DisplayName("a sprinting world is held to the cap, however fast it ticks")
+    void sprintIsHeldToTheCap() {
+        WebPace pace = new WebPace(60);
+        int published = 0;
+        // A tick every 2ms — 500 a second, which is what a sprint on a quiet world looks like.
+        for (long at = 0; at < SECOND; at += SECOND / 500) {
+            if (pace.due(at)) {
+                published++;
+            }
+        }
+        assertEquals(60, published, "the cap did not hold: " + published + " frames in a second");
+    }
+
+    @Test
+    @DisplayName("a rate just above the cap does not beat against it and halve the feed")
+    void aRateJustOverTheCapDoesNotBeat() {
+        WebPace pace = new WebPace(60);
+        int published = 0;
+        // 100 ticks a second. A floor measured from the last frame rather than from the deadline
+        // would drop every other one and report 50 — worse than the cap it is enforcing.
+        for (long at = 0; at < SECOND; at += SECOND / 100) {
+            if (pace.due(at)) {
+                published++;
+            }
+        }
+        assertEquals(60, published, "the gate beat against the tick and lost frames: " + published);
+    }
+
+    @Test
+    @DisplayName("a frozen world owes nothing — the first tick back is one frame, not a burst")
+    void aLongGapDoesNotOweABurst() {
+        WebPace pace = new WebPace(60);
+        assertTrue(pace.due(0), "the first frame was withheld");
+        // An hour frozen, then two ticks 1ms apart. A deadline that kept advancing by the gap
+        // would owe 216,000 frames and let both through.
+        assertTrue(pace.due(3600 * SECOND));
+        assertFalse(pace.due(3600 * SECOND + 1_000_000L), "the gate paid out a backlog");
+    }
+
     // --- the watch ------------------------------------------------------------------------------
 
     @Test
