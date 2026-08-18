@@ -171,6 +171,33 @@ dependencies {
     errorprone("com.google.errorprone:error_prone_core:2.50.0")
 }
 
+// The artifact that actually SHIPS: `remapJar` where it exists (the Mojang-mapped nodes) and
+// `jar` where it does not (26.1+ is unobfuscated, so Loom registers no remap task at all).
+// Read by JarContentsTest, which inspects it, and by `smokeMods`, which boots it.
+//
+// Handed in rather than found: build/libs/ keeps every timestamped jar this repo has ever
+// built, hundreds of them, so "newest match for a glob" is a guess and would happily verify
+// last month's release.
+//
+// Typed `AbstractArchiveTask`, not `Jar`. Loom's RemapJarTask descends from
+// `org.gradle.jvm.tasks.Jar`, which is the SUPERclass of the `Jar` a build script means when it
+// writes the bare name (`org.gradle.api.tasks.bundling.Jar`) — so asking for `named<Jar>` on a
+// node that has a remapJar failed configuration outright with "not a subclass of the given
+// type", and every Mojang-mapped node died before compiling. The 26.1+ nodes never noticed,
+// having no remapJar to look up.
+val shippedJar = (if (tasks.names.contains("remapJar")) tasks.named<AbstractArchiveTask>("remapJar")
+                  else tasks.named<AbstractArchiveTask>("jar")).flatMap { it.archiveFile }
+
+// Stage what `scripts/smoke.sh` boots. A task rather than a glob in the script: build/libs/ is
+// never cleaned and holds every jar this repo has ever produced, so "newest match for a glob" is
+// how somebody ends up booting last month's file.
+tasks.register<Copy>("smokeMods") {
+    group = "verification"
+    description = "Stage this node's shipping jar for scripts/smoke.sh."
+    from(shippedJar)
+    into(layout.buildDirectory.dir("smoke-mods"))
+}
+
 tasks.named<Test>("test") {
     useJUnitPlatform()
 
@@ -195,22 +222,7 @@ tasks.named<Test>("test") {
     // UP-TO-DATE after the edits it exists to catch.
     inputs.dir(branchSources).withPropertyName("branchSources").withPathSensitivity(PathSensitivity.RELATIVE)
 
-    // JarContentsTest inspects the jar this build produced. `remapJar` where it exists (the
-    // Mojang-mapped nodes) and `jar` where it does not (26.1+ is unobfuscated, so Loom registers
-    // no remap task at all) — whichever one is the artifact that actually ships.
-    //
-    // Handed in rather than found: build/libs/ keeps every timestamped jar this repo has ever
-    // built, hundreds of them, so "newest match for a glob" is a guess and would happily verify
-    // last month's release.
-    //
-    // Typed `AbstractArchiveTask`, not `Jar`. Loom's RemapJarTask descends from
-    // `org.gradle.jvm.tasks.Jar`, which is the SUPERclass of the `Jar` a build script means when it
-    // writes the bare name (`org.gradle.api.tasks.bundling.Jar`) — so asking for `named<Jar>` on a
-    // node that has a remapJar failed configuration outright with "not a subclass of the given
-    // type", and every Mojang-mapped node died before compiling. The 26.1+ nodes never noticed,
-    // having no remapJar to look up.
-    val shippedJar = (if (tasks.names.contains("remapJar")) tasks.named<AbstractArchiveTask>("remapJar")
-                      else tasks.named<AbstractArchiveTask>("jar")).flatMap { it.archiveFile }
+    // JarContentsTest inspects the shipping jar itself — see its declaration above.
     dependsOn(shippedJar)
     inputs.file(shippedJar).withPropertyName("shippedJar").withPathSensitivity(PathSensitivity.NAME_ONLY)
     // Resolved here rather than through a jvmArgumentProviders lambda: a lambda written in a build
