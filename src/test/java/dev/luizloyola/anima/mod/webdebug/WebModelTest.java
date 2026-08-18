@@ -95,14 +95,26 @@ class WebModelTest {
     }
 
     @Test
-    @DisplayName("a frame writes the tick first, then its keys, and a null key as JSON null")
+    @DisplayName("a frame writes the tick, then the keys, and collects drops in their own array")
     void frameAssembly() {
         Map<String, String> delta = new LinkedHashMap<>();
         delta.put("health", "{\"tps\":20}");
         delta.put("samples", null);
 
-        assertEquals("{\"tick\":9,\"health\":{\"tps\":20},\"samples\":null}",
+        assertEquals("{\"tick\":9,\"health\":{\"tps\":20},\"drop\":[\"samples\"]}",
                 WebModel.frame(9, delta));
+    }
+
+    @Test
+    @DisplayName("a JSON-null value and a dropped key share the same frame, in different places — "
+            + "JSON has only one null, so only the drop array tells a removal from a value")
+    void jsonNullAndDropCoexist() {
+        Map<String, String> frame = new LinkedHashMap<>();
+        frame.put("actingAs", "null");  // JSON-null fragment: an ordinary value
+        frame.put("samples", null);      // Java null: a key to drop
+
+        assertEquals("{\"tick\":7,\"actingAs\":null,\"drop\":[\"samples\"]}",
+                WebModel.frame(7, frame));
     }
 
     @Test
