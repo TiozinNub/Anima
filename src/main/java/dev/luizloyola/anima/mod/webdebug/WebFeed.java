@@ -18,6 +18,12 @@ final class WebFeed {
     /** The latest rendered frame, or null before the first tick has produced one. */
     private volatile String frame;
 
+    /**
+     * What the browser is assumed to be holding, kept in step with {@link #frame} under the same
+     * lock so a reader cannot be greeted with a world one publish out of date.
+     */
+    private volatile WebModel model = WebModel.EMPTY;
+
     /** Bumped on every publish. Readers remember the last one they sent. */
     private volatile long version;
 
@@ -27,12 +33,37 @@ final class WebFeed {
     /** Whether that shutdown was the debugger stopping rather than a restart. @see #close */
     private volatile boolean farewell;
 
-    /** Replaces the frame and wakes every waiting reader. Called on the server tick thread. */
-    void publish(String json) {
+    /**
+     * Replaces the frame and the model it leaves the browser in, and wakes every waiting reader.
+     * Called on the server tick thread.
+     *
+     * <p>The two travel together because a delta and the state it produces are one fact: a reader
+     * greeted between the two writes would be handed a world that the very next delta contradicts.
+     */
+    void publish(WebModel model, String json) {
         synchronized (this) {
+            this.model = model;
             frame = json;
             version++;
             notifyAll();
+        }
+    }
+
+    /** What the browser is assumed to hold. Read on the tick thread, to diff the next build. */
+    WebModel model() {
+        return model;
+    }
+
+    /**
+     * The whole retained world, for a reader that has just connected — or null when nothing has
+     * been published yet, which is a server whose first tick has not run.
+     *
+     * <p>The version travels with it so the reader knows what it has already been told. Taken under
+     * the lock for the same reason {@link Snapshot} exists: read apart, the two can disagree.
+     */
+    Snapshot hello() {
+        synchronized (this) {
+            return model.isEmpty() ? null : new Snapshot(version, model.full());
         }
     }
 

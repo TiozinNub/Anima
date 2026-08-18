@@ -273,7 +273,9 @@ public final class WebDebugger {
             // costs a field read per tick — and on the pace, so a sprinting one costs a clock read
             // rather than the whole roster rendered to JSON inside the tick.
             if (running() && PACE.due(System.nanoTime())) {
-                feed.publish(WebSnapshot.render(server, watch));
+                // Stopgap until the delta rewrite: the model stays EMPTY, so this still ships
+                // whole frames and hello() has nothing to greet a reader with yet.
+                feed.publish(WebModel.EMPTY, WebSnapshot.render(server, watch));
             }
         });
     }
@@ -651,23 +653,36 @@ public final class WebDebugger {
     static void pump(OutputStream out, LongSupplier wire, WebFeed live, BooleanSupplier welcome)
             throws IOException, InterruptedException {
         long seen = -1;
+        // The whole retained world first. Every frame after this one is a DELTA, and a delta
+        // merged onto nothing is a dashboard with holes in it that nothing later fills.
+        WebFeed.Snapshot hello = live.hello();
+        if (hello != null) {
+            seen = hello.version();
+            write(out, hello.json(), wire);
+        }
         // isClosed, and not just welcome: a restart makes running() true again while THIS feed
         // stays dead, and a dead feed answers instantly — the loop would spin.
         while (welcome.getAsBoolean() && !live.isClosed()) {
             WebFeed.Snapshot snapshot = live.awaitAfter(seen, KEEPALIVE_MILLIS);
             if (snapshot == null) {
                 out.write(": keepalive\n\n".getBytes(StandardCharsets.UTF_8));
+                out.flush();
             } else {
                 seen = snapshot.version();
-                out.write(("data: " + snapshot.json() + "\nwire: " + wire.getAsLong() + "\n\n")
-                        .getBytes(StandardCharsets.UTF_8));
+                write(out, snapshot.json(), wire);
             }
-            out.flush();
         }
         if (live.isFarewell()) {
             out.write(STOP_EVENT.getBytes(StandardCharsets.UTF_8));
             out.flush();
         }
+    }
+
+    /** One SSE event, with the socket count as it stood before the bytes naming it existed. */
+    private static void write(OutputStream out, String json, LongSupplier wire) throws IOException {
+        out.write(("data: " + json + "\nwire: " + wire.getAsLong() + "\n\n")
+                .getBytes(StandardCharsets.UTF_8));
+        out.flush();
     }
 
     /** What the browser has expanded, and who it is acting as. */
