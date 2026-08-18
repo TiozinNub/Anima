@@ -41,6 +41,22 @@ public interface AgentDirectory {
     }
 
     /**
+     * What kind of body this agent is — the {@link dev.luizloyola.anima.core.agent.SpeciesProfile}
+     * key, e.g. {@code "person"} or {@code "wolf"}.
+     *
+     * <p><b>Here rather than on the profile because it must answer with no body loaded.</b>
+     * {@code AgentProfile.species()} is reachable only through a body, so a listing that mixes a
+     * settlement and a kennel could not say which an entry in an unloaded chunk was — the same gap
+     * {@link #known} exists to close for names.
+     *
+     * <p>Empty by default: a directory written before this existed keeps compiling and simply says
+     * nothing, and a reader that gets nothing shows nothing rather than guessing a species.
+     */
+    default Optional<String> speciesOf(AgentId id) {
+        return Optional.empty();
+    }
+
+    /**
      * Every agent this directory knows — <b>loaded or not</b>, and <b>living or dead</b>.
      * Implementors answer for everything they hold; the filtering happens one level up, in
      * {@link #of}.
@@ -96,6 +112,19 @@ public interface AgentDirectory {
             public Optional<PrivateIdentity> identity(AgentId id) {
                 for (Function<MinecraftServer, AgentDirectory> provider : providers) {
                     Optional<PrivateIdentity> found = provider.apply(server).identity(id);
+                    if (found.isPresent()) {
+                        return found;
+                    }
+                }
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> speciesOf(AgentId id) {
+                // Chained exactly like identity() above, and for a sharper reason: inheriting the
+                // empty default here compiles and answers "no species" for every agent alive.
+                for (Function<MinecraftServer, AgentDirectory> provider : providers) {
+                    Optional<String> found = provider.apply(server).speciesOf(id);
                     if (found.isPresent()) {
                         return found;
                     }
