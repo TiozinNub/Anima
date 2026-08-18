@@ -23,9 +23,9 @@ import net.minecraft.server.level.ServerPlayer;
  * knowing: {@code web_debugger.enabled} is the AUTO-START switch, consulted once when a world
  * loads, and taking a look at a running world is not a decision about every future world.
  *
- * <p><b>Gated whole, unlike the rest of {@code /anima}.</b> Every node here either exposes a debug
- * surface or hands a browser standing permission to drive agents. There is no longer a node in the
- * group that does neither, so the gate sits on the root rather than on one child.
+ * <p>The op gate is {@code /anima}'s own now, not this subtree's — see {@link
+ * dev.luizloyola.anima.mod.command.AnimaCommands}. It used to sit here because this was the one
+ * node in an otherwise ungated root that hands a browser standing permission to drive agents.
  */
 public final class WebCommands {
 
@@ -40,10 +40,6 @@ public final class WebCommands {
         SuggestionProvider<CommandSourceStack> allowed = (ctx, builder) ->
                 SharedSuggestionProvider.suggest(WebDebugger.browsers().allowed(), builder);
         return Commands.literal("web-debugger")
-                // The one gated root under /anima, which is otherwise ungated. Every node here
-                // either exposes a debug surface or hands a browser standing permission to drive
-                // agents, so there is no node left that an ordinary player wants.
-                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                 .executes(ctx -> show(ctx.getSource()))
                 .then(Commands.literal("start").executes(ctx -> start(ctx.getSource())))
                 .then(Commands.literal("stop").executes(ctx -> stop(ctx.getSource())))

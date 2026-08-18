@@ -18,12 +18,15 @@ public final class AnimaCommands {
     }
 
     /**
-     * Registers {@code /anima …}. Ungated, matching {@code /autarkia} — dev/operator surfaces on
-     * a single-player or trusted server, where gating one root and not its sibling would mislead.
+     * Registers {@code /anima …}. <b>Op-gated whole, matching {@code /autarkia}</b> — every node
+     * under it either drives an agent, exposes the machinery, or edits the config, so there is
+     * none an ordinary player wants and several a shared server should not hand out. Brigadier
+     * drops a failing root from the tree, so a non-op does not see it at all.
      */
     public static void register(ConfigFile configFile) {
         CommandRegistrationCallback.EVENT.register((dispatcher, registry, environment) ->
                 dispatcher.register(Commands.literal("anima")
+                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         // The whole agent-shaped surface, for a world running the library on its
                         // own — and mounted again by each consumer under its own root, so nobody
                         // relearns a command they already type.
