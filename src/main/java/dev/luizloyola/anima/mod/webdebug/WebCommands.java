@@ -53,8 +53,6 @@ public final class WebCommands {
                 .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                 .executes(ctx -> list(ctx.getSource()))
                 .then(Commands.literal("list").executes(ctx -> list(ctx.getSource())))
-                .then(Commands.literal("open").executes(ctx -> open(ctx.getSource())))
-                .then(Commands.literal("close").executes(ctx -> close(ctx.getSource())))
                 .then(Commands.literal("accept")
                         .then(Commands.argument("key", StringArgumentType.word())
                                 .suggests(waiting)
@@ -85,14 +83,7 @@ public final class WebCommands {
         return 1;
     }
 
-    /**
-     * Starts it whatever {@code web_debugger.enabled} says, and restarts a running one.
-     *
-     * <p><b>Opens the door on the way</b>, which auto-start deliberately does not. Typing this is a
-     * person saying they are about to look at the thing, and making them type a second command
-     * first would be ceremony; a world booting with {@code enabled} set is nobody saying anything,
-     * and a door left open on an unattended server is the case the door exists for.
-     */
+    /** Starts it whatever {@code web_debugger.enabled} says, and restarts a running one. */
     private static int start(CommandSourceStack source) {
         String problem = WebDebugger.start(source.getServer());
         if (problem != null) {
@@ -100,8 +91,6 @@ public final class WebCommands {
             Replies.fail(source, Component.translatable("anima.webdebug.start_failed", problem));
             return 0;
         }
-        // After the start, not before: it restarts a running server, and stopping clears the door.
-        WebDebugger.browsers().open();
         link(source);
         return 1;
     }
@@ -141,14 +130,8 @@ public final class WebCommands {
             Replies.send(source, () -> indent(Component.translatable(
                     "anima.webdebug.session_only").withStyle(ChatFormatting.DARK_GRAY)));
         }
-        long open = WebDebugger.browsers().openSecondsLeft();
-        if (open > 0) {
-            Replies.send(source, () -> indent(Component.translatable("anima.webdebug.open_for",
-                    open).withStyle(ChatFormatting.YELLOW)));
-        } else if (WebDebugger.browsers().accepted().isEmpty()) {
+        if (WebDebugger.browsers().accepted().isEmpty()) {
             Replies.send(source, () -> indent(Component.translatable("anima.webdebug.none_accepted")
-                    .append(button(" [open]", "/anima web-debugger browser open",
-                            "anima.webdebug.hover.open"))
                     .withStyle(ChatFormatting.YELLOW)));
         }
         // Said here as well as in the log: whoever is reading this is the person who can undo it,
@@ -166,11 +149,8 @@ public final class WebCommands {
         List<WebBrowsers.Waiting> waiting = browsers.waiting();
         List<String> accepted = browsers.accepted();
 
-        long open = browsers.openSecondsLeft();
-        Replies.send(source, () -> (open > 0
-                        ? Component.translatable("anima.webdebug.list_open", open)
-                        : Component.translatable("anima.webdebug.list_closed"))
-                .withStyle(open > 0 ? ChatFormatting.YELLOW : ChatFormatting.AQUA));
+        Replies.send(source, () -> Component.translatable("anima.webdebug.list_closed")
+                .withStyle(ChatFormatting.AQUA));
 
         if (waiting.isEmpty()) {
             Replies.send(source, () -> indent(Component.translatable("anima.webdebug.nobody_asking")
@@ -201,22 +181,6 @@ public final class WebCommands {
                             "anima.webdebug.hover.revoke"))));
         }
         return waiting.size() + accepted.size();
-    }
-
-    private static int open(CommandSourceStack source) {
-        WebDebugger.browsers().open();
-        // LOGGED: for the next minute anything on this machine can put itself in the queue, and
-        // whoever else is administering the server should see that happen.
-        Replies.send(source, () -> Component.translatable("anima.webdebug.opened",
-                WebBrowsers.OPEN_MILLIS / 1000).withStyle(ChatFormatting.YELLOW), true);
-        return 1;
-    }
-
-    private static int close(CommandSourceStack source) {
-        WebDebugger.browsers().close();
-        Replies.send(source, () -> Component.translatable("anima.webdebug.closed")
-                .withStyle(ChatFormatting.GRAY), true);
-        return 1;
     }
 
     private static int accept(CommandSourceStack source, String key) {

@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Which browsers may read this world, which are asking to, and the door they have to come through.
+ * Which browsers may read this world, which are asking to, and what a guess costs.
  *
  * <p><b>The browser makes its own key and keeps it; an operator decides whether it means
  * anything.</b> There is no secret in the config for a page to be handed and no key in the address
@@ -23,21 +23,19 @@ import org.jspecify.annotations.Nullable;
  * {@link Knob#WEB_ACCEPTED_KEYS}, they open nothing. That inverts what a key <em>is</em> here: not
  * a secret that proves you were told the address, but a name a person recognised and admitted.
  *
- * <h2>Three guards, because the key itself is weak</h2>
+ * <h2>Two guards, because the key itself is weak</h2>
  *
- * <p>Two readable words is around twenty bits — the price of a key an operator can read out of
- * chat and retype, and far too few to leave standing on its own. So a guess is made expensive
- * rather than made impossible:
+ * <p>A name is a handful of readable words — the price of a key an operator can read out of chat
+ * and retype, and few enough bits to need help. (The shipped client makes three words from an
+ * 806-word list, near 29 bits; {@link #SHAPE} permits two or more, so the floor assumed here is
+ * around twenty.) So a guess is made expensive rather than made impossible:
  *
  * <ul>
- *   <li><b>The door is shut.</b> A key nobody has seen before is refused outright unless an
- *       operator has just run {@code browser open}, which lasts {@link #OPEN_MILLIS} and shuts
- *       again the moment one browser comes through. Guessing has no window to work in.
  *   <li><b>A miss shuts everything for {@link #LOCKOUT_MILLIS}.</b> Globally, not per address:
  *       every browser here shares {@code 127.0.0.1}, so a per-address counter would be one
- *       counter. Three seconds a guess turns a twenty-bit space into centuries.
- *   <li><b>Only a person can admit.</b> Even through an open door, a new key lands in a queue an
- *       operator has to act on.
+ *       counter. A full queue counts as a miss, which is what caps guessing at
+ *       {@link #MAX_QUEUED} free attempts and three seconds each thereafter.
+ *   <li><b>Only a person can admit.</b> A new name lands in a queue an operator has to act on.
  * </ul>
  *
  * <p><b>A key pays for its miss once.</b> That is deliberate rather than sloppy: a browser whose
@@ -46,17 +44,14 @@ import org.jspecify.annotations.Nullable;
  * the thing being rated.
  *
  * <p>Accepted keys live in the config file, where an operator can read and edit the list. The
- * queue and the door do not: a pending key means <em>a browser is asking right now</em>, so a
- * restart clears it and the browser asks again on its next poll.
+ * queue does not: a pending key means <em>a browser is asking right now</em>, so a restart clears
+ * it and the browser asks again on its next poll.
  *
  * <p>Every method is synchronised. The traffic is a handful of requests plus the occasional
  * command — nothing here is worth a lock-free shape, and the state is small enough that one
  * monitor is easier to reason about than four.
  */
 public final class WebBrowsers {
-
-    /** How long {@code browser open} leaves the door open, when no browser comes through first. */
-    static final long OPEN_MILLIS = 60_000L;
 
     /** How long one missing key shuts the door for everybody. */
     static final long LOCKOUT_MILLIS = 3_000L;
@@ -115,7 +110,6 @@ public final class WebBrowsers {
     /** Keys that have already paid for missing. @see #miss */
     private final Set<String> charged = new LinkedHashSet<>();
 
-    private long openUntilMillis;
     private long lockedUntilMillis;
 
     public WebBrowsers(Runnable flush) {
@@ -155,13 +149,16 @@ public final class WebBrowsers {
             queue.put(key, known.seenAt(now));
             return Outcome.WAITING;
         }
-        if (!isOpen(now)) {
+        // The meter that replaced the door. A full queue refuses AND charges, so once MAX_QUEUED
+        // names are pending a guesser pays LOCKOUT_MILLIS per name — which is the only thing
+        // pacing an attacker, since refuse()'s hold paces one connection and the executor is
+        // unbounded. Refusing the newest rather than evicting the oldest also stops a spammer
+        // pushing out the browser an operator is waiting to admit.
+        if (queue.size() >= MAX_QUEUED) {
             miss(key, now);
             return Outcome.REFUSED;
         }
         queue.put(key, new Waiting(key, from, now, now));
-        trim();
-        openUntilMillis = 0; // one through, and it shuts behind them
         return Outcome.ASKED;
     }
 
@@ -192,40 +189,6 @@ public final class WebBrowsers {
     }
 
     // --- what an operator does --------------------------------------------------------------
-
-    /** Opens the door for {@link #OPEN_MILLIS}, and clears a lockout a waiting page has armed. */
-    public synchronized void open() {
-        open(System.currentTimeMillis());
-    }
-
-    synchronized void open(long now) {
-        openUntilMillis = now + OPEN_MILLIS;
-        // Cleared here and nowhere else: an operator asking for the door is the only thing that
-        // should be able to undo a lockout, and without this a page polling in the background
-        // would keep shutting the door they just opened. What is NOT cleared is `charged` — a key
-        // that has paid stays paid, or every open would let the pollers charge again.
-        lockedUntilMillis = 0;
-    }
-
-    /** Shuts it again. */
-    public synchronized void close() {
-        openUntilMillis = 0;
-    }
-
-    /** Whether a new browser would be admitted to the queue right now. */
-    public synchronized boolean isOpen() {
-        return isOpen(System.currentTimeMillis());
-    }
-
-    synchronized boolean isOpen(long now) {
-        return now < openUntilMillis && now >= lockedUntilMillis;
-    }
-
-    /** How much longer the door stays open, in whole seconds; 0 when it is shut. */
-    public synchronized long openSecondsLeft() {
-        long left = openUntilMillis - System.currentTimeMillis();
-        return left <= 0 ? 0 : (left + 999) / 1000;
-    }
 
     /** Lets {@code key} in from now on, writing it to the config file. */
     public synchronized Admission accept(String key) {
@@ -289,11 +252,10 @@ public final class WebBrowsers {
         return key != null && accepted().contains(key);
     }
 
-    /** Forgets the queue and shuts the door — what stopping the server means for this. */
+    /** Forgets the queue — what stopping the server means for this. */
     public synchronized void clear() {
         queue.clear();
         charged.clear();
-        openUntilMillis = 0;
         lockedUntilMillis = 0;
     }
 
@@ -354,15 +316,6 @@ public final class WebBrowsers {
             if (now - waiting.next().lastAskedMillis() > QUEUE_TTL_MILLIS) {
                 waiting.remove();
             }
-        }
-    }
-
-    /** Keeps the queue bounded. Oldest goes: the newest arrival is the one somebody is watching. */
-    private void trim() {
-        Iterator<String> oldest = queue.keySet().iterator();
-        while (queue.size() > MAX_QUEUED && oldest.hasNext()) {
-            oldest.next();
-            oldest.remove();
         }
     }
 }

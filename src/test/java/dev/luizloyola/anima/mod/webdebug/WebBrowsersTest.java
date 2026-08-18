@@ -15,8 +15,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The door. Every test drives the clock by hand — the guards here are all timing, and a test that
- * slept for them would be slow where it was not flaky.
+ * Who may read this world, who is asking, and what a guess costs. Every test drives the clock by
+ * hand — the guards here are all timing, and a test that slept for them would be slow where it was
+ * not flaky.
  */
 class WebBrowsersTest {
 
@@ -56,43 +57,53 @@ class WebBrowsersTest {
                 "a key nobody could retype is not a key");
     }
 
-    // --- the door -------------------------------------------------------------------------------
+    // --- the queue meter -----------------------------------------------------------------------
 
     @Test
-    @DisplayName("a browser nobody asked for is refused, and asking again does not help")
-    void aShutDoorRefuses() {
-        assertEquals(Outcome.REFUSED, browsers.register(MINE, FROM, 0));
-        assertEquals(Outcome.REFUSED, browsers.register(MINE, FROM, 60_000));
-        assertTrue(browsers.waiting().isEmpty(), "a refused browser must not reach the queue");
-    }
-
-    @Test
-    @DisplayName("an operator opens the door, one browser comes through, and it shuts behind them")
-    void oneThroughAndItShuts() {
-        browsers.open(0);
-        assertEquals(Outcome.ASKED, browsers.register(MINE, FROM, 100));
+    @DisplayName("a browser nobody has seen joins the queue on its own — there is no door to open")
+    void anUnknownBrowserJoinsTheQueue() {
+        assertEquals(Outcome.ASKED, browsers.register(MINE, FROM, 0));
         assertEquals(List.of(MINE),
-                browsers.waiting(100).stream().map(WebBrowsers.Waiting::key).toList());
-
-        // Still inside the minute, and still refused: the door closes on the first arrival, not on
-        // the clock. That is what keeps an open door from being a window for a guesser.
-        assertEquals(Outcome.REFUSED, browsers.register(THEIRS, FROM, 200));
-        assertFalse(browsers.isOpen(200));
+                browsers.waiting(0).stream().map(WebBrowsers.Waiting::key).toList());
+        assertEquals(Outcome.WAITING, browsers.register(MINE, FROM, 100));
     }
 
     @Test
-    @DisplayName("an open door that nobody uses shuts on its own")
-    void theDoorTimesOut() {
-        browsers.open(0);
-        assertTrue(browsers.isOpen(WebBrowsers.OPEN_MILLIS - 1));
-        assertFalse(browsers.isOpen(WebBrowsers.OPEN_MILLIS));
-        assertEquals(Outcome.REFUSED, browsers.register(MINE, FROM, WebBrowsers.OPEN_MILLIS));
+    @DisplayName("a full queue refuses the next name and charges it — the meter that replaced the door")
+    void aFullQueueRefusesAndCharges() {
+        for (int i = 0; i < WebBrowsers.MAX_QUEUED; i++) {
+            assertEquals(Outcome.ASKED, browsers.register("guess-" + i, FROM, 100),
+                    "the queue takes MAX_QUEUED names for free");
+        }
+        assertEquals(Outcome.REFUSED, browsers.register("guess-over", FROM, 100));
+        assertEquals(WebBrowsers.MAX_QUEUED, browsers.waiting(100).size(),
+                "a refused name must not reach the queue");
+
+        // Charged, not merely refused. Without this the queue is an unmetered oracle: a guesser
+        // pays nothing per attempt and the whole name space is days rather than decades.
+        browsers.accept(MINE);
+        assertEquals(Outcome.REFUSED, browsers.register(MINE, FROM, 200),
+                "the refusal armed the lockout for everybody");
+        assertEquals(Outcome.ACCEPTED,
+                browsers.register(MINE, FROM, 100 + WebBrowsers.LOCKOUT_MILLIS));
+    }
+
+    @Test
+    @DisplayName("a revoked browser is back in the waiting list on its next poll, and pays nothing")
+    void revokingPutsItBackInTheQueue() {
+        browsers.accept(MINE);
+        assertTrue(browsers.revoke(MINE));
+
+        // The page polls forever by design, so this is what revoke now means: back to waiting.
+        assertEquals(Outcome.ASKED, browsers.register(MINE, FROM, 100));
+        // And it must not be a miss — an operator who just revoked is usually about to act again.
+        browsers.accept(THEIRS);
+        assertEquals(Outcome.ACCEPTED, browsers.register(THEIRS, FROM, 200));
     }
 
     @Test
     @DisplayName("a browser already in the queue keeps its place however often it asks")
     void waitingIsIdempotent() {
-        browsers.open(0);
         assertEquals(Outcome.ASKED, browsers.register(MINE, FROM, 100));
         assertEquals(Outcome.WAITING, browsers.register(MINE, FROM, 200));
         assertEquals(Outcome.WAITING, browsers.register(MINE, FROM, 300));
@@ -103,11 +114,9 @@ class WebBrowsersTest {
     @Test
     @DisplayName("polling while you wait never trips the lockout — that is what waiting looks like")
     void aWaitingBrowserIsNotAGuess() {
-        browsers.open(0);
         browsers.register(MINE, FROM, 100);
         browsers.register(MINE, FROM, 200);
-        browsers.open(300);
-        // If the poll above had counted as a miss, this door would be shut before it opened.
+        // If the poll above had counted as a miss, the next name would be refused.
         assertEquals(Outcome.ASKED, browsers.register(THEIRS, FROM, 400));
     }
 
@@ -116,11 +125,11 @@ class WebBrowsersTest {
     @Test
     @DisplayName("a guess costs three seconds, in which no key is even compared")
     void aMissLocksEveryoneOut() {
-        // The attack this is priced against: hammering /api/register with candidate words until
-        // one turns out to be a key somebody accepted. Twenty bits at one guess per three seconds
-        // is centuries.
+        // The attack this is priced against: hammering the API with candidate words until one
+        // turns out to be a key somebody accepted. A name space in the hundreds of millions at one
+        // guess per three seconds is decades.
         browsers.accept(MINE);
-        assertEquals(Outcome.REFUSED, browsers.register("wrong-guess", FROM, 100));
+        assertEquals(Outcome.REFUSED, browsers.check("wrong-guess", 100));
         assertEquals(Outcome.REFUSED, browsers.register(MINE, FROM, 200),
                 "an accepted key is refused too — comparing it first is the leak");
         assertEquals(Outcome.ACCEPTED, browsers.register(MINE, FROM, 100 + WebBrowsers.LOCKOUT_MILLIS));
@@ -130,14 +139,14 @@ class WebBrowsersTest {
     @DisplayName("a guesser gets one attempt every three seconds, however fast it asks")
     void everyNewGuessPaysAgain() {
         browsers.accept(MINE);
-        browsers.register("guess-one", FROM, 100);
+        browsers.check("guess-one", 100);
         // Hammering inside the lockout buys nothing and costs nothing: the key is never looked at,
         // so it cannot extend the wait either. The rate is what is capped, not the attacker.
-        browsers.register("guess-two", FROM, 1_000);
+        browsers.check("guess-two", 1_000);
         assertEquals(Outcome.ACCEPTED, browsers.register(MINE, FROM, 3_100));
 
         // A guess that waits out the lockout gets its one look, and pays for the next one.
-        browsers.register("guess-three", FROM, 3_200);
+        browsers.check("guess-three", 3_200);
         assertEquals(Outcome.REFUSED, browsers.register(MINE, FROM, 5_000));
         assertEquals(Outcome.ACCEPTED,
                 browsers.register(MINE, FROM, 3_200 + WebBrowsers.LOCKOUT_MILLIS));
@@ -146,16 +155,16 @@ class WebBrowsersTest {
     @Test
     @DisplayName("a browser polling with a key nobody accepted pays once, not once a poll")
     void aKeyPaysForItsMissOnce() {
-        // The case this exists for: a tab whose key was revoked, or that is asking before anyone
-        // opened the door, keeps asking every second or two.
+        // The case this exists for: a tab whose key was revoked, or that has not been accepted
+        // yet, polling every second or two.
         browsers.accept(MINE);
-        browsers.register("revoked-tab", FROM, 100);
-        browsers.register("revoked-tab", FROM, 3_200);
+        browsers.check("revoked-tab", 100);
+        browsers.check("revoked-tab", 3_200);
         assertEquals(Outcome.ACCEPTED, browsers.register(MINE, FROM, 3_300),
                 "a repeat of the same key must not push the lockout out");
 
         // A key nobody has charged yet does: that is the guesser's bill.
-        browsers.register("another-guess", FROM, 3_400);
+        browsers.check("another-guess", 3_400);
         assertEquals(Outcome.REFUSED, browsers.register(MINE, FROM, 3_500));
     }
 
@@ -168,20 +177,11 @@ class WebBrowsersTest {
         browsers.accept(MINE);
         long now = 0;
         for (int round = 0; round < 5; round++) {
-            browsers.register("first-tab", FROM, now += 1_500);
-            browsers.register("second-tab", FROM, now += 1_500);
+            browsers.check("first-tab", now += 1_500);
+            browsers.check("second-tab", now += 1_500);
         }
         assertEquals(Outcome.ACCEPTED, browsers.register(MINE, FROM, now + WebBrowsers.LOCKOUT_MILLIS),
                 "each tab pays once; between them they cannot hold the lockout on");
-    }
-
-    @Test
-    @DisplayName("opening the door clears a lockout — the operator is the only one who can")
-    void openingClearsTheLockout() {
-        browsers.open(0);
-        browsers.register("wrong-guess", FROM, 100);
-        browsers.open(200);
-        assertEquals(Outcome.ASKED, browsers.register(MINE, FROM, 300));
     }
 
     // --- accepting ------------------------------------------------------------------------------
@@ -189,7 +189,6 @@ class WebBrowsersTest {
     @Test
     @DisplayName("accepting writes the key to the config and takes it out of the queue")
     void acceptingAdmits() {
-        browsers.open(0);
         browsers.register(MINE, FROM, 100);
 
         assertEquals(Admission.ADDED, browsers.accept(MINE));
@@ -246,7 +245,6 @@ class WebBrowsersTest {
         assertEquals(Outcome.REFUSED, browsers.check(MINE, 0));
 
         // Forgotten, not blocked: there is no memory of a refusal, so the ordinary path works.
-        browsers.open(10_000);
         assertEquals(Outcome.ASKED, browsers.register(MINE, FROM, 10_100));
     }
 
@@ -270,20 +268,17 @@ class WebBrowsersTest {
 
         // And it charges nothing: the operator who just revoked is often about to accept another,
         // and a three-second lockout is the opposite of what they are doing.
-        browsers.open(0);
         assertEquals(Outcome.ASKED, browsers.register(THEIRS, FROM, 1));
     }
 
     @Test
     @DisplayName("rejecting drops a browser from the queue without remembering it")
     void rejectingDrops() {
-        browsers.open(0);
         browsers.register(MINE, FROM, 100);
         assertTrue(browsers.reject(MINE));
         assertTrue(browsers.waiting().isEmpty());
         assertFalse(browsers.reject(MINE), "it was already gone");
 
-        browsers.open(200);
         assertEquals(Outcome.ASKED, browsers.register(MINE, FROM, 300));
     }
 
@@ -292,9 +287,7 @@ class WebBrowsersTest {
     @Test
     @DisplayName("a browser that stops asking leaves the queue")
     void theQueueExpires() {
-        browsers.open(0);
         browsers.register(MINE, FROM, 100);
-        browsers.open(200);
         browsers.register(THEIRS, FROM, 300);
 
         browsers.register(THEIRS, FROM, WebBrowsers.QUEUE_TTL_MILLIS); // still here, still asking
@@ -304,15 +297,13 @@ class WebBrowsersTest {
     }
 
     @Test
-    @DisplayName("stopping the server forgets the queue and shuts the door, but not the grants")
+    @DisplayName("stopping the server forgets the queue, but not the grants")
     void clearKeepsTheAccepted() {
         browsers.accept(MINE);
-        browsers.open(0);
         browsers.register(THEIRS, FROM, 100);
 
         browsers.clear();
         assertTrue(browsers.waiting().isEmpty());
-        assertFalse(browsers.isOpen(200));
         assertEquals(List.of(MINE), browsers.accepted(), "acceptance outlives the session");
     }
 
@@ -321,27 +312,28 @@ class WebBrowsersTest {
     @Test
     @DisplayName("a stream call never queues — asking to be let in is register's job alone")
     void checkNeverQueues() {
-        browsers.open(0);
         assertEquals(Outcome.REFUSED, browsers.check(MINE, 100));
         assertTrue(browsers.waiting().isEmpty(),
-                "an open door is for /api/register; nothing else may put a key in the queue");
+                "only /api/register may put a name in the queue");
     }
 
     @Test
     @DisplayName("a browser waiting its turn gets a plain no from the other routes, not a miss")
     void aWaitingBrowserIsNotLockedOutByItsOwnImpatience() {
-        browsers.open(0);
         browsers.register(MINE, FROM, 100);
-        browsers.open(200);
         assertEquals(Outcome.WAITING, browsers.check(MINE, 300));
-        assertTrue(browsers.isOpen(300), "polling the stream while you wait is not an attack");
+
+        browsers.accept(THEIRS);
+        assertEquals(Outcome.ACCEPTED, browsers.check(THEIRS, 400),
+                "polling the stream while you wait is not an attack");
     }
 
     @Test
     @DisplayName("a call with no key at all is a miss like any other")
     void noKeyIsAMiss() {
-        browsers.open(0);
+        browsers.accept(MINE);
         assertEquals(Outcome.REFUSED, browsers.check(null, 100));
-        assertFalse(browsers.isOpen(200), "the missing header armed the lockout");
+        assertEquals(Outcome.REFUSED, browsers.check(MINE, 200),
+                "the missing header armed the lockout");
     }
 }
