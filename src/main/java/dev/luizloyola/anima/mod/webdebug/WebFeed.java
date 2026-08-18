@@ -4,6 +4,11 @@ package dev.luizloyola.anima.mod.webdebug;
  * The hand-off between the server tick and the HTTP threads: one rendered frame, replaced whole,
  * plus the version that lets a reader block until there is something new.
  *
+ * <p>It also carries the retained {@link WebModel} the frame leaves the browser in, so a reader
+ * that has just connected can be handed the whole world through {@link #hello}, rather than the
+ * next delta merged onto nothing — the load-bearing safety property behind sending partial frames
+ * at all.
+ *
  * <p><b>This is the whole thread-safety story of the dashboard.</b> {@code HttpServer} handlers run
  * on their own pool, and reading an {@code AgentBody}, a {@code Navigator} or the directory off the
  * server thread is a data race that will crash or, worse, quietly report a torn half-state. So no
@@ -125,10 +130,18 @@ final class WebFeed {
      *
      * <p>The timeout is not a poll — it is what lets an idle stream emit a keepalive and notice a
      * client that has gone away, since a socket write is the only thing that finds that out.
+     *
+     * <p><b>{@code frame == null} is in the wait condition, not just the return guard.</b> A fresh
+     * reader has {@code seen = -1} and a never-published feed has {@code version = 0}, so
+     * {@code version <= seen} is false before the first publish ever happens — the {@code -1}/{@code
+     * 0} pairing that made the old condition look sufficient. Without this half a feed that has
+     * published nothing fell straight through the wait and returned null immediately, over and
+     * over, at whatever rate the loop could spin — the same zero-delay shape {@link #isClosed}
+     * exists to name, but for "never started" instead of "stopped".
      */
     Snapshot awaitAfter(long seen, long timeoutMillis) throws InterruptedException {
         synchronized (this) {
-            if (!closed && version <= seen) {
+            if (!closed && (frame == null || version <= seen)) {
                 wait(timeoutMillis);
             }
             if (closed || version <= seen || frame == null) {
