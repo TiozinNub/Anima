@@ -117,4 +117,25 @@ class WebModelTest {
         assertTrue(WebModel.EMPTY.isEmpty());
         assertFalse(WebModel.EMPTY.against(1, fresh("agents", "[]")).model().isEmpty());
     }
+
+    @Test
+    @DisplayName("a JSON-null fragment is retained and diffed normally, not confused with key removal — "
+            + "the two kinds of null are one reference check apart")
+    void jsonNullIsNotKeyRemoval() {
+        // First tick: send the JSON-null fragment as actingAs
+        WebModel.Update first = WebModel.EMPTY.against(1, fresh("actingAs", "null"));
+
+        // Must appear in delta: it is new
+        assertEquals(fresh("actingAs", "null"), first.delta());
+        // Must be retained and rendered as JSON null
+        assertEquals("{\"tick\":1,\"actingAs\":null}", first.model().full());
+
+        // Second tick: same JSON-null fragment again
+        WebModel.Update second = first.model().against(2, fresh("actingAs", "null"));
+
+        // Must NOT appear in delta: identical fragment is not news
+        assertTrue(second.delta().isEmpty(), "identical fragment is not news");
+        // Must still be retained for a reconnecting browser
+        assertEquals("{\"tick\":2,\"actingAs\":null}", second.model().full());
+    }
 }
