@@ -164,26 +164,26 @@ public enum Knob implements KnobSpec {
     WEB_HOST("web_debugger.host", Kind.STRING, "127.0.0.1", 1, 64,
             "Address the web debugger binds to. 127.0.0.1 keeps it on this machine, which is the "
                     + "only setting the security story is written for: it exposes every agent's "
-                    + "mind and its commands drive them, and the accepted browser keys below are "
+                    + "mind and its commands drive them, and the allowed browser names below are "
                     + "the ONLY thing guarding it. Anything else — a LAN address, or 0.0.0.0 for "
                     + "every interface — puts that on the network in the clear, over plain HTTP, "
                     + "where a key is readable by anything on the path. The server logs a warning "
                     + "when it binds anywhere but loopback. A non-loopback address also stops the "
                     + "page being a secure context, which some browser APIs need."),
     /**
-     * Who may read this world through a browser. Written by
-     * {@code /anima web-debugger browser accept}, not by hand.
+     * Who may see this world through a browser. Written by {@code /anima web-debugger allow},
+     * not by hand.
      *
      * @see dev.luizloyola.anima.mod.webdebug.WebBrowsers
      */
-    WEB_ACCEPTED_KEYS("web_debugger.accepted_keys", Kind.LIST, "", 0, 512,
-            "Browsers allowed to read this world. Each browser makes its own key, keeps it, and "
-                    + "asks to be let in; an operator admits it with /anima web-debugger browser "
-                    + "accept, which writes it here. Nothing is admitted automatically and the "
-                    + "list starts empty. Remove a line — or run browser revoke — to shut that "
-                    + "browser out; it can ask again, but only while an operator has run browser "
-                    + "open. A key here is a password: anything that presents one reads every "
-                    + "mind and drives it."),
+    WEB_ALLOWED_NAMES("web_debugger.allowed_names", Kind.LIST, "", 0, 512,
+            "Browsers allowed to see this world. Each browser makes up its own three-word name, "
+                    + "keeps it, and asks to be let in; an operator allows it with /anima "
+                    + "web-debugger allow, which writes it here. Nothing is allowed automatically "
+                    + "and the list starts empty. Delete a line — or run /anima web-debugger "
+                    + "remove — to take a browser off the list; it can ask again. A name here "
+                    + "works like a password: anything that presents one sees every agent here "
+                    + "and can command them."),
     /**
      * Text rather than a bundled asset: the page served from here is a stub, and the UI itself is
      * fetched from this URL. @see dev.luizloyola.anima.mod.webdebug.WebDebugger

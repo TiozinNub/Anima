@@ -237,7 +237,7 @@ public final class WebBrowsers {
 
     /** Everyone let in, as the config file holds them. */
     public List<String> accepted() {
-        return KnobSpec.splitList(Config.get().s(Knob.WEB_ACCEPTED_KEYS));
+        return KnobSpec.splitList(Config.get().s(Knob.WEB_ALLOWED_NAMES));
     }
 
     /**
@@ -305,7 +305,7 @@ public final class WebBrowsers {
     }
 
     private void install(List<String> keys) {
-        Config.install(Config.get().with(Knob.WEB_ACCEPTED_KEYS, KnobSpec.joinList(keys)));
+        Config.install(Config.get().with(Knob.WEB_ALLOWED_NAMES, KnobSpec.joinList(keys)));
         flush.run();
     }
 

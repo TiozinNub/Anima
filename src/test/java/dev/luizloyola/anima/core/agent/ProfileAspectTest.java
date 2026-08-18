@@ -66,7 +66,7 @@ class ProfileAspectTest {
             Knob.WEB_ENABLED,
             Knob.WEB_PORT,
             Knob.WEB_HOST,
-            Knob.WEB_ACCEPTED_KEYS,
+            Knob.WEB_ALLOWED_NAMES,
             Knob.WEB_APP_URL);
 
     @Test
