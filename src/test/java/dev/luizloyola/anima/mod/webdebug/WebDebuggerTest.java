@@ -158,8 +158,12 @@ class WebDebuggerTest {
     @DisplayName("a reader's first write is the whole retained world, not the next delta")
     void aReaderIsGreetedWithTheWholeModel() throws Exception {
         WebFeed feed = new WebFeed();
-        WebModel model = WebModel.EMPTY
-                .against(4, java.util.Map.of("agents", "[]", "health", "{\"tps\":20}")).model();
+        // LinkedHashMap, not Map.of: Map.of randomises its iteration order per JVM run, and the
+        // order full() emits keys in — pinned in the assertion below — is what this test checks.
+        java.util.Map<String, String> fresh = new java.util.LinkedHashMap<>();
+        fresh.put("agents", "[]");
+        fresh.put("health", "{\"tps\":20}");
+        WebModel model = WebModel.EMPTY.against(4, fresh).model();
         feed.publish(model, "{\"tick\":4,\"agents\":[],\"health\":{\"tps\":20}}");
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
