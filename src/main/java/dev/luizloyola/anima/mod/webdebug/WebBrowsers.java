@@ -62,7 +62,9 @@ public final class WebBrowsers {
     /**
      * How many browsers may wait at once. No longer just slack — a full queue counts as a miss, so
      * this is the number of free guesses before {@link #register} starts charging
-     * {@link #LOCKOUT_MILLIS} per name.
+     * {@link #LOCKOUT_MILLIS} per name. It is also the number of junk names that can wedge the
+     * queue shut for good, since a full queue has no eviction path — see the trap noted where it
+     * is checked in {@link #register}.
      */
     static final int MAX_QUEUED = 8;
 
@@ -158,6 +160,14 @@ public final class WebBrowsers {
         // pacing an attacker, since refuse()'s hold paces one connection and the executor is
         // unbounded. Refusing the newest rather than evicting the oldest also stops a spammer
         // pushing out the browser an operator is waiting to admit.
+        //
+        // The trap this leaves: a full queue has no eviction path. Eight junk names, kept alive by
+        // re-polling inside QUEUE_TTL_MILLIS, hold every slot indefinitely — dismiss() does not
+        // help, since the spammer just re-registers on its next poll, and WebDebugger's ANNOUNCED
+        // silences the repeat chat line. Only clear() (a server stop) resets it, and until then
+        // nothing new is ever announced or offered in allow's tab-completion. Survivable only
+        // because the Waiting screen prints the exact command under the browser's own name,
+        // readable off the page.
         if (queue.size() >= MAX_QUEUED) {
             miss(key, now);
             return Outcome.REFUSED;
@@ -246,10 +256,10 @@ public final class WebBrowsers {
 
     /**
      * Whether this key is <em>still</em> on the list — what a live stream asks between frames, so
-     * that a revoke hangs the browser up instead of taking effect at its next reconnection.
+     * that a remove hangs the browser up instead of taking effect at its next reconnection.
      *
      * <p>Deliberately not {@link #check}: it counts no miss and arms no lockout. A browser being
-     * hung up on because an operator revoked it is not guessing, and three seconds locked out is
+     * hung up on because an operator removed it is not guessing, and three seconds locked out is
      * the opposite of what that operator is in the middle of doing.
      */
     public boolean stillAllowed(@Nullable String key) {
@@ -282,6 +292,11 @@ public final class WebBrowsers {
      * <p>The cost is that a browser already accepted is refused for those three seconds too. It
      * retries, and so does the page — a lockout that spared known keys would have to compare them,
      * which is the thing it must not do.
+     *
+     * <p>Nothing clears this early any more. The deleted door's {@code open()} used to — an operator
+     * asking for it was the only thing that could undo a lockout early. With it gone an operator has
+     * no lever either: a lockout just runs its three seconds, and the only reset left is
+     * {@link #clear()}, i.e. {@code /anima web-debugger stop} then {@code start}.
      */
     private boolean locked(long now) {
         return now < lockedUntilMillis;

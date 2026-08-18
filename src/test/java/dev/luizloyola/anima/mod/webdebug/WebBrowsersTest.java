@@ -204,7 +204,7 @@ class WebBrowsersTest {
     @DisplayName("a key can be allowed before it has ever asked — read off the screen and typed")
     void allowingWorksAheadOfTime() {
         assertEquals(Admission.ADDED, browsers.allow(MINE));
-        // And the door stays irrelevant to it: it was admitted by name, not let in through one.
+        // It was admitted by name, not let in through one.
         assertEquals(Outcome.ALLOWED, browsers.register(MINE, FROM, 100));
     }
 
@@ -259,15 +259,15 @@ class WebBrowsersTest {
     @DisplayName("a live stream's key stops being allowed the moment it is removed")
     void stillAllowedFollowsTheList() {
         // What a parked stream asks between frames. It is the only guard on a request that
-        // outlives its own handshake — without it a revoked browser streams until it reconnects.
+        // outlives its own handshake — without it a removed browser streams until it reconnects.
         browsers.allow(MINE);
         assertTrue(browsers.stillAllowed(MINE));
         browsers.remove(MINE);
         assertFalse(browsers.stillAllowed(MINE));
         assertFalse(browsers.stillAllowed(null));
 
-        // And it charges nothing: the operator who just revoked is often about to accept another,
-        // and a three-second lockout is the opposite of what they are doing.
+        // And it charges nothing: the operator who just removed one is often about to allow
+        // another, and a three-second lockout is the opposite of what they are doing.
         assertEquals(Outcome.ASKED, browsers.register(THEIRS, FROM, 1));
     }
 

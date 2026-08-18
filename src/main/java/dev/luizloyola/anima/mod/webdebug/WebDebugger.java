@@ -71,7 +71,9 @@ import org.jspecify.annotations.Nullable;
  * a warning rather than left to be discovered. A non-loopback origin also is not <em>potentially
  * trustworthy</em>, so the page stops being a secure context and the APIs that needs go with it.
  *
- * <p>See {@code docs/superpowers/specs/2026-08-17-dashboard-design.md}.
+ * <p>See {@code docs/superpowers/specs/2026-08-17-dashboard-design.md} for the original design and
+ * {@code docs/superpowers/specs/2026-08-18-web-debugger-plain-commands-design.md} for the commands
+ * and the guard that changed since.
  */
 public final class WebDebugger {
 
@@ -153,6 +155,9 @@ public final class WebDebugger {
     /**
      * Names already announced this session. With no door, a removed browser re-queues on its very
      * next poll — announcing that again would spam every operator for as long as the tab is open.
+     * Uncapped unlike {@code charged}, but not unbounded in practice: a name lands here only when
+     * {@link WebBrowsers#register} returns {@code ASKED}, which needs an open queue slot, so growth
+     * is throttled by the same {@code MAX_QUEUED} and {@code QUEUE_TTL_MILLIS} that gate the queue.
      */
     private static final Set<String> ANNOUNCED = ConcurrentHashMap.newKeySet();
 
@@ -227,12 +232,12 @@ public final class WebDebugger {
     }
 
     /**
-     * Takes a browser off the list <b>and hangs up on it</b> — the whole of what revoking means, so
+     * Takes a browser off the list <b>and hangs up on it</b> — the whole of what removing means, so
      * that no caller can do half of it.
      *
      * <p>The hang-up is the part that is easy to leave out: a stream is one request that lasts
      * hours, and a browser parked on it is not asking permission again. Waking every reader makes
-     * each re-check its own key at once, which is a no-op for everyone but the one just revoked —
+     * each re-check its own key at once, which is a no-op for everyone but the one just removed —
      * cheaper and simpler than tracking which socket belongs to which key.
      */
     public static boolean remove(String key) {
@@ -577,12 +582,12 @@ public final class WebDebugger {
      *
      * <p><b>The key is checked between frames, not just at the handshake.</b> This is the one route
      * that outlives its own request: authenticating once and then holding the socket open meant a
-     * revoked browser kept streaming every mind in the world until it happened to reconnect, which
-     * is a revoke that does not revoke. {@link #remove} pairs with this by waking the parked
+     * removed browser kept streaming every mind in the world until it happened to reconnect, which
+     * is a remove that does not remove. {@link #remove} pairs with this by waking the parked
      * readers, so a quiet world does not delay the hang-up by a keepalive.
      *
      * <p>It ends with {@link #STOP_EVENT} when the debugger is what stopped, and silently for every
-     * other ending: a revoked browser hears 401 on its next call, and a restart is about to be
+     * other ending: a removed browser hears 401 on its next call, and a restart is about to be
      * listening again, so both want the browser reconnecting rather than waiting to be pressed.
      *
      * <p><b>Gzipped when the browser offers it</b>, and the compression is worth far more here than
@@ -681,7 +686,7 @@ public final class WebDebugger {
      * lives, then the goodbye if the debugger is what ended it.
      *
      * <p>Split out to be driven by a test. The loop has been wrong twice — once spinning on a feed
-     * closed by a previous run, once outliving a revoke — and both were found in a running game,
+     * closed by a previous run, once outliving a remove — and both were found in a running game,
      * which is the expensive place to find them.
      *
      * <p>Every frame carries a {@code wire:} field, and it is the count {@code before} that frame —
