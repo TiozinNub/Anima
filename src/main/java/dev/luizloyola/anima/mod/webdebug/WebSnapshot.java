@@ -27,10 +27,13 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -52,12 +55,13 @@ import org.jspecify.annotations.Nullable;
  * <p><b>The dead are counted, not built</b>, until {@link WebWatch#dead()} says the browser has
  * that section open. They are the one part of the roster that never shrinks — identity survives
  * death by decision — so a world's every grave was being rebuilt twenty times a second for a
- * section read once a session. The count itself goes out on every frame: it is what the closed
- * section, and the footer's census, actually read.
+ * section read once a session. The count itself goes out with every {@link WebClock#SLOW} build:
+ * it is what the closed section, and the footer's census, actually read.
  *
- * <p>Detail is built only for the agents {@link WebWatch} says are expanded, and every section is
- * a readout {@code /anima} already prints. Nothing is invented here: a section that disagrees with
- * its command is a bug in one of the two.
+ * <p>Detail is built only for the agents {@link WebWatch} says are expanded, and it is its own
+ * section on its own {@link WebClock#DETAIL} clock now — a journal tail and a position have no
+ * business sharing a rate. Every section is a readout {@code /anima} already prints: nothing is
+ * invented here, and a section that disagrees with its command is a bug in one of the two.
  */
 final class WebSnapshot {
 
@@ -70,37 +74,94 @@ final class WebSnapshot {
     private WebSnapshot() {
     }
 
-    /** The whole frame. Runs on the tick thread; returns the text an HTTP thread will hand out. */
-    static String render(MinecraftServer server, WebWatch watch) {
-        JsonObject root = new JsonObject();
-        root.addProperty("tick", server.getTickCount());
-        root.add("health", health(server, watch));
-        root.add("players", players(server));
-        root.addProperty("actingAs", watch.actingAs() == null ? null : watch.actingAs().toString());
-        root.add("layers", layers(server, watch));
+    /**
+     * The sections whose clocks fired, each rendered to the fragment the frame will carry.
+     *
+     * <p>Runs on the tick thread. A key absent from the returned map was not built and will not be
+     * sent; a key mapped to <b>Java null</b> is one being dropped — see {@link WebModel}, where the
+     * difference from the JSON null that {@code actingAs} carries is spelled out.
+     */
+    static Map<String, String> build(MinecraftServer server, WebWatch watch, Set<WebClock> due) {
+        Map<String, String> out = new LinkedHashMap<>();
+        if (due.contains(WebClock.HEALTH)) {
+            out.put("health", health(server).toString());
+        }
+        if (due.contains(WebClock.CHART)) {
+            // Null rather than an empty array: the key leaves the model outright, so a browser that
+            // reopens the chart cannot be handed the five seconds it was closed for.
+            out.put("samples", watch.ticks() ? samples(server).toString() : null);
+        }
+        if (due.contains(WebClock.SLOW)) {
+            out.put("players", players(server).toString());
+            out.put("layers", layers(server, watch).toString());
+            UUID acting = watch.actingAs();
+            out.put("actingAs", acting == null ? "null" : "\"" + acting + "\"");
+            out.put("dead", Integer.toString(Graves.get(server).size()));
+        }
+        if (due.contains(WebClock.ROSTER)) {
+            out.put("agents", agents(server, watch).toString());
+        }
+        if (due.contains(WebClock.DETAIL)) {
+            out.put("detail", details(server, watch).toString());
+        }
+        return out;
+    }
 
-        ServerPlayer viewer = viewer(server, watch);
+    /**
+     * The roster: every agent the directory knows, living, elsewhere or buried.
+     *
+     * <p><b>The loaded bodies are indexed once.</b> {@code AgentBodies.findLoaded} takes a lock on
+     * the shared index and allocates a copy of every loaded body on each call, and this loop used to
+     * make one call per known agent — fifty lock acquisitions and fifty array copies to answer fifty
+     * lookups, sixty times a second.
+     */
+    private static JsonArray agents(MinecraftServer server, WebWatch watch) {
         Graves graves = Graves.get(server);
+        ServerPlayer viewer = viewer(server, watch);
         AgentId pinned = viewer == null ? null : AgentSelection.pinned(viewer).orElse(null);
-
         AgentDirectory directory = AgentDirectory.of(server);
-        JsonArray agents = new JsonArray();
-        int dead = 0;
+        Map<AgentId, AgentBody> loaded = loaded(server);
+
+        JsonArray out = new JsonArray();
         for (Map.Entry<AgentId, PrivateIdentity> known : directory.known().entrySet()) {
             AgentId id = known.getKey();
-            if (graves.isDead(id)) {
-                dead++;
-                if (!watch.dead()) {
-                    continue;
-                }
+            if (graves.isDead(id) && !watch.dead()) {
+                continue;
             }
-            agents.add(row(server, directory, id, known.getValue(), graves, viewer, pinned, watch));
+            out.add(row(directory, id, known.getValue(), graves, loaded.get(id), viewer, pinned));
         }
-        // Always, even while the section is shut: the count is what the closed section reads, and a
-        // footer census that had to infer it from the rows would say zero.
-        root.addProperty("dead", dead);
-        root.add("agents", agents);
-        return root.toString();
+        return out;
+    }
+
+    /** Every expanded agent's sections, keyed by id — the object a card reads its own slice out of. */
+    private static JsonObject details(MinecraftServer server, WebWatch watch) {
+        Map<AgentId, AgentBody> loaded = loaded(server);
+        JsonObject out = new JsonObject();
+        for (AgentId id : watch.expanded()) {
+            AgentBody body = loaded.get(id);
+            if (body != null) {
+                out.add(id.value().toString(), detail(server, body));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The loaded bodies by id, taken in one pass. @see #agents
+     *
+     * <p>Built once per section rather than once per frame, so a tick where the roster and the
+     * detail clocks both fire builds it twice. That is two walks of the loaded list against the
+     * <em>fifty locked copies</em> it replaces — not worth threading a parameter through for.
+     */
+    private static Map<AgentId, AgentBody> loaded(MinecraftServer server) {
+        Map<AgentId, AgentBody> out = new HashMap<>();
+        for (AgentBody body : AgentBodies.loaded(server)) {
+            AgentId id = body.agentId();
+            if (id != null) {
+                out.put(id, body);
+            }
+        }
+        return out;
     }
 
     /**
@@ -119,9 +180,9 @@ final class WebSnapshot {
     }
 
     /**
-     * How hard the server is finding it. The browser can time its own frames — one is published per
-     * tick, up to the cap in {@code WebDebugger} — but a tick's <em>cost</em> leaves no trace on
-     * the wire, and cost is what says whether a slow world is overloaded or merely paused.
+     * How hard the server is finding it. The browser can time its own frames, but a tick's
+     * <em>cost</em> leaves no trace on the wire, and cost is what says whether a slow world is
+     * overloaded or merely paused.
      *
      * <p><b>{@code tps} is not a count</b>, it is {@link #achieved}: what the clock is managing,
      * which is the rate it was told to run at until the cost of a tick takes that away.
@@ -133,7 +194,7 @@ final class WebSnapshot {
      * the {@code /tick rate} underneath, because that is what it is: {@code mode} is what says the
      * clock is ignoring it.
      */
-    private static JsonObject health(MinecraftServer server, WebWatch watch) {
+    private static JsonObject health(MinecraftServer server) {
         ServerTickRateManager clock = server.tickRateManager();
         double mspt = server.getAverageTickTimeNanos() / 1_000_000.0;
         float wanted = clock.tickrate();
@@ -144,9 +205,6 @@ final class WebSnapshot {
                 round(achieved(mspt, wanted, clock.isSprinting(), clock.isFrozen())));
         health.addProperty("rate", round(wanted));
         health.addProperty("mode", mode(clock));
-        if (watch.ticks()) {
-            health.add("samples", samples(server));
-        }
         return health;
     }
 
@@ -194,7 +252,8 @@ final class WebSnapshot {
      * one after it holds the oldest. Handed over raw, a chart would draw the last five seconds with
      * a seam through the middle of it, moving left every tick.
      *
-     * <p>Only built when {@link WebWatch#ticks()} — see there for what it costs.
+     * <p>Only built while {@link WebClock#CHART} fires and {@link WebWatch#ticks()} is set — see
+     * there for what it costs.
      */
     private static JsonArray samples(MinecraftServer server) {
         long[] ring = server.getTickTimesNanos();
@@ -284,16 +343,18 @@ final class WebSnapshot {
      * One roster row. {@code state} is the fact everything else hangs off: only a LOADED agent has
      * a body to ask, so every live reading below is guarded by it rather than by a null check that
      * would read as "it has no navigator".
+     *
+     * <p><b>No detail.</b> It lives in its own section on its own clock now — a journal tail and a
+     * position have no business sharing a rate.
      */
-    private static JsonObject row(MinecraftServer server, AgentDirectory directory, AgentId id,
-            PrivateIdentity identity, Graves graves, @Nullable ServerPlayer viewer,
-            @Nullable AgentId pinned, WebWatch watch) {
+    private static JsonObject row(AgentDirectory directory, AgentId id, PrivateIdentity identity,
+            Graves graves, @Nullable AgentBody body, @Nullable ServerPlayer viewer,
+            @Nullable AgentId pinned) {
         JsonObject row = new JsonObject();
         row.addProperty("id", id.value().toString());
         row.addProperty("name", identity.name());
         row.addProperty("pinned", id.equals(pinned));
 
-        AgentBody body = AgentBodies.findLoaded(server, id);
         boolean dead = graves.isDead(id);
         row.addProperty("state", dead ? "dead" : body == null ? "unloaded" : "loaded");
         species(directory, id, body).ifPresent(species -> row.addProperty("species", species));
@@ -317,14 +378,11 @@ final class WebSnapshot {
         row.addProperty("health", entity.getHealth());
         row.addProperty("maxHealth", entity.getMaxHealth());
         row.addProperty("nav", body.navigator().describe());
-        // The head of the brain's own summary: one line is a roster cell, the rest is detail.
-        List<String> brain = body.brain().describeLines();
-        row.addProperty("brain", brain.isEmpty() ? "" : brain.get(0));
+        // The head alone: reaching it through describeLines() built every pressure line and the
+        // whole task chain, per loaded agent, per frame, and threw them away.
+        row.addProperty("brain", body.brain().describeHead());
         if (viewer != null && viewer.level() == entity.level()) {
             row.addProperty("distance", Math.sqrt(viewer.distanceToSqr(entity)));
-        }
-        if (watch.isExpanded(id)) {
-            row.add("detail", detail(server, body, brain));
         }
         return row;
     }
@@ -350,9 +408,9 @@ final class WebSnapshot {
     }
 
     /** Everything an expanded card shows — one key per section, each its own command's readout. */
-    private static JsonObject detail(MinecraftServer server, AgentBody body, List<String> brain) {
+    private static JsonObject detail(MinecraftServer server, AgentBody body) {
         JsonObject out = new JsonObject();
-        out.add("brain", strings(brain));
+        out.add("brain", strings(body.brain().describeLines()));
         out.add("needs", needs(body));
         out.add("nav", nav(body));
         out.add("peers", peers(body));

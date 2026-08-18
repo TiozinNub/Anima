@@ -273,9 +273,10 @@ public final class WebDebugger {
             // costs a field read per tick — and on the pace, so a sprinting one costs a clock read
             // rather than the whole roster rendered to JSON inside the tick.
             if (running() && PACE.due(System.nanoTime())) {
-                // Stopgap until the delta rewrite: the model stays EMPTY, so this still ships
-                // whole frames and hello() has nothing to greet a reader with yet.
-                feed.publish(WebModel.EMPTY, WebSnapshot.render(server, watch));
+                // Bridge until Task 6 wires up WebClocks and the diff: every section is asked for
+                // on every tick, so the model stays EMPTY and this still ships whole frames.
+                feed.publish(WebModel.EMPTY, WebModel.frame(server.getTickCount(),
+                        WebSnapshot.build(server, watch, java.util.EnumSet.allOf(WebClock.class))));
             }
         });
     }
