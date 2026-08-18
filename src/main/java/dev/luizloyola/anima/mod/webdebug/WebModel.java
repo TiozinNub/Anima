@@ -93,16 +93,20 @@ record WebModel(int tick, Map<String, String> keys) {
      * avoidable cost in a method that runs inside the tick.
      */
     private static StringBuilder body(StringBuilder out, Map<String, String> keys) {
-        List<String> dropped = new ArrayList<>();
+        // Null until the first removal: most frames drop nothing, and this runs inside the tick.
+        List<String> dropped = null;
         for (Map.Entry<String, String> key : keys.entrySet()) {
             if (key.getValue() == null) {
+                if (dropped == null) {
+                    dropped = new ArrayList<>();
+                }
                 dropped.add(key.getKey());
             } else {
                 out.append(",\"").append(key.getKey()).append("\":")
                         .append(key.getValue());
             }
         }
-        if (!dropped.isEmpty()) {
+        if (dropped != null) {
             out.append(",\"drop\":[");
             for (int i = 0; i < dropped.size(); i++) {
                 if (i > 0) out.append(",");

@@ -276,6 +276,15 @@ public final class WebDebugger {
             }
             long now = System.nanoTime();
             var due = CLOCKS.due(now);
+            // Asked once and reused: it is a comparison, and the two answers must be the same one.
+            boolean beat = CLOCKS.beat(now);
+            // Nothing due, nothing owed, nothing to build: `against` would copy the key map, the
+            // canonical constructor would copy it again, and `frame` would render a string — three
+            // maps and a wrapper to publish nothing. Under `/tick sprint` most ticks are this one.
+            // CLOCKS.due() above still runs every tick, because asking is what advances a deadline.
+            if (due.isEmpty() && !beat) {
+                return;
+            }
             WebModel.Update update = feed.model()
                     .against(server.getTickCount(), WebSnapshot.build(server, watch, due));
             // Nothing survived the diff and no heartbeat is owed: the frame itself is skipped, but
@@ -283,7 +292,7 @@ public final class WebDebugger {
             // HEALTH's is 20/s, so a frozen, browserless world still rebuilds and discards a health
             // reading many times a second. What this DOES cost is exactly CLOCKS.due() plus those
             // builds, never a publish nobody needed.
-            if (update.delta().isEmpty() && !CLOCKS.beat(now)) {
+            if (update.delta().isEmpty() && !beat) {
                 return;
             }
             CLOCKS.published(now);

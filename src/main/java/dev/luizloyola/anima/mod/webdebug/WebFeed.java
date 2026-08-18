@@ -63,13 +63,23 @@ final class WebFeed {
      * The whole retained world, for a reader that has just connected — or null when nothing has
      * been published yet, which is a server whose first tick has not run.
      *
-     * <p>The version travels with it so the reader knows what it has already been told. Taken under
-     * the lock for the same reason {@link Snapshot} exists: read apart, the two can disagree.
+     * <p>The version travels with it so the reader knows what it has already been told. The pair is
+     * read under the lock for the same reason {@link Snapshot} exists: read apart, the two can
+     * disagree.
+     *
+     * <p><b>The string is assembled outside the lock.</b> {@link #publish} needs this monitor and
+     * runs on the server tick thread, and rendering the whole retained world is precisely the work
+     * this design exists to keep off it. {@link WebModel} is immutable, so what was read under the
+     * lock cannot change underneath the assembly.
      */
     Snapshot hello() {
+        long at;
+        WebModel held;
         synchronized (this) {
-            return model.isEmpty() ? null : new Snapshot(version, model.full());
+            at = version;
+            held = model;
         }
+        return held.isEmpty() ? null : new Snapshot(at, held.full());
     }
 
     /**
