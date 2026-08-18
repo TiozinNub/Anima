@@ -144,19 +144,35 @@ class WebBrowsersTest {
     }
 
     @Test
-    @DisplayName("one revoked browser polling cannot hold everybody out forever")
-    void theSameMissDoesNotExtendTheLockout() {
-        // The case this exists for: a tab whose key was just revoked keeps asking every second or
-        // two. Re-arming on every repeat would leave the lockout permanently on.
+    @DisplayName("a browser polling with a key nobody accepted pays once, not once a poll")
+    void aKeyPaysForItsMissOnce() {
+        // The case this exists for: a tab whose key was revoked, or that is asking before anyone
+        // opened the door, keeps asking every second or two.
         browsers.accept(MINE);
         browsers.register("revoked-tab", FROM, 100);
         browsers.register("revoked-tab", FROM, 3_200);
         assertEquals(Outcome.ACCEPTED, browsers.register(MINE, FROM, 3_300),
                 "a repeat of the same key must not push the lockout out");
 
-        // A different key at the same moment would have: that is the guesser's bill.
+        // A key nobody has charged yet does: that is the guesser's bill.
         browsers.register("another-guess", FROM, 3_400);
         assertEquals(Outcome.REFUSED, browsers.register(MINE, FROM, 3_500));
+    }
+
+    @Test
+    @DisplayName("two browsers polling unaccepted keys cannot lock an accepted one out between them")
+    void twoPollersDoNotAlternateTheLockoutOpen() {
+        // Found with a real page open, against the first shape of this, which charged a miss
+        // whenever the key differed from the one before it. Two tabs then take turns re-arming
+        // the lockout forever, and the browser that IS accepted is refused most of the time.
+        browsers.accept(MINE);
+        long now = 0;
+        for (int round = 0; round < 5; round++) {
+            browsers.register("first-tab", FROM, now += 1_500);
+            browsers.register("second-tab", FROM, now += 1_500);
+        }
+        assertEquals(Outcome.ACCEPTED, browsers.register(MINE, FROM, now + WebBrowsers.LOCKOUT_MILLIS),
+                "each tab pays once; between them they cannot hold the lockout on");
     }
 
     @Test

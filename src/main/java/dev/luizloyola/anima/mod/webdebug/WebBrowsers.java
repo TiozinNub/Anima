@@ -6,8 +6,10 @@ import dev.luizloyola.anima.core.config.KnobSpec;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
@@ -38,10 +40,10 @@ import org.jspecify.annotations.Nullable;
  *       operator has to act on.
  * </ul>
  *
- * <p><b>A repeat of the same missing key does not extend the lockout</b>, and that is deliberate
- * rather than sloppy: a browser whose key was just revoked keeps polling, and without this it
- * would hold the door shut against everyone forever. A guesser changes key every attempt by
- * nature, so it pays every time.
+ * <p><b>A key pays for its miss once.</b> That is deliberate rather than sloppy: a browser whose
+ * key was revoked, or that is asking before anyone opened the door, keeps polling — and charging
+ * every poll would hold the lockout on forever. A guesser is charged per key it tries, which is
+ * the thing being rated.
  *
  * <p>Accepted keys live in the config file, where an operator can read and edit the list. The
  * queue and the door do not: a pending key means <em>a browser is asking right now</em>, so a
@@ -64,6 +66,9 @@ public final class WebBrowsers {
 
     /** How many browsers may wait at once. The door admits one at a time, so this is slack. */
     static final int MAX_QUEUED = 8;
+
+    /** How many distinct missing keys are remembered as already charged. @see #miss */
+    static final int MAX_CHARGED = 64;
 
     /**
      * What a key may look like: lower-case words joined by hyphens. It ends up in a chat line, a
@@ -107,9 +112,11 @@ public final class WebBrowsers {
 
     private final Map<String, Waiting> queue = new LinkedHashMap<>();
 
+    /** Keys that have already paid for missing. @see #miss */
+    private final Set<String> charged = new LinkedHashSet<>();
+
     private long openUntilMillis;
     private long lockedUntilMillis;
-    private @Nullable String lastMissedKey;
 
     public WebBrowsers(Runnable flush) {
         this.flush = flush;
@@ -194,10 +201,10 @@ public final class WebBrowsers {
     synchronized void open(long now) {
         openUntilMillis = now + OPEN_MILLIS;
         // Cleared here and nowhere else: an operator asking for the door is the only thing that
-        // should be able to undo a lockout, and without this a revoked browser polling in the
-        // background would keep shutting the door they just opened.
+        // should be able to undo a lockout, and without this a page polling in the background
+        // would keep shutting the door they just opened. What is NOT cleared is `charged` — a key
+        // that has paid stays paid, or every open would let the pollers charge again.
         lockedUntilMillis = 0;
-        lastMissedKey = null;
     }
 
     /** Shuts it again. */
@@ -273,9 +280,9 @@ public final class WebBrowsers {
     /** Forgets the queue and shuts the door — what stopping the server means for this. */
     public synchronized void clear() {
         queue.clear();
+        charged.clear();
         openUntilMillis = 0;
         lockedUntilMillis = 0;
-        lastMissedKey = null;
     }
 
     // --- internals ----------------------------------------------------------------------------
@@ -303,15 +310,24 @@ public final class WebBrowsers {
     }
 
     /**
-     * A key that means nothing here. Shuts the door for everybody, unless it is the same key that
-     * missed last — see the class note: a revoked browser polls forever, and must not be able to
-     * hold the lockout on.
+     * A key that means nothing here. Shuts everything for everybody — the <b>first</b> time that
+     * key is seen, and only then.
+     *
+     * <p>Charging every attempt was the first shape and it does not survive two browsers: a tab
+     * waiting to be accepted polls with key A, another with key B, and each is a different key
+     * from the one before it, so between them they re-arm the lockout forever and an <em>accepted</em>
+     * browser is refused most of the time. Found by hitting it, with a real page open. Charging
+     * per key rather than per attempt rates exactly what needs rating.
      */
     private void miss(String key, long now) {
-        if (!key.equals(lastMissedKey)) {
+        if (charged.add(key)) {
             lockedUntilMillis = now + LOCKOUT_MILLIS;
         }
-        lastMissedKey = key;
+        // Bounded, and cleared wholesale rather than evicted one at a time: a guesser that has
+        // spent MAX_CHARGED × 3s to fill it may re-pay for keys it already knows are wrong.
+        if (charged.size() > MAX_CHARGED) {
+            charged.clear();
+        }
     }
 
     private void install(List<String> keys) {
