@@ -78,7 +78,7 @@ public final class WebCommands {
     private static int show(CommandSourceStack source) {
         if (!WebDebugger.running()) {
             Replies.send(source, () -> Component.literal(
-                    "The web debugger is not running — /anima web-debugger start")
+                    "The web debugger is not running — /anima web-debugger start brings it up.")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
@@ -130,30 +130,31 @@ public final class WebCommands {
                         .withColor(ChatFormatting.AQUA)
                         .withUnderlined(true)
                         .withClickEvent(new ClickEvent.OpenUrl(java.net.URI.create(address)))));
-        Replies.send(source, () -> Component.literal("  the UI loads from " + WebDebugger.appUrl())
+        Replies.send(source, () -> Component.literal(
+                "  the page loads its UI from " + WebDebugger.appUrl())
                 .withStyle(ChatFormatting.DARK_GRAY));
         if (!WebDebugger.enabled()) {
             Replies.send(source, () -> Component.literal(
-                    "  this session only — set web_debugger.enabled for it to start with a world")
+                    "  this session only — set web_debugger.enabled to start it with every world")
                     .withStyle(ChatFormatting.DARK_GRAY));
         }
         long open = WebDebugger.browsers().openSecondsLeft();
         if (open > 0) {
-            Replies.send(source, () -> Component.literal("  open to a new browser for " + open
-                    + "s — load the page now").withStyle(ChatFormatting.YELLOW));
+            Replies.send(source, () -> Component.literal("  open to a new browser for another "
+                    + open + "s — load the page now").withStyle(ChatFormatting.YELLOW));
         } else if (WebDebugger.browsers().accepted().isEmpty()) {
             Replies.send(source, () -> Component.literal(
-                    "  no browser is accepted yet — run browser open, then load the page")
+                    "  no browser is accepted yet — open the door, then load the page")
                     .append(button(" [open]", "/anima web-debugger browser open",
-                            "Let a new browser ask, for a minute"))
+                            "Let a new browser ask to be let in, for a minute"))
                     .withStyle(ChatFormatting.YELLOW));
         }
         // Said here as well as in the log: whoever is reading this is the person who can undo it,
         // and the log line scrolls past on a busy server.
         if (!WebDebugger.loopbackOnly()) {
             Replies.send(source, () -> Component.literal("  bound to " + WebDebugger.host()
-                    + " — reachable off this machine, with no TLS. An accepted browser key is the "
-                    + "only guard, and it crosses the wire in the clear.")
+                    + " — reachable from off this machine, and there is no TLS. An accepted "
+                    + "browser key is the only guard, and it crosses the network in the clear.")
                     .withStyle(ChatFormatting.RED));
         }
     }
@@ -167,7 +168,7 @@ public final class WebCommands {
 
         long open = browsers.openSecondsLeft();
         Replies.send(source, () -> Component.literal("Web debugger browsers — "
-                + (open > 0 ? "open for " + open + "s" : "closed to new ones"))
+                + (open > 0 ? "open to new ones for " + open + "s" : "closed to new ones"))
                 .withStyle(open > 0 ? ChatFormatting.YELLOW : ChatFormatting.AQUA));
 
         if (waiting.isEmpty()) {
@@ -181,13 +182,13 @@ public final class WebCommands {
                             + since(browser.askedAtMillis())).withStyle(ChatFormatting.DARK_GRAY))
                     .append(button(" [accept]",
                             "/anima web-debugger browser accept " + browser.key(),
-                            "Let this browser read every mind, and drive them"))
+                            "Let this browser read every mind here, and drive them"))
                     .append(button(" [reject]",
                             "/anima web-debugger browser reject " + browser.key(),
                             "Drop it from the queue. It may ask again")));
         }
         if (accepted.isEmpty()) {
-            Replies.send(source, () -> Component.literal("  none accepted")
+            Replies.send(source, () -> Component.literal("  none accepted yet")
                     .withStyle(ChatFormatting.DARK_GRAY));
         }
         for (String key : accepted) {
@@ -195,7 +196,7 @@ public final class WebCommands {
                     .withStyle(ChatFormatting.GREEN)
                     .append(Component.literal(" accepted").withStyle(ChatFormatting.DARK_GRAY))
                     .append(button(" [revoke]", "/anima web-debugger browser revoke " + key,
-                            "Shut this browser out")));
+                            "Shut this browser out. It may ask again")));
         }
         return waiting.size() + accepted.size();
     }
@@ -204,15 +205,16 @@ public final class WebCommands {
         WebDebugger.browsers().open();
         // LOGGED: for the next minute anything on this machine can put itself in the queue, and
         // whoever else is administering the server should see that happen.
-        Replies.send(source, () -> Component.literal("Open for " + WebBrowsers.OPEN_MILLIS / 1000
-                + "s — load the page now. It shuts again as soon as one browser asks.")
+        Replies.send(source, () -> Component.literal("Open to a new browser for "
+                + WebBrowsers.OPEN_MILLIS / 1000
+                + "s — load the page now. It shuts again as soon as one asks.")
                 .withStyle(ChatFormatting.YELLOW), true);
         return 1;
     }
 
     private static int close(CommandSourceStack source) {
         WebDebugger.browsers().close();
-        Replies.send(source, () -> Component.literal("Shut. No new browser can ask.")
+        Replies.send(source, () -> Component.literal("Shut — no new browser can ask to be let in.")
                 .withStyle(ChatFormatting.GRAY), true);
         return 1;
     }
@@ -222,7 +224,7 @@ public final class WebCommands {
         switch (admission) {
             case MALFORMED -> {
                 Replies.fail(source, Component.literal("\"" + key
-                        + "\" is not a browser key — they read like two-words-joined."));
+                        + "\" is not a browser key — they look like stairs-furnace-cooked."));
                 return 0;
             }
             case ALREADY -> {
