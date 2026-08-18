@@ -18,8 +18,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <p><b>The browser makes its own key and keeps it; an operator decides whether it means
  * anything.</b> There is no secret in the config for a page to be handed and no key in the address
- * — a browser generates two readable words, stores them, and presents them on every call. Until
- * {@code /anima web-debugger browser accept} writes those words into
+ * — a browser generates three readable words, stores them, and presents them on every call. Until
+ * {@code /anima web-debugger allow} writes those words into
  * {@link Knob#WEB_ALLOWED_NAMES}, they open nothing. That inverts what a key <em>is</em> here: not
  * a secret that proves you were told the address, but a name a person recognised and admitted.
  *
@@ -39,9 +39,9 @@ import org.jspecify.annotations.Nullable;
  * </ul>
  *
  * <p><b>A key pays for its miss once.</b> That is deliberate rather than sloppy: a browser whose
- * key was revoked, or that is asking before anyone opened the door, keeps polling — and charging
- * every poll would hold the lockout on forever. A guesser is charged per key it tries, which is
- * the thing being rated.
+ * key was revoked, or that has not yet been let in, keeps polling — and charging every poll would
+ * hold the lockout on forever. A guesser is charged per key it tries, which is the thing being
+ * rated.
  *
  * <p>Accepted keys live in the config file, where an operator can read and edit the list. The
  * queue does not: a pending key means <em>a browser is asking right now</em>, so a restart clears
@@ -53,13 +53,17 @@ import org.jspecify.annotations.Nullable;
  */
 public final class WebBrowsers {
 
-    /** How long one missing key shuts the door for everybody. */
+    /** How long one missing key shuts out everybody. */
     static final long LOCKOUT_MILLIS = 3_000L;
 
     /** How long a browser that stops asking stays in the queue. */
     static final long QUEUE_TTL_MILLIS = 10 * 60_000L;
 
-    /** How many browsers may wait at once. The door admits one at a time, so this is slack. */
+    /**
+     * How many browsers may wait at once. No longer just slack — a full queue counts as a miss, so
+     * this is the number of free guesses before {@link #register} starts charging
+     * {@link #LOCKOUT_MILLIS} per name.
+     */
     static final int MAX_QUEUED = 8;
 
     /** How many distinct missing keys are remembered as already charged. @see #miss */
@@ -92,11 +96,11 @@ public final class WebBrowsers {
         WAITING,
         /** Just joined the queue — the one outcome the operators are told about. */
         ASKED,
-        /** Anything else: malformed, unknown with the door shut, or inside the lockout. */
+        /** Anything else: malformed, never seen before, or inside the lockout. */
         REFUSED
     }
 
-    /** What {@code browser accept} did. */
+    /** What {@code allow} did. */
     public enum Admission { ADDED, ALREADY, MALFORMED }
 
     /**
@@ -245,7 +249,7 @@ public final class WebBrowsers {
      * that a revoke hangs the browser up instead of taking effect at its next reconnection.
      *
      * <p>Deliberately not {@link #check}: it counts no miss and arms no lockout. A browser being
-     * hung up on because an operator revoked it is not guessing, and three seconds of shut door is
+     * hung up on because an operator revoked it is not guessing, and three seconds locked out is
      * the opposite of what that operator is in the middle of doing.
      */
     public boolean stillAllowed(@Nullable String key) {

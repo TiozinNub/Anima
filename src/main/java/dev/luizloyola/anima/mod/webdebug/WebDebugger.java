@@ -221,7 +221,7 @@ public final class WebDebugger {
         return Config.get().s(Knob.WEB_APP_URL);
     }
 
-    /** Who may read this world, who is asking, and the door — {@code /anima web-debugger browser}. */
+    /** Who may read this world, who is asking, and what a guess costs — {@code /anima web-debugger access}. */
     public static WebBrowsers browsers() {
         return BROWSERS;
     }
@@ -418,8 +418,8 @@ public final class WebDebugger {
             pool = null;
         }
         watch = WebWatch.NONE;
-        // The queue and the door are per-session: a browser that was waiting will ask again, and
-        // a door left open across a restart is one nobody remembers opening.
+        // The queue is per-session: a browser that was waiting will ask again, and none of that
+        // state is worth carrying across a restart — only the allowed list, on disk, survives one.
         BROWSERS.clear();
         ANNOUNCED.clear();
         AnimaMod.LOGGER.info("web-debugger: stopped");
