@@ -55,8 +55,10 @@ import org.jspecify.annotations.Nullable;
  * <p><b>The dead are counted, not built</b>, until {@link WebWatch#dead()} says the browser has
  * that section open. They are the one part of the roster that never shrinks — identity survives
  * death by decision — so a world's every grave was being rebuilt twenty times a second for a
- * section read once a session. The count itself goes out with every {@link WebClock#SLOW} build:
- * it is what the closed section, and the footer's census, actually read.
+ * section read once a session. The count itself goes out with every {@link WebClock#ROSTER} build,
+ * the same clock the grave rows themselves are on — never {@link WebClock#SLOW}, or the footer's
+ * census and the dead table could disagree by one for as long as the slower clock takes to catch
+ * up. It is what the closed section, and the footer's census, actually read.
  *
  * <p>Detail is built only for the agents {@link WebWatch} says are expanded, and it is its own
  * section on its own {@link WebClock#DETAIL} clock now — a journal tail and a position have no
@@ -96,10 +98,12 @@ final class WebSnapshot {
             out.put("layers", layers(server, watch).toString());
             UUID acting = watch.actingAs();
             out.put("actingAs", acting == null ? "null" : "\"" + acting + "\"");
-            out.put("dead", Integer.toString(Graves.get(server).size()));
         }
         if (due.contains(WebClock.ROSTER)) {
             out.put("agents", agents(server, watch).toString());
+            // Same clock as the rows agents() builds, not SLOW's: split across two rates, the
+            // footer's census and the dead table could disagree by one after a death.
+            out.put("dead", Integer.toString(Graves.get(server).size()));
         }
         if (due.contains(WebClock.DETAIL)) {
             out.put("detail", details(server, watch).toString());

@@ -83,7 +83,7 @@ class WebClocksTest {
         assertEquals(List.of("health"), WebClock.HEALTH.keys());
 
         assertEquals(10, WebClock.ROSTER.perSecond());
-        assertEquals(List.of("agents"), WebClock.ROSTER.keys());
+        assertEquals(List.of("agents", "dead"), WebClock.ROSTER.keys());
 
         assertEquals(4, WebClock.DETAIL.perSecond());
         assertEquals(List.of("detail"), WebClock.DETAIL.keys());
@@ -92,6 +92,6 @@ class WebClocksTest {
         assertEquals(List.of("samples"), WebClock.CHART.keys());
 
         assertEquals(2, WebClock.SLOW.perSecond());
-        assertEquals(List.of("players", "layers", "actingAs", "dead"), WebClock.SLOW.keys());
+        assertEquals(List.of("players", "layers", "actingAs"), WebClock.SLOW.keys());
     }
 }

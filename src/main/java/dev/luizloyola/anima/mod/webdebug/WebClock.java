@@ -20,8 +20,15 @@ enum WebClock {
     /** Four numbers, and the mspt jitter in them is the whole point. */
     HEALTH(20, "health"),
 
-    /** Positions and distances. Nobody reads a table faster than this. */
-    ROSTER(10, "agents"),
+    /**
+     * Positions and distances. Nobody reads a table faster than this.
+     *
+     * <p>{@code dead} rides here too, not on {@link #SLOW}: it is the grave count, and the grave
+     * rows are built on this same clock in {@code agents()}. Split across two rates, the footer's
+     * census and the dead table could disagree by one for as long as the slower of the two takes
+     * to catch up.
+     */
+    ROSTER(10, "agents", "dead"),
 
     /** The expensive one: the journal tail, the inventory, the knowledge counts, the needs. */
     DETAIL(4, "detail"),
@@ -30,7 +37,7 @@ enum WebClock {
     CHART(4, "samples"),
 
     /** Rarely moves at all; change detection suppresses nearly every one of these. */
-    SLOW(2, "players", "layers", "actingAs", "dead");
+    SLOW(2, "players", "layers", "actingAs");
 
     private final int perSecond;
     private final List<String> keys;
