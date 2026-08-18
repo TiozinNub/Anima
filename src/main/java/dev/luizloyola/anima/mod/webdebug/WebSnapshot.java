@@ -72,24 +72,36 @@ final class WebSnapshot {
     }
 
     /**
-     * Who commands would run as. The watch's choice when it named one, otherwise the only player
-     * online — with one player, which is the dev case, picking is noise.
+     * Who commands run as, and the point every distance is measured from — the watch's choice, and
+     * nothing else.
+     *
+     * <p><b>No falling back to "the only player online".</b> That fallback made <em>nobody</em>
+     * unsayable: the panel needs a choice that blanks every player-relative reading, and a server
+     * that guesses would override it on the next frame. The browser guesses now, once, on the first
+     * frame it sees a player — which also puts distance, pin and {@link #layers} on one answer to
+     * "who is watching".
      */
     private static @Nullable ServerPlayer viewer(MinecraftServer server, WebWatch watch) {
         UUID acting = watch.actingAs();
-        if (acting != null) {
-            return server.getPlayerList().getPlayer(acting);
-        }
-        List<ServerPlayer> online = server.getPlayerList().getPlayers();
-        return online.size() == 1 ? online.get(0) : null;
+        return acting == null ? null : server.getPlayerList().getPlayer(acting);
     }
 
+    /**
+     * Who is online — the reference points every distance below is measured from.
+     *
+     * <p>A face URL rather than a bare uuid because the picker that chooses one draws heads, and
+     * {@link WebDebugger#faceUrl} is where the single host its CSP allows is named. Where they are
+     * travels too: it is what tells an unmeasurable distance — another dimension — from a far one.
+     */
     private static JsonArray players(MinecraftServer server) {
         JsonArray out = new JsonArray();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             JsonObject row = new JsonObject();
             row.addProperty("uuid", player.getUUID().toString());
             row.addProperty("name", player.getName().getString());
+            row.addProperty("face", WebDebugger.faceUrl(player.getUUID()));
+            row.addProperty("dimension", player.level().dimension().identifier().toString());
+            row.add("pos", pos(player.blockPosition()));
             out.add(row);
         }
         return out;

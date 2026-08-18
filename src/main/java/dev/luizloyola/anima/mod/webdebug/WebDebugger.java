@@ -87,6 +87,20 @@ public final class WebDebugger {
     /** How long an idle stream waits before emitting a keepalive — and noticing a dead socket. */
     private static final long KEEPALIVE_MILLIS = 15_000L;
 
+    /**
+     * Where a player's head is rendered from, for the panel's picker.
+     *
+     * <p>Named <em>here</em> because {@link #serveStub}'s CSP has to allow exactly this origin, and
+     * a bundle that picked its own host would simply watch its images blocked. One constant, one
+     * file, and the frame carries the finished URL so the two cannot drift.
+     *
+     * <p><b>It is a third party, and it learns which UUIDs are online here.</b> The browser fetches
+     * it, not the server, under the {@code Referrer-Policy: no-referrer} the stub already sets — so
+     * the service never learns the address of the tool asking. A machine with no route out gets no
+     * image and the app draws a monogram instead.
+     */
+    private static final String FACES = "https://mc-heads.net";
+
     private static final WebFeed FEED = new WebFeed();
 
     /** Saving is passed in rather than called: {@link WebBrowsers} is core-shaped and has no file. */
@@ -351,7 +365,7 @@ public final class WebDebugger {
         exchange.getResponseHeaders().add("Content-Type", "text/html; charset=utf-8");
         exchange.getResponseHeaders().add("Content-Security-Policy",
                 "default-src 'none'; script-src " + origin + "; style-src " + origin
-                        + " 'unsafe-inline'; img-src 'self' data: " + origin
+                        + " 'unsafe-inline'; img-src 'self' data: " + FACES + " " + origin
                         + "; font-src " + origin + "; connect-src " + connectSrc(app)
                         + "; base-uri 'none'");
         // Nothing in the URL to leak any more, but the site has no business seeing the port and
@@ -693,6 +707,11 @@ public final class WebDebugger {
         }
         String origin = originOf(app);
         return "'self' " + origin + " " + origin.replaceFirst("^http", "ws");
+    }
+
+    /** This player's head, at the size a roster row wants. @see #FACES */
+    static String faceUrl(UUID player) {
+        return FACES + "/avatar/" + player + "/32";
     }
 
     /** The scheme-and-host of the app URL, for the CSP that names what may run on the page. */

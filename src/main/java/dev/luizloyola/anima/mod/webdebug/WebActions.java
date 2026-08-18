@@ -18,7 +18,7 @@ import org.jspecify.annotations.Nullable;
  * an agent is the race {@link WebFeed} exists to prevent.
  *
  * <p>Every verb here is <b>per-player</b>: a pin and a debug layer belong to whoever is watching,
- * not to the world. So each needs the player the panel is acting as, and with nobody online there
+ * not to the world. So each needs the player the panel is acting as, and with nobody picked there
  * is nothing to act on — the readouts still work, the buttons do not.
  *
  * <p><b>There is no glow verb.</b> The selection glow follows the pin: {@code AgentSelection}
@@ -36,7 +36,7 @@ final class WebActions {
     /** Runs one verb. Unknown verbs and impossible ones are logged, never thrown at the browser. */
     static void run(MinecraftServer server, WebWatch watch, String verb, Map<String, String> args) {
         // The switch comes first so an unknown verb is NAMED as one. Looking the player up here
-        // instead would answer every typo with "nobody is online", which is the wrong bug.
+        // instead would answer every typo with "nobody is picked", which is the wrong bug.
         switch (verb) {
             case "pin" -> asPlayer(server, watch, verb, player -> pin(player, args.get("id")));
             case "unpin" -> asPlayer(server, watch, verb, AgentSelection::clear);
@@ -53,20 +53,17 @@ final class WebActions {
             Consumer<ServerPlayer> action) {
         ServerPlayer player = actor(server, watch);
         if (player == null) {
-            AnimaMod.LOGGER.warn("web-debugger: \"{}\" needs a player to act as, and none is online", verb);
+            AnimaMod.LOGGER.warn(
+                    "web-debugger: \"{}\" needs a player to act as, and none is picked", verb);
             return;
         }
         action.accept(player);
     }
 
-    /** The player the panel is driving — its choice, or the only one online. */
+    /** The player the panel is driving — its choice, and only that. @see WebSnapshot */
     private static @Nullable ServerPlayer actor(MinecraftServer server, WebWatch watch) {
         UUID acting = watch.actingAs();
-        if (acting != null) {
-            return server.getPlayerList().getPlayer(acting);
-        }
-        var online = server.getPlayerList().getPlayers();
-        return online.size() == 1 ? online.get(0) : null;
+        return acting == null ? null : server.getPlayerList().getPlayer(acting);
     }
 
     private static void pin(ServerPlayer player, @Nullable String id) {
