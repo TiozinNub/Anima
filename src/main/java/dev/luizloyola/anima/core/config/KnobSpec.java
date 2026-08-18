@@ -138,7 +138,13 @@ public interface KnobSpec {
         return section();
     }
 
-    /** What this knob will accept, phrased for an error message ("a whole number"). */
+    /**
+     * What this knob will accept, phrased for an error message ("a whole number").
+     *
+     * <p><b>The untranslated form</b>, for the config file's comments and the load report — a file
+     * on disk and a server log have no reader's locale to honour. Anything a player reads goes
+     * through {@link #expectsKey} instead.
+     */
     default String expects() {
         return switch (kind()) {
             case BOOL -> "true or false";
@@ -146,6 +152,27 @@ public interface KnobSpec {
             case DOUBLE -> "a number in [" + format(min()) + ", " + format(max()) + "]";
             case STRING -> "text of " + (long) min() + " to " + (long) max() + " characters";
             case LIST -> "a comma-separated list, " + (long) max() + " characters in all";
+        };
+    }
+
+    /**
+     * {@link #expects} as a translation key, to be filled with {@link #expectsArgs}.
+     *
+     * <p>Always Anima's namespace, whoever declared the knob: what a kind accepts is the config
+     * stack's vocabulary, not the consumer's, and a per-mod copy would be the same five lines
+     * translated again in every mod that ever declares a tunable.
+     */
+    default String expectsKey() {
+        return "anima.config.expects." + kind().name().toLowerCase(Locale.ROOT);
+    }
+
+    /** The bounds {@link #expectsKey} interpolates — already formatted, empty for a BOOL. */
+    default Object[] expectsArgs() {
+        return switch (kind()) {
+            case BOOL -> new Object[0];
+            case INT, DOUBLE -> new Object[] {format(min()), format(max())};
+            case STRING -> new Object[] {(long) min(), (long) max()};
+            case LIST -> new Object[] {(long) max()};
         };
     }
 

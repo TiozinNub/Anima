@@ -63,35 +63,63 @@ public final class ConfigCommands {
     private static int show(CommandSourceStack source, ConfigStore store, ConfigFile file) {
         KnobSet set = store.set();
         ConfigValues config = store.get();
-        List<String> overrides = config.describeOverrides();
-        Replies.send(source, () -> Component.literal(set.title() + " config — " + file.path())
-                .withStyle(ChatFormatting.AQUA));
+        List<KnobSpec> overrides = config.overridden();
+        Replies.send(source, () -> Component.translatable("anima.command.config.header",
+                title(set), file.path()).withStyle(ChatFormatting.AQUA));
         if (overrides.isEmpty()) {
-            Replies.send(source, () -> Component.literal("  all " + set.size()
-                    + " knobs at their defaults").withStyle(ChatFormatting.GRAY));
+            Replies.send(source, () -> indent(Component.translatable(
+                    "anima.command.config.all_default", set.size())
+                    .withStyle(ChatFormatting.GRAY)));
             return 1;
         }
-        for (String line : overrides) {
-            Replies.send(source, () -> Component.literal("  " + line)
-                    .withStyle(ChatFormatting.YELLOW));
+        for (KnobSpec knob : overrides) {
+            Replies.send(source, () -> indent(Component.translatable(
+                    "anima.command.config.override",
+                    knob.key(), config.text(knob), knob.formatDefault())
+                    .withStyle(ChatFormatting.YELLOW)));
         }
         return overrides.size();
     }
 
+    /**
+     * A set's own name, translated where the owning mod said so. {@code title()} is the fallback
+     * rather than the source: a consumer that never adds the key still reads as it always did.
+     */
+    private static Component title(KnobSet set) {
+        return Component.translatableWithFallback(set.langRoot() + ".title", set.title());
+    }
+
+    /** What a knob accepts, in the reader's language — {@code expects()} is the file's phrasing. */
+    private static Component expects(KnobSpec knob) {
+        return Component.translatable(knob.expectsKey(), knob.expectsArgs());
+    }
+
+    /**
+     * One line nested under the one above it. The gutter stays in Java rather than in every
+     * translation of the line, where it is one edit away from being trimmed off.
+     */
+    private static Component indent(Component line) {
+        return Component.literal("  ").append(line);
+    }
+
+    /**
+     * <p>The problem lines themselves stay untranslated: they quote what the TOML parser choked
+     * on, which arrives in one language whatever the reader's is.
+     */
     private static int reload(CommandSourceStack source, ConfigStore store, ConfigFile file) {
-        String title = store.set().title();
+        KnobSet set = store.set();
         List<String> problems = file.reload();
         if (problems.isEmpty()) {
-            Replies.send(source, () -> Component.literal(title + " config reloaded — "
-                    + store.get().describeOverrides().size() + " override(s) in force")
+            Replies.send(source, () -> Component.translatable("anima.command.config.reloaded",
+                    title(set), store.get().overridden().size())
                     .withStyle(ChatFormatting.GREEN), true);
             return 1;
         }
-        Replies.send(source, () -> Component.literal(title + " config reloaded with "
-                + problems.size() + " problem(s):").withStyle(ChatFormatting.YELLOW), true);
+        Replies.send(source, () -> Component.translatable("anima.command.config.reloaded_problems",
+                title(set), problems.size()).withStyle(ChatFormatting.YELLOW), true);
         for (String problem : problems) {
-            Replies.send(source, () -> Component.literal("  " + problem)
-                    .withStyle(ChatFormatting.RED));
+            Replies.send(source, () -> indent(Component.literal(problem)
+                    .withStyle(ChatFormatting.RED)));
         }
         return 1;
     }
@@ -100,14 +128,19 @@ public final class ConfigCommands {
         KnobSpec knob = store.set().byKey(key).orElse(null);
         if (knob == null) return unknown(source, store, key);
         ConfigValues config = store.get();
-        Replies.send(source, () -> Component.literal(knob.key() + " = " + config.text(knob)
-                + (config.isDefault(knob) ? " (default)"
-                        : " — default is " + knob.formatDefault()))
+        Replies.send(source, () -> (config.isDefault(knob)
+                        ? Component.translatable("anima.command.config.value_default",
+                                knob.key(), config.text(knob))
+                        : Component.translatable("anima.command.config.value",
+                                knob.key(), config.text(knob), knob.formatDefault()))
                 .withStyle(ChatFormatting.AQUA));
-        Replies.send(source, () -> Component.literal("  " + knob.doc())
-                .withStyle(ChatFormatting.GRAY));
-        Replies.send(source, () -> Component.literal("  accepts " + knob.expects())
-                .withStyle(ChatFormatting.DARK_GRAY));
+        // The same key the GUI reads, so the two never say different things about one knob.
+        Replies.send(source, () -> indent(Component.translatableWithFallback(
+                        knob.langKey(store.set()) + ".desc", knob.doc())
+                .withStyle(ChatFormatting.GRAY)));
+        Replies.send(source, () -> indent(Component.translatable(
+                "anima.command.config.accepts", expects(knob))
+                .withStyle(ChatFormatting.DARK_GRAY)));
         return 1;
     }
 
@@ -120,16 +153,19 @@ public final class ConfigCommands {
         }
         Double parsed = knob.parse(value).orElse(null);
         if (parsed == null) {
-            Replies.fail(source, Component.literal(knob.key() + " accepts " + knob.expects()
-                    + " — \"" + value + "\" is not one"));
+            Replies.fail(source, Component.translatable("anima.command.config.not_accepted",
+                    knob.key(), expects(knob), value));
             return 0;
         }
         double landed = knob.clamp(parsed);
         boolean clamped = landed != parsed;
         store.install(store.get().with(knob, landed));
         file.save(store.get());
-        Replies.send(source, () -> Component.literal(knob.key() + " = " + knob.format(landed)
-                + (clamped ? " (clamped from " + knob.format(parsed) + ")" : ""))
+        Replies.send(source, () -> (clamped
+                        ? Component.translatable("anima.command.config.set_clamped",
+                                knob.key(), knob.format(landed), knob.format(parsed))
+                        : Component.translatable("anima.command.config.set",
+                                knob.key(), knob.format(landed)))
                 .withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
@@ -147,13 +183,14 @@ public final class ConfigCommands {
             KnobSpec knob, String value) {
         String landed = knob.sanitise(value);
         if (landed.equals(knob.defText()) && !landed.equals(value.strip())) {
-            Replies.fail(source, Component.literal(knob.key() + " accepts " + knob.expects()
-                    + " — \"" + value + "\" is not one"));
+            Replies.fail(source, Component.translatable("anima.command.config.not_accepted",
+                    knob.key(), expects(knob), value));
             return 0;
         }
         store.install(store.get().with(knob, landed));
         file.save(store.get());
-        Replies.send(source, () -> Component.literal(knob.key() + " = " + knob.formatText(landed))
+        Replies.send(source, () -> Component.translatable("anima.command.config.set",
+                        knob.key(), knob.formatText(landed))
                 .withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
@@ -166,8 +203,9 @@ public final class ConfigCommands {
                 ? store.get().with(knob, knob.defText())
                 : store.get().with(knob, knob.def()));
         file.save(store.get());
-        Replies.send(source, () -> Component.literal(knob.key() + " = " + knob.formatDefault()
-                + " (default)").withStyle(ChatFormatting.GREEN), true);
+        Replies.send(source, () -> Component.translatable("anima.command.config.value_default",
+                        knob.key(), knob.formatDefault())
+                .withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
 
@@ -175,14 +213,14 @@ public final class ConfigCommands {
         KnobSet set = store.set();
         store.reset();
         file.save(store.get());
-        Replies.send(source, () -> Component.literal(set.title() + " config reset to defaults ("
-                + set.size() + " knobs)").withStyle(ChatFormatting.GREEN), true);
+        Replies.send(source, () -> Component.translatable("anima.command.config.reset_all",
+                title(set), set.size()).withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
 
     private static int unknown(CommandSourceStack source, ConfigStore store, String key) {
-        Replies.fail(source, Component.literal("No such config key \"" + key
-                + "\" — try tab-completion, or /" + store.set().id() + " config show"));
+        Replies.fail(source, Component.translatable("anima.command.config.no_such_key",
+                key, store.set().id()));
         return 0;
     }
 }

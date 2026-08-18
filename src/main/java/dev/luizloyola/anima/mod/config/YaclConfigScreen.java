@@ -64,7 +64,8 @@ public final class YaclConfigScreen {
         }
 
         YetAnotherConfigLib.Builder builder = YetAnotherConfigLib.createBuilder()
-                .title(Component.literal(set.title()));
+                .title(Component.translatableWithFallback(
+                        set.langRoot() + ".title", set.title()));
         for (ConfigCategory.Builder category : categories.values()) {
             builder.category(category.build());
         }
@@ -75,14 +76,15 @@ public final class YaclConfigScreen {
     private static Option<?> option(KnobSet set, KnobSpec knob, ConfigValues live,
             Map<KnobSpec, Double> staged, Map<KnobSpec, String> stagedText) {
         // Translation keys with the knob as fallback, so a knob with no lang entry reads sensibly
-        // and any label is overridable in any language without touching Java. The last tooltip
-        // line stays literal: the dotted key and range are typed into the config command.
+        // and any label is overridable in any language without touching Java. The dotted key in
+        // the last line stays verbatim inside it — it is what an operator types into the command.
         Component name = Component.translatableWithFallback(
                 knob.langKey(set), prettify(knob.leaf()));
         OptionDescription description = OptionDescription.of(
                 Component.translatableWithFallback(knob.langKey(set) + ".desc", knob.doc()),
-                Component.literal(""),
-                Component.literal(knob.key() + " — accepts " + knob.expects()));
+                Component.empty(),
+                Component.translatable("anima.config.knob_accepts", knob.key(),
+                        Component.translatable(knob.expectsKey(), knob.expectsArgs())));
         switch (knob.kind()) {
             case BOOL:
                 return Option.<Boolean>createBuilder()

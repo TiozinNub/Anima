@@ -223,6 +223,17 @@ public final class ConfigValues {
         return built;
     }
 
+    /**
+     * The knobs that differ from the defaults, in declaration order — what {@link
+     * #describeOverrides} phrases, for a caller that would rather phrase it itself.
+     *
+     * <p>Exists because {@code /anima config show} prints to a player and has to translate, and
+     * the phrasing cannot cross into {@code core} to be translated there.
+     */
+    public List<KnobSpec> overridden() {
+        return set.knobs().stream().filter(knob -> !isDefault(knob)).toList();
+    }
+
     /** Key/value lines for the knobs that differ from the defaults — the compact "what's custom". */
     public List<String> describeOverrides() {
         List<String> lines = new ArrayList<>();
