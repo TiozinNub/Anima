@@ -506,9 +506,21 @@ public final class BrainDriver {
         return arbiter.executor();
     }
 
+    /**
+     * The first line of {@link #describeLines}, and nothing behind it.
+     *
+     * <p><b>Because the roster wants that line and only that line.</b> Reaching it through the full
+     * readout built every pressure line and the entire task chain and threw them away — for every
+     * loaded agent, every frame. Called by {@link #describeLines} so the two cannot drift into
+     * disagreeing about what the summary starts with.
+     */
+    public String describeHead() {
+        return this.auto ? "auto" : "manual — arbiter dormant, pressures frozen";
+    }
+
     public List<String> describeLines() {
         List<String> lines = new ArrayList<>();
-        lines.add(this.auto ? "auto" : "manual — arbiter dormant, pressures frozen");
+        lines.add(describeHead());
         lines.addAll(this.arbiter.pressureLines());
         lines.addAll(this.arbiter.executor().describeLines());
         return lines;
