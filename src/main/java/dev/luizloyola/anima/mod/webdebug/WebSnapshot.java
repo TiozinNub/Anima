@@ -59,7 +59,7 @@ final class WebSnapshot {
     static String render(MinecraftServer server, WebWatch watch) {
         JsonObject root = new JsonObject();
         root.addProperty("tick", server.getTickCount());
-        root.add("health", health(server));
+        root.add("health", health(server, watch));
         root.add("players", players(server));
         root.addProperty("actingAs", watch.actingAs() == null ? null : watch.actingAs().toString());
         root.add("layers", layers(server, watch));
@@ -101,7 +101,7 @@ final class WebSnapshot {
      * the 46ms of headroom is not speed. One spending 80ms is at 12.5, which is the number worth
      * showing.
      */
-    private static JsonObject health(MinecraftServer server) {
+    private static JsonObject health(MinecraftServer server, WebWatch watch) {
         double mspt = server.getAverageTickTimeNanos() / 1_000_000.0;
         float wanted = server.tickRateManager().tickrate();
 
@@ -109,7 +109,31 @@ final class WebSnapshot {
         health.addProperty("mspt", round(mspt));
         health.addProperty("tps", round(mspt <= 0 ? wanted : Math.min(wanted, 1_000.0 / mspt)));
         health.addProperty("mode", mode(server.tickRateManager()));
+        if (watch.ticks()) {
+            health.add("samples", samples(server));
+        }
         return health;
+    }
+
+    /**
+     * The last hundred ticks, oldest first, in milliseconds — the five seconds an average has
+     * already thrown away, which is where a stutter actually lives.
+     *
+     * <p><b>Straightened out of the ring.</b> The server writes each tick's cost to
+     * {@code tickCount % 100}, so that slot holds the NEWEST sample by the time this runs and the
+     * one after it holds the oldest. Handed over raw, a chart would draw the last five seconds with
+     * a seam through the middle of it, moving left every tick.
+     *
+     * <p>Only built when {@link WebWatch#ticks()} — see there for what it costs.
+     */
+    private static JsonArray samples(MinecraftServer server) {
+        long[] ring = server.getTickTimesNanos();
+        JsonArray out = new JsonArray(ring.length);
+        int oldest = (server.getTickCount() + 1) % ring.length;
+        for (int i = 0; i < ring.length; i++) {
+            out.add(round(ring[(oldest + i) % ring.length] / 1_000_000.0));
+        }
+        return out;
     }
 
     /**

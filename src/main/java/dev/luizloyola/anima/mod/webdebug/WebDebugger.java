@@ -589,6 +589,10 @@ public final class WebDebugger {
         if (acting != null) {
             next = next.actingAs(acting.isEmpty() ? null : UUID.fromString(acting));
         }
+        String ticks = query.get("ticks");
+        if (ticks != null) {
+            next = next.ticks(!"0".equals(ticks) && !"false".equals(ticks));
+        }
         watch = next;
         send(exchange, 200, "{\"ok\":true}".getBytes(StandardCharsets.UTF_8));
     }

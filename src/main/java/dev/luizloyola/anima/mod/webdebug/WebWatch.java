@@ -20,11 +20,15 @@ import org.jspecify.annotations.Nullable;
  * second browser showing a different expansion is not worth a session table.
  *
  * <p>Immutable and swapped whole, for the reason everything else here is.
+ *
+ * @param ticks whether the tick-time chart is open. A hundred samples a frame is roughly six
+ *     hundred bytes twenty times a second — nothing beside a settlement's roster, and pure waste on
+ *     every frame nobody is looking at a chart.
  */
-record WebWatch(Set<AgentId> expanded, @Nullable UUID actingAs) {
+record WebWatch(Set<AgentId> expanded, @Nullable UUID actingAs, boolean ticks) {
 
     /** Nothing expanded and nobody to act as — what a fresh server and a closed browser both mean. */
-    static final WebWatch NONE = new WebWatch(Set.of(), null);
+    static final WebWatch NONE = new WebWatch(Set.of(), null, false);
 
     WebWatch {
         expanded = Set.copyOf(expanded);
@@ -46,11 +50,16 @@ record WebWatch(Set<AgentId> expanded, @Nullable UUID actingAs) {
         } else {
             next.remove(id);
         }
-        return new WebWatch(next, actingAs);
+        return new WebWatch(next, actingAs, ticks);
     }
 
     /** This watch driving commands as {@code player} — the per-player half of pin, layers and glow. */
     WebWatch actingAs(@Nullable UUID player) {
-        return new WebWatch(expanded, player);
+        return new WebWatch(expanded, player, ticks);
+    }
+
+    /** This watch with the tick-time chart open or closed. */
+    WebWatch ticks(boolean open) {
+        return new WebWatch(expanded, actingAs, open);
     }
 }
