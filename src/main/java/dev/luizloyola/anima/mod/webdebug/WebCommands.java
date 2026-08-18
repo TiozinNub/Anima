@@ -120,16 +120,21 @@ public final class WebCommands {
     }
 
     /**
-     * The address as a clickable line. It carries no key — a browser opening it makes its own and
-     * asks — so the line below saying how to answer that is the load-bearing half.
+     * The address as a clickable line, named so it does not read as a stray URL. It carries no key
+     * — a browser opening it makes its own and asks — so the line below saying how to answer that
+     * is the load-bearing half.
      */
     private static void link(CommandSourceStack source) {
         String address = WebDebugger.address();
-        Replies.send(source, () -> Component.literal(address)
-                .withStyle(style -> style
-                        .withColor(ChatFormatting.AQUA)
-                        .withUnderlined(true)
-                        .withClickEvent(new ClickEvent.OpenUrl(java.net.URI.create(address)))));
+        // The address goes in as a component, not as text: the label is translated around it while
+        // the click event and the link colouring stay on the URL alone.
+        Replies.send(source, () -> Component.translatable("anima.webdebug.at",
+                        Component.literal(address).withStyle(style -> style
+                                .withColor(ChatFormatting.AQUA)
+                                .withUnderlined(true)
+                                .withClickEvent(new ClickEvent.OpenUrl(
+                                        java.net.URI.create(address)))))
+                .withStyle(ChatFormatting.GRAY));
         Replies.send(source, () -> indent(Component.translatable("anima.webdebug.app_url",
                 WebDebugger.appUrl()).withStyle(ChatFormatting.DARK_GRAY)));
         if (!WebDebugger.enabled()) {

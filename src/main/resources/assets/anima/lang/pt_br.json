@@ -372,6 +372,7 @@
   "anima.webdebug.was_not_running": "O depurador web não estava rodando.",
   "anima.webdebug.start_failed": "O depurador web não iniciou — %s",
   "anima.webdebug.stopped": "Depurador web parado.",
+  "anima.webdebug.at": "Depurador web em %s",
   "anima.webdebug.app_url": "a página carrega sua interface de %s",
   "anima.webdebug.session_only": "somente esta sessão — defina web_debugger.enabled para iniciá-lo com todo mundo",
   "anima.webdebug.open_for": "aberto a um novo navegador por mais %ss — carregue a página agora",

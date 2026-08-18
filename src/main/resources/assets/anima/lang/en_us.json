@@ -372,6 +372,7 @@
   "anima.webdebug.was_not_running": "The web debugger was not running.",
   "anima.webdebug.start_failed": "The web debugger did not start — %s",
   "anima.webdebug.stopped": "Web debugger stopped.",
+  "anima.webdebug.at": "Web debugger at %s",
   "anima.webdebug.app_url": "the page loads its UI from %s",
   "anima.webdebug.session_only": "this session only — set web_debugger.enabled to start it with every world",
   "anima.webdebug.open_for": "open to a new browser for another %ss — load the page now",
