@@ -20,7 +20,7 @@ import org.jspecify.annotations.Nullable;
  * anything.</b> There is no secret in the config for a page to be handed and no key in the address
  * — a browser generates two readable words, stores them, and presents them on every call. Until
  * {@code /anima web-debugger browser accept} writes those words into
- * {@link Knob#WEB_ACCEPTED_KEYS}, they open nothing. That inverts what a key <em>is</em> here: not
+ * {@link Knob#WEB_ALLOWED_NAMES}, they open nothing. That inverts what a key <em>is</em> here: not
  * a secret that proves you were told the address, but a name a person recognised and admitted.
  *
  * <h2>Two guards, because the key itself is weak</h2>
