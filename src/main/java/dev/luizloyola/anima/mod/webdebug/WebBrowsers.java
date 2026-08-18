@@ -277,6 +277,18 @@ public final class WebBrowsers {
         return KnobSpec.splitList(Config.get().s(Knob.WEB_ACCEPTED_KEYS));
     }
 
+    /**
+     * Whether this key is <em>still</em> on the list — what a live stream asks between frames, so
+     * that a revoke hangs the browser up instead of taking effect at its next reconnection.
+     *
+     * <p>Deliberately not {@link #check}: it counts no miss and arms no lockout. A browser being
+     * hung up on because an operator revoked it is not guessing, and three seconds of shut door is
+     * the opposite of what that operator is in the middle of doing.
+     */
+    public boolean stillAccepted(@Nullable String key) {
+        return key != null && accepted().contains(key);
+    }
+
     /** Forgets the queue and shuts the door — what stopping the server means for this. */
     public synchronized void clear() {
         queue.clear();

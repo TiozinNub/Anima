@@ -258,6 +258,23 @@ class WebBrowsersTest {
     }
 
     @Test
+    @DisplayName("a live stream's key stops being accepted the moment it is revoked")
+    void stillAcceptedFollowsTheList() {
+        // What a parked stream asks between frames. It is the only guard on a request that
+        // outlives its own handshake — without it a revoked browser streams until it reconnects.
+        browsers.accept(MINE);
+        assertTrue(browsers.stillAccepted(MINE));
+        browsers.revoke(MINE);
+        assertFalse(browsers.stillAccepted(MINE));
+        assertFalse(browsers.stillAccepted(null));
+
+        // And it charges nothing: the operator who just revoked is often about to accept another,
+        // and a three-second lockout is the opposite of what they are doing.
+        browsers.open(0);
+        assertEquals(Outcome.ASKED, browsers.register(THEIRS, FROM, 1));
+    }
+
+    @Test
     @DisplayName("rejecting drops a browser from the queue without remembering it")
     void rejectingDrops() {
         browsers.open(0);

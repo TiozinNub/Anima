@@ -75,6 +75,37 @@ class WebDebuggerTest {
     }
 
     @Test
+    @DisplayName("a wake releases parked readers without a frame — how a revoke hangs up at once")
+    void wakeReleasesReadersWithoutPublishing() throws Exception {
+        // A quiet world publishes nothing, so without this a revoked browser would keep streaming
+        // until its keepalive came due fifteen seconds later.
+        WebFeed feed = new WebFeed();
+        feed.publish("{\"tick\":1}");
+        long caughtUp = feed.version();
+
+        AtomicReference<WebFeed.Snapshot> got = new AtomicReference<>(
+                new WebFeed.Snapshot(-1, "sentinel"));
+        CountDownLatch done = new CountDownLatch(1);
+        Thread reader = new Thread(() -> {
+            try {
+                got.set(feed.awaitAfter(caughtUp, 30_000));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                done.countDown();
+            }
+        });
+        reader.setDaemon(true);
+        reader.start();
+        Thread.sleep(50);
+
+        feed.wake();
+        assertTrue(done.await(5, TimeUnit.SECONDS), "the reader was not woken");
+        assertNull(got.get(), "a wake is the keepalive path, not a frame");
+        assertEquals(caughtUp, feed.version(), "waking must not look like a publish");
+    }
+
+    @Test
     @DisplayName("closing releases parked readers instead of leaking their threads")
     void closeReleasesReaders() throws Exception {
         WebFeed feed = new WebFeed();

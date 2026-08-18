@@ -163,6 +163,23 @@ public final class WebDebugger {
         return BROWSERS;
     }
 
+    /**
+     * Takes a browser off the list <b>and hangs up on it</b> — the whole of what revoking means, so
+     * that no caller can do half of it.
+     *
+     * <p>The hang-up is the part that is easy to leave out: a stream is one request that lasts
+     * hours, and a browser parked on it is not asking permission again. Waking every reader makes
+     * each re-check its own key at once, which is a no-op for everyone but the one just revoked —
+     * cheaper and simpler than tracking which socket belongs to which key.
+     */
+    public static boolean revoke(String key) {
+        if (!BROWSERS.revoke(key)) {
+            return false;
+        }
+        FEED.wake();
+        return true;
+    }
+
     /** Whether a server is listening right now. */
     public static boolean running() {
         return http != null;
@@ -408,17 +425,24 @@ public final class WebDebugger {
      * The live feed. One SSE event per published frame, and a comment line when nothing has changed
      * for {@link #KEEPALIVE_MILLIS} — which is also how a browser that has gone away is noticed,
      * a write being the only thing that finds that out.
+     *
+     * <p><b>The key is checked between frames, not just at the handshake.</b> This is the one route
+     * that outlives its own request: authenticating once and then holding the socket open meant a
+     * revoked browser kept streaming every mind in the world until it happened to reconnect, which
+     * is a revoke that does not revoke. {@link #revoke} pairs with this by waking the parked
+     * readers, so a quiet world does not delay the hang-up by a keepalive.
      */
     private static void serveStream(HttpExchange exchange) throws IOException {
         if (!keyed(exchange)) {
             return;
         }
+        String key = exchange.getRequestHeaders().getFirst(KEY_HEADER);
         exchange.getResponseHeaders().add("Content-Type", "text/event-stream; charset=utf-8");
         exchange.getResponseHeaders().add("Cache-Control", "no-store");
         exchange.sendResponseHeaders(200, 0); // 0 = chunked, the stream stays open
         long seen = -1;
         try (OutputStream out = exchange.getResponseBody()) {
-            while (running()) {
+            while (running() && BROWSERS.stillAccepted(key)) {
                 WebFeed.Snapshot snapshot = FEED.awaitAfter(seen, KEEPALIVE_MILLIS);
                 if (snapshot == null) {
                     out.write(": keepalive\n\n".getBytes(StandardCharsets.UTF_8));

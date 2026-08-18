@@ -33,6 +33,19 @@ final class WebFeed {
         }
     }
 
+    /**
+     * Wakes every parked reader without publishing anything — each returns as if its keepalive had
+     * come due, re-checks whatever it guards, and parks again.
+     *
+     * <p>What it is for: a revoked browser must lose its stream <em>now</em>, not at the end of a
+     * fifteen-second keepalive wait. A quiet world publishes nothing to wake it with.
+     */
+    void wake() {
+        synchronized (this) {
+            notifyAll();
+        }
+    }
+
     /** Releases every parked reader. After this {@link #awaitAfter} returns null forever. */
     void close() {
         synchronized (this) {

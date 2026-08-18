@@ -239,13 +239,16 @@ public final class WebCommands {
     }
 
     private static int revoke(CommandSourceStack source, String key) {
-        if (!WebDebugger.browsers().revoke(key)) {
+        // Through WebDebugger, not the register: revoking has to close the stream that browser is
+        // already holding, or it takes effect whenever the page next happens to reconnect.
+        if (!WebDebugger.revoke(key)) {
             Replies.send(source, () -> Component.literal(key + " was not accepted.")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         // LOGGED, for the reason accept is: it is the other half of the same decision.
-        Replies.send(source, () -> Component.literal(key + " shut out. It may ask again.")
+        Replies.send(source, () -> Component.literal(key
+                + " shut out, and its stream closed. It may ask again.")
                 .withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
