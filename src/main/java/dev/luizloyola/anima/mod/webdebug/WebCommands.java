@@ -138,7 +138,7 @@ public final class WebCommands {
         }
     }
 
-    // --- the door ---------------------------------------------------------------------------
+    // --- who may look -----------------------------------------------------------------------
 
     private static int access(CommandSourceStack source) {
         WebBrowsers browsers = WebDebugger.browsers();
