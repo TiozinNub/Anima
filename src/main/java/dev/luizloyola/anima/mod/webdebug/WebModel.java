@@ -13,8 +13,9 @@ import java.util.Map;
  * <p><b>This is what makes a partial frame safe.</b> A reader that connects — first time or after a
  * drop — is written {@link #full}, so it merges its deltas onto a whole world rather than onto
  * holes. SSE is ordered and lossless until the socket dies, and when it dies the reconnect starts
- * from a full picture; that is why there is no sequence number, no patch log and no resync route
- * anywhere in this design.
+ * from a full picture; that is why there is no sequence number and no patch log. The resync is the
+ * same greeting sent again: a reader the hand-off outran is written {@link #full} mid-connection
+ * rather than a delta whose predecessor it never saw — see {@code WebDebugger.pump}.
  *
  * <p>Immutable and swapped whole, for the reason everything else here is.
  *
@@ -62,20 +63,36 @@ record WebModel(int tick, Map<String, String> keys) {
         return new Update(new WebModel(tick, next), delta);
     }
 
-    /** The whole retained world as one frame — what a connecting reader is written. */
+    /**
+     * The whole retained world as one frame — what a connecting reader is written.
+     *
+     * <p><b>{@code "full":true} is what tells a consumer to REPLACE what it holds rather than merge
+     * onto it, and this is the only frame on the wire that means that.</b> Merging a greeting would
+     * make a re-greeting pointless: a key the greeting omits because it has since been dropped
+     * would survive the very frame sent to clear it. {@link #frame} never carries the flag — a
+     * delta that claimed replacement semantics would blank every section it did not happen to
+     * rebuild.
+     */
     String full() {
-        return frame(tick, keys);
+        StringBuilder out = new StringBuilder(64)
+                .append("{\"tick\":").append(tick).append(",\"full\":true");
+        return body(out, keys).append('}').toString();
+    }
+
+    /** One delta frame: the tick, then the keys given. Never {@code full}. @see #body */
+    static String frame(int tick, Map<String, String> keys) {
+        StringBuilder out = new StringBuilder(64).append("{\"tick\":").append(tick);
+        return body(out, keys).append('}').toString();
     }
 
     /**
-     * One frame: the tick, then the keys given.
+     * The keys of a frame, appended to an opening already written.
      *
      * <p>Assembled by hand rather than through Gson because every value is <em>already</em> a
      * rendered fragment. Re-parsing them into a tree to serialise it again would be the one
      * avoidable cost in a method that runs inside the tick.
      */
-    static String frame(int tick, Map<String, String> keys) {
-        StringBuilder out = new StringBuilder(64).append("{\"tick\":").append(tick);
+    private static StringBuilder body(StringBuilder out, Map<String, String> keys) {
         List<String> dropped = new ArrayList<>();
         for (Map.Entry<String, String> key : keys.entrySet()) {
             if (key.getValue() == null) {
@@ -93,7 +110,7 @@ record WebModel(int tick, Map<String, String> keys) {
             }
             out.append("]");
         }
-        return out.append('}').toString();
+        return out;
     }
 
     /** A model and the delta that took it there, read together so the two cannot disagree. */

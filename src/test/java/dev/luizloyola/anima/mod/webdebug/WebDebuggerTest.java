@@ -11,6 +11,7 @@ import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
@@ -182,9 +183,78 @@ class WebDebuggerTest {
         feed.wake();
         reader.join(5_000);
 
-        assertTrue(out.toString(StandardCharsets.UTF_8)
-                        .startsWith("data: {\"tick\":4,\"agents\":[],\"health\":{\"tps\":20}}"),
+        assertTrue(out.toString(StandardCharsets.UTF_8).startsWith(
+                        "data: {\"tick\":4,\"full\":true,\"agents\":[],\"health\":{\"tps\":20}}"),
                 "a partial frame merged onto nothing is a dashboard with holes in it");
+    }
+
+    @Test
+    @DisplayName("a reader the hand-off outran is greeted again, not handed a delta it cannot merge")
+    void aReaderThatFellBehindIsGreetedAgain() throws Exception {
+        // The feed holds one frame, so two publishes across one slow socket write leave the reader
+        // a version short — and the retained model already counts the skipped change as told, so
+        // nothing later resends it. This is the only thing that repairs that.
+        WebFeed feed = new WebFeed();
+        java.util.Map<String, String> opening = new java.util.LinkedHashMap<>();
+        opening.put("agents", "[]");
+        WebModel.Update first = WebModel.EMPTY.against(1, opening);
+        feed.publish(first.model(), WebModel.frame(1, first.delta()));
+
+        CountDownLatch greeted = new CountDownLatch(1);
+        CountDownLatch overtaken = new CountDownLatch(1);
+        ByteArrayOutputStream sent = new ByteArrayOutputStream();
+        // Blocks inside the greeting's write, which is the real window: pump writes the whole world
+        // to a socket before it ever parks, and HEALTH publishes every 50ms.
+        OutputStream slow = new OutputStream() {
+            private boolean blocked;
+
+            @Override
+            public void write(int b) {
+                sent.write(b);
+            }
+
+            @Override
+            public void write(byte[] bytes, int off, int len) {
+                sent.write(bytes, off, len);
+                if (!blocked) {
+                    blocked = true;
+                    greeted.countDown();
+                    try {
+                        overtaken.await(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
+        };
+
+        AtomicBoolean welcome = new AtomicBoolean(true);
+        Thread reader = new Thread(() -> {
+            try {
+                WebDebugger.pump(slow, () -> 0L, feed, welcome::get);
+            } catch (IOException | InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        reader.setDaemon(true);
+        reader.start();
+        assertTrue(greeted.await(5, TimeUnit.SECONDS), "the greeting never went out");
+
+        WebModel.Update second = first.model().against(2, java.util.Map.of("health", "{\"tps\":20}"));
+        feed.publish(second.model(), WebModel.frame(2, second.delta()));
+        WebModel.Update third = second.model().against(3, java.util.Map.of("health", "{\"tps\":12}"));
+        feed.publish(third.model(), WebModel.frame(3, third.delta()));
+        overtaken.countDown();
+
+        Thread.sleep(100);
+        welcome.set(false);
+        feed.wake();
+        reader.join(5_000);
+
+        String[] frames = sent.toString(StandardCharsets.UTF_8).split("\n\n");
+        assertTrue(frames.length >= 2, "the reader never got past the greeting: " + sent);
+        assertTrue(frames[1].startsWith("data: {\"tick\":3,\"full\":true,\"agents\":[]"),
+                "version 2 was skipped, so version 3's delta is unmergeable: " + frames[1]);
     }
 
     @Test
@@ -255,25 +325,34 @@ class WebDebuggerTest {
     @DisplayName("a stream the browser lost standing on hangs up silently — 401 says the rest")
     void anUnwelcomeStreamDoesNotSayStop() throws Exception {
         // The two endings must not look alike: a revoke is worth reconnecting into, a stop is not.
+        // The model has to be non-empty, or hello() answers null and nothing is written whether or
+        // not the greeting is guarded — silence for the wrong reason, proving nothing.
         WebFeed feed = new WebFeed();
-        feed.publish(WebModel.EMPTY, "{\"tick\":1}");
+        feed.publish(greetable(), "{\"tick\":1}");
         ByteArrayOutputStream wire = new ByteArrayOutputStream();
 
         WebDebugger.pump(wire, wire::size, feed, () -> false);
-        assertEquals("", wire.toString(StandardCharsets.UTF_8));
+        assertEquals("", wire.toString(StandardCharsets.UTF_8),
+                "a browser whose key went in the microseconds after the handshake still got a world");
     }
 
     @Test
     @DisplayName("a restart says nothing — the browser reconnects into the server already coming up")
     void aRestartDoesNotSayStop() throws Exception {
+        // Non-empty for the same reason as above: an empty model is silent by accident.
         WebFeed feed = new WebFeed();
-        feed.publish(WebModel.EMPTY, "{\"tick\":1}");
+        feed.publish(greetable(), "{\"tick\":1}");
         feed.close(false);
         ByteArrayOutputStream wire = new ByteArrayOutputStream();
 
         WebDebugger.pump(wire, wire::size, feed, () -> true);
         assertEquals("", wire.toString(StandardCharsets.UTF_8),
                 "a stop screen behind a listening server is a screen nobody can get past");
+    }
+
+    /** A model with something in it, so {@link WebFeed#hello} has a world to greet a reader with. */
+    private static WebModel greetable() {
+        return WebModel.EMPTY.against(1, java.util.Map.of("agents", "[]")).model();
     }
 
     // --- the wire -------------------------------------------------------------------------------

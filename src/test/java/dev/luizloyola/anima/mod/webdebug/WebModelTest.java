@@ -34,7 +34,7 @@ class WebModelTest {
         WebModel.Update update = WebModel.EMPTY.against(7, fresh("health", "{\"tps\":20}"));
 
         assertEquals(fresh("health", "{\"tps\":20}"), update.delta());
-        assertEquals("{\"tick\":7,\"health\":{\"tps\":20}}", update.model().full());
+        assertEquals("{\"tick\":7,\"full\":true,\"health\":{\"tps\":20}}", update.model().full());
     }
 
     @Test
@@ -55,7 +55,7 @@ class WebModelTest {
         WebModel.Update update = one.against(2, fresh("health", "{\"tps\":12}"));
 
         assertEquals(fresh("health", "{\"tps\":12}"), update.delta());
-        assertEquals("{\"tick\":2,\"health\":{\"tps\":12}}", update.model().full());
+        assertEquals("{\"tick\":2,\"full\":true,\"health\":{\"tps\":12}}", update.model().full());
     }
 
     @Test
@@ -67,7 +67,8 @@ class WebModelTest {
         WebModel.Update update = one.against(2, fresh("health", "{\"tps\":12}"));
 
         assertEquals(fresh("health", "{\"tps\":12}"), update.delta());
-        assertEquals("{\"tick\":2,\"health\":{\"tps\":12},\"agents\":[]}", update.model().full());
+        assertEquals("{\"tick\":2,\"full\":true,\"health\":{\"tps\":12},\"agents\":[]}",
+                update.model().full());
     }
 
     @Test
@@ -82,7 +83,7 @@ class WebModelTest {
 
         assertTrue(update.delta().containsKey("samples"));
         assertEquals(null, update.delta().get("samples"));
-        assertEquals("{\"tick\":2}", update.model().full());
+        assertEquals("{\"tick\":2,\"full\":true}", update.model().full());
     }
 
     @Test
@@ -124,6 +125,18 @@ class WebModelTest {
     }
 
     @Test
+    @DisplayName("only the greeting says full — it is the one frame that replaces rather than merges")
+    void onlyTheGreetingIsFull() {
+        // A delta claiming replacement semantics would blank every section it did not rebuild; a
+        // greeting that merges cannot clear a key it omits, which is what a resync exists to do.
+        WebModel one = WebModel.EMPTY.against(1, fresh("health", "{\"tps\":20}")).model();
+
+        assertTrue(one.full().startsWith("{\"tick\":1,\"full\":true,"), one.full());
+        assertFalse(WebModel.frame(1, fresh("health", "{\"tps\":20}")).contains("\"full\""));
+        assertFalse(WebModel.frame(1, Map.of()).contains("\"full\""));
+    }
+
+    @Test
     @DisplayName("an empty model has nothing to say hello with")
     void emptyIsEmpty() {
         assertTrue(WebModel.EMPTY.isEmpty());
@@ -140,7 +153,7 @@ class WebModelTest {
         // Must appear in delta: it is new
         assertEquals(fresh("actingAs", "null"), first.delta());
         // Must be retained and rendered as JSON null
-        assertEquals("{\"tick\":1,\"actingAs\":null}", first.model().full());
+        assertEquals("{\"tick\":1,\"full\":true,\"actingAs\":null}", first.model().full());
 
         // Second tick: same JSON-null fragment again
         WebModel.Update second = first.model().against(2, fresh("actingAs", "null"));
@@ -148,6 +161,6 @@ class WebModelTest {
         // Must NOT appear in delta: identical fragment is not news
         assertTrue(second.delta().isEmpty(), "identical fragment is not news");
         // Must still be retained for a reconnecting browser
-        assertEquals("{\"tick\":2,\"actingAs\":null}", second.model().full());
+        assertEquals("{\"tick\":2,\"full\":true,\"actingAs\":null}", second.model().full());
     }
 }

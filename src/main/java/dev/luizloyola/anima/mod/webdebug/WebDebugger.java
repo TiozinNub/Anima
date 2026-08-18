@@ -548,9 +548,11 @@ public final class WebDebugger {
      * for {@link #KEEPALIVE_MILLIS} — which is also how a browser that has gone away is noticed,
      * a write being the only thing that finds that out.
      *
-     * <p><b>Every frame after the first is a delta.</b> The first is the whole retained model, which
-     * is what makes the rest safe to merge — see {@link WebModel}. A section absent from a frame is
-     * unchanged; one carrying JSON null is being dropped.
+     * <p><b>Every frame after the first is a delta.</b> The first is the whole retained model,
+     * marked {@code "full":true} and meant to replace rather than merge — see {@link WebModel}. A
+     * section absent from a frame is unchanged; one named in {@code drop} is being removed. A
+     * stream may be greeted a second time mid-connection, if this end notices the reader missed a
+     * version; see {@link #pump}.
      *
      * <p><b>The key is checked between frames, not just at the handshake.</b> This is the one route
      * that outlives its own request: authenticating once and then holding the socket open meant a
@@ -670,25 +672,50 @@ public final class WebDebugger {
      * ignores a field it does not know, but a hand-written consumer testing
      * {@code part.startsWith('data: ')} — which is what {@code docs/DASHBOARD-API.md} has always
      * shown — stops matching the moment anything precedes it, and stops rendering silently.
+     *
+     * <p><b>A reader that fell behind is re-greeted, not caught up.</b> See below for why there is
+     * nothing to catch it up with.
      */
     static void pump(OutputStream out, LongSupplier wire, WebFeed live, BooleanSupplier welcome)
             throws IOException, InterruptedException {
         long seen = -1;
-        // The whole retained world first. Every frame after this one is a DELTA, and a delta
-        // merged onto nothing is a dashboard with holes in it that nothing later fills.
-        WebFeed.Snapshot hello = live.hello();
-        if (hello != null) {
-            seen = hello.version();
-            write(out, hello.json(), wire);
-        }
+        // Guarded on the same condition as the loop: a key revoked in the microseconds after the
+        // handshake, or a feed already stopped, must not be answered with a world dump first.
         // isClosed, and not just welcome: a restart makes running() true again while THIS feed
         // stays dead, and a dead feed answers instantly — the loop would spin.
+        if (welcome.getAsBoolean() && !live.isClosed()) {
+            // The whole retained world first. Every frame after this one is a DELTA, and a delta
+            // merged onto nothing is a dashboard with holes in it that nothing later fills.
+            WebFeed.Snapshot hello = live.hello();
+            if (hello != null) {
+                seen = hello.version();
+                write(out, hello.json(), wire);
+            }
+        }
         while (welcome.getAsBoolean() && !live.isClosed()) {
             WebFeed.Snapshot snapshot = live.awaitAfter(seen, KEEPALIVE_MILLIS);
             if (snapshot == null) {
                 out.write(": keepalive\n\n".getBytes(StandardCharsets.UTF_8));
                 out.flush();
             } else {
+                // The feed holds ONE frame, so a reader busy writing to its socket while two ticks
+                // publish is handed only the later of them — the hand-off coalesces, and a
+                // coalesced delta is state that no later frame will mention again, because the
+                // retained model already counts it as told. There is no history to replay: the
+                // retained world IS the resync, so a reader that finds itself more than one
+                // version behind takes the whole thing again rather than a delta that assumes
+                // a predecessor it never saw.
+                //
+                // seen >= 0 is the never-greeted reader — nothing had been published when it
+                // arrived — whose first frame at version 1 is not a gap.
+                if (seen >= 0 && snapshot.version() > seen + 1) {
+                    WebFeed.Snapshot resync = live.hello();
+                    if (resync != null) {
+                        seen = resync.version();
+                        write(out, resync.json(), wire);
+                        continue;
+                    }
+                }
                 seen = snapshot.version();
                 write(out, snapshot.json(), wire);
             }
