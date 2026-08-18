@@ -155,9 +155,11 @@ public final class WebDebugger {
     /**
      * Names already announced this session. With no door, a removed browser re-queues on its very
      * next poll — announcing that again would spam every operator for as long as the tab is open.
-     * Uncapped unlike {@code charged}, but not unbounded in practice: a name lands here only when
-     * {@link WebBrowsers#register} returns {@code ASKED}, which needs an open queue slot, so growth
-     * is throttled by the same {@code MAX_QUEUED} and {@code QUEUE_TTL_MILLIS} that gate the queue.
+     * Unlike {@code charged}, nothing ever removes a single entry — only {@link #stop} clears the
+     * whole set — so this grows with every distinct name the queue has admitted this session, not
+     * with {@code MAX_QUEUED} currently waiting. Uncapped anyway: each entry is a short string, and
+     * a new one appears only once a queue slot has opened, which costs an operator's {@code allow}
+     * or {@code dismiss}, or a ten-minute {@code QUEUE_TTL_MILLIS} expiry.
      */
     private static final Set<String> ANNOUNCED = ConcurrentHashMap.newKeySet();
 
