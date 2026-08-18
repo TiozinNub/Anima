@@ -118,13 +118,17 @@ final class WebSnapshot {
 
     /**
      * How hard the server is finding it. The browser can time its own frames — one is published per
-     * tick — but a tick's <em>cost</em> leaves no trace on the wire, and cost is what says whether a
-     * slow world is overloaded or merely paused.
+     * tick, up to the cap in {@code WebDebugger} — but a tick's <em>cost</em> leaves no trace on
+     * the wire, and cost is what says whether a slow world is overloaded or merely paused.
      *
      * <p><b>{@code tps} is not a count.</b> It is what the configured rate and the measured cost
      * allow, whichever is lower: a server told to run at 20 and spending 4ms a tick is at 20, and
      * the 46ms of headroom is not speed. One spending 80ms is at 12.5, which is the number worth
      * showing.
+     *
+     * <p><b>{@code rate} is what the clock was told to run at</b>, and beside {@code tps} it is the
+     * half that says what a tick is <em>allowed</em> to cost: 1000/rate, which is the only honest
+     * place to draw a budget. Fixed at 50ms it flatters a fast clock and slanders a slow one.
      */
     private static JsonObject health(MinecraftServer server, WebWatch watch) {
         double mspt = server.getAverageTickTimeNanos() / 1_000_000.0;
@@ -133,6 +137,7 @@ final class WebSnapshot {
         JsonObject health = new JsonObject();
         health.addProperty("mspt", round(mspt));
         health.addProperty("tps", round(mspt <= 0 ? wanted : Math.min(wanted, 1_000.0 / mspt)));
+        health.addProperty("rate", round(wanted));
         health.addProperty("mode", mode(server.tickRateManager()));
         if (watch.ticks()) {
             health.add("samples", samples(server));
@@ -183,7 +188,7 @@ final class WebSnapshot {
         return rate > VANILLA_TICKRATE ? "fast" : "normal";
     }
 
-    /** Two decimals is the whole useful precision of a tick cost, and the frame is sent 20x a second. */
+    /** Two decimals is the whole useful precision of a tick cost, and a frame goes out every tick. */
     private static double round(double value) {
         return Math.round(value * 100.0) / 100.0;
     }
