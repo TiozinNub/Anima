@@ -60,13 +60,14 @@ public final class WorldContainers implements ContainerAccess {
     }
 
     @Override
-    public void open(Pos at) {
+    public boolean open(Pos at) {
         // Gated on one actually being there, so a body that walked to a chest somebody has since
         // mined creaks at nothing. close() is deliberately NOT gated — see Lids.close.
         if (containerAt(at) == null) {
-            return;
+            return false;
         }
         Lids.open(level, new BlockPos(at.x(), at.y(), at.z()), eyes);
+        return true;
     }
 
     @Override

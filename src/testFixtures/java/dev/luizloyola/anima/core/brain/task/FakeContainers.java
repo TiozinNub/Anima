@@ -33,8 +33,14 @@ public final class FakeContainers implements ContainerAccess {
     public final List<Pos> closed = new ArrayList<>();
 
     @Override
-    public void open(Pos at) {
+    public boolean open(Pos at) {
+        // Refused exactly where WorldContainers refuses, so a test can put a body out of reach and
+        // get the real answer rather than a fixture that always says yes.
+        if (outOfReach.contains(at) || !boxes.containsKey(at)) {
+            return false;
+        }
         opened.add(at);
+        return true;
     }
 
     @Override

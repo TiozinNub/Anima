@@ -31,9 +31,14 @@ public interface ContainerAccess {
      * moves items, silently.
      *
      * <p><b>Paired with {@link #close}, and the pairing is the caller's job.</b> A container may be
-     * held open by several bodies at once, so an implementation counts rather than toggles.
+     * held open by several bodies at once, so an implementation counts rather than toggles — which
+     * is exactly why this REPORTS whether the body got the lid. A caller that pairs a refused open
+     * with a close does not close nothing; it drops the lid of whoever really is holding it.
+     *
+     * @return whether this body now holds it open — false when there is nothing there, or it is out
+     *     of reach
      */
-    void open(Pos at);
+    boolean open(Pos at);
 
     /** The other half of {@link #open}. Closing one nobody opened does nothing. */
     void close(Pos at);

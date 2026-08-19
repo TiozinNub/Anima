@@ -438,6 +438,22 @@ class TransferTest {
     }
 
     @Test
+    void aTransferThatCouldNotReachDoesNotDropSomebodyElsesLid() {
+        // A lid is SHARED state, and a body reloaded out of reach never gets one. If it shuts
+        // anyway it drops the lid of whoever really is holding it — a creak, and a chest closing
+        // itself in a settler's face. Only the actuator knows the reach failed, so it has to say.
+        FakeContext ctx = ctxWithBox(List.of(ItemStack.of("minecraft:oak_log", 5, 64)));
+        ctx.containers.outOfReach.add(AT);
+        TakeItems take = new TakeItems(AT, LOGS, 5).resume(HandlingPhase.SETTLE, 0, 0);
+
+        take.tick(ctx);
+        assertTrue(ctx.containers.opened.isEmpty(), "out of reach, so no lid was ever lifted");
+
+        take.cancel(ctx);
+        assertTrue(ctx.containers.closed.isEmpty(), "and nothing lifted is nothing to give back");
+    }
+
+    @Test
     void aReloadedTransferPutsTheLidBackUp() {
         // A lid is a client-side animation and a reloaded world draws it shut. resume() restores
         // the phase but cannot restore a signal, so the first tick back has to send it again.

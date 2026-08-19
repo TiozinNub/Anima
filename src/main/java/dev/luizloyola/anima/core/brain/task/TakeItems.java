@@ -200,9 +200,10 @@ public final class TakeItems implements PrimitiveTask {
      * mid-stride has to raise a lid the world is drawing shut.
      */
     private void lift(BrainContext ctx) {
+        // Only what the actuator says it got: a refused open paired with a close would drop
+        // another body's lid, so a refusal is retried next tick rather than assumed.
         if (!opened) {
-            opened = true;
-            ctx.actuators().containers().open(at);
+            opened = ctx.actuators().containers().open(at);
         }
     }
 
