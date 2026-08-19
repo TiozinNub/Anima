@@ -1695,14 +1695,19 @@ public final class AgentCommands {
         }
         AgentKnowledge knowledge = Knowledges.of(source.getServer()).forPerson(id);
         String name = person.entity().getName().getString();
-        if (knowledge.size() == 0 && knowledge.glimpseCount() == 0) {
+        // Composed with all(kind), not size(): size() backs persistence and counts sightings
+        // only, so a settler who knows the party's workbench through membership alone and
+        // nothing else would wrongly hear "remembers nothing" while the rows printed below
+        // (and Workbench.nearestKnown) already see it.
+        int known = composedKnowledgeCount(knowledge);
+        if (known == 0 && knowledge.glimpseCount() == 0) {
             Replies.send(source, () -> Component.translatable("anima.command.knowledge.none", name)
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
         long now = source.getServer().overworld().getGameTime();
         Replies.send(source, () -> Component.translatable("anima.command.knowledge.header",
-                        name, knowledge.size(), knowledge.glimpseCount(),
+                        name, known, knowledge.glimpseCount(),
                         person.poiSensor().claimCount())
                 .withStyle(ChatFormatting.AQUA));
         // The world's line, not theirs — but this is the command somebody reads when they are
@@ -1747,7 +1752,21 @@ public final class AgentCommands {
                         .withStyle(ChatFormatting.AQUA));
             }
         }
-        return knowledge.size() + knowledge.glimpseCount();
+        return known + knowledge.glimpseCount();
+    }
+
+    /**
+     * What {@code all(kind)} would print, summed over every kind — sightings and claims, deduped
+     * by anchor. {@code knowledge.size()} stays uncomposed on purpose (it backs persistence); this
+     * is the command layer's own count, matching {@code PlaceRow.toMemory}'s contract that a
+     * caller cannot tell a claim from a sighting.
+     */
+    private static int composedKnowledgeCount(AgentKnowledge knowledge) {
+        int known = 0;
+        for (PoiKind kind : PoiKind.all()) {
+            known += knowledge.all(kind).size();
+        }
+        return known;
     }
 
     /** One rumour line: {@code ~TREE (0, 68, 30) - 30 blocks away, made out from 42 off, 12s ago}. */
