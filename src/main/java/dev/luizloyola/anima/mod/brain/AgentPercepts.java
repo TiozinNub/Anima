@@ -6,6 +6,7 @@ import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.sense.Confinement;
+import dev.luizloyola.anima.core.brain.sense.ConfinementCadence;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.mod.nav.PathfinderService;
 import net.minecraft.server.level.ServerLevel;
@@ -59,16 +60,10 @@ public final class AgentPercepts implements Percepts {
     /** Where perceived beings come from: the sensor is the body owner's to run, not the percept's
      *  to reach for. Handed in so this adapter never has to know what kind of sensor it is. */
     private final Supplier<List<Being>> beings;
-    /**
-     * How long a confinement answer is kept before it is asked again — see {@link #confinement()}.
-     * One survey a second: cheap enough to pay unconditionally, prompt enough that a body which has
-     * just cut its way out stops digging rather than carrying on out of habit.
-     */
-    private static final int CONFINEMENT_TICKS = 20;
-
-    /** The last confinement answer and when it was taken; {@code null} until first asked. */
+    /** The last confinement answer; {@code null} until first asked. */
     private @Nullable Confinement confinement;
-    private int confinementAskedAt;
+    /** When the next survey is owed, and this body's own slot to owe it on. */
+    private @Nullable ConfinementCadence cadence;
 
     /** {@code person.tickCount} at which {@link #dropsCache} was last filled. */
     private int dropsQueriedAt;
@@ -201,23 +196,39 @@ public final class AgentPercepts implements Percepts {
      * trapped cannot be conditional on having something to do; see
      * {@code docs/superpowers/specs/2026-08-11-stuck-and-escape-design.md}.
      *
-     * <p>So: its own survey on a plain timer ({@link #CONFINEMENT_TICKS}), never waiting for a
-     * reason to ask. The cost is FIXED — one bounded survey per body per second. If it shows up in a
-     * profile, the levers are that constant and the capture box, not a cleverer gate.
+     * <p>So: its own survey, never waiting for a reason to ask — but on {@link ConfinementCadence}
+     * rather than a plain timer, because a plain timer made this 96% of the server thread on a
+     * 51-body world (2026-08-18). Two things were wrong with it: every body asked on the SAME tick,
+     * since the period keyed off a tick count that starts at zero for everything in a chunk load;
+     * and a free body re-proved its freedom as often as a trapped one re-tested its prison.
+     *
+     * <p>What did NOT change: the verdict, and the second-long cadence for a body that is shut in.
      */
     @Override
     public Confinement confinement() {
         int now = this.person.entity().tickCount;
-        if (this.confinement != null && now - this.confinementAskedAt < CONFINEMENT_TICKS) {
-            return this.confinement;
+        ConfinementCadence cadence = cadence();
+        if (!cadence.due(now)) {
+            return this.confinement == null ? Confinement.NONE : this.confinement;
         }
-        this.confinementAskedAt = now;
-        if (!(this.person.level() instanceof ServerLevel level)) {
-            this.confinement = Confinement.NONE;
-            return this.confinement;
-        }
-        this.confinement = PathfinderService.surveyFrom(level, this.person.blockPosition(),
-                MoveCapabilities.of(this.person.profile()));
+        this.confinement = this.person.level() instanceof ServerLevel level
+                ? PathfinderService.surveyFrom(level, this.person.blockPosition(),
+                        MoveCapabilities.of(this.person.profile()))
+                : Confinement.NONE;
+        cadence.ran(now, this.confinement);
         return this.confinement;
+    }
+
+    /**
+     * Built on first use rather than in the constructor: an agent's id is not resolved for an
+     * entity's first tick or two, and a slot seeded from an unresolved one would put every body
+     * that loaded together back on the tick this exists to spread them off.
+     */
+    private ConfinementCadence cadence() {
+        if (this.cadence == null) {
+            this.cadence = new ConfinementCadence(
+                    this.person.agentId().value().getLeastSignificantBits());
+        }
+        return this.cadence;
     }
 }
