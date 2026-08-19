@@ -120,14 +120,38 @@ public final class ContactData extends SavedData implements StoreGuard.Checked {
         return dirtyIf(fresh);
     }
 
-    /** @see ContactBook#introduce */
+    /**
+     * @see ContactBook#introduce — decided PER SIDE, not on the combined result: the two rows can
+     *     desync (a one-sided {@link #forget} followed by a re-introduction relearns only one of
+     *     them), and a side that learned nothing must not have its company gauge filled for an
+     *     acquaintance it never made.
+     */
     public boolean introduce(MinecraftServer server, AgentId one, AgentId other) {
-        boolean fresh = book.introduce(one, other);
-        if (fresh) {
-            filled(server, one);
-            filled(server, other);
+        List<AgentId> fresh = freshSides(book, one, other);
+        for (AgentId id : fresh) {
+            filled(server, id);
         }
-        return dirtyIf(fresh);
+        return dirtyIf(!fresh.isEmpty());
+    }
+
+    /**
+     * Which side(s) of a mutual introduction genuinely gained a row — {@code one}, {@code other},
+     * both, or neither, decided by two independent {@link ContactBook#learn} calls rather than
+     * {@link ContactBook#introduce}'s single combined OR, which cannot tell a genuine acquaintance
+     * from a side that already knew.
+     *
+     * <p>Split out from {@link #introduce} so the decision is checkable without a
+     * {@link MinecraftServer}: nothing below this line touches Minecraft at all.
+     */
+    static List<AgentId> freshSides(ContactBook book, AgentId one, AgentId other) {
+        List<AgentId> fresh = new ArrayList<>(2);
+        if (book.learn(one, other)) {
+            fresh.add(one);
+        }
+        if (book.learn(other, one)) {
+            fresh.add(other);
+        }
+        return fresh;
     }
 
     /** @see ContactBook#forget */
