@@ -173,6 +173,8 @@
   "anima.config.aspect.danger.baby_mult.desc": "Danger multiplier for a baby variant — smaller, faster and harder to hit.",
   "anima.config.aspect.social.hail_radius": "Hail range",
   "anima.config.aspect.social.hail_radius.desc": "How far away, in blocks, a shouted hail is heard. A hail has to carry further than sight or it would add nothing to simply noticing someone. This also sizes a Person's ear; quieter sounds are still limited to the hearing range.",
+  "anima.config.aspect.social.hail_patience_ticks": "Time a call stays real",
+  "anima.config.aspect.social.hail_patience_ticks.desc": "How long a shout is still worth answering after it's heard, and how long before this body would call the same one again. 600 ticks is thirty seconds.",
   "anima.config.aspect.social.company_solitude_ticks": "Time to get lonely",
   "anima.config.aspect.social.company_solitude_ticks.desc": "How long being completely alone takes to run this body's company all the way down. 24000 ticks is one in-game day.",
   "anima.config.aspect.social.company_proximity_ticks": "Time near one person",
