@@ -57,26 +57,29 @@ class ObtainItemTest {
         ObtainItem ingredient = new ObtainItem(
                 ItemSpec.anyOf(Set.of("minecraft:oak_log", "minecraft:oak_wood")), 1);
         List<Method> roster = ingredient.methods();
-        assertEquals(3, roster.size());
+        assertEquals(4, roster.size());
         assertInstanceOf(PickUpNearby.class, roster.get(0));
         assertInstanceOf(FellSomething.class, roster.get(1),
                 "oak_log is a log the consumer knows how to produce — the chop is on the menu");
-        assertInstanceOf(CraftFor.class, roster.get(2), "CraftFor last, always");
+        assertInstanceOf(CraftFor.class, roster.get(2), "CraftFor joins right after the producers");
+        assertInstanceOf(TakeFromStore.class, roster.get(3), "TakeFromStore last of all, always");
     }
 
     @Test
     void anUnrelatedLiteralGetsNoBridge() {
         Producers.register(LOGS, FellSomething::new);
         ObtainItem stone = new ObtainItem(ItemSpec.anyOf(Set.of("minecraft:cobblestone")), 1);
-        assertEquals(2, stone.methods().size(), "pick up + craft; nobody produces cobble");
+        assertEquals(3, stone.methods().size(),
+                "pick up + craft + take from store; nobody produces cobble");
     }
 
     @Test
     void aDeclaredSpecKeepsItsIdentityRosterUnchanged() {
         Producers.register(LOGS, FellSomething::new);
         List<Method> roster = new ObtainItem(LOGS, 16).methods();
-        assertEquals(3, roster.size(), "identity producer once — the bridge never double-adds");
+        assertEquals(4, roster.size(), "identity producer once — the bridge never double-adds");
         assertInstanceOf(FellSomething.class, roster.get(1));
         assertTrue(roster.get(2) instanceof CraftFor);
+        assertTrue(roster.get(3) instanceof TakeFromStore);
     }
 }

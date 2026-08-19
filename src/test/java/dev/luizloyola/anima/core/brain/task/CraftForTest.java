@@ -198,10 +198,14 @@ class CraftForTest {
     }
 
     @Test
-    void craftForIsAlwaysTheLastMethodOfAnObtain() {
+    void craftForNeverMovesFromRightBeforeTakeFromStoreInAnObtain() {
         // Load-bearing for saves: a resumed plan re-finds its method BY INDEX, so CraftFor may
-        // only ever sit at the end, after the scavenge method and every registered producer.
+        // only ever sit after the scavenge method and every registered producer, with nothing
+        // inserted above it. TakeFromStore joins after it for the same reason — selection is by
+        // cost, so appending it here costs nothing even though CraftFor is no longer literally
+        // last.
         List<Method> methods = new ObtainItem(PLANKS, 4).methods();
-        assertInstanceOf(CraftFor.class, methods.get(methods.size() - 1));
+        assertInstanceOf(CraftFor.class, methods.get(methods.size() - 2));
+        assertInstanceOf(TakeFromStore.class, methods.get(methods.size() - 1));
     }
 }

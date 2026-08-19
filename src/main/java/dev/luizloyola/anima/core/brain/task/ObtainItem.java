@@ -45,6 +45,9 @@ public final class ObtainItem implements AchieveTask {
         // bridge that lets a craft chain end in a felled tree.
         ItemSpec.literalIds(spec).ifPresent(ids -> ways.addAll(Producers.forItems(ids, spec)));
         ways.add(new CraftFor(spec, count, this.pursued));
+        // Appended AFTER CraftFor on purpose: a saved plan resumes its method by index, so nothing
+        // may be inserted above it. Selection is by cost, so last in the list still wins when cheap.
+        ways.add(new TakeFromStore(spec, count));
         this.methods = List.copyOf(ways);
     }
 
