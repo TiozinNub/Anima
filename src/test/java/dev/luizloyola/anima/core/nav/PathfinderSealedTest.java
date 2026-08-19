@@ -220,26 +220,60 @@ class PathfinderSealedTest {
      */
     @Test
     void theSurveyStopsOnceTheRegionHasTouchedTheRim() {
-        Confinement verdict = Pathfinder.survey(
-                window(flatGround(), -16, -9, -16, 16, 7, 16),
+        Confinement verdict = Pathfinder.survey(surveyBox(flatGround()),
                 PathRequest.of(0, 1, 0, 0, 1, 0, TestBodies.BIPED));
 
         assertFalse(verdict.sealed(), "open ground inside a window claims nothing");
-        // The box holds 33x33 = 1089 standable cells and the survey used to close every one of
-        // them. The rim is 12 out, so the wavefront settles it around 440 — the disc it has to
-        // fill to get there. Pinned loosely: this guards the box-enumerating regression, not the
-        // exact shape of the wavefront.
-        assertTrue(verdict.cells() < 550,
+        // This box holds 21x21 = 441 standable cells and the survey used to close every one of a
+        // 33x33 one. The rim is ~6 out, so the wavefront settles it inside ~150. Pinned loosely:
+        // this guards the box-enumerating regression, not the exact shape of the wavefront.
+        assertTrue(verdict.cells() < 200,
                 "settled at the rim, not by enumerating the box; expanded " + verdict.cells());
+    }
+
+    /**
+     * The size of the capture is the size of the claim. A room that fits clear of the rim is still
+     * proved a prison — this is the case {@code SURVEY_MARGIN} is chosen to keep.
+     */
+    @Test
+    void anEnclosureThatFitsInsideTheSurveyBoxIsStillProvedAPrison() {
+        Confinement verdict = Pathfinder.survey(surveyBox(walledRoom(5)),
+                PathRequest.of(0, 1, 0, 0, 1, 0, TestBodies.BIPED));
+
+        assertTrue(verdict.sealed(), "11x11 of floor, walled, well inside the capture");
+        assertEquals(121, verdict.cells(), "the whole room, and nothing outside it");
+    }
+
+    /**
+     * The other side of that trade, stated rather than discovered: a wider room reaches the rim,
+     * so the survey declines to call it a prison even though its walls are real.
+     */
+    @Test
+    void anEnclosureWiderThanTheSurveyBoxCanProveReadsOpen() {
+        Confinement verdict = Pathfinder.survey(surveyBox(walledRoom(6)),
+                PathRequest.of(0, 1, 0, 0, 1, 0, TestBodies.BIPED));
+
+        assertFalse(verdict.sealed(), "13x13 touches the rim; the claim would be about the capture");
+    }
+
+    /** The box {@code PathfinderService.surveyFrom} builds: SURVEY_MARGIN out, DOWN/UP under and over. */
+    private static NavGrid surveyBox(NavGrid inner) {
+        return window(inner, -10, -9, -10, 10, 7, 10);
+    }
+
+    /** Flat ground fenced by REAL walls at {@code ±half} — a room, not the edge of a capture. */
+    private static NavGrid walledRoom(int half) {
+        return (x, y, z) -> Math.abs(x) > half || Math.abs(z) > half
+                ? CellType.OBSTACLE
+                : (y <= 0 ? CellType.GROUND : CellType.PASSABLE);
     }
 
     /** The proof still has to be a proof: stopping early must never invent a sealed verdict. */
     @Test
     void stoppingEarlyNeverTurnsOpenGroundIntoAPrison() {
-        for (int dx = -8; dx <= 8; dx += 4) {
-            for (int dz = -8; dz <= 8; dz += 4) {
-                Confinement verdict = Pathfinder.survey(
-                        window(flatGround(), -16, -9, -16, 16, 7, 16),
+        for (int dx = -4; dx <= 4; dx += 2) {
+            for (int dz = -4; dz <= 4; dz += 2) {
+                Confinement verdict = Pathfinder.survey(surveyBox(flatGround()),
                         PathRequest.of(dx, 1, dz, dx, 1, dz, TestBodies.BIPED));
                 assertFalse(verdict.sealed(),
                         "open ground at (" + dx + ", 1, " + dz + ")");

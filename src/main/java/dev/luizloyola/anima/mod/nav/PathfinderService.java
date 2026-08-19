@@ -44,6 +44,16 @@ public final class PathfinderService {
 
     /** How far past the start∪goal box the snapshot extends, so detours have room to route. */
     private static final int HORIZONTAL_MARGIN = 16;
+    /**
+     * The confinement survey's own, smaller box — the routing margin is sized for detours, and a
+     * survey is not routing anywhere.
+     *
+     * <p>It sets what can still be PROVED a prison: the verdict is void once the reached region
+     * comes within a body's own reach of the rim (~5 cells for a Person), so this half-extent
+     * proves an enclosure up to about 11×11 and calls anything larger open. That is the trade —
+     * the box is also what the survey costs, since a free body expands until it touches the rim.
+     */
+    private static final int SURVEY_MARGIN = 10;
     private static final int UP_MARGIN = 6;
     private static final int DOWN_MARGIN = 10;
     /**
@@ -139,7 +149,7 @@ public final class PathfinderService {
      * expansion ends at once and the capture reuses the tick's shared snapshot.
      */
     public static Confinement surveyFrom(ServerLevel level, BlockPos start, MoveCapabilities body) {
-        WorldSnapshot snapshot = sharedSnapshot(level, start, start);
+        WorldSnapshot snapshot = snapshotAround(level, start, start, SURVEY_MARGIN, false);
         BlockPos afloat = surfaceStart(snapshot, start, body);
         return Pathfinder.survey(snapshot, PathRequest.of(afloat.getX(), afloat.getY(),
                 afloat.getZ(), afloat.getX(), afloat.getY(), afloat.getZ(), body));
@@ -214,13 +224,25 @@ public final class PathfinderService {
     }
 
     private static WorldSnapshot sharedSnapshot(ServerLevel level, BlockPos start, BlockPos goal) {
+        return snapshotAround(level, start, goal, HORIZONTAL_MARGIN, true);
+    }
+
+    /**
+     * @param margin how far past the endpoints to capture — routing wants room for a detour, a
+     *               survey wants only enough to tell a prison from a field.
+     * @param share  whether to leave the capture in the one-deep cache for the next caller. A
+     *               survey passes {@code false}: its box is small and its position is its own, so
+     *               storing it only evicts the wider capture a routing request would have reused.
+     */
+    private static WorldSnapshot snapshotAround(ServerLevel level, BlockPos start, BlockPos goal,
+            int margin, boolean share) {
         int gx = Mth.clamp(goal.getX(), start.getX() - MAX_REACH, start.getX() + MAX_REACH);
         int gy = goal.getY();
         int gz = Mth.clamp(goal.getZ(), start.getZ() - MAX_REACH, start.getZ() + MAX_REACH);
-        int minX = Math.min(start.getX(), gx) - HORIZONTAL_MARGIN;
-        int minZ = Math.min(start.getZ(), gz) - HORIZONTAL_MARGIN;
-        int maxX = Math.max(start.getX(), gx) + HORIZONTAL_MARGIN;
-        int maxZ = Math.max(start.getZ(), gz) + HORIZONTAL_MARGIN;
+        int minX = Math.min(start.getX(), gx) - margin;
+        int minZ = Math.min(start.getZ(), gz) - margin;
+        int maxX = Math.max(start.getX(), gx) + margin;
+        int maxZ = Math.max(start.getZ(), gz) + margin;
         // The vertical extent is a question about the GROUND, not about the two cells being
         // joined: sized off the endpoints alone, a saddle above both read as sky the search could
         // not enter — a route peaking at 97 between ends at 86 and 90, against a ceiling of 96.
@@ -239,7 +261,9 @@ public final class PathfinderService {
             return cached.snapshot();
         }
         WorldSnapshot fresh = WorldSnapshot.capture(level, min, max);
-        snapshots.put(level, new CachedSnapshot(fresh, level.getGameTime()));
+        if (share) {
+            snapshots.put(level, new CachedSnapshot(fresh, level.getGameTime()));
+        }
         return fresh;
     }
 
