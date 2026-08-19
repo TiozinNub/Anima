@@ -85,7 +85,9 @@ class NeedDriveTest {
     /**
      * Company presses at both ends, but only the lonely one drives (see {@code NeedKind.COMPANY} —
      * the crowded end modulates instead, {@code Comfort}'s job already). The side gate is what
-     * stops the drive bidding once the body is on the other side of comfortable, or inside it.
+     * stops the drive bidding once the body is on the other side of comfortable, or inside it. The
+     * ABOVE side of this same gate is pinned separately, in {@code CompanyTest} — see the note
+     * there on why it cannot be a second drive declared here.
      */
     @Test
     void aSideBoundDriveOnlyBidsThroughTheEndItAnswers() {

@@ -11,6 +11,7 @@ import dev.luizloyola.anima.core.agent.SpeciesProfile;
 import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.agent.need.NeedLevel;
 import dev.luizloyola.anima.core.brain.instinct.NeedDrive;
+import dev.luizloyola.anima.core.brain.task.FakeContext;
 import dev.luizloyola.anima.core.brain.task.WanderStep;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -250,6 +251,43 @@ class CompanyTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new NeedDrive(crowded, ctx -> new WanderStep(8)),
                 "NeedDrive already refuses a modulator — the guard and the intent now agree");
+    }
+
+    /**
+     * {@code Side.ABOVE}'s positive case, pinned independently of {@code stray_away}'s production
+     * fate — nothing else in the suite drives a two-sided need's far end any more.
+     *
+     * <p><b>Not a synthetic {@code NeedKind}</b>, deliberately: {@code NeedLevel} registers a fresh
+     * {@link ProfileAspect} per corner, and by the time any test method runs, some earlier test has
+     * already built a species and {@link ProfileAspect#register} refuses anything declared after
+     * that (confirmed — {@code NeedKind.declare(...).level(...)} from inside a test throws
+     * {@code IllegalStateException: "...was registered after the first species was declared"}).
+     * {@code aNeedThisBodyDoesNotHaveNeverBids} only gets away with a synthetic need because it
+     * declares no levels at all.
+     *
+     * <p>So this reuses {@code COMPANY}'s own already-registered band — real numbers, real
+     * {@link Ramp} — and hand-builds a second, throwaway {@link Binding} on it (legal: same
+     * package). It is never added to {@code COMPANY.bindings()} and touches nothing the
+     * {@code /anima needs} readout walks; it exists only to drive {@link NeedDrive#pressure} through
+     * the ABOVE arm of {@link Binding.Side#pressing}, the one branch nothing else still exercises.
+     */
+    @Test
+    void theAboveGateStillFiresForAGenuineAboveDrive() {
+        Binding aboveGate = new Binding(NeedKind.COMPANY.key(), Binding.Verb.DRIVE,
+                Binding.Side.ABOVE, "test_above_gate");
+        aboveGate.attach(NeedKind.COMPANY);
+        NeedDrive drive = new NeedDrive(aboveGate, ctx -> new WanderStep(8));
+        FakeContext ctx = new FakeContext();
+
+        ctx.percepts.company.setValue(0.05); // well below the comfortable stretch
+        assertEquals(0.0, drive.pressure(ctx), "not from the below side");
+
+        ctx.percepts.company.setValue(0.6); // content
+        assertEquals(0.0, drive.pressure(ctx), "nor from inside the band");
+
+        ctx.percepts.company.setValue(0.98); // well above it
+        assertTrue(drive.pressure(ctx) > 0.0,
+                "but the gate itself still fires for a genuine ABOVE drive");
     }
 
     /** The test biped with its company levels moved, and everything else left alone. */
