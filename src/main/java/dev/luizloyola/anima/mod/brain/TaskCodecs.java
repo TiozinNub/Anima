@@ -17,8 +17,11 @@ import java.util.Map;
  * round-trip everything the instance carries: what it was constructed with, plus any mid-flight
  * counter, because a countdown that restarts is one an agent would feel.
  *
- * <p><b>An unregistered task fails loudly:</b> refuse the save and name the type with no codec,
- * rather than let a plan come back missing a limb.
+ * <p><b>An unregistered task fails loudly on load:</b> refuse the read and name the type with no
+ * codec, rather than let a plan come back missing a limb. Encode has no such net today — a class
+ * with no codec throws a raw {@code NullPointerException} out of {@code KeyDispatchCodec} instead
+ * of naming itself, tracked 2026-08-19 in {@code docs/BUGS.md}. Register before anything can
+ * construct one, and this never bites.
  */
 public final class TaskCodecs {
 
