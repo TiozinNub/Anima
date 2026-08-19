@@ -306,4 +306,21 @@ class CompanyTest {
         return NeedKind.COMPANY.levels().stream().filter(l -> l.key().equals(key))
                 .findFirst().orElseThrow();
     }
+
+    /**
+     * A new face is worth something on its own — which is what lets rung 4 close a loop at all,
+     * since {@code observe} counts only people already met and a stranger standing there fills
+     * nothing.
+     */
+    @Test
+    void meetingSomebodyNewFillsSome() {
+        Company company = new Company(() -> TestSpecies.PROFILE);
+        company.setValue(0.0);
+
+        company.met();
+
+        double expected = 1.0 / TestSpecies.PROFILE.i(ProfileAspect.SOCIAL_COMPANY_MEETINGS);
+        assertEquals(expected, company.value(), 1e-9,
+                "sized like every other fill: how many would fill it from empty");
+    }
 }

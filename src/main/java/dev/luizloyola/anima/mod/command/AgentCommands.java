@@ -2293,7 +2293,7 @@ public final class AgentCommands {
             Replies.fail(source, Component.translatable("anima.command.contacts.met_self"));
             return 0;
         }
-        if (!ContactData.get(server).introduce(self, other)) {
+        if (!ContactData.get(server).introduce(server, self, other)) {
             Replies.send(source, () -> Component.translatable("anima.command.contacts.already")
                     .withStyle(ChatFormatting.GRAY));
             return 0;

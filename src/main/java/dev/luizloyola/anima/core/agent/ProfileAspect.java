@@ -217,6 +217,10 @@ public final class ProfileAspect {
                     + "per line exchanged, NOT per tick spent talking — otherwise a slow replier "
                     + "would be better company than a brisk one. Time spent together still counts, "
                     + "through social.company_proximity_ticks, which is what it actually is.");
+    public static final ProfileAspect SOCIAL_COMPANY_MEETINGS = register("social.company_meetings", Kind.INT, 1, 10_000,
+            "How many NEW faces would fill this body's company from empty. Counted once per "
+                    + "person, when a name is first learned — meeting somebody is worth something "
+                    + "on its own, and standing beside a stranger is not.");
 
     // --- body: what this one can physically do -------------------------------------------------
 

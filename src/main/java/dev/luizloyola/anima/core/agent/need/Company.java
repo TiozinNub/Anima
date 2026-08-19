@@ -75,6 +75,19 @@ public final class Company implements Gauge {
     }
 
     /**
+     * A name was learned for the first time. An EVENT, not a state: it lands in full and nothing
+     * has to be told when the acquaintance ends.
+     *
+     * <p><b>Call this only where the contact book genuinely gained a row.</b> The load path replays
+     * every contact ever made, so a hook that fires on replay would hand a settler a lifetime of
+     * meetings on every restart.
+     */
+    public void met() {
+        AgentProfile p = seeded();
+        value = clamp(value + perStep(p.i(ProfileAspect.SOCIAL_COMPANY_MEETINGS)));
+    }
+
+    /**
      * One tick of company: solitude drains and every known person nearby trickles in. The two are
      * summed, so "alone" and "in a crowd" are not states this has to know about.
      *

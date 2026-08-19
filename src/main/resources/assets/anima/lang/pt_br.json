@@ -183,6 +183,8 @@
   "anima.config.aspect.social.company_proximity_ticks.desc": "Quanto tempo apenas estar perto de UMA pessoa que ele já conheceu levaria para encher a companhia dele por completo. Se for maior que o tempo até sentir falta, um único vizinho não basta para mantê-lo satisfeito.",
   "anima.config.aspect.social.company_utterances": "Falas de conversa",
   "anima.config.aspect.social.company_utterances.desc": "Quantas falas de conversa são precisas para encher a companhia dele por completo. Contadas por fala dita ou ouvida, e não por segundo de conversa — senão quem demora a responder seria companhia melhor do que quem responde logo. O tempo em si continua contando, como tempo perto de uma pessoa, que é o que ele é.",
+  "anima.config.aspect.social.company_meetings": "Rostos novos",
+  "anima.config.aspect.social.company_meetings.desc": "Quantos rostos novos são precisos para encher a companhia dele por completo. Contados uma vez por pessoa, no momento em que um nome é aprendido pela primeira vez — conhecer alguém vale algo por si só, e apenas estar ao lado de um desconhecido não.",
   "anima.config.aspect.body.height": "Altura do corpo",
   "anima.config.aspect.body.height.desc": "Quantos blocos de espaço livre este corpo precisa para atravessar um vão. Um colono ocupa 2; algo de um bloco de altura passa por baixo do que um colono teria que contornar.",
   "anima.config.aspect.body.jump_height": "Altura do salto",

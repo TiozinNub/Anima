@@ -4,7 +4,11 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.luizloyola.anima.compat.SavedDatas;
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.agent.need.Company;
+import dev.luizloyola.anima.core.agent.need.NeedKind;
 import dev.luizloyola.anima.core.social.ContactBook;
+import dev.luizloyola.anima.mod.body.AgentBodies;
+import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.store.StoreGuard;
 import java.util.ArrayList;
 import java.util.List;
@@ -108,13 +112,22 @@ public final class ContactData extends SavedData implements StoreGuard.Checked {
     }
 
     /** @see ContactBook#learn — marks dirty only when something was genuinely new. */
-    public boolean learn(AgentId knower, AgentId whom) {
-        return dirtyIf(book.learn(knower, whom));
+    public boolean learn(MinecraftServer server, AgentId knower, AgentId whom) {
+        boolean fresh = book.learn(knower, whom);
+        if (fresh) {
+            filled(server, knower);
+        }
+        return dirtyIf(fresh);
     }
 
     /** @see ContactBook#introduce */
-    public boolean introduce(AgentId one, AgentId other) {
-        return dirtyIf(book.introduce(one, other));
+    public boolean introduce(MinecraftServer server, AgentId one, AgentId other) {
+        boolean fresh = book.introduce(one, other);
+        if (fresh) {
+            filled(server, one);
+            filled(server, other);
+        }
+        return dirtyIf(fresh);
     }
 
     /** @see ContactBook#forget */
@@ -139,6 +152,18 @@ public final class ContactData extends SavedData implements StoreGuard.Checked {
         return changed;
     }
 
+    /**
+     * Meeting somebody new is worth something on its own. Resolves the loaded body for {@code id}
+     * and lands the boost on its company gauge; a body that is not currently loaded simply misses
+     * it, the same rule every other percept follows.
+     */
+    private static void filled(MinecraftServer server, AgentId id) {
+        AgentBody body = AgentBodies.findLoaded(server, id);
+        if (body != null) {
+            body.needs().gauge(NeedKind.COMPANY, Company.class).ifPresent(Company::met);
+        }
+    }
+
     private List<Row> rows() {
         List<Row> rows = new ArrayList<>();
         for (AgentId knower : book.knowers()) {
@@ -155,6 +180,8 @@ public final class ContactData extends SavedData implements StoreGuard.Checked {
         ContactBook book = new ContactBook();
         for (Row row : rows) {
             for (UUID known : row.knows()) {
+                // Straight to the book, never through this.learn: the wrapper fills the company
+                // gauge, and a reload is not a room full of introductions.
                 book.learn(AgentId.of(row.who()), AgentId.of(known));
             }
         }

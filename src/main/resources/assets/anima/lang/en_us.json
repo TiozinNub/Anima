@@ -183,6 +183,8 @@
   "anima.config.aspect.social.company_proximity_ticks.desc": "How long merely being near ONE person they have already met would take to fill their company right up. Set this longer than the time to get lonely and a single neighbour is not enough to keep them content.",
   "anima.config.aspect.social.company_utterances": "Lines of conversation",
   "anima.config.aspect.social.company_utterances.desc": "How many lines of conversation it takes to fill their company right up. Counted per line said or heard, not per second spent talking — otherwise somebody slow to answer would be better company than somebody quick. The time itself still counts, as time near a person, which is what it is.",
+  "anima.config.aspect.social.company_meetings": "New faces",
+  "anima.config.aspect.social.company_meetings.desc": "How many new faces it takes to fill their company right up. Counted once per person, the moment a name is first learned — meeting somebody is worth something on its own, and simply standing beside a stranger is not.",
   "anima.config.aspect.body.height": "Body height",
   "anima.config.aspect.body.height.desc": "How many blocks of headroom this body needs to walk through a space. A settler is 2; something one block tall squeezes under what a settler must walk around.",
   "anima.config.aspect.body.jump_height": "Jump height",
