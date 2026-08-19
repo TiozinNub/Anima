@@ -174,4 +174,14 @@ class PlacesTest {
         assertEquals(0, places.ownerMovedTo(hazel, null));
         assertEquals(together, places.rows().iterator().next().party());
     }
+
+    @Test
+    void aDisbandingPartyDoesNotTakeSomebodyElsesOwnedRow() {
+        places.found(BENCH, new Pos(9, 64, 9), hazel, together, 5L);
+        assertEquals(0, places.partyDisbanded(together, PartyId.random()),
+                "an owned row's sharing follows its owner, not the party it was shared with");
+        PlaceRow row = places.rows().iterator().next();
+        assertEquals(hazel, row.owner());
+        assertEquals(together, row.party(), "untouched");
+    }
 }

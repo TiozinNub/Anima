@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
@@ -148,7 +149,7 @@ public final class Places {
         int touched = 0;
         for (Map.Entry<Key, PlaceRow> entry : rows.entrySet()) {
             PlaceRow row = entry.getValue();
-            if (!owner.equals(row.owner()) || java.util.Objects.equals(row.party(), into)) {
+            if (!owner.equals(row.owner()) || Objects.equals(row.party(), into)) {
                 continue;
             }
             touched++;
