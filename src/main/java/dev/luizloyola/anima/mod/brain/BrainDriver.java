@@ -152,6 +152,11 @@ public final class BrainDriver {
             public Gazer gazer() {
                 return person.gaze(); // body-owned and body-ticked, like the breaker
             }
+
+            @Override
+            public dev.luizloyola.anima.core.brain.act.Voice voice() {
+                return whom -> BeingHails.hailed(person.entity());
+            }
         };
         this.context = new BrainContext() {
             @Override

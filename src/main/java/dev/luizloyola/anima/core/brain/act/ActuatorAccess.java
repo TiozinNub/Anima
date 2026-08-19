@@ -33,4 +33,12 @@ public interface ActuatorAccess {
     default Gazer gazer() {
         return Gazer.NONE;
     }
+
+    /**
+     * The throat — see {@link Voice}. Defaults to {@link Voice#NONE} for the same reason
+     * {@link #gazer()} does: a body that cannot call out is only a quiet one.
+     */
+    default Voice voice() {
+        return Voice.NONE;
+    }
 }
