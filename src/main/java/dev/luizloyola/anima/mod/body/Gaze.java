@@ -36,6 +36,16 @@ import net.minecraft.world.phys.Vec3;
  *       body wrenched 50° from whoever it turned to look at.
  * </ul>
  *
+ * <p><b>Server-side ownership is only half of it, for a body that is not a {@code Mob}.</b>
+ * {@code yBodyRot} is in no packet — a client rebuilds it. {@code Mob} rebuilds it from the synced
+ * head ({@code BodyRotationControl}); everything else falls back to {@code LivingEntity}, which
+ * eases toward the WALK HEADING and then clamps within 50° of {@code yRot}. A body turning on the
+ * spot moves nowhere, so the ease has no target and only the clamp acts — and a clamp does not
+ * converge: it parks the shoulders exactly 50° behind and leaves them there until the body walks
+ * or swings. Such a body must square its own shoulders to {@code yRot} client-side (override
+ * {@code tickHeadTurn}), or every twist this organ limits to {@code GAZE_MAX_TWIST_DEGREES}
+ * renders 50° wider than that.
+ *
  * <p>The swimmer owns a wet body's pitch by running after this, and this organ stands off the pitch
  * entirely while it works: two easers on one number judder rather than average.
  *
