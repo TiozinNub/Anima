@@ -102,6 +102,64 @@ public final class Places {
         return gone;
     }
 
+    /**
+     * A party stopped existing. Its communal claims move to {@code into} — you bring your workshop
+     * with you — or are dropped when it went nowhere, which is what an emptied party leaves behind:
+     * the blocks still stand and are re-perceived by whoever walks past.
+     *
+     * <p>Only communal rows. An owned row's sharing follows its OWNER, not the party it was shared
+     * with — see {@link #ownerMovedTo}.
+     *
+     * @return how many rows moved or were dropped
+     */
+    public int partyDisbanded(PartyId gone, @Nullable PartyId into) {
+        int touched = 0;
+        for (Map.Entry<Key, PlaceRow> entry : new ArrayList<>(rows.entrySet())) {
+            PlaceRow row = entry.getValue();
+            if (row.owner() != null || !gone.equals(row.party())) {
+                continue;
+            }
+            touched++;
+            if (into == null) {
+                rows.remove(entry.getKey());
+            } else {
+                rows.put(entry.getKey(),
+                        new PlaceRow(row.kind(), row.at(), null, into, row.since()));
+            }
+        }
+        if (touched > 0) {
+            listener.run();
+        }
+        return touched;
+    }
+
+    /**
+     * An owner's party changed: their claims are shared with wherever they are now, or unshared
+     * when they are nowhere. The place stays theirs either way — walking away from a group, or
+     * dying, is not a reason to lose the chest you built.
+     *
+     * <p><b>Provisional.</b> Nothing founds an owned row yet; the rule that decides whether a chest
+     * placed for its owner's own reasons is shared at all belongs with the piece that creates one.
+     * See the spec's transition table.
+     *
+     * @return how many rows were re-pointed
+     */
+    public int ownerMovedTo(AgentId owner, @Nullable PartyId into) {
+        int touched = 0;
+        for (Map.Entry<Key, PlaceRow> entry : rows.entrySet()) {
+            PlaceRow row = entry.getValue();
+            if (!owner.equals(row.owner()) || java.util.Objects.equals(row.party(), into)) {
+                continue;
+            }
+            touched++;
+            entry.setValue(new PlaceRow(row.kind(), row.at(), owner, into, row.since()));
+        }
+        if (touched > 0) {
+            listener.run();
+        }
+        return touched;
+    }
+
     /** Every claim, insertion-ordered — the store's codec and the debug readout. */
     public Collection<PlaceRow> rows() {
         return List.copyOf(rows.values());

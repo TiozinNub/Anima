@@ -119,4 +119,59 @@ class PlacesTest {
         assertTrue(Places.View.EMPTY.all(BENCH).isEmpty());
         assertFalse(Places.View.EMPTY.drop(BENCH, new Pos(0, 0, 0)));
     }
+
+    @Test
+    void aDisbandedPartysWorkshopFollowsItsLastMember() {
+        PartyId alone = PartyId.random();
+        membership.put(hazel, alone);
+        places.found(BENCH, new Pos(88, 64, -12), null, alone, 5L);
+
+        membership.put(hazel, together);
+        assertEquals(1, places.partyDisbanded(alone, together));
+
+        membership.put(rowan, together);
+        assertTrue(places.viewFor(rowan).nearest(BENCH, new Pos(0, 0, 0)).isPresent(),
+                "Rowan has never seen it; membership is how they know");
+    }
+
+    @Test
+    void aCommunalRowWithNowhereToGoIsDropped() {
+        PartyId alone = PartyId.random();
+        places.found(BENCH, new Pos(1, 64, 1), null, alone, 5L);
+        assertEquals(1, places.partyDisbanded(alone, null));
+        assertTrue(places.rows().isEmpty(), "nothing owns it, so nothing keeps it");
+    }
+
+    @Test
+    void anOwnedRowSurvivesItsPartyAndRevertsToPersonal() {
+        PartyId alone = PartyId.random();
+        places.found(BENCH, new Pos(2, 64, 2), hazel, alone, 5L);
+        assertEquals(1, places.ownerMovedTo(hazel, null));
+
+        PlaceRow row = places.rows().iterator().next();
+        assertEquals(hazel, row.owner(), "a dead settler's chest is still theirs");
+        assertEquals(null, row.party());
+        membership.put(hazel, together);
+        assertTrue(places.viewFor(hazel).nearest(BENCH, new Pos(0, 0, 0)).isPresent());
+        membership.put(rowan, together);
+        assertTrue(places.viewFor(rowan).nearest(BENCH, new Pos(0, 0, 0)).isEmpty(),
+                "leaving unshared it");
+    }
+
+    @Test
+    void anOwnedRowFollowsItsOwnerIntoTheNewParty() {
+        places.found(BENCH, new Pos(3, 64, 3), hazel, null, 5L);
+        assertEquals(1, places.ownerMovedTo(hazel, together));
+        membership.put(rowan, together);
+        assertTrue(places.viewFor(rowan).nearest(BENCH, new Pos(0, 0, 0)).isPresent());
+    }
+
+    @Test
+    void aTransitionTouchesNobodyElsesRows() {
+        PartyId alone = PartyId.random();
+        places.found(BENCH, new Pos(4, 64, 4), rowan, together, 5L);
+        assertEquals(0, places.partyDisbanded(alone, together));
+        assertEquals(0, places.ownerMovedTo(hazel, null));
+        assertEquals(together, places.rows().iterator().next().party());
+    }
 }
