@@ -78,6 +78,12 @@ public final class TestSpecies {
             .set(ProfileAspect.GAZE_MAX_TWIST_DEGREES, 60)
             .set(ProfileAspect.GAZE_SCAN_MIN_TICKS, 40)
             .set(ProfileAspect.GAZE_SCAN_MAX_TICKS, 120)
+            .set(ProfileAspect.HANDLING_OPEN_TICKS, 10)
+            .set(ProfileAspect.HANDLING_SETTLE_TICKS, 5)
+            .set(ProfileAspect.HANDLING_STACK_TICKS, 6)
+            // The deleted CraftStep.CRAFT_TICKS constant, exactly — so old craft expectations
+            // still mean what they meant.
+            .set(ProfileAspect.HANDLING_CRAFT_TICKS, 10)
             .build();
 
     /** {@link #BIPED} as a profile — fixed, with no config file behind it. */

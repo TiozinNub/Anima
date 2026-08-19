@@ -280,6 +280,27 @@ public final class ProfileAspect {
                     + "is read as the wider of the two rather than refused, since a silly dwell "
                     + "should look silly instead of stopping a body mid-tick.");
 
+    // --- handling: how long this body takes to do a thing with its hands -----------------------
+
+    public static final ProfileAspect HANDLING_OPEN_TICKS = register("handling.open_ticks",
+            Kind.INT, 0, 200,
+            "Ticks to reach a container and get it open, before anything moves. Paid even on a "
+                    + "trip that finds nothing — which is what makes a stale belief cost visible "
+                    + "time rather than only a walk.");
+    public static final ProfileAspect HANDLING_SETTLE_TICKS = register("handling.settle_ticks",
+            Kind.INT, 0, 200,
+            "Ticks between opening a thing and the hands starting to move. The beat that makes "
+                    + "rummaging read as deliberate instead of instant.");
+    public static final ProfileAspect HANDLING_STACK_TICKS = register("handling.stack_ticks",
+            Kind.INT, 0, 200,
+            "Ticks to move one stack, in or out. A stack is what a slot holds: one sword, four "
+                    + "apples and sixty-four sticks each cost this once; 129 sticks cost it three "
+                    + "times.");
+    public static final ProfileAspect HANDLING_CRAFT_TICKS = register("handling.craft_ticks",
+            Kind.INT, 0, 200,
+            "Ticks of worked pause per craft. Long enough to read as labour, short enough not to "
+                    + "bore.");
+
     private final String key;
     private final Kind kind;
     private final double min;

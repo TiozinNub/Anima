@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.craft.CraftRecipe;
 import dev.luizloyola.anima.core.inv.Inventory;
@@ -9,8 +10,9 @@ import java.util.TreeSet;
 
 /**
  * Perform {@code times} crafts of one recipe from the carried pack — what {@link CraftFor} bottoms
- * out in. Each craft is a worked pause ({@link #CRAFT_TICKS}) then an ATOMIC exchange in one tick,
- * so nothing strands a half-crafted state; only the pause survives a reload, carried by the codec.
+ * out in. Each craft is a worked pause ({@link ProfileAspect#HANDLING_CRAFT_TICKS}) then an ATOMIC
+ * exchange in one tick, so nothing strands a half-crafted state; only the pause survives a reload,
+ * carried by the codec.
  *
  * <p>The pack is live, so the bill is re-verified at the start of each craft and again at the
  * exchange; one that no longer holds is FAILED and the parent re-obtains. A table recipe also
@@ -18,14 +20,10 @@ import java.util.TreeSet;
  */
 public final class CraftStep implements PrimitiveTask {
 
-    /** The worked pause per craft — long enough to read as labour, short enough not to bore. */
-    public static final int CRAFT_TICKS = 10;
-
     private final CraftRecipe recipe;
     private final int times;
     private int done;
-    /** Ticks left of the current craft's pause; 0 means the next tick starts a fresh craft. */
-    private int workTicks;
+    private final Pause pause = new Pause();
 
     public CraftStep(CraftRecipe recipe, int times) {
         this.recipe = recipe;
@@ -35,15 +33,15 @@ public final class CraftStep implements PrimitiveTask {
     @Override
     public TaskStatus tick(BrainContext ctx) {
         Inventory pack = ctx.percepts().inventory();
-        if (workTicks == 0) {
+        if (pause.idle()) {
             // EnsureTable just ran, but the pause is real time and a body can be shoved.
             if (!billCovered(pack) || !roomFor(recipe.output(), pack) || !sited(ctx)) {
                 return TaskStatus.FAILED;
             }
-            workTicks = CRAFT_TICKS;
+            pause.start(ctx.profile().i(ProfileAspect.HANDLING_CRAFT_TICKS));
             return TaskStatus.RUNNING;
         }
-        if (--workTicks > 0) {
+        if (!pause.elapsed()) {
             return TaskStatus.RUNNING;
         }
         // The exchange, atomic within this tick — re-verified, because the pause is real time.
@@ -62,7 +60,7 @@ public final class CraftStep implements PrimitiveTask {
     @Override
     public void cancel(BrainContext ctx) {
         // Mid-pause work is abandoned, never half-exchanged; finished crafts are real items.
-        workTicks = 0;
+        pause.start(0);
     }
 
     @Override
@@ -140,13 +138,13 @@ public final class CraftStep implements PrimitiveTask {
     }
 
     public int workTicks() {
-        return workTicks;
+        return pause.remaining();
     }
 
     /** Puts a reload back mid-run: {@code done} crafts finished, {@code workTicks} of pause left. */
     public CraftStep resume(int done, int workTicks) {
         this.done = done;
-        this.workTicks = workTicks;
+        this.pause.restore(workTicks);
         return this;
     }
 }

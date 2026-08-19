@@ -3,6 +3,7 @@ package dev.luizloyola.anima.core.brain.task;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.craft.CraftRecipe;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import java.util.List;
@@ -23,6 +24,8 @@ class CraftStepTest {
     }
 
     private final FakeContext ctx = new FakeContext();
+    /** Same source {@code CraftStep} now reads its pause from — the test follows the knob. */
+    private final int craftTicks = ctx.profile().i(ProfileAspect.HANDLING_CRAFT_TICKS);
 
     /** Ticks until the running step returns a terminal status, bounded so a bug cannot hang. */
     private TaskStatus runOut(CraftStep step, int maxTicks) {
@@ -37,7 +40,7 @@ class CraftStepTest {
     void oneCraftExchangesTheBillForTheOutputAfterThePause() {
         ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_log", 3, 64));
         CraftStep step = new CraftStep(planksFromLog(), 1);
-        assertEquals(TaskStatus.SUCCESS, runOut(step, CraftStep.CRAFT_TICKS + 4));
+        assertEquals(TaskStatus.SUCCESS, runOut(step, craftTicks + 4));
         assertEquals(2, ctx.percepts.inventory.count("minecraft:oak_log"), "one log paid");
         assertEquals(4, ctx.percepts.inventory.count("minecraft:oak_planks"), "four planks made");
     }
@@ -46,7 +49,7 @@ class CraftStepTest {
     void severalCraftsRunBackToBackAndCountTheirProgress() {
         ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_log", 2, 64));
         CraftStep step = new CraftStep(planksFromLog(), 2);
-        assertEquals(TaskStatus.SUCCESS, runOut(step, 2 * CraftStep.CRAFT_TICKS + 8));
+        assertEquals(TaskStatus.SUCCESS, runOut(step, 2 * craftTicks + 8));
         assertEquals(0, ctx.percepts.inventory.count("minecraft:oak_log"));
         assertEquals(8, ctx.percepts.inventory.count("minecraft:oak_planks"));
         assertEquals(2, step.done());
@@ -65,7 +68,7 @@ class CraftStepTest {
         CraftStep step = new CraftStep(planksFromLog(), 1);
         assertEquals(TaskStatus.RUNNING, step.tick(ctx), "the pause began against a full bill");
         ctx.percepts.inventory.remove("minecraft:oak_log", 1); // eaten, dropped, burned…
-        assertEquals(TaskStatus.FAILED, runOut(step, CraftStep.CRAFT_TICKS + 4));
+        assertEquals(TaskStatus.FAILED, runOut(step, craftTicks + 4));
         assertEquals(0, ctx.percepts.inventory.count("minecraft:oak_planks"));
     }
 
@@ -91,7 +94,7 @@ class CraftStepTest {
         before.tick(ctx); // one tick worked
         CraftStep after = new CraftStep(planksFromLog(), 1)
                 .resume(before.done(), before.workTicks());
-        assertEquals(TaskStatus.SUCCESS, runOut(after, CraftStep.CRAFT_TICKS + 4),
+        assertEquals(TaskStatus.SUCCESS, runOut(after, craftTicks + 4),
                 "the restored step finishes the same craft without restarting the pause");
         assertEquals(4, ctx.percepts.inventory.count("minecraft:oak_planks"));
     }
