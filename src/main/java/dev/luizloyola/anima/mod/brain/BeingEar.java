@@ -73,10 +73,21 @@ public final class BeingEar implements GameEventListener {
                 || body == person || !BeingSense.perceivable(body)) {
             return false;
         }
+        // A deliberate shout has its own, wider radius and no occupation to read: it is not an
+        // activity, it is somebody calling. Both narrowings below are for ordinary sound.
+        if (event.is(BeingHails.KEY)) {
+            if (pos.distanceTo(person.entity().getEyePosition())
+                    <= person.profile().i(ProfileAspect.SOCIAL_HAIL_RADIUS)) {
+                person.beingSense().hailedBy(body);
+                return true;
+            }
+            return false;
+        }
         // The ear is sized to the loudest social range, so every ordinary sound is narrowed back
-        // to the hearing knob here; only a deliberate hail opts out, once the speech slice
-        // registers it (whisper 4, chat 12, hail 48). Load-bearing regardless: the vibration
-        // dispatch's broadphase is chunk-section coarse — a sheep was heard from 43 blocks.
+        // to the hearing knob here; the hail branch above opts out with its own radius, and speech
+        // will when rung 5 registers its channel (whisper 4, chat 12). Load-bearing regardless:
+        // the vibration dispatch's broadphase is chunk-section coarse — a sheep was heard from 43
+        // blocks.
         if (pos.distanceTo(person.entity().getEyePosition())
                 > person.profile().i(ProfileAspect.SENSES_HEARING_RADIUS)) {
             return false;
