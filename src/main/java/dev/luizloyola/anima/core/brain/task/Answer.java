@@ -41,6 +41,18 @@ public final class Answer implements CompoundTask {
     /** How long the pair stand facing before the beat ends — a second and a half. */
     public static final int FACE_TICKS = 30;
 
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+
+    /** Who called — the body this walk is toward. */
+    public BeingId who() {
+        return who;
+    }
+
+    /** Where they called from: their last known cell, which is all a hail carries. */
+    public Pos where() {
+        return where;
+    }
+
     private final class WalkOverAndFace implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
@@ -58,7 +70,11 @@ public final class Answer implements CompoundTask {
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
-            return List.of(new GoTo(where.x(), where.y(), where.z()), new Idle(FACE_TICKS));
+            // The beat is a Face, not an Idle: the walk's own glance lapses ten ticks in, and a
+            // hail is only spent once the hearer has the caller at INDIVIDUAL — which is a
+            // question about where this head is pointed. See Face.
+            return List.of(new GoTo(where.x(), where.y(), where.z()),
+                    new Face(who, where, FACE_TICKS));
         }
 
         @Override
