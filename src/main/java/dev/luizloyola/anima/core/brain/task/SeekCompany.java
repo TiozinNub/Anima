@@ -18,6 +18,12 @@ import dev.luizloyola.anima.core.nav.Gait;
  * knowing that body, and being lonely near one we do know. Either is spent by
  * {@code Percepts.calledLately}, so the guardrail stays a reason — "and I have not tried lately" —
  * rather than becoming a rate limit.
+ *
+ * <p><b>TARGETING spends the mark, not shouting.</b> A body inside the hearing radius is never
+ * shouted at, so a mark stamped by the shout alone would never be stamped for a neighbour — and
+ * this task would pick the same one, walk the two steps to its cell, SUCCEED, and be granted
+ * again next tick, forever. Marking whoever is selected is what makes the design's own words true:
+ * the same mark that stops a second shout stops a second walk.
  */
 public final class SeekCompany implements PrimitiveTask {
 
@@ -32,6 +38,8 @@ public final class SeekCompany implements PrimitiveTask {
             }
             if (shouldHail(ctx, target)) {
                 ctx.actuators().voice().hail(target.id());
+            } else {
+                ctx.actuators().voice().reachedOut(target.id());
             }
             Pos at = target.pos();
             walk = new GoTo(at.x(), at.y(), at.z(), Gait.WALK);
@@ -51,10 +59,29 @@ public final class SeekCompany implements PrimitiveTask {
         return "seek company";
     }
 
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+
+    /**
+     * The walk under way, or null while the target is still to be chosen. Real progress, not a
+     * re-derivable one: a reload that lost it would pick a target again, and the mark that was
+     * spent on the first one now points the body at somebody else.
+     */
+    public GoTo walk() {
+        return walk;
+    }
+
+    /** Puts the body back on the leg it had already ordered. */
+    public SeekCompany resume(GoTo walk) {
+        this.walk = walk;
+        return this;
+    }
+
     /**
      * Whether calling out would say anything walking over does not. Inside the hearing radius an
      * ordinary voice already carries — which is the same test {@code social.hail_radius} is
      * declared against.
+     *
+     * <p>It decides the SOUND and nothing else: the per-target mark is spent on either answer.
      */
     private static boolean shouldHail(BrainContext ctx, Being target) {
         if (target.distance() <= ctx.profile().i(ProfileAspect.SENSES_HEARING_RADIUS)) {

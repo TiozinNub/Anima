@@ -20,6 +20,7 @@ import dev.luizloyola.anima.core.brain.instinct.EscapeInstinct;
 import dev.luizloyola.anima.core.brain.instinct.FleeInstinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
+import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.brain.task.Task;
@@ -156,9 +157,19 @@ public final class BrainDriver {
 
             @Override
             public dev.luizloyola.anima.core.brain.act.Voice voice() {
-                return whom -> {
-                    BeingHails.hailed(person.entity());
-                    person.beingSense().calledOut(whom);
+                return new dev.luizloyola.anima.core.brain.act.Voice() {
+                    @Override
+                    public void hail(BeingId whom) {
+                        BeingHails.hailed(person.entity());
+                        reachedOut(whom);
+                    }
+
+                    @Override
+                    public void reachedOut(BeingId whom) {
+                        // The sensor keeps the mark: it decays on the hail-patience clock beside
+                        // the track it belongs to, and the sound is not what spends it.
+                        person.beingSense().calledOut(whom);
+                    }
                 };
             }
         };

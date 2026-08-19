@@ -30,8 +30,9 @@ public final class FakeContext implements BrainContext {
     public final FakeBreaker breaker = new FakeBreaker();
     public final FakePlacer placer = new FakePlacer();
     public final FakeRiser riser = new FakeRiser();
-    public final FakeVoice voice = new FakeVoice();
     public final FakePercepts percepts = new FakePercepts();
+    /** The throat, marking into the percepts' own {@code called} set exactly as a live one does. */
+    public final FakeVoice voice = new FakeVoice(percepts.called);
     /** A real knowledge store (pure and headless anyway) — task tests seed and inspect it. */
     public final AgentKnowledge knowledge = new AgentKnowledge();
     /** This fake person's identity — what its claims are held under. */
