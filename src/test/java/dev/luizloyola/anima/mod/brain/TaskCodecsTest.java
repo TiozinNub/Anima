@@ -236,6 +236,56 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aTakeMidStackComesBackWithItsPhaseAndTally() {
+        // The pause and moved tally are the whole point: without them a reload restarts the open
+        // (visible time lost) or re-moves a stack already sitting in the pack (items invented).
+        dev.luizloyola.anima.core.inv.ItemSpec logs = dev.luizloyola.anima.core.inv.ItemSpec.anyOf(
+                java.util.Set.of("minecraft:oak_log"));
+        dev.luizloyola.anima.core.brain.task.TakeItems before =
+                new dev.luizloyola.anima.core.brain.task.TakeItems(new Pos(4, 64, 4), logs, 16)
+                        .resume("MOVE", 3, 5);
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.TakeItems.class,
+                roundTrip(before));
+        assertEquals(new Pos(4, 64, 4), after.at());
+        assertEquals(logs.name(), after.spec().name());
+        assertEquals(16, after.count());
+        assertEquals("MOVE", after.phaseName());
+        assertEquals(3, after.pauseTicks());
+        assertEquals(5, after.moved());
+    }
+
+    @Test
+    void aPutMidStackComesBackWithItsPhaseAndTally() {
+        dev.luizloyola.anima.core.inv.ItemSpec logs = dev.luizloyola.anima.core.inv.ItemSpec.anyOf(
+                java.util.Set.of("minecraft:oak_log"));
+        dev.luizloyola.anima.core.brain.task.PutItems before =
+                new dev.luizloyola.anima.core.brain.task.PutItems(new Pos(4, 64, 4), logs, 8)
+                        .resume("SETTLE", 2, 0);
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PutItems.class,
+                roundTrip(before));
+        assertEquals(new Pos(4, 64, 4), after.at());
+        assertEquals(logs.name(), after.spec().name());
+        assertEquals(8, after.count());
+        assertEquals("SETTLE", after.phaseName());
+        assertEquals(2, after.pauseTicks());
+        assertEquals(0, after.moved());
+    }
+
+    @Test
+    void takeAndPutAreBothReachableByKey() {
+        // The trap that broke a world save when FoundPlace shipped without one: an unregistered
+        // task's key is null, and the dispatch codec writes that null straight into the save.
+        dev.luizloyola.anima.core.inv.ItemSpec logs = dev.luizloyola.anima.core.inv.ItemSpec.anyOf(
+                java.util.Set.of("minecraft:oak_log"));
+        assertNotNull(TaskCodecs.keyOf(
+                new dev.luizloyola.anima.core.brain.task.TakeItems(new Pos(0, 0, 0), logs, 1)));
+        assertNotNull(TaskCodecs.keyOf(
+                new dev.luizloyola.anima.core.brain.task.PutItems(new Pos(0, 0, 0), logs, 1)));
+        assertTrue(TaskCodecs.keys().contains("anima:take_items"));
+        assertTrue(TaskCodecs.keys().contains("anima:put_items"));
+    }
+
+    @Test
     void anAnswerRemembersWhoCalledAndFromWhere() {
         // A hail carries one cell and one id, and both are the whole task: come back without them
         // and the body is walking to nowhere on behalf of nobody.

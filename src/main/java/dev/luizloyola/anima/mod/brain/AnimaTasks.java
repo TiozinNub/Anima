@@ -283,6 +283,45 @@ public final class AnimaTasks {
                 ).apply(t, (kind, at) -> new dev.luizloyola.anima.core.brain.task.FoundPlace(
                         kind, at.x(), at.y(), at.z()))));
 
+        // Both carry the same shape: where, what, how many, and how far the phase machine got —
+        // the pause counter and moved tally are what let a reload resume mid-stack rather than
+        // restart the whole errand.
+        TaskCodecs.register("anima:take_items", dev.luizloyola.anima.core.brain.task.TakeItems.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POS.fieldOf("at")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::at),
+                        ITEM_SPEC.fieldOf("spec")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::spec),
+                        Codec.INT.fieldOf("count")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::count),
+                        Codec.STRING.fieldOf("phase")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::phaseName),
+                        Codec.INT.fieldOf("pause")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::pauseTicks),
+                        Codec.INT.fieldOf("moved")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::moved)
+                ).apply(t, (at, spec, count, phase, pause, moved) ->
+                        new dev.luizloyola.anima.core.brain.task.TakeItems(at, spec, count)
+                                .resume(phase, pause, moved))));
+
+        TaskCodecs.register("anima:put_items", dev.luizloyola.anima.core.brain.task.PutItems.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POS.fieldOf("at")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::at),
+                        ITEM_SPEC.fieldOf("spec")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::spec),
+                        Codec.INT.fieldOf("count")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::count),
+                        Codec.STRING.fieldOf("phase")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::phaseName),
+                        Codec.INT.fieldOf("pause")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::pauseTicks),
+                        Codec.INT.fieldOf("moved")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::moved)
+                ).apply(t, (at, spec, count, phase, pause, moved) ->
+                        new dev.luizloyola.anima.core.brain.task.PutItems(at, spec, count)
+                                .resume(phase, pause, moved))));
+
         TaskCodecs.register("anima:ensure_table",
                 dev.luizloyola.anima.core.brain.task.EnsureTable.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
