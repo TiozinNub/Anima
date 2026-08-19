@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.LongSupplier;
 
 /**
  * One person's remembered POIs — the pure, unit-testable heart of the knowledge store: per kind, an
@@ -45,23 +46,40 @@ public final class AgentKnowledge {
 
     /**
      * What this body may claim, as against what it has seen — installed by the registry, empty for
-     * a knowledge built on its own.
+     * a knowledge built on its own. Named {@code places}, not {@code claims}: {@code BrainContext}
+     * already has a {@code claims()} that means work claims, one dot away in the same packages.
      *
      * <p>Claims compose into {@link #nearest} and {@link #all} so every existing caller picks up a
-     * party's workshop with no change, and into {@link #forget} because that is the probe
-     * correction. They do NOT compose into {@link #note} or {@link #refresh}: walking past a chest
-     * and owning it are different claims and must not share a code path.
+     * party's workshop with no change, and into {@link #disprove} because that is the probe
+     * correction. They do NOT compose into {@link #note}, {@link #refresh}, or the plain
+     * {@link #forget} that {@code DangerNoter} and {@code HerdNoter} re-key with — a memory that
+     * moved is not a claim that was disproven, and composing there would destroy a claim with
+     * nothing to re-found it.
      */
-    private Places.View claims = Places.View.EMPTY;
+    private Places.View places = Places.View.EMPTY;
 
-    /** Installs this body's window onto what it owns or shares. */
-    public void sees(Places.View claims) {
-        this.claims = claims;
+    /**
+     * What "now" is, for stamping a claim's read as a {@link PoiMemory} — see {@link #nearest}.
+     * Installed alongside the view so a claim never inherits {@link PlaceRow#since()} and reads as
+     * ancient the moment it is founded. Defaults to a clock stuck at tick zero, harmless for a
+     * knowledge with nothing to compose.
+     */
+    private LongSupplier clock = () -> 0L;
+
+    /** Installs this body's window onto what it owns or shares, leaving the clock as it was. */
+    public void sees(Places.View places) {
+        this.places = places;
+    }
+
+    /** The same, also installing the clock a composed claim is stamped with. */
+    public void sees(Places.View places, LongSupplier clock) {
+        this.places = places;
+        this.clock = clock;
     }
 
     /** This body's claims, for the readout that wants them apart from the sightings. */
-    public Places.View claims() {
-        return claims;
+    public Places.View places() {
+        return places;
     }
 
     /**
@@ -113,15 +131,28 @@ public final class AgentKnowledge {
     }
 
     /**
-     * Drops the entry anchored exactly at {@code anchor}; false when there was none. Reaches a
-     * visible claim too — see {@link #claims}.
+     * Drops the entry anchored exactly at {@code anchor}; false when there was none. Sightings
+     * only — never reaches a claim. This is the re-key {@code DangerNoter} and {@code HerdNoter}
+     * use ("moved, not duplicated"): a herd that walked off is not a claim disproven, and
+     * composing here would let a re-key silently erase somebody's workshop. The probe correction
+     * that reaches a claim too is {@link #disprove}.
      */
     public boolean forget(PoiKind kind, Pos anchor) {
         Map<Pos, PoiMemory> entries = byKind.get(kind);
+        return entries != null && entries.remove(anchor) != null;
+    }
+
+    /**
+     * The probe correction: drops the sighting anchored exactly at {@code anchor}, AND a claim
+     * there this body may see — made by whoever (or whatever) found nothing standing where a
+     * memory said something did. {@code Workbench.standingAtOne} and
+     * {@code PoiSensorCore.invalidate} are today's two callers, so this is not the only thing that
+     * ever tells the party a claim is gone — either can.
+     */
+    public boolean disprove(PoiKind kind, Pos anchor) {
+        Map<Pos, PoiMemory> entries = byKind.get(kind);
         boolean sighting = entries != null && entries.remove(anchor) != null;
-        // The probe correction reaches the claim too: a body standing where a table used to be is
-        // the only thing that ever tells the party it is gone.
-        boolean claim = claims.drop(kind, anchor);
+        boolean claim = places.drop(kind, anchor);
         return sighting || claim;
     }
 
@@ -143,13 +174,13 @@ public final class AgentKnowledge {
                 }
             }
         }
-        for (PlaceRow row : claims.all(kind)) {
+        for (PlaceRow row : places.all(kind)) {
             long dist = distanceSq(row.at(), from);
             // <= so a claim wins a tie with a sighting of the same block: it is the authoritative
             // record of the same thing, and it never goes stale.
             if (dist <= bestDist) {
                 bestDist = dist;
-                best = row.toMemory(row.since());
+                best = row.toMemory(clock.getAsLong());
             }
         }
         return Optional.ofNullable(best);
@@ -158,10 +189,11 @@ public final class AgentKnowledge {
     /**
      * All entries of a kind, insertion-ordered, unmodifiable — the debug command's view. Sightings
      * then claims, deduped by anchor: a block both seen and claimed is one entry, and the claim
-     * wins (see {@link #claims}).
+     * wins (see {@link #places}). For the sightings alone, uncomposed — what this store persists —
+     * see {@link #sighted}.
      */
     public Collection<PoiMemory> all(PoiKind kind) {
-        Collection<PlaceRow> claimed = claims.all(kind);
+        Collection<PlaceRow> claimed = places.all(kind);
         Map<Pos, PoiMemory> entries = byKind.get(kind);
         if (claimed.isEmpty()) {
             return entries == null
@@ -173,9 +205,23 @@ public final class AgentKnowledge {
             merged.putAll(entries);
         }
         for (PlaceRow row : claimed) {
-            merged.put(row.at(), row.toMemory(row.since())); // a claim supersedes a sighting of it
+            // a claim supersedes a sighting of it, stamped now — see the clock field's doc
+            merged.put(row.at(), row.toMemory(clock.getAsLong()));
         }
         return Collections.unmodifiableCollection(merged.values());
+    }
+
+    /**
+     * All SIGHTINGS of a kind, insertion-ordered, unmodifiable — no claim, ever. This is what
+     * {@link #all} answered before a claim store existed, and it is what {@code KnowledgeData}
+     * persists: a claim is {@code Places}'s row, and writing it here too would double-persist it
+     * and leak it as a private sighting that outlives the party membership that made it visible.
+     */
+    public Collection<PoiMemory> sighted(PoiKind kind) {
+        Map<Pos, PoiMemory> entries = byKind.get(kind);
+        return entries == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableCollection(entries.values());
     }
 
     /** Marks an anchor as not-worth-retrying until the given game time. Transient. */

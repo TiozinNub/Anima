@@ -197,7 +197,7 @@ class AgentKnowledgeTest {
     }
 
     @Test
-    void forgettingCorrectsTheClaimAsWellAsTheSighting() {
+    void disprovingCorrectsTheClaimAsWellAsTheSighting() {
         AgentId hazel = AgentId.random();
         Pos at = new Pos(6, 64, 6);
         Places places = new Places();
@@ -207,9 +207,98 @@ class AgentKnowledgeTest {
         AgentKnowledge knowledge = new AgentKnowledge();
         knowledge.sees(places.viewFor(hazel));
 
-        assertTrue(knowledge.forget(BENCH, at), "the probe found nothing standing there");
+        assertTrue(knowledge.disprove(BENCH, at), "the probe found nothing standing there");
         assertTrue(knowledge.nearest(BENCH, new Pos(0, 0, 0)).isEmpty());
         assertTrue(places.rows().isEmpty(), "the correction is the party's, not just this body's");
+    }
+
+    @Test
+    void forgetNeverTouchesAClaim() {
+        // DangerNoter and HerdNoter re-key with forget-then-note ("moved, not duplicated"); if
+        // forget reached a claim, a re-key on a claimed anchor would silently erase somebody's
+        // workshop with nothing to re-found it.
+        AgentId hazel = AgentId.random();
+        Pos at = new Pos(7, 64, 7);
+        Places places = new Places();
+        places.asks(everyoneAlone());
+        places.found(BENCH, at, hazel, null, 1L);
+
+        AgentKnowledge knowledge = new AgentKnowledge();
+        knowledge.sees(places.viewFor(hazel));
+
+        assertFalse(knowledge.forget(BENCH, at), "no sighting there; forget must not see the claim");
+        assertTrue(knowledge.nearest(BENCH, new Pos(0, 0, 0)).isPresent(), "the claim survives");
+        assertFalse(places.rows().isEmpty(), "forget is not the probe correction");
+    }
+
+    @Test
+    void sightedNeverIncludesAClaim() {
+        AgentId hazel = AgentId.random();
+        Pos at = new Pos(11, 64, 11);
+        Places places = new Places();
+        places.asks(everyoneAlone());
+        places.found(BENCH, at, hazel, null, 1L);
+
+        AgentKnowledge knowledge = new AgentKnowledge();
+        knowledge.sees(places.viewFor(hazel));
+
+        assertTrue(knowledge.sighted(BENCH).isEmpty(),
+                "sighted is what this store persists; a claim is Places's row, not this body's");
+        assertEquals(1, knowledge.all(BENCH).size(), "but the composed read still finds it");
+    }
+
+    @Test
+    void aClaimsMemoryIsStampedWithTheCurrentTickNotWhenItWasFounded() {
+        AgentId hazel = AgentId.random();
+        Pos at = new Pos(13, 64, 13);
+        Places places = new Places();
+        places.asks(everyoneAlone());
+        places.found(BENCH, at, hazel, null, 5L); // founded long ago
+
+        AgentKnowledge knowledge = new AgentKnowledge();
+        knowledge.sees(places.viewFor(hazel), () -> 9_000L); // but the clock reads now
+
+        assertEquals(9_000L, knowledge.nearest(BENCH, new Pos(0, 0, 0)).orElseThrow().lastSeenTick(),
+                "a claim must never look stale just because it was made long ago");
+        assertEquals(9_000L, knowledge.all(BENCH).iterator().next().lastSeenTick());
+    }
+
+    @Test
+    void aPartyMemberSeesAWorkshopFoundedByAnotherMember() {
+        // Every earlier claim test founds owner=hazel and reads as hazel, so all of them resolve
+        // through `who.equals(owner)` and never touch the party branch of PlaceRow.visibleTo. A
+        // communal row read by a DIFFERENT member is the one path that actually exercises it.
+        AgentId hazel = AgentId.random();
+        AgentId rowan = AgentId.random();
+        PartyId together = PartyId.random();
+        Pos at = new Pos(9, 64, 9);
+        Places places = new Places();
+        places.asks(partyOf(together, hazel, rowan));
+        places.found(BENCH, at, null, together, 1L); // communal: nobody's personal sighting
+
+        AgentKnowledge knowledge = new AgentKnowledge();
+        knowledge.sees(places.viewFor(rowan)); // rowan never saw it; the claim is what tells them
+
+        assertEquals(at, knowledge.nearest(BENCH, new Pos(0, 0, 0)).orElseThrow().anchor(),
+                "the workshop is the party's; a member who never walked past it still knows it "
+                        + "stands");
+    }
+
+    @Test
+    void disproveRefusesAClaimItCannotSee() {
+        AgentId hazel = AgentId.random();
+        AgentId stranger = AgentId.random();
+        Pos at = new Pos(3, 64, 3);
+        Places places = new Places();
+        places.asks(everyoneAlone()); // hazel and stranger are each their own party of one
+        places.found(BENCH, at, hazel, null, 1L);
+
+        AgentKnowledge knowledge = new AgentKnowledge();
+        knowledge.sees(places.viewFor(stranger));
+
+        assertFalse(knowledge.disprove(BENCH, at),
+                "a stranger's probe cannot correct a claim they are not party to");
+        assertFalse(places.rows().isEmpty(), "the claim survives an outsider's negative report");
     }
 
     @Test
@@ -230,8 +319,10 @@ class AgentKnowledgeTest {
     void aKnowledgeWithNoViewBehavesExactlyAsBefore() {
         AgentKnowledge knowledge = new AgentKnowledge();
         assertTrue(knowledge.all(BENCH).isEmpty());
+        assertTrue(knowledge.sighted(BENCH).isEmpty());
         assertTrue(knowledge.nearest(BENCH, new Pos(0, 0, 0)).isEmpty());
         assertFalse(knowledge.forget(BENCH, new Pos(0, 0, 0)));
+        assertFalse(knowledge.disprove(BENCH, new Pos(0, 0, 0)));
     }
 
     private static Places.Parties everyoneAlone() {
@@ -244,6 +335,22 @@ class AgentKnowledgeTest {
             @Override
             public PartyId of(AgentId who) {
                 return PartyId.random();
+            }
+        };
+    }
+
+    /** Membership fixed at construction — {@code who} in the party sees it; nobody else does. */
+    private static Places.Parties partyOf(PartyId party, AgentId... members) {
+        java.util.Set<AgentId> roster = java.util.Set.of(members);
+        return new Places.Parties() {
+            @Override
+            public java.util.Optional<PartyId> current(AgentId who) {
+                return roster.contains(who) ? java.util.Optional.of(party) : java.util.Optional.empty();
+            }
+
+            @Override
+            public PartyId of(AgentId who) {
+                return party;
             }
         };
     }

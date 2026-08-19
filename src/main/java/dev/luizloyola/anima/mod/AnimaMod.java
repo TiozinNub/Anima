@@ -61,7 +61,8 @@ public final class AnimaMod implements ModInitializer {
             PlacesData store = PlacesData.get(server);
             store.attach(server);
             PartyData.get(server).follows(store.places());
-            dev.luizloyola.anima.mod.brain.KnowledgeData.get(server).registry().sees(store.places());
+            dev.luizloyola.anima.mod.brain.KnowledgeData.get(server).registry()
+                    .sees(store.places(), server.overworld()::getGameTime);
         });
         // Registered here so a bare install, or a consumer that paints nothing, still has it.
         dev.luizloyola.anima.mod.debug.CellOverlays.init();

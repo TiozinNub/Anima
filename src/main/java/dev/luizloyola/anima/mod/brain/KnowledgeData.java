@@ -168,14 +168,22 @@ public final class KnowledgeData extends SavedData implements StoreGuard.Checked
         return had;
     }
 
-    private List<PersonEntry> entries() {
+    /**
+     * Package-private, not private, so a same-package test can assert against it directly rather
+     * than eyeballing the codec's output.
+     *
+     * <p>Reads {@link AgentKnowledge#sighted} — the uncomposed tier — not {@code all}: a claim is
+     * {@code Places}'s row, and writing it here too would double-persist it AND leak it as a
+     * private sighting that outlives the party membership that made it visible in the first place.
+     */
+    List<PersonEntry> entries() {
         List<PersonEntry> entries = new ArrayList<>();
         for (AgentId id : registry.persons()) {
             AgentKnowledge knowledge = registry.forPerson(id);
             List<PoiMemory> pois = new ArrayList<>();
             List<Sighting> sightings = new ArrayList<>();
             for (PoiKind kind : PoiKind.all()) {
-                pois.addAll(knowledge.all(kind));
+                pois.addAll(knowledge.sighted(kind));
                 sightings.addAll(knowledge.glimpses(kind));
             }
             if (!pois.isEmpty() || !sightings.isEmpty()) {

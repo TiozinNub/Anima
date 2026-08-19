@@ -367,7 +367,7 @@ public final class PoiSensorCore {
         boolean anchorStands = anchorClaim != null
                 && probe.at(claim.anchor().x(), claim.anchor().y(), claim.anchor().z())
                         == anchorClaim.expected();
-        if (!anchorStands && knowledge.forget(claim.kind(), claim.anchor())) {
+        if (!anchorStands && knowledge.disprove(claim.kind(), claim.anchor())) {
             events.add(SenseEvent.forgot(claim.kind(), claim.anchor()));
         }
         claims.dropRegion(claim.kind(), claim.anchor());

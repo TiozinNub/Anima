@@ -56,7 +56,7 @@ public final class Workbench {
         }
         Pos anchor = known.get().anchor();
         if (ctx.percepts().blocks().at(anchor.x(), anchor.y(), anchor.z()) != BLOCK) {
-            ctx.knowledge().forget(POI, anchor);
+            ctx.knowledge().disprove(POI, anchor);
             return false;
         }
         return true;

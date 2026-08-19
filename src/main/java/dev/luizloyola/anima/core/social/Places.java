@@ -246,6 +246,12 @@ public final class Places {
         }
 
         private List<PlaceRow> visible(PoiKind kind) {
+            if (places.rows.isEmpty()) {
+                // Cheap out before asking who "theirs" is: nothing has ever been claimed, and
+                // `nearest`/`all` run once per kind per attention decide, most for a kind never
+                // claimed at all.
+                return List.of();
+            }
             PartyId theirs = places.parties.current(who).orElse(null);
             List<PlaceRow> out = new ArrayList<>();
             for (PlaceRow row : places.rows.values()) {

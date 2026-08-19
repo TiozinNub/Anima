@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.social.Places;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -39,5 +40,24 @@ class KnowledgeRegistryTest {
         assertEquals(1, registry.forPerson(person(1)).size());
         assertEquals(0, registry.forPerson(person(2)).size(),
                 "no ESP between persons either: each must see it themselves");
+    }
+
+    @Test
+    void seesRePointsKnowledgeMintedBeforeTheStoreArrived() {
+        // Knowledge is minted lazily and the store is wired at server start, so whoever asked
+        // first — as every test in this class does — must not be stuck looking at Places.EMPTY.
+        PoiKind bench = PoiKind.register("test_registry_bench", 1, "");
+        KnowledgeRegistry registry = new KnowledgeRegistry();
+        AgentKnowledge early = registry.forPerson(person(1));
+
+        Places places = new Places();
+        Pos at = new Pos(4, 64, 4);
+        places.found(bench, at, person(1), null, 5L);
+        registry.sees(places, () -> 42L);
+
+        assertEquals(at, early.nearest(bench, new Pos(0, 0, 0)).orElseThrow().anchor(),
+                "the object minted before the store arrived must still see what arrived after");
+        assertEquals(42L, early.nearest(bench, new Pos(0, 0, 0)).orElseThrow().lastSeenTick(),
+                "and the clock installed alongside it, not the founding time");
     }
 }

@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.LongSupplier;
 
 /**
  * Every agent's {@link AgentKnowledge}, keyed by {@link AgentId}: memories belong to the
@@ -17,17 +18,20 @@ import java.util.Set;
 public final class KnowledgeRegistry {
     private final Map<AgentId, AgentKnowledge> byPerson = new LinkedHashMap<>();
     private Places places = Places.EMPTY;
+    private LongSupplier clock = () -> 0L;
 
     /**
-     * Installs the claim store, re-pointing every knowledge already minted.
+     * Installs the claim store and its clock, re-pointing every knowledge already minted.
      *
      * <p>The loop is the point: knowledge objects are created lazily and the store is wired when the
      * server starts, so binding only at mint time would leave whoever asked first looking at an
-     * empty store forever.
+     * empty store forever. The clock travels with the view so a claim a composed read hands back
+     * is stamped with "now", never with when it was founded.
      */
-    public void sees(Places places) {
+    public void sees(Places places, LongSupplier clock) {
         this.places = places;
-        byPerson.forEach((id, knowledge) -> knowledge.sees(places.viewFor(id)));
+        this.clock = clock;
+        byPerson.forEach((id, knowledge) -> knowledge.sees(places.viewFor(id), clock));
     }
 
     /** This person's knowledge, created empty on first ask — never null, always the same object. */
@@ -35,7 +39,7 @@ public final class KnowledgeRegistry {
         Objects.requireNonNull(id, "id");
         return byPerson.computeIfAbsent(id, k -> {
             AgentKnowledge fresh = new AgentKnowledge();
-            fresh.sees(places.viewFor(k));
+            fresh.sees(places.viewFor(k), clock);
             return fresh;
         });
     }
