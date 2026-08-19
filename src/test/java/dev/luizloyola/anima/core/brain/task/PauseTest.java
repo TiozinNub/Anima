@@ -41,7 +41,10 @@ class PauseTest {
     @Test
     void aZeroLengthPauseIsSimplyIdle() {
         pause.start(0);
-        assertTrue(pause.idle(), "a knob turned down to nothing means no pause, not a stuck task");
+        // Idle again immediately — documents the clamp, not a safe way to skip a phase. A caller
+        // that starts the next unit on idle would spin on this forever; duration knobs are floored
+        // at 1 so they never hand this a zero.
+        assertTrue(pause.idle());
         assertFalse(pause.elapsed());
     }
 

@@ -20,7 +20,13 @@ public final class Pause {
         return remaining == 0;
     }
 
-    /** Begins a pause of {@code ticks}. A non-positive budget is no pause at all, not a stuck task. */
+    /**
+     * Begins a pause of {@code ticks}, clamped to zero or above so a negative value cannot count
+     * up forever. Zero itself is not made safe here: idle() would read true again on the very next
+     * check, so a phase loop that starts the next unit on idle spins forever rather than
+     * completing — which is why every duration knob that feeds this is floored at 1, not clamped
+     * to 0 here.
+     */
     public void start(int ticks) {
         this.remaining = Math.max(0, ticks);
     }
