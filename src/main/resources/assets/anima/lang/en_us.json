@@ -87,6 +87,8 @@
   "anima.needs.company.name": "Company",
   "anima.needs.company.content.name": "In good company",
   "anima.needs.company.content.person_is": "in good company",
+  "anima.needs.company.desolate.name": "Desolate",
+  "anima.needs.company.desolate.person_is": "desolate",
   "anima.needs.company.alone.name": "Alone",
   "anima.needs.company.alone.person_is": "on their own",
   "anima.needs.company.lonely.name": "Lonely",

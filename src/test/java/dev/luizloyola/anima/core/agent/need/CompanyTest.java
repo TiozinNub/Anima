@@ -171,10 +171,14 @@ class CompanyTest {
 
         company.setValue(0.175);
         assertEquals("lonely", company.level().key(), "its own boundary belongs to it");
-        assertEquals(0.5, company.pressure(), DELTA, "halfway from the low edge down to empty");
+        assertEquals(0.5, company.pressure(), DELTA, "lonely presses what lonely declares");
 
         company.setValue(0.0);
-        assertEquals(1.0, company.pressure(), DELTA, "as lonely as this body gets");
+        assertEquals("desolate", company.level().key(), "the floor has a name of its own");
+        assertEquals(0.5, company.pressure(), DELTA,
+                "FLAT across the lonely stretch: lonely is as lonely as this body gets, and "
+                        + "wanting company must never bid harder than that (decision: Luiz, "
+                        + "2026-08-19)");
 
         company.setValue(0.925);
         assertEquals("crowded", company.level().key());
@@ -184,17 +188,49 @@ class CompanyTest {
         assertEquals(1.0, company.pressure(), DELTA, "as crowded as this body gets");
     }
 
+    /**
+     * The two ends are uncomfortable in different measures, and the asymmetry is the point.
+     *
+     * <p>They used to press equally — a symmetric V, both ends pinned at 1.0. That is gone
+     * (decision: Luiz, 2026-08-19): the LONELY end drives an errand, so how hard it presses
+     * decides whether a body drops a half-felled tree to go and chat, and it must not. The
+     * CROWDED end only weighs where the next wander beat lands ({@code Comfort} reads the side,
+     * never the magnitude), so nothing it bids can interrupt anything.
+     */
     @Test
-    @DisplayName("empty and full are equally uncomfortable — which one number could never say")
-    void bothEndsPressEqually() {
+    @DisplayName("the ends press differently, because only one of them can interrupt anything")
+    void theLonelyEndIsCappedAndTheCrowdedEndIsNot() {
         Company lonely = fresh();
         lonely.setValue(0.0);
         Company crowded = fresh();
         crowded.setValue(1.0);
-        assertEquals(lonely.pressure(), crowded.pressure(), DELTA);
-        assertTrue(lonely.value() != crowded.value(),
-                "and they are at opposite ends of the level, which is the whole point of two "
-                        + "numbers rather than one");
+
+        assertEquals(0.5, lonely.pressure(), DELTA, "capped at what lonely declares");
+        assertEquals(1.0, crowded.pressure(), DELTA, "still the full V at the crowded end");
+        assertTrue(lonely.pressure() < crowded.pressure(),
+                "and the one that can take the wheel is the quieter of the two");
+    }
+
+    /**
+     * The ruling, pinned: <b>being lonely never interrupts work.</b>
+     *
+     * <p>{@code mind.preempt} is the bar a drive must clear to cut into a running task mid-flight.
+     * Hunger clears it on purpose — a starving body drops what it is doing. Loneliness must not:
+     * a settler who stops chopping half way up a tree to go and find someone to talk to reads as
+     * broken, not as sociable. Asserted at company ZERO, which is where the bid is highest.
+     */
+    @Test
+    void wantingCompanyNeverPreemptsWork() {
+        for (AgentProfile species : Map.of("test", TestSpecies.PROFILE).values()) {
+            Company empty = new Company(() -> species);
+            empty.setValue(0.0);
+            assertTrue(empty.pressure() < species.d(ProfileAspect.MIND_PREEMPT),
+                    "company " + empty.pressure() + " must stay under mind.preempt "
+                            + species.d(ProfileAspect.MIND_PREEMPT) + " at its very hungriest");
+            assertTrue(empty.pressure() <= species.d(ProfileAspect.SOCIAL_HAIL_ANSWER_PRESSURE),
+                    "and under answering, or a lonely body would rather go looking than answer "
+                            + "somebody already calling it");
+        }
     }
 
     @Test

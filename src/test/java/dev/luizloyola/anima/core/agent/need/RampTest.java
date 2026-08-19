@@ -45,19 +45,26 @@ class RampTest {
     }
 
     @Test
-    @DisplayName("company's ramp is still the comfort band and the distance outside it")
-    void companyReproducesTheOldPressure() {
-        // Company.pressure(), verbatim as it stood before it was deleted: 0 inside [0.35, 0.85],
-        // and outside it the distance to the nearest edge over the room on that side.
+    @DisplayName("company's ramp is the old comfort band, with the lonely tail capped flat")
+    void companyReproducesTheOldPressureExceptWhereItIsCapped() {
+        // Company.pressure() as it stood before Ramp: 0 inside [0.35, 0.85], and outside it the
+        // distance to the nearest edge over the room on that side. Still exact everywhere EXCEPT
+        // below `lonely`, where the floor is now anchored (decision: Luiz, 2026-08-19) so wanting
+        // company can never out-bid mind.preempt and interrupt work. The old curve climbed to 1.0
+        // there; it now holds at what `lonely` declares.
         Ramp ramp = NeedKind.COMPANY.ramp();
         double low = 0.35;
         double high = 0.85;
+        double lonely = 0.175;
         for (int step = 0; step <= 1000; step++) {
             double value = step / 1000.0;
-            double expected = value < low ? (low - value) / low
+            double old = value < low ? (low - value) / low
                     : value > high ? (value - high) / (1.0 - high)
                     : 0.0;
+            double expected = value < lonely ? 0.50 : old;
             assertEquals(expected, ramp.pressureAt(SETTLER, value), 1e-9, "company " + value);
+            // The cap only ever quietens it — it must not have raised the bid anywhere.
+            assertTrue(ramp.pressureAt(SETTLER, value) <= old + 1e-9, "company " + value);
         }
     }
 
@@ -89,10 +96,13 @@ class RampTest {
     void unanchoredEndsPinAtFullPressure() {
         // Hunger anchors its ceiling with `sated` at a full bar and no pressure, so only its floor
         // pins — which is what makes the ramp reach 1.0 on an empty stomach rather than stopping at
-        // `starving`'s 0.85. Company anchors neither end, so both do.
+        // `starving`'s 0.85. Company is the counter-example at BOTH ends now: its floor carries a
+        // level (`desolate`), so it stops at what that declares, while its ceiling reaches 1.0
+        // because `crowded` sits on the axis top and says so itself.
         assertEquals(0.0, NeedKind.HUNGER.ramp().pressureAt(SETTLER, 20), DELTA);
         assertEquals(1.0, NeedKind.HUNGER.ramp().pressureAt(SETTLER, 0), DELTA);
-        assertEquals(1.0, NeedKind.COMPANY.ramp().pressureAt(SETTLER, 0.0), DELTA);
+        assertEquals(0.50, NeedKind.COMPANY.ramp().pressureAt(SETTLER, 0.0), DELTA,
+                "an anchored floor stops where its level says, not at full pressure");
         assertEquals(1.0, NeedKind.COMPANY.ramp().pressureAt(SETTLER, 1.0), DELTA);
     }
 

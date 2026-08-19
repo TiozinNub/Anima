@@ -95,6 +95,14 @@ public final class NeedKind {
      * would duplicate shipped code and march where a stroll is wanted.
      */
     public static final NeedKind COMPANY = declare("company", Kind.DOUBLE, 0.0, 1.0, "parts of a full day's worth")
+            // The floor is ANCHORED, so the lonely stretch is flat rather than a climb to 1.0
+            // (decision: Luiz, 2026-08-19). Unanchored, an end reaches full pressure — which for
+            // this need meant a body below 0.14 company clearing mind.preempt and dropping a
+            // half-felled tree to go and chat. Wanting company is not an emergency: it takes the
+            // wheel when a body is idle or wandering, and waits for a task boundary otherwise.
+            // Capping AT lonely's own pressure also keeps answering (social.hail_answer_pressure)
+            // above seeking, so being called still beats going to look.
+            .level("desolate", 0.0, 0.50, -1)
             .level("lonely", 0.175, 0.50, -1)
             .level("alone", 0.35, 0.00, 80)
             .level("content", 0.85, 0.00, 0)

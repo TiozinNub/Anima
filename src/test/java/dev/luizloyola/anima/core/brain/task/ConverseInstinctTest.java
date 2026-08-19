@@ -76,29 +76,30 @@ class ConverseInstinctTest {
     }
 
     /**
-     * The ladder in the voice-and-hail design says answering always beats going looking. It does
-     * not: below the crossing worked out here, {@code seek_people} out-bids Converse, and lower
-     * still it out-bids {@code mind.preempt} and cuts into work. Recorded rather than retuned —
-     * whether an empty body should out-bid everything is a product question, and hunger already
-     * behaves that way (see docs/BUGS.md, 2026-08-19).
+     * The design's ladder now reads true at EVERY company value: answering always beats going
+     * looking, and neither ever reaches {@code mind.preempt}.
+     *
+     * <p>It did not always. Company's floor was unanchored, so the lonely end climbed to 1.0 and
+     * crossed above answering at 0.1575 and above preempt at 0.14 — a body below that would drop
+     * a half-felled tree to go and chat, and would ignore somebody calling it to do so. Anchoring
+     * the floor (decision: Luiz, 2026-08-19) removed the crossings rather than moving them, which
+     * is why this sweeps the whole axis instead of pinning a threshold.
      */
     @Test
-    void anAlmostEmptyBodyWouldRatherGoLookingThanAnswer() {
+    void answeringBeatsGoingLookingAtEveryCompanyValue() {
         double answering = ctx.profile.d(ProfileAspect.SOCIAL_HAIL_ANSWER_PRESSURE);
-        double crossing = companyWhereSeekingBids(answering);
-        assertEquals(0.1575, crossing, 1e-9,
-                "0.175 × (1 − 0.55) ÷ (1 − 0.50) — move a company level and move the ladder too");
-        assertEquals(0.14, companyWhereSeekingBids(Arbiter.preempt(ctx.profile)), 1e-9,
-                "and below this one a hail cannot even reach the body: seeking preempts");
-
+        double preempt = Arbiter.preempt(ctx.profile);
         ctx.percepts.beings = List.of(FakePercepts.hailingPersonAt(new Pos(30, 64, 0), 30.0));
-        ctx.percepts.company.setValue(crossing - 0.005);
-        assertTrue(Drives.SEEK_PEOPLE.pressure(ctx) > converse.pressure(ctx),
-                "below the crossing the lonely end wins, and the call goes unanswered");
 
-        ctx.percepts.company.setValue(crossing + 0.005);
-        assertTrue(converse.pressure(ctx) > Drives.SEEK_PEOPLE.pressure(ctx),
-                "above it the ladder reads as written");
+        for (int step = 0; step <= 1000; step++) {
+            double company = step / 1000.0;
+            ctx.percepts.company.setValue(company);
+            double seeking = Drives.SEEK_PEOPLE.pressure(ctx);
+            assertTrue(seeking <= answering,
+                    "seeking " + seeking + " must never out-bid answering at company " + company);
+            assertTrue(seeking < preempt,
+                    "and never reach mind.preempt, or loneliness interrupts work at " + company);
+        }
     }
 
     @Test
