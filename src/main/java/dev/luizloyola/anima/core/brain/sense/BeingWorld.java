@@ -27,22 +27,4 @@ public interface BeingWorld {
 
     /** Whether this body has a clear ray from the observer's eyes (per-kind ray count). */
     boolean inSight(BeingId id);
-
-    /** A world with nobody in it — ticking never finds anything new nor loses track of anyone. */
-    BeingWorld EMPTY = new BeingWorld() {
-        @Override
-        public List<BeingReading> candidates() {
-            return List.of();
-        }
-
-        @Override
-        public @Nullable BeingReading reading(BeingId id) {
-            return null;
-        }
-
-        @Override
-        public boolean inSight(BeingId id) {
-            return false;
-        }
-    };
 }
