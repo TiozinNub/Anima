@@ -86,7 +86,11 @@ public final class PlacesData extends SavedData implements StoreGuard.Checked {
         this.places = places;
         this.loadedVersion = loadedVersion;
         this.declaredRows = declaredRows;
-        watch(); // every route into this class goes through here, so nothing can forget to listen
+        // Every route into this class goes through here, so nothing can forget to listen. The hook
+        // exists because the thing that founds a claim is a core-layer task, which cannot reach a
+        // SavedData — and a claim that never marked the store dirty would survive until some other
+        // write happened to save the file, or not at all.
+        places.onChange(this::setDirty);
     }
 
     @Override
@@ -109,7 +113,7 @@ public final class PlacesData extends SavedData implements StoreGuard.Checked {
         return server.overworld().getDataStorage().computeIfAbsent(TYPE);
     }
 
-    /** The live store. Mutating it is what {@link #watch} then has to be told about. */
+    /** The live store — mutating it marks this store dirty. */
     public Places places() {
         return places;
     }
@@ -139,23 +143,12 @@ public final class PlacesData extends SavedData implements StoreGuard.Checked {
     /**
      * Drops every claim this agent owns — an erasure, not a burial.
      *
-     * <p>No {@code setDirty()} here: {@link Places#forgetOwner} already runs the listener
-     * {@link #watch} installed, which is the one place this store learns it has something to
-     * save. A second dirty-marking convention here would be a trap for the next mutator.
+     * <p>No {@code setDirty()} here: {@link Places#forgetOwner} already runs the listener the
+     * constructor installed, which is the one place this store learns it has something to save. A
+     * second dirty-marking convention here would be a trap for the next mutator.
      */
     public boolean forget(AgentId who) {
         return places.forgetOwner(who) > 0;
-    }
-
-    /**
-     * Marks the store dirty whenever the live {@link Places} changes.
-     *
-     * <p>The hook exists because the thing that founds a claim is a core-layer task, which cannot
-     * reach a {@code SavedData} — and a claim that never marked the store dirty would survive until
-     * some other write happened to save the file, or not at all.
-     */
-    private void watch() {
-        places.onChange(this::setDirty);
     }
 
     private static PlacesData fromRows(int version, int declaredRows, List<PlaceRow> rows) {

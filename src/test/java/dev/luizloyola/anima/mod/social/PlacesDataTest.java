@@ -12,7 +12,6 @@ import dev.luizloyola.anima.core.social.PartyId;
 import dev.luizloyola.anima.core.social.PlaceRow;
 import dev.luizloyola.anima.core.social.Places;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -120,31 +119,55 @@ class PlacesDataTest {
     }
 
     // --- Ruling A: forgetOwner fires the listener itself; PlacesData.forget must not need its own
-    // dirty-marking convention on top of it. These assert through the listener, never through
-    // SavedData internals. ---
+    // dirty-marking convention on top of it. Proved end to end with the real SavedData.isDirty(),
+    // not by re-wiring `onChange` — Places has exactly one listener slot, so a test that installs
+    // its own listener SILENTLY STEALS the constructor's `setDirty` wiring instead of observing
+    // it, and every assertion here would still pass with that wiring deleted. ---
 
     @Test
-    void anErasureThatDroppedAClaimMarksTheStoreDirty() {
+    void foundingAClaimMarksTheStoreDirty() {
         PlacesData store = new PlacesData();
-        AgentId hazel = AgentId.random();
-        store.places().found(BENCH, new Pos(1, 64, 1), hazel, null, 1L);
-
-        AtomicBoolean dirtied = new AtomicBoolean();
-        store.places().onChange(() -> dirtied.set(true));
-
-        assertTrue(store.forget(hazel), "hazel owned a claim, so there was something to erase");
-        assertTrue(dirtied.get(),
-                "forget must mark the store dirty through the same listener every other mutator "
-                        + "uses, not a second convention of its own");
+        store.places().found(BENCH, new Pos(1, 64, 1), AgentId.random(), null, 1L);
+        assertTrue(store.isDirty(),
+                "the constructor's listener is what turns a claim into a save — nothing else does");
     }
 
     @Test
-    void forgettingAnOwnerWithNoClaimsDoesNotFalselyMarkDirty() {
+    void forgettingAnOwnersClaimMarksTheStoreDirty() {
         PlacesData store = new PlacesData();
-        AtomicBoolean dirtied = new AtomicBoolean();
-        store.places().onChange(() -> dirtied.set(true));
+        AgentId hazel = AgentId.random();
+        store.places().found(BENCH, new Pos(1, 64, 1), hazel, null, 1L);
+        store.setDirty(false); // isolate the assertion to what `forget` itself does below
 
-        assertFalse(store.forget(AgentId.random()), "nobody owned anything here");
-        assertFalse(dirtied.get(), "nothing changed, so nothing should mark the store dirty");
+        assertTrue(store.forget(hazel));
+        assertTrue(store.isDirty(),
+                "an erasure must mark the store dirty through the same listener every other "
+                        + "mutator uses, not a second convention of its own");
+    }
+
+    @Test
+    void forgetReturnsTrueWhenItDroppedAClaim() {
+        PlacesData store = new PlacesData();
+        AgentId hazel = AgentId.random();
+        store.places().found(BENCH, new Pos(1, 64, 1), hazel, null, 1L);
+        assertTrue(store.forget(hazel), "hazel owned a claim, so there was something to erase");
+    }
+
+    @Test
+    void forgetReturnsFalseWhenTheOwnerHeldNothing() {
+        assertFalse(new PlacesData().forget(AgentId.random()), "nobody owned anything here");
+    }
+
+    @Test
+    void anUnregisteredKindFailsTheRowInsteadOfGuessing() {
+        // The spec's whole point for KIND_CODEC: an unknown POI kind must fail the row rather than
+        // be dropped or guessed at, or a settlement's workshops vanish with nothing said.
+        // TaskCodecsTest's "aTaskFromAMissingModIsRefusedRatherThanSkipped" is the precedent.
+        var unknown = com.google.gson.JsonParser.parseString(
+                "{\"kind\":\"gone_mod:bench\",\"x\":1,\"y\":64,\"z\":1,\"since\":5}");
+        var parsed = PlacesData.ROW_CODEC.parse(JsonOps.INSTANCE, unknown);
+        assertTrue(parsed.isError(), "guessing here would silently delete a workshop's kind");
+        assertTrue(parsed.error().orElseThrow().message().contains("gone_mod:bench"),
+                "the complaint has to name the missing kind, or nobody can act on it");
     }
 }
