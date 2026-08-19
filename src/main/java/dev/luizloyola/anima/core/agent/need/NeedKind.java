@@ -89,12 +89,6 @@ public final class NeedKind {
      * rather than a view, and bidirectional: see {@link Company}. Neither end of its axis is
      * comfortable, so both pin at full pressure and the V falls out of the ordinary ramp.
      *
-     * <p><b>Both drives are DECLARED and neither is built yet</b> (decision: Luiz, 2026-08-17). The
-     * tasks they would propose do not exist — there is no conversation machinery for a lonely body
-     * to walk toward, and "go and be alone" is the social spec's v0.1. What company does today it
-     * does through {@code Comfort}, which prices where a body would rather stand by
-     * {@link Ramp#side}; these two say what will bid once there is something to bid for.
-     *
      * <p><b>The two ends are not symmetric, and that is deliberate.</b> Being lonely proposes an
      * errand — walk over to somebody — so it declares a drive. Being crowded only weighs where the
      * next wander beat lands, which {@code Comfort} has priced since it was written; a drive there
