@@ -13,6 +13,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.EnderChestBlockEntity;
 import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -33,10 +34,15 @@ import org.jspecify.annotations.Nullable;
  * slammed back to zero on the first recheck and fires a phantom close. A body reaching in therefore
  * owns the lid outright: nothing is ever scheduled against it and it stays where it is put.
  *
- * <h2>Why the count</h2>
+ * <h2>Why the count, and why it is not the whole count</h2>
  *
  * <p>Two settlers at one chest, and the first to finish would shut the lid on the second. Held per
  * cell, so the lid drops when the last of them steps back.
+ *
+ * <p><b>Ours is only ever half the total.</b> Vanilla's counter still holds the PLAYERS, and the two
+ * cannot be merged — so our count going 0 → 1 does not mean the container opened, and a creak fired
+ * on that edge is a lie whenever somebody was already in there. The creak rides the edge of
+ * {@code others + ours} instead; see {@link #flips} and {@link #othersHolding}.
  *
  * <p>Transient and server-thread-only. A lid is a client-side animation and a reloaded world draws
  * every chest shut, so nothing is persisted; {@link #forget()} on server stop keeps a count leaked
@@ -50,12 +56,15 @@ public final class Lids {
     private Lids() {
     }
 
-    /** One more body reaching in. The creak and the game event fire only for the first. */
+    /** One more body reaching in. The creak fires only if the container was shut to begin with. */
     public static void open(Level level, BlockPos pos, @Nullable Entity by) {
         BlockState state = level.getBlockState(pos);
-        int held = HELD.merge(key(level, pos, state), 1, Integer::sum);
-        signal(level, pos, state, held);
-        if (held == 1) {
+        GlobalPos key = key(level, pos, state);
+        int before = HELD.getOrDefault(key, 0);
+        int others = othersHolding(level, pos);
+        HELD.put(key, before + 1);
+        signal(level, pos, state, others + before + 1);
+        if (flips(others, before, before + 1)) {
             playSound(level, pos, state, true);
             level.gameEvent(by, GameEvent.CONTAINER_OPEN, pos);
         }
@@ -72,18 +81,19 @@ public final class Lids {
     public static void close(Level level, BlockPos pos, @Nullable Entity by) {
         BlockState state = level.getBlockState(pos);
         GlobalPos key = key(level, pos, state);
-        Integer held = HELD.get(key);
-        if (held == null) {
+        Integer before = HELD.get(key);
+        if (before == null) {
             return;
         }
-        int left = held - 1;
-        if (left > 0) {
-            HELD.put(key, left);
+        int after = Math.max(0, before - 1);
+        if (after > 0) {
+            HELD.put(key, after);
         } else {
             HELD.remove(key);
         }
-        signal(level, pos, state, Math.max(0, left));
-        if (left <= 0) {
+        int others = othersHolding(level, pos);
+        signal(level, pos, state, others + after);
+        if (flips(others, before, after)) {
             playSound(level, pos, state, false);
             level.gameEvent(by, GameEvent.CONTAINER_CLOSE, pos);
         }
@@ -92,6 +102,28 @@ public final class Lids {
     /** Drops every held lid, for a server shutting down. */
     public static void forget() {
         HELD.clear();
+    }
+
+    /**
+     * Whether our holders going from {@code before} to {@code after} flips the container's WHOLE
+     * open state, given {@code others} already holding it. The creak, the game event and the lid
+     * all ride this rather than our own count, because ours is only part of the total.
+     */
+    static boolean flips(int others, int before, int after) {
+        return (others + before == 0) != (others + after == 0);
+    }
+
+    /**
+     * Holders that are not ours. {@code ChestBlockEntity.getOpenCount} is vanilla's own opener
+     * count — public because {@code TrappedChestBlock} reads it for its redstone signal, and it can
+     * never double-count us, since nothing here touches {@code openersCounter}. It answers 0 for
+     * anything that is not a chest, which is also the honest answer: nothing else exposes one, and a
+     * barrel's {@code OPEN} blockstate cannot stand in because that blockstate is OUR signal too —
+     * reading it back would have us counting ourselves. A player sharing a BARREL with a settler is
+     * the residual, and it costs them one spurious creak.
+     */
+    private static int othersHolding(Level level, BlockPos pos) {
+        return ChestBlockEntity.getOpenCount(level, pos);
     }
 
     /**
