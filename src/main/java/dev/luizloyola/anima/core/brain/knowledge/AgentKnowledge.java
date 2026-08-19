@@ -17,8 +17,9 @@ import java.util.function.LongSupplier;
 
 /**
  * One person's remembered POIs — the pure, unit-testable heart of the knowledge store: per kind, an
- * anchor-keyed map of {@link #note}, {@link #refresh}, {@link #forget}. Headless; callers stamp
- * game time into the {@link PoiMemory} they pass.
+ * anchor-keyed map of {@link #note}, {@link #refresh}, {@link #forget} and
+ * {@link #disprove(PoiKind, Pos)}. Headless; callers stamp game time into the {@link PoiMemory}
+ * they pass.
  *
  * <p>Each kind holds at most {@link #maxPerKind(AgentProfile)} entries and evicts the stalest
  * (oldest {@code lastSeenTick}). A new memory within its kind's {@link PoiKind#mergeRadius()}
@@ -50,8 +51,8 @@ public final class AgentKnowledge {
      * already has a {@code claims()} that means work claims, one dot away in the same packages.
      *
      * <p>Claims compose into {@link #nearest} and {@link #all} so every existing caller picks up a
-     * party's workshop with no change, and into {@link #disprove} because that is the probe
-     * correction. They do NOT compose into {@link #note}, {@link #refresh}, or the plain
+     * party's workshop with no change, and into {@link #disprove(PoiKind, Pos)} because that is
+     * the probe correction. They do NOT compose into {@link #note}, {@link #refresh}, or the plain
      * {@link #forget} that {@code DangerNoter} and {@code HerdNoter} re-key with — a memory that
      * moved is not a claim that was disproven, and composing there would destroy a claim with
      * nothing to re-found it.
@@ -61,17 +62,17 @@ public final class AgentKnowledge {
     /**
      * What "now" is, for stamping a claim's read as a {@link PoiMemory} — see {@link #nearest}.
      * Installed alongside the view so a claim never inherits {@link PlaceRow#since()} and reads as
-     * ancient the moment it is founded. Defaults to a clock stuck at tick zero, harmless for a
-     * knowledge with nothing to compose.
+     * ancient the moment it is founded. Defaults to a clock stuck at tick zero — what an unwired
+     * knowledge reports, never what a live one should: the registry always installs a real clock
+     * alongside a real view, through {@link #sees(Places.View, LongSupplier)}.
      */
     private LongSupplier clock = () -> 0L;
 
-    /** Installs this body's window onto what it owns or shares, leaving the clock as it was. */
-    public void sees(Places.View places) {
-        this.places = places;
-    }
-
-    /** The same, also installing the clock a composed claim is stamped with. */
+    /**
+     * Installs this body's window onto what it owns or shares, and the clock a composed claim is
+     * stamped with. No one-argument overload: a view with no clock silently recreates the bug the
+     * clock exists to fix, stamping every claim maximally ancient.
+     */
     public void sees(Places.View places, LongSupplier clock) {
         this.places = places;
         this.clock = clock;
@@ -135,7 +136,7 @@ public final class AgentKnowledge {
      * only — never reaches a claim. This is the re-key {@code DangerNoter} and {@code HerdNoter}
      * use ("moved, not duplicated"): a herd that walked off is not a claim disproven, and
      * composing here would let a re-key silently erase somebody's workshop. The probe correction
-     * that reaches a claim too is {@link #disprove}.
+     * that reaches a claim too is {@link #disprove(PoiKind, Pos)}.
      */
     public boolean forget(PoiKind kind, Pos anchor) {
         Map<Pos, PoiMemory> entries = byKind.get(kind);
@@ -148,6 +149,10 @@ public final class AgentKnowledge {
      * memory said something did. {@code Workbench.standingAtOne} and
      * {@code PoiSensorCore.invalidate} are today's two callers, so this is not the only thing that
      * ever tells the party a claim is gone — either can.
+     *
+     * <p>Same verb, finer grain, than {@link #disprove(int, int)}: that one corrects a whole
+     * column of unconfirmed sightings at once; this one corrects one belief, and a claim, by its
+     * own anchor.
      */
     public boolean disprove(PoiKind kind, Pos anchor) {
         Map<Pos, PoiMemory> entries = byKind.get(kind);
@@ -249,8 +254,8 @@ public final class AgentKnowledge {
 
     /**
      * Keyed by COLUMN, not by cell: a sighting is a claim about a place rather than a block, and
-     * the column makes {@link #disprove} a hash lookup instead of a scan. Disprove fires tens of
-     * times a tick per agent, so a linear pass would cost more than the sense that produced it.
+     * the column makes {@link #disprove(int, int)} a hash lookup instead of a scan. It fires tens
+     * of times a tick per agent, so a linear pass would cost more than the sense that produced it.
      */
     private final Map<PoiKind, Map<Column, Sighting>> glimpsedByKind = new LinkedHashMap<>();
 
@@ -311,6 +316,10 @@ public final class AgentKnowledge {
      * topmost motion-blocking one; for sugar cane (no collision, so not in the heightmap) it
      * reads the sand underneath and reports "nothing here", deleting a true belief that the far
      * sense would re-make and it would kill again, sweep after sweep.
+     *
+     * <p>Same verb, coarser grain, than {@link #disprove(PoiKind, Pos)}: this one corrects a whole
+     * column of unconfirmed sightings at once; that one corrects one belief, and a claim, by its
+     * own anchor.
      *
      * @return how many were disproved
      */

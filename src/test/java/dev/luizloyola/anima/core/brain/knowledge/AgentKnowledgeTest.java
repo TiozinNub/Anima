@@ -173,7 +173,7 @@ class AgentKnowledgeTest {
         places.found(BENCH, new Pos(20, 64, 0), hazel, null, 1L);
 
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.sees(places.viewFor(hazel));
+        knowledge.sees(places.viewFor(hazel), () -> 0L);
 
         assertEquals(new Pos(20, 64, 0),
                 knowledge.nearest(BENCH, new Pos(0, 0, 0)).orElseThrow().anchor(),
@@ -189,7 +189,7 @@ class AgentKnowledgeTest {
         places.found(BENCH, at, hazel, null, 1L);
 
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.sees(places.viewFor(hazel));
+        knowledge.sees(places.viewFor(hazel), () -> 0L);
         knowledge.note(new PoiMemory(BENCH, at, Region.of(at), 0, false, 50L), 64);
 
         assertEquals(1, knowledge.all(BENCH).size(),
@@ -205,7 +205,7 @@ class AgentKnowledgeTest {
         places.found(BENCH, at, hazel, null, 1L);
 
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.sees(places.viewFor(hazel));
+        knowledge.sees(places.viewFor(hazel), () -> 0L);
 
         assertTrue(knowledge.disprove(BENCH, at), "the probe found nothing standing there");
         assertTrue(knowledge.nearest(BENCH, new Pos(0, 0, 0)).isEmpty());
@@ -224,7 +224,7 @@ class AgentKnowledgeTest {
         places.found(BENCH, at, hazel, null, 1L);
 
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.sees(places.viewFor(hazel));
+        knowledge.sees(places.viewFor(hazel), () -> 0L);
 
         assertFalse(knowledge.forget(BENCH, at), "no sighting there; forget must not see the claim");
         assertTrue(knowledge.nearest(BENCH, new Pos(0, 0, 0)).isPresent(), "the claim survives");
@@ -240,7 +240,7 @@ class AgentKnowledgeTest {
         places.found(BENCH, at, hazel, null, 1L);
 
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.sees(places.viewFor(hazel));
+        knowledge.sees(places.viewFor(hazel), () -> 0L);
 
         assertTrue(knowledge.sighted(BENCH).isEmpty(),
                 "sighted is what this store persists; a claim is Places's row, not this body's");
@@ -277,7 +277,7 @@ class AgentKnowledgeTest {
         places.found(BENCH, at, null, together, 1L); // communal: nobody's personal sighting
 
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.sees(places.viewFor(rowan)); // rowan never saw it; the claim is what tells them
+        knowledge.sees(places.viewFor(rowan), () -> 0L); // rowan never saw it; the claim is what tells them
 
         assertEquals(at, knowledge.nearest(BENCH, new Pos(0, 0, 0)).orElseThrow().anchor(),
                 "the workshop is the party's; a member who never walked past it still knows it "
@@ -294,7 +294,7 @@ class AgentKnowledgeTest {
         places.found(BENCH, at, hazel, null, 1L);
 
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.sees(places.viewFor(stranger));
+        knowledge.sees(places.viewFor(stranger), () -> 0L);
 
         assertFalse(knowledge.disprove(BENCH, at),
                 "a stranger's probe cannot correct a claim they are not party to");
@@ -309,7 +309,7 @@ class AgentKnowledgeTest {
         places.asks(everyoneAlone());
 
         AgentKnowledge knowledge = new AgentKnowledge();
-        knowledge.sees(places.viewFor(hazel));
+        knowledge.sees(places.viewFor(hazel), () -> 0L);
         knowledge.note(new PoiMemory(BENCH, at, Region.of(at), 0, false, 50L), 64);
 
         assertTrue(places.rows().isEmpty(), "walking past a thing does not claim it");

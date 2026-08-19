@@ -79,7 +79,7 @@ public final class HerdNoter {
         PoiMemory memory = new PoiMemory(PoiKind.HERD, herd.species(), centroid, bounds,
                 herd.count(), false, now);
         boolean knownAlready = false;
-        for (PoiMemory existing : List.copyOf(knowledge.all(PoiKind.HERD))) {
+        for (PoiMemory existing : List.copyOf(knowledge.sighted(PoiKind.HERD))) {
             if (!existing.detail().equals(memory.detail())) {
                 continue;
             }
@@ -115,7 +115,7 @@ public final class HerdNoter {
         Pos at = loner.pos();
         boolean fresh = true;
         boolean herdGround = false;
-        for (PoiMemory existing : List.copyOf(knowledge.all(PoiKind.HERD))) {
+        for (PoiMemory existing : List.copyOf(knowledge.sighted(PoiKind.HERD))) {
             if (!existing.detail().equals(loner.species())) {
                 continue;
             }
@@ -157,7 +157,7 @@ public final class HerdNoter {
     private static void downgradeAbsent(Pos observer, List<Being> beings,
                                         AgentKnowledge knowledge, long now,
                                         List<SenseEvent> events) {
-        for (PoiMemory existing : List.copyOf(knowledge.all(PoiKind.HERD))) {
+        for (PoiMemory existing : List.copyOf(knowledge.sighted(PoiKind.HERD))) {
             if (chebyshev(existing.anchor(), observer) > ABSENCE_RADIUS) {
                 continue;
             }

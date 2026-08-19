@@ -75,7 +75,7 @@ public final class DangerNoter {
      */
     private static void forgetTheDisproven(DangerTable danger, Pos observer, List<Being> beings,
                                            AgentKnowledge knowledge, List<SenseEvent> events) {
-        for (PoiMemory existing : List.copyOf(knowledge.all(PoiKind.DANGER))) {
+        for (PoiMemory existing : List.copyOf(knowledge.sighted(PoiKind.DANGER))) {
             if (chebyshev(existing.anchor(), observer) > ABSENCE_RADIUS) {
                 continue; // too far to be evidence of anything
             }
@@ -104,7 +104,7 @@ public final class DangerNoter {
 
     /** This body's existing memory of that particular thing, or null. */
     private static PoiMemory remembered(AgentKnowledge knowledge, Being being) {
-        for (PoiMemory memory : List.copyOf(knowledge.all(PoiKind.DANGER))) {
+        for (PoiMemory memory : List.copyOf(knowledge.sighted(PoiKind.DANGER))) {
             if (being.id().value().equals(memory.individual())) {
                 return memory;
             }
