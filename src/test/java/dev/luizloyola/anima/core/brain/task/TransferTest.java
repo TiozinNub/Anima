@@ -5,10 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
+import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
+import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.inv.ArmorType;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.inv.ItemStack;
+import dev.luizloyola.anima.core.store.Store;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -20,6 +25,7 @@ import org.junit.jupiter.api.Test;
 class TransferTest {
 
     private static final ItemSpec LOGS = ItemSpec.anyOf(java.util.Set.of("minecraft:oak_log"));
+    private static final ItemSpec HELMETS = ItemSpec.anyOf(java.util.Set.of("minecraft:iron_helmet"));
     private static final Pos AT = new Pos(4, 64, 4);
 
     /** Runs a task to a terminal status, with a bound so a stuck phase fails loudly. */
@@ -96,12 +102,12 @@ class TransferTest {
     }
 
     @Test
-    void aRefusedPutBackIsAccountedForRatherThanCounted() {
-        // insert's return on the put-back path is not guaranteed either: a real container can
-        // let take() succeed and still refuse the same stack coming back — a furnace's OUTPUT
-        // slot is the concrete case (canPlaceItem lets an item out, not in). There is no
-        // drop-on-ground actuator today, so this is genuinely lost — it must not be counted as
-        // moved, and it must not vanish with no trace either.
+    void aTakeNeverReachesForMoreThanThePackCanHold() {
+        // The hazard the put-back path only ever made visible: take() removes from the world
+        // first, and a real container can let a stack out and still refuse the same stack back —
+        // a furnace's OUTPUT slot is the concrete case (canPlaceItem lets an item out, not in).
+        // With no drop-on-ground actuator, those items would be gone. So the clamp comes first:
+        // a pack with no room never reaches in at all, and there is nothing left to strand.
         FakeContext ctx = ctxWithBox(List.of(ItemStack.of("minecraft:oak_log", 5, 64)));
         ctx.containers.full.add(AT); // take() ignores full; insert() (the put-back) does not
         for (int slot = 0; slot < Inventory.MAIN_START + Inventory.MAIN_SIZE; slot++) {
@@ -109,11 +115,13 @@ class TransferTest {
         }
 
         assertEquals(TaskStatus.FAILED, run(new TakeItems(AT, LOGS, 5), ctx, 2000));
+        assertEquals(5, ctx.containers.boxes.get(AT).stream().mapToInt(ItemStack::count).sum(),
+                "the logs never left the chest, so no refusal could strand them");
         assertEquals(0, ctx.percepts.inventory().count(LOGS.matcher()),
-                "nothing fit, so nothing should have been credited as taken");
-        boolean journaled = ctx.journalService.recent(ctx.journal().id(), Integer.MAX_VALUE)
+                "and nothing was credited as taken");
+        boolean lost = ctx.journalService.recent(ctx.journal().id(), Integer.MAX_VALUE)
                 .stream().anyMatch(entry -> entry.detail().contains("lost"));
-        assertTrue(journaled, "a stranded stack must say so, not vanish with no trace");
+        assertFalse(lost, "nothing came out, so nothing can have been lost");
     }
 
     @Test
@@ -231,7 +239,7 @@ class TransferTest {
         ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 8, 64));
 
         assertEquals(TaskStatus.FAILED, run(new PutItems(AT, LOGS, 8), ctx, 2000));
-        assertTrue(ctx.knowledge.isAvoided(dev.luizloyola.anima.core.store.Store.POI, AT, 101L),
+        assertTrue(ctx.knowledge.isAvoided(Store.POI, AT, 101L),
                 "the belief is right — it is full of real things — so only a timer un-blinds it");
     }
 
@@ -267,7 +275,7 @@ class TransferTest {
         ctx.percepts.time = 100L;
 
         assertEquals(TaskStatus.FAILED, run(new PutItems(AT, LOGS, 8), ctx, 2000));
-        assertFalse(ctx.knowledge.isAvoided(dev.luizloyola.anima.core.store.Store.POI, AT, 101L),
+        assertFalse(ctx.knowledge.isAvoided(Store.POI, AT, 101L),
                 "an empty pack is not a full store");
     }
 
@@ -275,7 +283,8 @@ class TransferTest {
     void puttingWhenShovedOutOfReachFailsWithoutBlindingAGoodStore() {
         // Reachable through OPEN so the errand actually reaches MOVE, then yanked out of reach —
         // the OTHER reason insert can return 0, and the one contents(at).isPresent() must catch.
-        FakeContext ctx = ctxWithBox(List.of());
+        // The store is stocked, so the belief written on opening has something to lose.
+        FakeContext ctx = ctxWithBox(List.of(ItemStack.of("minecraft:oak_log", 5, 64)));
         ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 8, 64));
         ctx.percepts.time = 100L;
         int open = ctx.profile.i(ProfileAspect.HANDLING_OPEN_TICKS);
@@ -287,7 +296,67 @@ class TransferTest {
         ctx.containers.outOfReach.add(AT);
 
         assertEquals(TaskStatus.FAILED, run(put, ctx, 2000));
-        assertFalse(ctx.knowledge.isAvoided(dev.luizloyola.anima.core.store.Store.POI, AT, 101L),
+        assertFalse(ctx.knowledge.isAvoided(Store.POI, AT, 101L),
                 "out of reach is a wrong belief about distance, not a full store");
+        assertEquals(5, ctx.knowledge.insideOf(AT).orElseThrow().count(LOGS),
+                "a read that could not happen is not a chest seen empty — writing List.of() here "
+                        + "would make TakeFromStore inapplicable, and nothing in this slice ever "
+                        + "re-opens a chest, so the store would be forgotten for good");
+    }
+
+    @Test
+    void puttingLeavesWornArmourAndTheOffhandAlone() {
+        // Inventory.count and Inventory.remove both span all 41 slots, so a bulk deposit reading
+        // through them would empty the settler's head and hand into the chest. Storage is the
+        // hotbar and the backpack; what a body has ON is not what it is carrying to a store.
+        FakeContext ctx = ctxWithBox(List.of());
+        Inventory pack = ctx.percepts.inventory();
+        pack.setArmor(ArmorType.HEAD, ItemStack.of("minecraft:iron_helmet", 1, 1));
+        pack.setOffhand(ItemStack.of("minecraft:iron_helmet", 1, 1));
+        pack.set(Inventory.HOTBAR_START, ItemStack.of("minecraft:iron_helmet", 1, 1));
+
+        assertEquals(TaskStatus.SUCCESS, run(new PutItems(AT, HELMETS, 3), ctx, 2000));
+        assertEquals(1, ctx.containers.boxes.get(AT).stream().mapToInt(ItemStack::count).sum(),
+                "only the spare in the pack is a thing to put away");
+        assertFalse(pack.armor(ArmorType.HEAD).isEmpty(), "the helmet it is wearing stays on");
+        assertFalse(pack.offhand().isEmpty(), "and so does what it holds in its off hand");
+    }
+
+    @Test
+    void takingFromAStoreThatIsGoneDropsTheClaim() {
+        FakeContext ctx = ctxKnowingAStoreThatIsNoLongerThere();
+
+        assertEquals(TaskStatus.FAILED, run(new TakeItems(AT, LOGS, 4), ctx, 2000));
+        assertTrue(ctx.knowledge.all(Store.POI).isEmpty(),
+                "the probe found no chest standing there, so the party's claim goes");
+        assertTrue(ctx.knowledge.insideOf(AT).isEmpty(),
+                "and what was believed to be inside a chest that is gone goes with it");
+        assertTrue(journaled(ctx, "nothing to open"),
+                "the exit an operator most needs to see is the one that must say so");
+    }
+
+    @Test
+    void puttingIntoAStoreThatIsGoneDropsTheClaim() {
+        FakeContext ctx = ctxKnowingAStoreThatIsNoLongerThere();
+        ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 8, 64));
+
+        assertEquals(TaskStatus.FAILED, run(new PutItems(AT, LOGS, 8), ctx, 2000));
+        assertTrue(ctx.knowledge.all(Store.POI).isEmpty(), "the same correction, moving the other way");
+        assertTrue(journaled(ctx, "nothing to open"));
+    }
+
+    /** A body standing next to a store it remembers, and a cell where the chest used to be. */
+    private static FakeContext ctxKnowingAStoreThatIsNoLongerThere() {
+        FakeContext ctx = new FakeContext(); // no box at AT — somebody mined it
+        ctx.percepts.position = new Pos(AT.x() + 1, AT.y(), AT.z());
+        int cap = AgentKnowledge.maxPerKind(ctx.profile());
+        ctx.knowledge.note(new PoiMemory(Store.POI, AT, Region.of(AT), 1, false, 0L), cap);
+        ctx.knowledge.sawInside(AT, List.of(ItemStack.of("minecraft:oak_log", 9, 64)), 0L, cap);
+        return ctx;
+    }
+
+    private static boolean journaled(FakeContext ctx, String detail) {
+        return ctx.journalService.recent(ctx.journal().id(), Integer.MAX_VALUE)
+                .stream().anyMatch(entry -> entry.detail().contains(detail));
     }
 }
