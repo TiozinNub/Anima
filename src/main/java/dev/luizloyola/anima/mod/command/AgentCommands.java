@@ -241,12 +241,14 @@ public final class AgentCommands {
                                                         StringArgumentType.getString(ctx, "person")))))
                                 .then(Commands.literal("found")
                                         .then(Commands.argument("kind", StringArgumentType.word())
+                                                .suggests(POI_KIND_SUGGESTIONS)
                                                 .then(Commands.argument("at", BlockPosArgument.blockPos())
                                                         .executes(ctx -> placesFound(ctx.getSource(),
                                                                 StringArgumentType.getString(ctx, "kind"),
                                                                 BlockPosArgument.getLoadedBlockPos(ctx, "at"))))))
                                 .then(Commands.literal("drop")
                                         .then(Commands.argument("kind", StringArgumentType.word())
+                                                .suggests(POI_KIND_SUGGESTIONS)
                                                 .then(Commands.argument("at", BlockPosArgument.blockPos())
                                                         .executes(ctx -> placesDrop(ctx.getSource(),
                                                                 StringArgumentType.getString(ctx, "kind"),
@@ -2952,4 +2954,15 @@ public final class AgentCommands {
     private static final SuggestionProvider<CommandSourceStack> LAYER_SUGGESTIONS = (ctx, builder) ->
             SharedSuggestionProvider.suggest(
                     Stream.of(DebugLayer.values()).map(DebugLayer::key), builder);
+
+    /**
+     * Every registered kind's key — the completions behind {@code places found|drop <kind>}, and
+     * exactly the set {@link PoiKind#byKey} will accept.
+     *
+     * <p>Asked at completion time rather than captured in this field: {@link PoiKind} is an open
+     * registry a consuming mod adds to, and a snapshot taken when this class loads would offer
+     * Anima's own kinds alone.
+     */
+    private static final SuggestionProvider<CommandSourceStack> POI_KIND_SUGGESTIONS = (ctx, builder) ->
+            SharedSuggestionProvider.suggest(PoiKind.all().stream().map(PoiKind::key), builder);
 }

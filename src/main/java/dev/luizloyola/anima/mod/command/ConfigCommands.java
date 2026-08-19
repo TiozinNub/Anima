@@ -9,6 +9,7 @@ import dev.luizloyola.anima.core.config.KnobSet;
 import dev.luizloyola.anima.core.config.KnobSpec;
 import dev.luizloyola.anima.mod.config.ConfigFile;
 import java.util.List;
+import java.util.stream.Stream;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -33,6 +34,10 @@ public final class ConfigCommands {
         SuggestionProvider<CommandSourceStack> keys = (ctx, builder) ->
                 SharedSuggestionProvider.suggest(
                         store.set().knobs().stream().map(KnobSpec::key).toList(), builder);
+        SuggestionProvider<CommandSourceStack> values = (ctx, builder) -> store.set()
+                .byKey(StringArgumentType.getString(ctx, "key"))
+                .map(knob -> SharedSuggestionProvider.suggest(offered(knob, store.get()), builder))
+                .orElseGet(builder::buildFuture);
         return Commands.literal("config")
                 .executes(ctx -> show(ctx.getSource(), store, file))
                 .then(Commands.literal("show")
@@ -48,6 +53,7 @@ public final class ConfigCommands {
                         .then(Commands.argument("key", StringArgumentType.string())
                                 .suggests(keys)
                                 .then(Commands.argument("value", StringArgumentType.string())
+                                        .suggests(values)
                                         .executes(ctx -> set(ctx.getSource(), store, file,
                                                 StringArgumentType.getString(ctx, "key"),
                                                 StringArgumentType.getString(ctx, "value"))))))
@@ -87,6 +93,35 @@ public final class ConfigCommands {
      */
     private static Component title(KnobSet set) {
         return Component.translatableWithFallback(set.langRoot() + ".title", set.title());
+    }
+
+    /**
+     * What {@code set <key>} offers for the value: a BOOL's two words, otherwise the value in force
+     * and the default when they differ — the two starting points an operator reaching for
+     * {@code set} actually wants, and seeing them is half of why they asked.
+     *
+     * <p><b>The raw stored text, never {@link ConfigValues#text}'s display form.</b> A text knob is
+     * set through {@code sanitise}, which takes the operator's token literally, so completing to
+     * {@code "quoted"} or to a LIST's {@code ["a", "b"]} would set the punctuation along with the
+     * value.
+     */
+    private static List<String> offered(KnobSpec knob, ConfigValues config) {
+        if (knob.kind() == KnobSpec.Kind.BOOL) {
+            return List.of("true", "false");
+        }
+        boolean text = knob.kind().textual();
+        String current = text ? config.s(knob) : config.text(knob);
+        String fallback = text ? knob.defText() : knob.formatDefault();
+        return Stream.of(current, fallback)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .map(ConfigCommands::oneToken)
+                .toList();
+    }
+
+    /** Quoted when it would otherwise complete as two arguments — Brigadier hands back the inside. */
+    private static String oneToken(String value) {
+        return value.contains(" ") ? '"' + value + '"' : value;
     }
 
     /** What a knob accepts, in the reader's language — {@code expects()} is the file's phrasing. */
