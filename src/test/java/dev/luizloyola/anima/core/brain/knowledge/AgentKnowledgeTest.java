@@ -285,6 +285,27 @@ class AgentKnowledgeTest {
     }
 
     @Test
+    void aPartyMemberDisprovesACommunalClaimTheyDidNotFound() {
+        // disprovingCorrectsTheClaimAsWellAsTheSighting and disproveRefusesAClaimItCannotSee both
+        // read as the OWNER, so every succeeding disprove today runs the owner branch of
+        // PlaceRow.visibleTo. A member correcting a communal row is the other visible path.
+        AgentId hazel = AgentId.random();
+        AgentId rowan = AgentId.random();
+        PartyId together = PartyId.random();
+        Pos at = new Pos(10, 64, 10);
+        Places places = new Places();
+        places.asks(partyOf(together, hazel, rowan));
+        places.found(BENCH, at, null, together, 1L); // communal: nobody's personal sighting
+
+        AgentKnowledge knowledge = new AgentKnowledge();
+        knowledge.sees(places.viewFor(rowan), () -> 0L);
+
+        assertTrue(knowledge.disprove(BENCH, at),
+                "rowan is party to the communal claim, so their probe may correct it");
+        assertTrue(places.rows().isEmpty(), "the correction reaches the party's record too");
+    }
+
+    @Test
     void disproveRefusesAClaimItCannotSee() {
         AgentId hazel = AgentId.random();
         AgentId stranger = AgentId.random();

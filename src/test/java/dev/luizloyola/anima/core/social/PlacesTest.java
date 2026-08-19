@@ -176,6 +176,18 @@ class PlacesTest {
     }
 
     @Test
+    void aDisbandingPartyDoesNotTakeAnotherPartysCommunalRow() {
+        // aTransitionTouchesNobodyElsesRows' row is owned, so it is skipped by partyDisbanded's
+        // OWNER guard before the party comparison below ever runs — the "wrong party is untouched"
+        // half of that guard has nothing pinning it. A communal row does.
+        PartyId alone = PartyId.random();
+        PartyId elsewhere = PartyId.random();
+        places.found(BENCH, new Pos(5, 64, 5), null, elsewhere, 5L);
+        assertEquals(0, places.partyDisbanded(alone, together));
+        assertEquals(elsewhere, places.rows().iterator().next().party(), "untouched");
+    }
+
+    @Test
     void aDisbandingPartyDoesNotTakeSomebodyElsesOwnedRow() {
         places.found(BENCH, new Pos(9, 64, 9), hazel, together, 5L);
         assertEquals(0, places.partyDisbanded(together, PartyId.random()),
