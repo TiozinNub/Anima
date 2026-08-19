@@ -64,6 +64,7 @@ import dev.luizloyola.anima.mod.brain.Claims;
 import dev.luizloyola.anima.mod.brain.Knowledges;
 import dev.luizloyola.anima.mod.brain.PlaceIndexes;
 import dev.luizloyola.anima.mod.brain.RegionCaches;
+import dev.luizloyola.anima.mod.brain.BeingHails;
 import dev.luizloyola.anima.mod.brain.BeingViewer;
 import dev.luizloyola.anima.mod.log.Journals;
 import dev.luizloyola.anima.mod.log.ThoughtBroadcast;
@@ -554,6 +555,8 @@ public final class AgentCommands {
                                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                                 .then(Commands.literal("eat")
                                         .executes(ctx -> brainEat(ctx.getSource())))
+                                .then(Commands.literal("hail")
+                                        .executes(ctx -> brainHail(ctx.getSource())))
                                 .then(Commands.literal("break")
                                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                                 .executes(ctx -> brainBreak(ctx.getSource(),
@@ -1412,6 +1415,23 @@ public final class AgentCommands {
         Replies.send(source, () -> Component.translatable("anima.command.state",
                 person.entity().getName(), person.brain().describe())
                 .append(suffix).withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
+    /**
+     * Makes the selected body call out — the staging order for the hail channel, so it can be
+     * tested without waiting for a settler to get lonely.
+     *
+     * <p>Goes through {@link BeingHails#hailed} directly, not the {@code Voice} port: the port's
+     * target parameter exists to stamp a per-target "already called that one" mark, and a staging
+     * order has nobody in mind — stamping here would suppress a later genuine hail at that target.
+     */
+    private static int brainHail(CommandSourceStack source) {
+        AgentBody person = resolveBody(source);
+        if (person == null) return 0;
+        BeingHails.hailed(person.entity());
+        Replies.send(source, () -> Component.translatable("anima.command.brain.hailed",
+                person.entity().getName()).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 

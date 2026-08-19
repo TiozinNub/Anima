@@ -279,6 +279,7 @@
   "anima.command.follow.list_header": "%s seguindo:",
   "anima.command.brain.auto_disabled": " (automático desligado — religue com /anima brain auto true)",
   "anima.command.brain.cancelled": "Tarefa de %s cancelada; %s",
+  "anima.command.brain.hailed": "%s chamou.",
   "anima.command.brain.auto_on": "O automático do cérebro de %s é true — o árbitro está decidindo.",
   "anima.command.brain.auto_off": "O automático do cérebro de %s é false — manual; devolva com /anima brain auto true.",
   "anima.command.brain.wander_on": "O perambular do cérebro de %s é true — vagueia quando nada mais aperta.",

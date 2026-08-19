@@ -279,6 +279,7 @@
   "anima.command.follow.list_header": "%s following:",
   "anima.command.brain.auto_disabled": " (auto disabled — re-enable with /anima brain auto true)",
   "anima.command.brain.cancelled": "%s task cancelled; %s",
+  "anima.command.brain.hailed": "%s called out.",
   "anima.command.brain.auto_on": "%s's brain auto is true — the arbiter is deciding.",
   "anima.command.brain.auto_off": "%s's brain auto is false — manual; hand it back with /anima brain auto true.",
   "anima.command.brain.wander_on": "%s's brain wander is true — they drift when nothing else is pressing.",
