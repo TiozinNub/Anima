@@ -20,8 +20,8 @@ import java.util.Set;
  *   <li><b>Walk to a known one</b>, priced at the distance — so a settlement converges on shared
  *       tables instead of one per person.</li>
  *   <li><b>Make one and put it down</b>, a flat {@link #PLACE_COST}: obtain the item (log → planks →
- *       table, or one already in the pack), place it beside, and note the memory at once — the next
- *       subtask needs it.</li>
+ *       table, or one already in the pack), place it beside, and claim it for the party at once —
+ *       the next subtask needs it.</li>
  * </ul>
  *
  * <p>Tables sprout where the need arises: no workshop policy, no blueprint.
