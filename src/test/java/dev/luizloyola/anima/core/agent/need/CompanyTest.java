@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.agent.need;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.AgentProfile;
@@ -9,6 +10,8 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.SpeciesProfile;
 import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.agent.need.NeedLevel;
+import dev.luizloyola.anima.core.brain.instinct.NeedDrive;
+import dev.luizloyola.anima.core.brain.task.WanderStep;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -229,6 +232,24 @@ class CompanyTest {
         assertSame(NeedKind.COMPANY, company.kind());
         Needs needs = new Needs().add(company);
         assertSame(company, needs.gauge(NeedKind.COMPANY).orElseThrow());
+    }
+
+    /**
+     * The crowded end weighs where the wander goes; it does not propose an errand of its own. The
+     * behaviour has always been {@code Comfort}'s — this asserts the DECLARATION says so, because a
+     * binding that promises a drive is a promise somebody will eventually try to keep.
+     */
+    @Test
+    void theCrowdedEndModulatesRatherThanDriving() {
+        Binding crowded = NeedKind.COMPANY.bindings().stream()
+                .filter(b -> b.key().equals("stray_away"))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(Binding.Verb.MODULATE, crowded.verb());
+        assertThrows(IllegalArgumentException.class,
+                () -> new NeedDrive(crowded, ctx -> new WanderStep(8)),
+                "NeedDrive already refuses a modulator — the guard and the intent now agree");
     }
 
     /** The test biped with its company levels moved, and everything else left alone. */

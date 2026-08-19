@@ -94,6 +94,11 @@ public final class NeedKind {
      * to walk toward, and "go and be alone" is the social spec's v0.1. What company does today it
      * does through {@code Comfort}, which prices where a body would rather stand by
      * {@link Ramp#side}; these two say what will bid once there is something to bid for.
+     *
+     * <p><b>The two ends are not symmetric, and that is deliberate.</b> Being lonely proposes an
+     * errand — walk over to somebody — so it declares a drive. Being crowded only weighs where the
+     * next wander beat lands, which {@code Comfort} has priced since it was written; a drive there
+     * would duplicate shipped code and march where a stroll is wanted.
      */
     public static final NeedKind COMPANY = declare("company", Kind.DOUBLE, 0.0, 1.0, "parts of a full day's worth")
             .level("lonely", 0.175, 0.50, -1)
@@ -101,7 +106,7 @@ public final class NeedKind {
             .level("content", 0.85, 0.00, 0)
             .level("crowded", 1.0, 1.00, 20)
             .drive(Binding.Side.BELOW, "seek_people")
-            .drive(Binding.Side.ABOVE, "stray_away")
+            .modulate("stray_away")
             .build();
 
     /**

@@ -83,27 +83,23 @@ class NeedDriveTest {
     }
 
     /**
-     * Company presses at both ends with the same number and opposite errands — the side gate is
-     * what stops a crowded body bidding to go and find someone.
+     * Company presses at both ends, but only the lonely one drives (see {@code NeedKind.COMPANY} —
+     * the crowded end modulates instead, {@code Comfort}'s job already). The side gate is what
+     * stops the drive bidding once the body is on the other side of comfortable, or inside it.
      */
     @Test
-    void aTwoSidedNeedOnlyBidsThroughTheEndThatIsAsking() {
+    void aSideBoundDriveOnlyBidsThroughTheEndItAnswers() {
         NeedDrive seek = new NeedDrive(
                 NeedKind.COMPANY.binding("seek_people"), c -> new Idle(1));
-        NeedDrive stray = new NeedDrive(
-                NeedKind.COMPANY.binding("stray_away"), c -> new Idle(1));
 
         ctx.percepts.company.setValue(0.05); // well below the comfortable stretch
         assertTrue(seek.pressure(ctx) > 0.0, "lonely -> the below-comfort drive bids");
-        assertEquals(0.0, stray.pressure(ctx), "and the above-comfort one does not");
-
-        ctx.percepts.company.setValue(0.98); // well above it
-        assertEquals(0.0, seek.pressure(ctx));
-        assertTrue(stray.pressure(ctx) > 0.0, "crowded -> the other way round");
 
         ctx.percepts.company.setValue(0.6); // content
-        assertEquals(0.0, seek.pressure(ctx), "and neither bids from inside the band");
-        assertEquals(0.0, stray.pressure(ctx));
+        assertEquals(0.0, seek.pressure(ctx), "not from inside the band");
+
+        ctx.percepts.company.setValue(0.98); // well above it
+        assertEquals(0.0, seek.pressure(ctx), "nor from the crowded end, which is not its own");
     }
 
     @Test
