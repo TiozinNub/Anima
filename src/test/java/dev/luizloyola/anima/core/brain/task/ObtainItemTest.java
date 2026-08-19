@@ -14,8 +14,10 @@ import org.junit.jupiter.api.Test;
 /**
  * The obtain goal's method roster. The producer BRIDGE: a literal (content-built) spec reaches
  * producers registered under an overlapping consumer spec, so a crafting ingredient can end in
- * a felled tree. The order is contract — a resumed plan re-finds its method BY INDEX, CraftFor
- * last of all.
+ * a felled tree. The order is contract — a resumed plan re-finds its method BY INDEX, so nothing
+ * may be inserted before an existing entry; every new way (like {@link TakeFromStore}) is
+ * appended. {@link #aLiteralIngredientReachesTheConsumersProducerByContent()} pins the roster's
+ * absolute shape below, which is what actually guards that against an insertion or a reorder.
  */
 class ObtainItemTest {
 
@@ -57,12 +59,17 @@ class ObtainItemTest {
         ObtainItem ingredient = new ObtainItem(
                 ItemSpec.anyOf(Set.of("minecraft:oak_log", "minecraft:oak_wood")), 1);
         List<Method> roster = ingredient.methods();
+        // Load-bearing for saves: a resumed plan re-finds its method BY INDEX, so THIS is what
+        // actually guards it — absolute SIZE plus the type at every absolute index, which an
+        // insertion or reorder anywhere in the roster would break. The two tests pinning CraftFor
+        // and TakeFromStore's relative order (CraftForTest, TakeFromStoreTest) are weaker: both
+        // stay green if something is wrongly inserted ahead of CraftFor instead of appended.
         assertEquals(4, roster.size());
         assertInstanceOf(PickUpNearby.class, roster.get(0));
         assertInstanceOf(FellSomething.class, roster.get(1),
                 "oak_log is a log the consumer knows how to produce — the chop is on the menu");
         assertInstanceOf(CraftFor.class, roster.get(2), "CraftFor joins right after the producers");
-        assertInstanceOf(TakeFromStore.class, roster.get(3), "TakeFromStore last of all, always");
+        assertInstanceOf(TakeFromStore.class, roster.get(3), "TakeFromStore joins after CraftFor");
     }
 
     @Test

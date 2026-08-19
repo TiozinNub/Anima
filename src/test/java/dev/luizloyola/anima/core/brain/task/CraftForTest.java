@@ -198,12 +198,13 @@ class CraftForTest {
     }
 
     @Test
-    void craftForNeverMovesFromRightBeforeTakeFromStoreInAnObtain() {
-        // Load-bearing for saves: a resumed plan re-finds its method BY INDEX, so CraftFor may
-        // only ever sit after the scavenge method and every registered producer, with nothing
-        // inserted above it. TakeFromStore joins after it for the same reason — selection is by
-        // cost, so appending it here costs nothing even though CraftFor is no longer literally
-        // last.
+    void craftForIsImmediatelyFollowedByTakeFromStore() {
+        // This pins only the RELATIVE order of the tail pair, so it survives future appends past
+        // TakeFromStore without renaming. It is NOT what protects a saved plan: it stays green
+        // even if a defect wrongly inserted a new way ahead of CraftFor instead of appending one,
+        // since that still leaves CraftFor directly followed by TakeFromStore. The absolute-index
+        // guarantee a saved plan actually depends on is pinned in ObtainItemTest's
+        // aLiteralIngredientReachesTheConsumersProducerByContent.
         List<Method> methods = new ObtainItem(PLANKS, 4).methods();
         assertInstanceOf(CraftFor.class, methods.get(methods.size() - 2));
         assertInstanceOf(TakeFromStore.class, methods.get(methods.size() - 1));

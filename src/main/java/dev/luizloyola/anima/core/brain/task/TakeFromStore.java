@@ -3,8 +3,6 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge.Seen;
-import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
-import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.ItemSpec;
@@ -42,7 +40,8 @@ public final class TakeFromStore implements Method {
     @Override
     public List<Task> decompose(BrainContext ctx) {
         Pos anchor = bestStore(ctx).orElseThrow().memory().anchor();
-        Pos beside = standableBeside(anchor, ctx);
+        // Shared with EnsureTable.WalkToKnown rather than a second copy of the same shape.
+        Pos beside = EnsureTable.WalkToKnown.standableBeside(anchor, ctx);
         return List.of(
                 new GoTo(beside.x(), beside.y(), beside.z()),
                 new TakeItems(anchor, spec, count));
@@ -78,32 +77,4 @@ public final class TakeFromStore implements Method {
 
     private record Candidate(PoiMemory memory, double cost) {
     }
-
-    /**
-     * A cell to stand in beside the store: an empty side neighbour, else the anchor's column —
-     * same shape as {@link EnsureTable.WalkToKnown}'s own {@code standableBeside}, reused rather
-     * than re-derived.
-     */
-    private static Pos standableBeside(Pos anchor, BrainContext ctx) {
-        BlockProbe probe = ctx.percepts().blocks();
-        Pos best = null;
-        double bestDistance = Double.MAX_VALUE;
-        Pos here = ctx.percepts().position();
-        for (int[] side : SIDES) {
-            Pos cell = new Pos(anchor.x() + side[0], anchor.y(), anchor.z() + side[1]);
-            if (probe.at(cell.x(), cell.y(), cell.z()) != BlockKind.AIR) {
-                continue;
-            }
-            double distance = Store.distance(cell, here);
-            if (distance < bestDistance) {
-                best = cell;
-                bestDistance = distance;
-            }
-        }
-        return best != null ? best : anchor;
-    }
-
-    /** The eight horizontal neighbours, sides first — a store in a corner is awkward to reach. */
-    private static final int[][] SIDES = {
-            {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
 }

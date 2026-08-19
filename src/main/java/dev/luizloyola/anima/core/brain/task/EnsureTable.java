@@ -72,7 +72,7 @@ public final class EnsureTable implements AchieveTask {
     }
 
     /** Walk into reach of the nearest remembered table. */
-    private static final class WalkToKnown implements Method {
+    static final class WalkToKnown implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
             return Workbench.nearestKnown(ctx).isPresent();
@@ -98,10 +98,12 @@ public final class EnsureTable implements AchieveTask {
         }
 
         /**
-         * A cell to stand in beside the table: an empty side neighbour, else the anchor's column —
-         * the pathfinder then fails outright and the round places a fresh table.
+         * A cell to stand in beside the anchor: an empty side neighbour, else the anchor's column —
+         * the pathfinder then fails outright and the caller reacts (a fresh table gets placed here;
+         * {@link TakeFromStore} just retries next round). Package-visible so {@link TakeFromStore}
+         * shares this rather than keeping its own copy of the same shape.
          */
-        private static Pos standableBeside(Pos anchor, BrainContext ctx) {
+        static Pos standableBeside(Pos anchor, BrainContext ctx) {
             BlockProbe probe = ctx.percepts().blocks();
             Pos best = null;
             double bestDistance = Double.MAX_VALUE;

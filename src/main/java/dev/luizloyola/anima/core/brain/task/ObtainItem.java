@@ -9,7 +9,8 @@ import java.util.List;
  * Have {@code n} of {@code spec} in the pack — the first {@link AchieveTask}. The satisfied-check is
  * the goal; each executor round picks the cheapest way to make progress: scavenge drops in sight
  * ({@link PickUpNearby}), fell a producer a consumer registered for that spec (see
- * {@link Producers}), or make one ({@link CraftFor}, with an occurs-check — planks want logs).
+ * {@link Producers}), make one ({@link CraftFor}, with an occurs-check — planks want logs), or take
+ * one out of a store a party already filled ({@link TakeFromStore}).
  *
  * <p>Always a SUBGOAL in the finished mod: a craft or build project computes a bill of materials and
  * posts requirements; nobody wants logs as an end state.
@@ -28,8 +29,11 @@ public final class ObtainItem implements AchieveTask {
      * @param pursued output ids this branch of the goal stack is already obtaining — threaded
      *                into {@link CraftFor} as its ancestor-based occurs-check, and grown by one
      *                (the chosen recipe's output) on each descent. Method ORDER is load-bearing:
-     *                a saved plan resumes its method by index, so {@code CraftFor} joins at the
-     *                END and nothing may ever be inserted above it.
+     *                a saved plan resumes its method BY INDEX into the roster rebuilt here, so
+     *                nothing may ever be inserted BEFORE an existing entry — a new way is always
+     *                appended. A reload then finds a fresh trailing slot in {@code tried[]},
+     *                which simply restores {@code false} (untried); see
+     *                {@link TaskExecutor#restore}.
      */
     public ObtainItem(ItemSpec spec, int count, java.util.Set<String> pursued) {
         this.spec = spec;
