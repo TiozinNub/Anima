@@ -3,6 +3,8 @@ package dev.luizloyola.anima.core.brain.knowledge;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.inv.ItemSpec;
+import dev.luizloyola.anima.core.inv.ItemStack;
 import dev.luizloyola.anima.core.social.PlaceRow;
 import dev.luizloyola.anima.core.social.Places;
 import java.util.Collection;
@@ -26,6 +28,9 @@ import java.util.function.LongSupplier;
  * (oldest {@code lastSeenTick}). A new memory within its kind's {@link PoiKind#mergeRadius()}
  * (Chebyshev) replaces the old one — the fresher scan knows the current shape, and keeping both
  * would count the wood twice. Insertion-ordered, for deterministic iteration.
+ *
+ * <p>Beside that map sits {@link #sawInside}: what this body last saw INSIDE a container, keyed by
+ * the same anchor. A sighting, never a claim — see {@link Seen}.
  */
 public final class AgentKnowledge {
     /**
@@ -141,7 +146,9 @@ public final class AgentKnowledge {
      */
     public boolean forget(PoiKind kind, Pos anchor) {
         Map<Pos, PoiMemory> entries = byKind.get(kind);
-        return entries != null && entries.remove(anchor) != null;
+        boolean dropped = entries != null && entries.remove(anchor) != null;
+        insides.remove(anchor); // a container that is gone has no contents
+        return dropped;
     }
 
     /**
@@ -159,6 +166,7 @@ public final class AgentKnowledge {
         Map<Pos, PoiMemory> entries = byKind.get(kind);
         boolean sighting = entries != null && entries.remove(anchor) != null;
         boolean claim = places.drop(kind, anchor);
+        insides.remove(anchor); // a container that is gone has no contents
         return sighting || claim;
     }
 
@@ -245,6 +253,52 @@ public final class AgentKnowledge {
         Map<Pos, Long> marks = avoidedUntil.get(kind);
         Long until = marks == null ? null : marks.get(anchor);
         return until != null && until > now;
+    }
+
+    // --- insides: what this body last saw when it opened a container -------------------------
+
+    /**
+     * What this body last saw inside a container, and when.
+     *
+     * <p>A <em>sighting</em>, not a claim: the container may be the party's, but what is in it is
+     * yours from the last time you looked. Nobody learns you took the last log until they look.
+     */
+    public record Seen(java.util.List<ItemStack> stacks, long seenTick) {
+        public Seen {
+            stacks = java.util.List.copyOf(stacks);
+        }
+
+        /** How many matching items were in there when this was written. */
+        public int count(ItemSpec spec) {
+            int total = 0;
+            for (ItemStack stack : stacks) {
+                if (spec.matches(stack.id())) {
+                    total += stack.count();
+                }
+            }
+            return total;
+        }
+
+        public long age(long now) {
+            return now - seenTick;
+        }
+    }
+
+    /** Anchor-keyed, and replaced outright on every look — the newer belief is simply the truth. */
+    private final Map<Pos, Seen> insides = new LinkedHashMap<>();
+
+    /** Records what was in a container. Written on interaction, never by walking past. */
+    public void sawInside(Pos at, java.util.List<ItemStack> stacks, long now) {
+        insides.put(at, new Seen(stacks, now));
+    }
+
+    public Optional<Seen> insideOf(Pos at) {
+        return Optional.ofNullable(insides.get(at));
+    }
+
+    /** Every remembered inside, insertion-ordered — the codec's view and the readout's. */
+    public Map<Pos, Seen> insides() {
+        return Collections.unmodifiableMap(insides);
     }
 
     // --- the gist tier: what was made out but never examined ---------------------------------

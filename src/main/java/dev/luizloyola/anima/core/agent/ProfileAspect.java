@@ -301,6 +301,18 @@ public final class ProfileAspect {
             "Ticks of worked pause per craft. Long enough to read as labour, short enough not to "
                     + "bore.");
 
+    // --- stores: what a body believes about somewhere it looked -------------------------------
+
+    public static final ProfileAspect STORES_STALENESS_WEIGHT = register("stores.staleness_weight",
+            Kind.DOUBLE, 0.0, 10.0,
+            "Blocks-equivalent added to a store's cost per 100 ticks since it was last looked in. "
+                    + "How much this mind distrusts an old memory: higher walks less far on worse "
+                    + "information.");
+    public static final ProfileAspect STORES_FULL_AVOID_TICKS = register("stores.full_avoid_ticks",
+            Kind.INT, 0, 24_000,
+            "Ticks a store found FULL is left alone. Not a wrong belief to correct — it is full of "
+                    + "real things — so only a timer un-blinds it.");
+
     private final String key;
     private final Kind kind;
     private final double min;

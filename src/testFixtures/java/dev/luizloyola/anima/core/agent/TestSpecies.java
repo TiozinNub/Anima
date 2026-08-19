@@ -84,6 +84,8 @@ public final class TestSpecies {
             // The deleted CraftStep.CRAFT_TICKS constant, exactly — so old craft expectations
             // still mean what they meant.
             .set(ProfileAspect.HANDLING_CRAFT_TICKS, 10)
+            .set(ProfileAspect.STORES_STALENESS_WEIGHT, 0.5)
+            .set(ProfileAspect.STORES_FULL_AVOID_TICKS, 2400)
             .build();
 
     /** {@link #BIPED} as a profile — fixed, with no config file behind it. */

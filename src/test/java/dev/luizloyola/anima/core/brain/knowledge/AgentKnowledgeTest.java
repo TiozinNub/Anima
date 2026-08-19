@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.inv.ItemSpec;
+import dev.luizloyola.anima.core.inv.ItemStack;
 import dev.luizloyola.anima.core.social.PartyId;
 import dev.luizloyola.anima.core.social.Places;
 import java.util.List;
@@ -22,6 +24,8 @@ class AgentKnowledgeTest {
 
     /** Stands in for a claimed, perceivable block — the same shape as {@code PlacesTest}'s. */
     private static final PoiKind BENCH = PoiKind.register("test_bench", 1, "");
+
+    private static final ItemSpec LOGS = ItemSpec.anyOf(java.util.Set.of("minecraft:oak_log"));
 
     private static PoiMemory tree(int x, int y, int z, int logs, long seen) {
         Pos anchor = new Pos(x, y, z);
@@ -344,6 +348,61 @@ class AgentKnowledgeTest {
         assertTrue(knowledge.nearest(BENCH, new Pos(0, 0, 0)).isEmpty());
         assertFalse(knowledge.forget(BENCH, new Pos(0, 0, 0)));
         assertFalse(knowledge.disprove(BENCH, new Pos(0, 0, 0)));
+    }
+
+    @Test
+    void whatWasSeenInsideIsRememberedWithItsAge() {
+        AgentKnowledge knowledge = new AgentKnowledge();
+        Pos at = new Pos(4, 64, 4);
+        knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L);
+
+        AgentKnowledge.Seen seen = knowledge.insideOf(at).orElseThrow();
+        assertEquals(32, seen.count(LOGS));
+        assertEquals(900L, seen.age(1000L), "staleness is what prices the walk");
+    }
+
+    @Test
+    void lookingAgainReplacesTheBeliefRatherThanAddingToIt() {
+        AgentKnowledge knowledge = new AgentKnowledge();
+        Pos at = new Pos(4, 64, 4);
+        knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L);
+        knowledge.sawInside(at, List.of(), 200L);
+
+        assertEquals(0, knowledge.insideOf(at).orElseThrow().count(LOGS),
+                "arriving and finding it bare is the correction, not a second opinion");
+    }
+
+    @Test
+    void aContainerNeverOpenedIsNotRememberedAtAll() {
+        assertTrue(new AgentKnowledge().insideOf(new Pos(1, 2, 3)).isEmpty(),
+                "walking past a chest tells you nothing about what is in it");
+    }
+
+    @Test
+    void forgettingAStoresAnchorDropsWhatWasSeenInsideIt() {
+        AgentKnowledge knowledge = new AgentKnowledge();
+        Pos at = new Pos(2, 64, 2);
+        knowledge.note(new PoiMemory(BENCH, at, Region.of(at), 0, false, 1L), 64);
+        knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L);
+
+        assertTrue(knowledge.forget(BENCH, at));
+        assertTrue(knowledge.insideOf(at).isEmpty(), "a container that is gone has no contents");
+    }
+
+    @Test
+    void disprovingAStoresAnchorDropsWhatWasSeenInsideIt() {
+        AgentId hazel = AgentId.random();
+        Pos at = new Pos(15, 64, 15);
+        Places places = new Places();
+        places.asks(everyoneAlone());
+        places.found(BENCH, at, hazel, null, 1L);
+
+        AgentKnowledge knowledge = new AgentKnowledge();
+        knowledge.sees(places.viewFor(hazel), () -> 0L);
+        knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L);
+
+        assertTrue(knowledge.disprove(BENCH, at));
+        assertTrue(knowledge.insideOf(at).isEmpty(), "a container that is gone has no contents");
     }
 
     private static Places.Parties everyoneAlone() {

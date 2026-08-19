@@ -14,8 +14,10 @@ import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.knowledge.Sighting;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.inv.ItemStack;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.resources.Identifier;
@@ -87,11 +89,31 @@ public final class KnowledgeData extends SavedData implements StoreGuard.Checked
                     .forGetter(Sighting::provenance)
     ).apply(s, Sighting::new));
 
+    /** A core stack, whole — the shape {@code AnimaTasks.CORE_STACK} also writes. */
+    private static final Codec<ItemStack> STACK_CODEC = RecordCodecBuilder.create(s -> s.group(
+            Codec.STRING.fieldOf("id").forGetter(ItemStack::id),
+            Codec.INT.fieldOf("count").forGetter(ItemStack::count),
+            Codec.INT.fieldOf("max").forGetter(ItemStack::maxStackSize),
+            Codec.STRING.optionalFieldOf("components", "").forGetter(ItemStack::components)
+    ).apply(s, ItemStack::new));
+
+    /** One row of {@link AgentKnowledge#insides()} — what was seen at an anchor, and when. */
+    private record InsideRow(Pos at, List<ItemStack> stacks, long seen) {
+    }
+
+    private static final Codec<InsideRow> INSIDE_ROW_CODEC = RecordCodecBuilder.create(r -> r.group(
+            POS_CODEC.fieldOf("at").forGetter(InsideRow::at),
+            STACK_CODEC.listOf().fieldOf("stacks").forGetter(InsideRow::stacks),
+            Codec.LONG.fieldOf("seen").forGetter(InsideRow::seen)
+    ).apply(r, InsideRow::new));
+
     /**
-     * One person's knowledge, flattened across kinds ({@code kind} rides in each entry). The two
-     * tiers are stored apart because they ARE apart — see {@link Sighting}.
+     * One person's knowledge, flattened across kinds ({@code kind} rides in each entry). The three
+     * tiers are stored apart because they ARE apart — see {@link Sighting} and
+     * {@link AgentKnowledge.Seen}.
      */
-    private record PersonEntry(AgentId id, List<PoiMemory> pois, List<Sighting> sightings) {
+    private record PersonEntry(AgentId id, List<PoiMemory> pois, List<Sighting> sightings,
+            List<InsideRow> insides) {
     }
 
     private static final Codec<PersonEntry> ENTRY_CODEC = RecordCodecBuilder.create(e -> e.group(
@@ -99,13 +121,22 @@ public final class KnowledgeData extends SavedData implements StoreGuard.Checked
             MEMORY_CODEC.listOf().fieldOf("pois").forGetter(PersonEntry::pois),
             // Absent in every save written before the far sense existed.
             SIGHTING_CODEC.listOf().optionalFieldOf("sightings", List.of())
-                    .forGetter(PersonEntry::sightings)
-    ).apply(e, (uuid, pois, sightings) -> new PersonEntry(AgentId.of(uuid), pois, sightings)));
+                    .forGetter(PersonEntry::sightings),
+            // Absent in every save written before a body could look inside a container — a store
+            // nobody has opened has no rows, which is exactly what an old file also has none of.
+            INSIDE_ROW_CODEC.listOf().optionalFieldOf("insides", List.of())
+                    .forGetter(PersonEntry::insides)
+    ).apply(e, (uuid, pois, sightings, insides) ->
+            new PersonEntry(AgentId.of(uuid), pois, sightings, insides)));
 
     /** This store's schema. Bump when the shape above changes incompatibly. */
     private static final int SCHEMA = 1;
 
-    private static final Codec<KnowledgeData> CODEC = RecordCodecBuilder.create(d -> d.group(
+    /**
+     * Package-private, not private — same reason as {@link #entries()}: a same-package test round-
+     * trips through this directly rather than standing up a whole server.
+     */
+    static final Codec<KnowledgeData> CODEC = RecordCodecBuilder.create(d -> d.group(
             Codec.INT.optionalFieldOf("version", 0).forGetter(d2 -> SCHEMA),
             Codec.INT.optionalFieldOf("rows", StoreGuard.UNCOUNTED)
                     .forGetter(d2 -> d2.entries().size()),
@@ -186,8 +217,13 @@ public final class KnowledgeData extends SavedData implements StoreGuard.Checked
                 pois.addAll(knowledge.sighted(kind));
                 sightings.addAll(knowledge.glimpses(kind));
             }
-            if (!pois.isEmpty() || !sightings.isEmpty()) {
-                entries.add(new PersonEntry(id, pois, sightings));
+            List<InsideRow> insides = new ArrayList<>();
+            for (Map.Entry<Pos, AgentKnowledge.Seen> row : knowledge.insides().entrySet()) {
+                AgentKnowledge.Seen seen = row.getValue();
+                insides.add(new InsideRow(row.getKey(), seen.stacks(), seen.seenTick()));
+            }
+            if (!pois.isEmpty() || !sightings.isEmpty() || !insides.isEmpty()) {
+                entries.add(new PersonEntry(id, pois, sightings, insides));
             }
         }
         return entries;
@@ -203,6 +239,9 @@ public final class KnowledgeData extends SavedData implements StoreGuard.Checked
             }
             for (Sighting sighting : entry.sightings()) {
                 knowledge.restoreGlimpse(sighting);
+            }
+            for (InsideRow row : entry.insides()) {
+                knowledge.sawInside(row.at(), row.stacks(), row.seen());
             }
         }
         return new KnowledgeData(registry, version, declaredRows);

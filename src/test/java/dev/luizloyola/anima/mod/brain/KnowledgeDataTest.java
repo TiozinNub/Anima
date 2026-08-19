@@ -3,10 +3,18 @@ package dev.luizloyola.anima.mod.brain;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.mojang.serialization.JsonOps;
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.inv.ItemStack;
 import dev.luizloyola.anima.core.social.Places;
+import java.util.List;
+import java.util.UUID;
+import net.minecraft.core.UUIDUtil;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -35,5 +43,48 @@ class KnowledgeDataTest {
                         + "leaks it as a sighting that outlives the party membership that made it "
                         + "visible");
         assertEquals(0, data.actualRows(), "the boot guard's own count must agree with entries()");
+    }
+
+    @Test
+    void whatWasSeenInsideRoundTripsThroughJson() {
+        AgentId hazel = AgentId.random();
+        Pos at = new Pos(4, 64, 4);
+
+        KnowledgeData data = new KnowledgeData();
+        data.registry().forPerson(hazel)
+                .sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L);
+
+        var encoded = KnowledgeData.CODEC.encodeStart(JsonOps.INSTANCE, data).getOrThrow();
+        KnowledgeData decoded = KnowledgeData.CODEC.parse(JsonOps.INSTANCE, encoded).getOrThrow();
+
+        AgentKnowledge.Seen seen = decoded.registry().forPerson(hazel).insideOf(at).orElseThrow();
+        assertEquals(1, seen.stacks().size());
+        assertEquals("minecraft:oak_log", seen.stacks().get(0).id());
+        assertEquals(32, seen.stacks().get(0).count());
+        assertEquals(100L, seen.seenTick(), "the tick it was seen is what prices the walk later");
+    }
+
+    @Test
+    void aPersonWithNoInsidesFieldStillParses() {
+        // The exact shape of every knowledge.dat written before a body could open a container:
+        // built by hand, not by this codec's own encoder, so a regression that made "insides"
+        // required would fail this specific parse rather than the round trip it wrote itself.
+        UUID id = UUID.randomUUID();
+        JsonObject person = new JsonObject();
+        person.add("id", UUIDUtil.CODEC.encodeStart(JsonOps.INSTANCE, id).getOrThrow());
+        person.add("pois", new JsonArray());
+        JsonArray persons = new JsonArray();
+        persons.add(person);
+        JsonObject root = new JsonObject();
+        root.add("persons", persons);
+
+        KnowledgeData decoded = KnowledgeData.CODEC.parse(JsonOps.INSTANCE, root).getOrThrow();
+
+        AgentId who = AgentId.of(id);
+        assertTrue(decoded.registry().persons().contains(who), "the pre-existing person still loads");
+        assertTrue(decoded.registry().forPerson(who).insides().isEmpty(),
+                "no insides key means nothing was ever looked in — the empty default, not an error, "
+                        + "which is what makes an old file indistinguishable from a store nobody "
+                        + "has opened yet");
     }
 }
