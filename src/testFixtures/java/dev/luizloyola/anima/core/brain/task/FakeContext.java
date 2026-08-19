@@ -30,6 +30,7 @@ public final class FakeContext implements BrainContext {
     public final FakeBreaker breaker = new FakeBreaker();
     public final FakePlacer placer = new FakePlacer();
     public final FakeRiser riser = new FakeRiser();
+    public final FakeContainers containers = new FakeContainers();
     public final FakeGazer gazer = new FakeGazer();
     public final FakePercepts percepts = new FakePercepts();
     /** The throat, marking into the percepts' own {@code called} set exactly as a live one does. */
@@ -90,6 +91,11 @@ public final class FakeContext implements BrainContext {
         @Override
         public Riser riser() {
             return riser;
+        }
+
+        @Override
+        public dev.luizloyola.anima.core.brain.act.ContainerAccess containers() {
+            return containers;
         }
 
         @Override

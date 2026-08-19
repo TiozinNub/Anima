@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.board.WorkSource;
 import dev.luizloyola.anima.core.brain.act.ActuatorAccess;
 import dev.luizloyola.anima.core.brain.act.BlockBreaker;
 import dev.luizloyola.anima.core.brain.act.BlockPlacer;
+import dev.luizloyola.anima.core.brain.act.ContainerAccess;
 import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.act.ItemConsumer;
 import dev.luizloyola.anima.core.brain.act.Mover;
@@ -121,6 +122,8 @@ public final class BrainDriver {
         Mover mover = new AgentMover(person);
         ItemConsumer consumer = new AgentItemConsumer(person);
         BlockPlacer placer = new AgentBlockPlacer(person);
+        ContainerAccess containers =
+                new dev.luizloyola.anima.compat.inv.WorldContainers(person.entity());
         Percepts percepts = new AgentPercepts(person, () -> person.beingSense().beings());
         ActuatorAccess actuators = new ActuatorAccess() {
             @Override
@@ -148,6 +151,11 @@ public final class BrainDriver {
             @Override
             public Riser riser() {
                 return person.riser(); // body-owned and body-ticked, like the breaker
+            }
+
+            @Override
+            public ContainerAccess containers() {
+                return containers; // one-shot verbs, resolved live each call: no lifecycle to hold
             }
 
             @Override

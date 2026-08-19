@@ -25,6 +25,9 @@ public interface ActuatorAccess {
     /** The legs, gaining one block of height — see {@link Riser}. */
     Riser riser();
 
+    /** Reaching into containers — see {@link ContainerAccess}. */
+    ContainerAccess containers();
+
     /**
      * The eyes — see {@link Gazer}. Defaults to {@link Gazer#NONE}, unlike the ports above: a body
      * that cannot look is only a blind one (every headless rig in the test fixtures), where a mover
