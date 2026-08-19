@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -181,8 +182,11 @@ public final class AgentKnowledge {
         }
         for (PlaceRow row : places.all(kind)) {
             long dist = distanceSq(row.at(), from);
-            // <= so a claim wins a tie with a sighting of the same block: it is the authoritative
-            // record of the same thing, and it never goes stale.
+            // <= so a claim wins any tie, not just one against a sighting of the same block: the
+            // loop only ever compares distance, and an equidistant sighting in another direction
+            // loses too. Harmless — a claim never goes stale, so preferring it is never wrong —
+            // but it means this can name a different equidistant row than Places.View.nearest,
+            // which breaks ties with a strict <. Both are deterministic, just not the same choice.
             if (dist <= bestDist) {
                 bestDist = dist;
                 best = row.toMemory(clock.getAsLong());
@@ -196,14 +200,16 @@ public final class AgentKnowledge {
      * then claims, deduped by anchor: a block both seen and claimed is one entry, and the claim
      * wins (see {@link #places}). For the sightings alone, uncomposed — what this store persists —
      * see {@link #sighted}.
+     *
+     * <p>Always a snapshot, never a live view: a caller iterating this while a sensor notes or
+     * forgets must not see a {@code ConcurrentModificationException} on the no-claims path and not
+     * the claims one — the store is small enough that copying costs nothing worth avoiding it for.
      */
     public Collection<PoiMemory> all(PoiKind kind) {
         Collection<PlaceRow> claimed = places.all(kind);
         Map<Pos, PoiMemory> entries = byKind.get(kind);
         if (claimed.isEmpty()) {
-            return entries == null
-                    ? Collections.emptyList()
-                    : Collections.unmodifiableCollection(entries.values());
+            return entries == null ? List.of() : List.copyOf(entries.values());
         }
         Map<Pos, PoiMemory> merged = new LinkedHashMap<>();
         if (entries != null) {
@@ -213,7 +219,7 @@ public final class AgentKnowledge {
             // a claim supersedes a sighting of it, stamped now — see the clock field's doc
             merged.put(row.at(), row.toMemory(clock.getAsLong()));
         }
-        return Collections.unmodifiableCollection(merged.values());
+        return List.copyOf(merged.values());
     }
 
     /**
