@@ -216,7 +216,7 @@
   "anima.config.aspect.handling.settle_ticks": "Settle time",
   "anima.config.aspect.handling.settle_ticks.desc": "Ticks between opening something and the hands starting to move — the beat that makes rummaging read as deliberate instead of instant.",
   "anima.config.aspect.handling.stack_ticks": "Per-stack handling time",
-  "anima.config.aspect.handling.stack_ticks.desc": "Ticks to move one stack, in or out. A stack is whatever one slot holds: one sword and sixty-four sticks each cost this once, while a hundred and twenty-nine sticks cost it three times.",
+  "anima.config.aspect.handling.stack_ticks.desc": "Ticks to move one stack, in or out — one per SLOT rummaged, not per stack's worth of items. A slot holding one sword, four apples or sixty-four sticks costs this once each, so a tidy store is cheap and a messy one, with a stick loose in each of three slots, costs three.",
   "anima.config.aspect.handling.craft_ticks": "Craft time",
   "anima.config.aspect.handling.craft_ticks.desc": "Ticks of worked pause per craft — long enough to read as labour, short enough not to bore.",
   "anima.config.aspect.stores.staleness_weight": "Memory distrust",

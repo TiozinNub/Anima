@@ -216,7 +216,7 @@
   "anima.config.aspect.handling.settle_ticks": "Tempo de acomodação",
   "anima.config.aspect.handling.settle_ticks.desc": "Ticks entre abrir algo e as mãos começarem a se mexer — a pausa que faz vasculhar parecer deliberado em vez de instantâneo.",
   "anima.config.aspect.handling.stack_ticks": "Tempo de manuseio por pilha",
-  "anima.config.aspect.handling.stack_ticks.desc": "Ticks para mover uma pilha, para dentro ou para fora. Uma pilha é o que um slot guarda: uma espada e sessenta e quatro gravetos custam isso uma vez cada, enquanto cento e vinte e nove gravetos custam isso três vezes.",
+  "anima.config.aspect.handling.stack_ticks.desc": "Ticks para mover uma pilha, para dentro ou para fora — um por SLOT vasculhado, não por pilha de itens. Um slot com uma espada, quatro maçãs ou sessenta e quatro gravetos custa isso uma vez cada, então um baú organizado sai barato e um bagunçado, com um graveto solto em cada um de três slots, custa três.",
   "anima.config.aspect.handling.craft_ticks": "Tempo de fabricação",
   "anima.config.aspect.handling.craft_ticks.desc": "Ticks de pausa trabalhada por fabricação — longo o bastante para parecer trabalho, curto o bastante para não entediar.",
   "anima.config.aspect.stores.staleness_weight": "Desconfiança da memória",

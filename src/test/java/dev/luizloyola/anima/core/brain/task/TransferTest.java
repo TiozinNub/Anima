@@ -150,9 +150,9 @@ class TransferTest {
 
     @Test
     void oneMoreUnitCostsOneMorePauseWhateverTheItemIs() {
-        // The rule is ceil(count / maxStackSize), so crossing a slot boundary always costs exactly
-        // one more grab. Asserted as the DIFFERENCE between runs, which pins the arithmetic without
-        // pinning brittle totals — and checked at all three stack sizes the game actually has.
+        // Crossing a slot boundary costs exactly one more grab. Asserted as the DIFFERENCE between
+        // runs, which pins the arithmetic without pinning brittle totals — and checked at all
+        // three stack sizes the game actually has.
         int perStack = new FakeContext()
                 .profile.i(dev.luizloyola.anima.core.agent.ProfileAspect.HANDLING_STACK_TICKS);
 
@@ -175,10 +175,45 @@ class TransferTest {
                 "and so is a single sword");
     }
 
-    /** Ticks a full take costs, from a container holding exactly {@code count} of one thing. */
+    @Test
+    void rummagingAMessyStoreCostsMorePausesThanATidyOne() {
+        // Where "one pause per slot" and ceil(count / maxStackSize) part company, and the reason
+        // the code implements the first: three sticks lying loose in three slots really is three
+        // separate grabs, while the same three in one slot is one. A Container cannot hold the
+        // shape ceil assumes, so this is the only rule that describes a real chest.
+        int perStack = new FakeContext().profile.i(ProfileAspect.HANDLING_STACK_TICKS);
+        List<ItemStack> messy = List.of(ItemStack.of("minecraft:stick", 1, 64),
+                ItemStack.of("minecraft:stick", 1, 64), ItemStack.of("minecraft:stick", 1, 64));
+
+        assertEquals(2 * perStack,
+                ticksFor(messy, "minecraft:stick", 3)
+                        - ticksFor(List.of(ItemStack.of("minecraft:stick", 3, 64)),
+                                "minecraft:stick", 3),
+                "three slots to rummage is two more grabs than one slot holding the same three");
+    }
+
+    /** Ticks a full take costs from a store holding {@code count}, packed as a real one would. */
     private int ticks(String id, int count, int maxStack) {
+        return ticksFor(packed(id, count, maxStack), id, count);
+    }
+
+    /**
+     * {@code count} laid out the way a {@code Container} must hold it — full slots, then the
+     * remainder. A single slot holding more than {@code maxStackSize} is a shape no real chest can
+     * take, so the boundary cases have to be proven against this one.
+     */
+    private static List<ItemStack> packed(String id, int count, int maxStack) {
+        List<ItemStack> slots = new ArrayList<>();
+        for (int left = count; left > 0; left -= maxStack) {
+            slots.add(ItemStack.of(id, Math.min(left, maxStack), maxStack));
+        }
+        return slots;
+    }
+
+    /** Ticks a full take of {@code count} costs from a store holding exactly {@code slots}. */
+    private int ticksFor(List<ItemStack> slots, String id, int count) {
         FakeContext ctx = new FakeContext();
-        ctx.containers.boxes.put(AT, new ArrayList<>(List.of(ItemStack.of(id, count, maxStack))));
+        ctx.containers.boxes.put(AT, new ArrayList<>(slots));
         TakeItems take = new TakeItems(AT, ItemSpec.anyOf(java.util.Set.of(id)), count);
         for (int elapsed = 1; elapsed <= 5000; elapsed++) {
             if (take.tick(ctx) != TaskStatus.RUNNING) {

@@ -293,9 +293,10 @@ public final class ProfileAspect {
                     + "rummaging read as deliberate instead of instant.");
     public static final ProfileAspect HANDLING_STACK_TICKS = register("handling.stack_ticks",
             Kind.INT, 1, 200,
-            "Ticks to move one stack, in or out. A stack is what a slot holds: one sword, four "
-                    + "apples and sixty-four sticks each cost this once; 129 sticks cost it three "
-                    + "times.");
+            "Ticks to move one stack, in or out — one per SLOT rummaged, not per stack's worth "
+                    + "of items. A slot holding one sword, four apples or sixty-four sticks costs "
+                    + "this once each, so a tidy store is cheap and a messy one, with a stick "
+                    + "loose in each of three slots, costs three.");
     public static final ProfileAspect HANDLING_CRAFT_TICKS = register("handling.craft_ticks",
             Kind.INT, 1, 200,
             "Ticks of worked pause per craft. Long enough to read as labour, short enough not to "
