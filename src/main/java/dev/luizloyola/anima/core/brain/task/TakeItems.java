@@ -43,8 +43,9 @@ public final class TakeItems implements PrimitiveTask {
                     if (ctx.actuators().containers().contents(at).isEmpty()) {
                         return TaskStatus.FAILED; // nothing there, or out of reach
                     }
+                    // Falls through to the elapsed check below rather than returning here: a
+                    // pause of N ticks must cost exactly N, not N+1 for a tick spent starting it.
                     pause.start(ctx.profile().i(ProfileAspect.HANDLING_OPEN_TICKS));
-                    return TaskStatus.RUNNING;
                 }
                 if (!pause.elapsed()) {
                     return TaskStatus.RUNNING;
@@ -60,7 +61,6 @@ public final class TakeItems implements PrimitiveTask {
             case SETTLE -> {
                 if (pause.idle()) {
                     pause.start(ctx.profile().i(ProfileAspect.HANDLING_SETTLE_TICKS));
-                    return TaskStatus.RUNNING;
                 }
                 if (!pause.elapsed()) {
                     return TaskStatus.RUNNING;
@@ -73,8 +73,9 @@ public final class TakeItems implements PrimitiveTask {
                     if (remaining(ctx) <= 0) {
                         return finish(ctx);
                     }
+                    // One stack costs exactly handling.stack_ticks: the 65th stick must be one
+                    // more pause than the 64th, not one more plus a tick spent starting it.
                     pause.start(ctx.profile().i(ProfileAspect.HANDLING_STACK_TICKS));
-                    return TaskStatus.RUNNING;
                 }
                 if (!pause.elapsed()) {
                     return TaskStatus.RUNNING;
