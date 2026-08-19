@@ -101,7 +101,11 @@ public final class AgentKnowledge {
         if (merged != null) {
             entries.remove(merged);
         } else if (entries.size() >= maxPerKind) {
-            evictStalest(entries);
+            // A place memory this body no longer holds can never be corrected — there is no way
+            // to stand somewhere you have forgotten exists and find it wrong — so a contents
+            // belief still keyed to the evicted anchor is dead weight that would otherwise sit in
+            // the save file for the life of the world.
+            insides.remove(evictStalest(entries));
         }
         entries.put(memory.anchor(), memory);
         return memory;
@@ -287,9 +291,26 @@ public final class AgentKnowledge {
     /** Anchor-keyed, and replaced outright on every look — the newer belief is simply the truth. */
     private final Map<Pos, Seen> insides = new LinkedHashMap<>();
 
-    /** Records what was in a container. Written on interaction, never by walking past. */
-    public void sawInside(Pos at, java.util.List<ItemStack> stacks, long now) {
+    /**
+     * Records what was in a container. Written on interaction, never by walking past.
+     *
+     * <p>Capped at {@code maxPerKind} and evicts the stalest belief when full, the same shape as
+     * {@link #note} — belt and braces beside {@link #note}'s own eviction tie: nothing
+     * structurally forces every anchor written here to also be a POI this body still remembers.
+     */
+    public void sawInside(Pos at, java.util.List<ItemStack> stacks, long now, int maxPerKind) {
+        if (!insides.containsKey(at) && insides.size() >= maxPerKind) {
+            evictStalestInside();
+        }
         insides.put(at, new Seen(stacks, now));
+    }
+
+    /**
+     * Puts back a contents belief that was already this agent's — uncapped, for the same reason
+     * {@link #restore} is.
+     */
+    public void restoreInside(Pos at, java.util.List<ItemStack> stacks, long seenTick) {
+        insides.put(at, new Seen(stacks, seenTick));
     }
 
     public Optional<Seen> insideOf(Pos at) {
@@ -299,6 +320,18 @@ public final class AgentKnowledge {
     /** Every remembered inside, insertion-ordered — the codec's view and the readout's. */
     public Map<Pos, Seen> insides() {
         return Collections.unmodifiableMap(insides);
+    }
+
+    private void evictStalestInside() {
+        Pos stalest = null;
+        long oldest = Long.MAX_VALUE;
+        for (Map.Entry<Pos, Seen> entry : insides.entrySet()) {
+            if (entry.getValue().seenTick() < oldest) {
+                oldest = entry.getValue().seenTick();
+                stalest = entry.getKey();
+            }
+        }
+        insides.remove(stalest);
     }
 
     // --- the gist tier: what was made out but never examined ---------------------------------
@@ -521,7 +554,8 @@ public final class AgentKnowledge {
         return null;
     }
 
-    private static void evictStalest(Map<Pos, PoiMemory> entries) {
+    /** @return the evicted anchor, so {@link #note} can drop its {@link #insides} row too */
+    private static Pos evictStalest(Map<Pos, PoiMemory> entries) {
         Pos stalest = null;
         long oldest = Long.MAX_VALUE;
         for (Map.Entry<Pos, PoiMemory> entry : entries.entrySet()) {
@@ -531,6 +565,7 @@ public final class AgentKnowledge {
             }
         }
         entries.remove(stalest);
+        return stalest;
     }
 
     private static long distanceSq(Pos a, Pos b) {

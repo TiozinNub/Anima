@@ -354,7 +354,7 @@ class AgentKnowledgeTest {
     void whatWasSeenInsideIsRememberedWithItsAge() {
         AgentKnowledge knowledge = new AgentKnowledge();
         Pos at = new Pos(4, 64, 4);
-        knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L);
+        knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L, 64);
 
         AgentKnowledge.Seen seen = knowledge.insideOf(at).orElseThrow();
         assertEquals(32, seen.count(LOGS));
@@ -365,8 +365,8 @@ class AgentKnowledgeTest {
     void lookingAgainReplacesTheBeliefRatherThanAddingToIt() {
         AgentKnowledge knowledge = new AgentKnowledge();
         Pos at = new Pos(4, 64, 4);
-        knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L);
-        knowledge.sawInside(at, List.of(), 200L);
+        knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L, 64);
+        knowledge.sawInside(at, List.of(), 200L, 64);
 
         assertEquals(0, knowledge.insideOf(at).orElseThrow().count(LOGS),
                 "arriving and finding it bare is the correction, not a second opinion");
@@ -383,7 +383,7 @@ class AgentKnowledgeTest {
         AgentKnowledge knowledge = new AgentKnowledge();
         Pos at = new Pos(2, 64, 2);
         knowledge.note(new PoiMemory(BENCH, at, Region.of(at), 0, false, 1L), 64);
-        knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L);
+        knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L, 64);
 
         assertTrue(knowledge.forget(BENCH, at));
         assertTrue(knowledge.insideOf(at).isEmpty(), "a container that is gone has no contents");
@@ -399,10 +399,52 @@ class AgentKnowledgeTest {
 
         AgentKnowledge knowledge = new AgentKnowledge();
         knowledge.sees(places.viewFor(hazel), () -> 0L);
-        knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L);
+        knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L, 64);
 
         assertTrue(knowledge.disprove(BENCH, at));
         assertTrue(knowledge.insideOf(at).isEmpty(), "a container that is gone has no contents");
+    }
+
+    @Test
+    void evictingAPlaceMemoryDropsItsRememberedInsideToo() {
+        AgentKnowledge knowledge = new AgentKnowledge();
+        int cap = AgentKnowledge.maxPerKind(TestSpecies.PROFILE);
+        // Fill to cap with well-separated stores; entry i last seen at tick i+1, except entry 20,
+        // the stalest, which also carries a contents belief.
+        Pos stalestAt = new Pos(200, 64, 0);
+        for (int i = 0; i < cap; i++) {
+            long seen = (i == 20) ? 0 : i + 1;
+            Pos at = new Pos(i * 10, 64, 0);
+            knowledge.note(new PoiMemory(BENCH, at, Region.of(at), 0, false, seen), cap);
+        }
+        knowledge.sawInside(stalestAt, List.of(ItemStack.of("minecraft:oak_log", 4, 64)), 0L, cap);
+        assertTrue(knowledge.insideOf(stalestAt).isPresent(), "sanity: the belief was recorded");
+
+        knowledge.note(new PoiMemory(BENCH, new Pos(0, 64, 500), Region.of(new Pos(0, 64, 500)),
+                0, false, 5000), cap);
+
+        assertTrue(knowledge.insideOf(stalestAt).isEmpty(),
+                "a place memory this body no longer holds can never have its contents corrected — "
+                        + "correcting one means standing somewhere you have forgotten exists");
+    }
+
+    @Test
+    void theInsideMapNeverGrowsPastCapacity() {
+        AgentKnowledge knowledge = new AgentKnowledge();
+        int cap = AgentKnowledge.maxPerKind(TestSpecies.PROFILE);
+        // No POI backs any of these — the belt-and-braces cap must hold on its own. Entry i is
+        // seen at tick i, so entry 0 is the stalest.
+        for (int i = 0; i < cap; i++) {
+            knowledge.sawInside(new Pos(i * 10, 64, 0), List.of(), i, cap);
+        }
+        assertEquals(cap, knowledge.insides().size());
+
+        knowledge.sawInside(new Pos(0, 64, 9000), List.of(), 9000, cap);
+
+        assertEquals(cap, knowledge.insides().size(),
+                "capacity holds even with no place memory to tie the eviction to");
+        assertTrue(knowledge.insideOf(new Pos(0, 64, 0)).isEmpty(),
+                "the stalest entry (tick 0) was the one evicted");
     }
 
     private static Places.Parties everyoneAlone() {

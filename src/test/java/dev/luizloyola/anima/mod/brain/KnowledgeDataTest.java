@@ -7,6 +7,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mojang.serialization.JsonOps;
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.sense.Pos;
@@ -52,7 +53,12 @@ class KnowledgeDataTest {
 
         KnowledgeData data = new KnowledgeData();
         data.registry().forPerson(hazel)
-                .sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L);
+                .sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 32, 64)), 100L,
+                        AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
+        assertEquals(1, data.actualRows(),
+                "a contents belief with no POI beside it is still a row — entries() must not "
+                        + "require pois or sightings too, or this person's whole knowledge is "
+                        + "silently dropped from the file");
 
         var encoded = KnowledgeData.CODEC.encodeStart(JsonOps.INSTANCE, data).getOrThrow();
         KnowledgeData decoded = KnowledgeData.CODEC.parse(JsonOps.INSTANCE, encoded).getOrThrow();

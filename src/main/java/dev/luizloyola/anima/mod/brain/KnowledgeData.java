@@ -241,7 +241,7 @@ public final class KnowledgeData extends SavedData implements StoreGuard.Checked
                 knowledge.restoreGlimpse(sighting);
             }
             for (InsideRow row : entry.insides()) {
-                knowledge.sawInside(row.at(), row.stacks(), row.seen());
+                knowledge.restoreInside(row.at(), row.stacks(), row.seen());
             }
         }
         return new KnowledgeData(registry, version, declaredRows);
