@@ -6,6 +6,7 @@ import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
+import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.task.BreakBlock;
 import dev.luizloyola.anima.core.brain.task.ConsumeItem;
@@ -19,9 +20,11 @@ import dev.luizloyola.anima.core.brain.task.Idle;
 import dev.luizloyola.anima.core.brain.task.ObtainItem;
 import dev.luizloyola.anima.core.brain.task.SatisfyHunger;
 import dev.luizloyola.anima.core.brain.task.SurveyArea;
+import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.WanderStep;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.nav.Gait;
+import net.minecraft.core.UUIDUtil;
 
 /**
  * How Anima's own tasks write themselves down, registered with {@link TaskCodecs}.
@@ -141,6 +144,10 @@ public final class AnimaTasks {
                             .fieldOf("strength")
                             .forGetter(dev.luizloyola.anima.core.inv.ItemCall::strength)
             ).apply(c, dev.luizloyola.anima.core.inv.ItemCall::new));
+
+    /** One perceived body, by the id its track is kept under — as {@code SenseState} writes it. */
+    private static final Codec<BeingId> BEING_ID =
+            UUIDUtil.CODEC.xmap(BeingId::new, BeingId::value);
 
     private static final Codec<Pos> POS = RecordCodecBuilder.create(p -> p.group(
             Codec.INT.fieldOf("x").forGetter(Pos::x),
@@ -292,6 +299,50 @@ public final class AnimaTasks {
                         TaskCodecs.codec().fieldOf("attempt")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.Try::attempt)
                 ).apply(t, dev.luizloyola.anima.core.brain.task.Try::new)));
+
+        // The two social roots. Both are arbiter-grantable, so a body saved mid-answer or
+        // mid-seek writes one of them as its plan's root — unregistered, that save is refused
+        // (and today NPEs; see docs/BUGS.md).
+        TaskCodecs.register("anima:answer", dev.luizloyola.anima.core.brain.task.Answer.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        BEING_ID.fieldOf("who")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Answer::who),
+                        POS.fieldOf("where")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Answer::where)
+                ).apply(t, dev.luizloyola.anima.core.brain.task.Answer::new)));
+
+        TaskCodecs.register("anima:face", dev.luizloyola.anima.core.brain.task.Face.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        BEING_ID.fieldOf("who")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Face::who),
+                        POS.fieldOf("where")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Face::where),
+                        Codec.INT.fieldOf("ticks")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Face::ticks),
+                        Codec.INT.fieldOf("remaining")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Face::remaining)
+                ).apply(t, (who, where, ticks, remaining) ->
+                        new dev.luizloyola.anima.core.brain.task.Face(who, where, ticks)
+                                .resume(remaining))));
+
+        // The leg rides through the dispatch codec like the two wrappers below: a seek that came
+        // back before its walk would choose a target again — with the mark for the first one
+        // already spent, that is a body setting off toward somebody else.
+        TaskCodecs.register("anima:seek_company",
+                dev.luizloyola.anima.core.brain.task.SeekCompany.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        TaskCodecs.codec().optionalFieldOf("walk").forGetter(task ->
+                                java.util.Optional.ofNullable((Task) task.walk()))
+                ).apply(t, walk -> {
+                    dev.luizloyola.anima.core.brain.task.SeekCompany seek =
+                            new dev.luizloyola.anima.core.brain.task.SeekCompany();
+                    // Anything but a walk in that slot is a hand-edited file. Re-choosing is what
+                    // this task does on any tick its target has gone from, so it is the safe read.
+                    if (walk.orElse(null) instanceof GoTo leg) {
+                        seek.resume(leg);
+                    }
+                    return seek;
+                })));
 
         TaskCodecs.register("anima:kitted", dev.luizloyola.anima.core.brain.task.KittedErrand.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

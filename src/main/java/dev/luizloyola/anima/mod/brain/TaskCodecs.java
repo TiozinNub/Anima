@@ -61,6 +61,14 @@ public final class TaskCodecs {
     }
 
     /**
+     * Every registered task TYPE, in registration order. The half a guard needs: keys alone can
+     * say how many types are registered, never which class was left out.
+     */
+    public static java.util.Set<Class<?>> types() {
+        return java.util.Collections.unmodifiableSet(BY_TYPE.keySet());
+    }
+
+    /**
      * The dispatching codec over every registered type: {@code {"task": "<key>", …}}.
      *
      * <p>Built lazily: registration happens during mod init, so a field initialised at class-load

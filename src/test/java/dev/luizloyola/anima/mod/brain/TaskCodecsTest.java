@@ -3,14 +3,22 @@ package dev.luizloyola.anima.mod.brain;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.mojang.serialization.JsonOps;
+import dev.luizloyola.anima.arch.SourceTree;
+import dev.luizloyola.anima.core.brain.sense.BeingId;
+import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.brain.task.Answer;
+import dev.luizloyola.anima.core.brain.task.Face;
 import dev.luizloyola.anima.core.brain.task.GoTo;
 import dev.luizloyola.anima.core.brain.task.Idle;
+import dev.luizloyola.anima.core.brain.task.SeekCompany;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.WanderStep;
 import dev.luizloyola.anima.core.nav.Gait;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -21,6 +29,9 @@ import org.junit.jupiter.api.Test;
  * <p>Through {@code JsonOps}: the codecs are ops-agnostic and the test does not need a Minecraft.
  */
 class TaskCodecsTest {
+
+    /** Where Anima's own tasks live — the layer the scan below reads. */
+    private static final String CORE = "dev.luizloyola.anima.core";
 
     @BeforeAll
     static void registerTheTypes() {
@@ -63,6 +74,60 @@ class TaskCodecsTest {
     void aCompoundCarriesWhatItWasBuiltWith() {
         WanderStep after = assertInstanceOf(WanderStep.class, roundTrip(new WanderStep(9)));
         assertEquals(9, after.radius());
+    }
+
+    /**
+     * The guard the two social roots were missing. It asks the wider question on purpose: what an
+     * instinct can grant is a subset of what Anima declares, and the executor writes its FRAMES
+     * too, so a SUBTASK with no codec sinks a save exactly as a root would. Scanning the tree is
+     * what makes it hold for the task rung 5 adds without anybody remembering this file exists.
+     */
+    @Test
+    void everyTaskAnimaDeclaresCanWriteItselfDown() {
+        java.util.List<Class<?>> declared = new java.util.ArrayList<>();
+        for (SourceTree.JavaSource file
+                : SourceTree.fromSystemProperty("anima.arch.sourceRoot").inPackage(CORE)) {
+            collectTasks(loaded(file.path()), declared);
+        }
+        // A scan that finds nothing is a guard that passes by looking away — the same failure
+        // SourceTree refuses for an empty tree.
+        assertTrue(declared.size() >= 15,
+                "only " + declared.size() + " task types found: the scan has lost the source tree");
+
+        java.util.List<String> orphans = declared.stream()
+                .filter(type -> !TaskCodecs.types().contains(type))
+                .map(Class::getSimpleName)
+                .toList();
+        assertTrue(orphans.isEmpty(), () -> SourceTree.report(
+                "every Task Anima declares must be registered with TaskCodecs — a plan holding an "
+                        + "unregistered one cannot be saved, and the body loses it on reload",
+                orphans));
+    }
+
+    /** The class a source file declares, or null for {@code package-info} and its kin. */
+    private static Class<?> loaded(String path) {
+        String binary = path.substring(0, path.length() - ".java".length()).replace('/', '.');
+        try {
+            // Not initialised: this only asks what a class IS, and running core's static
+            // declarations from a scan would be a side effect nobody asked for.
+            return Class.forName(binary, false, TaskCodecsTest.class.getClassLoader());
+        } catch (ClassNotFoundException | LinkageError e) {
+            return null;
+        }
+    }
+
+    /** {@code type} and every class nested in it that a plan could hold — {@code EscapeStep.Stuck}. */
+    private static void collectTasks(Class<?> type, java.util.List<Class<?>> found) {
+        if (type == null) {
+            return;
+        }
+        if (Task.class.isAssignableFrom(type) && !type.isInterface()
+                && !java.lang.reflect.Modifier.isAbstract(type.getModifiers())) {
+            found.add(type);
+        }
+        for (Class<?> nested : type.getDeclaredClasses()) {
+            collectTasks(nested, found);
+        }
     }
 
     @Test
@@ -168,5 +233,42 @@ class TaskCodecsTest {
         assertEquals(1, after.done());
         assertEquals(4, after.workTicks());
         assertEquals(recipe, after.recipe(), "bill, output and table flag, byte for byte");
+    }
+
+    @Test
+    void anAnswerRemembersWhoCalledAndFromWhere() {
+        // A hail carries one cell and one id, and both are the whole task: come back without them
+        // and the body is walking to nowhere on behalf of nobody.
+        BeingId caller = BeingId.of(UUID.randomUUID());
+        Answer after = assertInstanceOf(Answer.class,
+                roundTrip(new Answer(caller, new Pos(8, -60, -3))));
+        assertEquals(caller, after.who());
+        assertEquals(new Pos(8, -60, -3), after.where());
+    }
+
+    @Test
+    void aBeatComesBackWithItsSubjectAndWhatIsLeftOfIt() {
+        BeingId caller = BeingId.of(UUID.randomUUID());
+        Face after = assertInstanceOf(Face.class,
+                roundTrip(new Face(caller, new Pos(2, 64, 2), 30).resume(11)));
+        assertEquals(caller, after.who());
+        assertEquals(new Pos(2, 64, 2), after.where());
+        assertEquals(30, after.ticks());
+        assertEquals(11, after.remaining(), "a beat that restarts is one both parties stand through");
+    }
+
+    @Test
+    void aSeekAlreadyWalkingComesBackOnTheSameLeg() {
+        // The nested walk is the mid-flight half: the mark for this target is already spent, so a
+        // seek that came back before its walk would set off toward somebody else entirely.
+        SeekCompany before = new SeekCompany().resume(new GoTo(20, 64, -4, Gait.WALK).resume(true));
+        SeekCompany after = assertInstanceOf(SeekCompany.class, roundTrip(before));
+        assertNotNull(after.walk());
+        assertEquals(20, after.walk().x());
+        assertEquals(-4, after.walk().z());
+        assertTrue(after.walk().issued(), "a walk under way does not re-order itself");
+
+        assertNull(assertInstanceOf(SeekCompany.class, roundTrip(new SeekCompany())).walk(),
+                "and one still to choose a target comes back with nothing to resume");
     }
 }
