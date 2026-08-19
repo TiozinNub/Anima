@@ -6,9 +6,11 @@ import dev.luizloyola.anima.compat.SavedDatas;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.social.PartyId;
 import dev.luizloyola.anima.core.social.PartyRoster;
+import dev.luizloyola.anima.core.social.Places;
 import dev.luizloyola.anima.mod.store.StoreGuard;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.UUIDUtil;
@@ -17,6 +19,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The world-scoped, persisted home of every party roster — the {@code ContactData} pattern applied
@@ -60,6 +63,9 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
     private final int loadedVersion;
     private final int declaredRows;
 
+    /** Installed at server start; null until then, since rows load before there is a world. */
+    private @Nullable Places places;
+
     /** Constructs an empty store (the {@link SavedDataType} supplier for a fresh save). */
     public PartyData() {
         this(new PartyRoster(), StoreGuard.NEVER_LOADED, StoreGuard.UNCOUNTED);
@@ -101,19 +107,59 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
         return party;
     }
 
+    /** @see PartyRoster#currentPartyOf — a pure read; it never mints, so it never dirties. */
+    public Optional<PartyId> currentPartyOf(AgentId member) {
+        return roster.currentPartyOf(member);
+    }
+
+    /** What follows a membership change. See the spec's transition table. */
+    public void follows(Places places) {
+        this.places = places;
+    }
+
     /** @see PartyRoster#join — marks dirty only when membership genuinely moved. */
     public boolean join(AgentId who, PartyId into) {
-        return dirtyIf(roster.join(who, into));
+        Optional<PartyId> before = roster.currentPartyOf(who);
+        if (!dirtyIf(roster.join(who, into))) {
+            return false;
+        }
+        if (places != null) {
+            // A vacated party that still has members keeps its own workshop; only one that ceased
+            // to exist hands its claims to wherever its last member went.
+            before.filter(gone -> roster.members(gone).isEmpty())
+                    .ifPresent(gone -> places.partyDisbanded(gone, into));
+            places.ownerMovedTo(who, into);
+        }
+        return true;
     }
 
     /** @see PartyRoster#leave */
     public boolean leave(AgentId who) {
-        return dirtyIf(roster.leave(who));
+        if (!dirtyIf(roster.leave(who))) {
+            return false;
+        }
+        if (places != null) {
+            // The party still has members — `leave` refuses for a loner — so its communal claims
+            // stay with it. Only what this agent OWNED stops being shared.
+            places.ownerMovedTo(who, null);
+        }
+        return true;
     }
 
     /** @see PartyRoster#evict — for an agent who is gone, party of one included. */
     public boolean evict(AgentId who) {
-        return dirtyIf(roster.evict(who));
+        Optional<PartyId> before = roster.currentPartyOf(who);
+        if (!dirtyIf(roster.evict(who))) {
+            return false;
+        }
+        if (places != null) {
+            places.ownerMovedTo(who, null);
+            // Nothing owns a communal claim, so an emptied party takes its claims with it. The
+            // blocks still stand and are re-perceived by whoever walks past.
+            before.filter(gone -> roster.members(gone).isEmpty())
+                    .ifPresent(gone -> places.partyDisbanded(gone, null));
+        }
+        return true;
     }
 
     /** @see PartyRoster#members */

@@ -161,6 +161,23 @@ public final class Places {
         return touched;
     }
 
+    /**
+     * Drops every claim {@code owner} holds — an erasure, not a burial: a dead settler's chest
+     * stays theirs until something actually removes them. Communal rows have no owner and are
+     * untouched.
+     *
+     * @return how many rows were dropped
+     */
+    public int forgetOwner(AgentId owner) {
+        int before = rows.size();
+        rows.values().removeIf(row -> owner.equals(row.owner()));
+        int dropped = before - rows.size();
+        if (dropped > 0) {
+            listener.run();
+        }
+        return dropped;
+    }
+
     /** Every claim, insertion-ordered — the store's codec and the debug readout. */
     public Collection<PlaceRow> rows() {
         return List.copyOf(rows.values());

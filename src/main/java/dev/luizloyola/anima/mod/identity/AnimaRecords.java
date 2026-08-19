@@ -4,6 +4,7 @@ import dev.luizloyola.anima.mod.brain.KnowledgeData;
 import dev.luizloyola.anima.mod.log.Journals;
 import dev.luizloyola.anima.mod.social.ContactData;
 import dev.luizloyola.anima.mod.social.PartyData;
+import dev.luizloyola.anima.mod.social.PlacesData;
 import dev.luizloyola.anima.mod.store.StoreGuard;
 
 /**
@@ -20,6 +21,8 @@ import dev.luizloyola.anima.mod.store.StoreGuard;
  *       filters the dead out at read time.
  *   <li><b>journal</b> — <b>survives</b>: the death is the most interesting line the ring holds,
  *       and the durable file is untouched either way.
+ *   <li><b>places</b> — <b>survives</b>: a dead settler's chest is still theirs. Only an erasure
+ *       takes it.
  * </ul>
  */
 public final class AnimaRecords {
@@ -41,6 +44,10 @@ public final class AnimaRecords {
         // what `survivesDeath = true` says here.
         AgentRecords.register("grave", true,
                 (server, who) -> Graves.get(server).forget(who));
+        // A claim outlives its claimant's death — a dead settler's chest is still theirs. Only an
+        // erasure takes it, which is what survivesDeath = true says here.
+        AgentRecords.register("places", true,
+                (server, who) -> PlacesData.get(server).forget(who));
 
         // The other half of "a store declares itself": the persistent ones are also checked at
         // boot for a load that vanilla swallowed. The journal ring has no file to guard.
@@ -48,5 +55,6 @@ public final class AnimaRecords {
         StoreGuard.guard("parties", PartyData.ID, PartyData::get);
         StoreGuard.guard("contacts", ContactData.ID, ContactData::get);
         StoreGuard.guard("graves", Graves.ID, Graves::get);
+        StoreGuard.guard("places", PlacesData.ID, PlacesData::get);
     }
 }

@@ -9,9 +9,12 @@ import dev.luizloyola.anima.mod.brain.PlaceIndexes;
 import dev.luizloyola.anima.mod.brain.RegionCaches;
 import dev.luizloyola.anima.mod.config.ConfigFile;
 import dev.luizloyola.anima.mod.identity.AnimaRecords;
+import dev.luizloyola.anima.mod.social.PartyData;
+import dev.luizloyola.anima.mod.social.PlacesData;
 import dev.luizloyola.anima.mod.store.StoreGuard;
 import dev.luizloyola.anima.mod.item.AnimaItems;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +55,13 @@ public final class AnimaMod implements ModInitializer {
         // As the server finishes starting: refuses to run a world whose memory did not load,
         // which vanilla swallows and then overwrites.
         StoreGuard.install();
+        // The roster only exists once there is a server; rows come off disk before that. This is
+        // also where PartyData learns what to move when membership changes.
+        ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            PlacesData store = PlacesData.get(server);
+            store.attach(server);
+            PartyData.get(server).follows(store.places());
+        });
         // Registered here so a bare install, or a consumer that paints nothing, still has it.
         dev.luizloyola.anima.mod.debug.CellOverlays.init();
         // The follow-me leash's tick. Here rather than in a consumer: `/anima follow` is on the
