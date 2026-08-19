@@ -60,6 +60,10 @@ public final class AnimaCommands {
                         // only: the port and the token are the library's, not any consumer's.
                         .then(dev.luizloyola.anima.mod.webdebug.WebCommands.tree())
                         .then(AgentCommands.inv(registry))
+                        // The dev stand-ins for putting into / taking from a known store. Anima's
+                        // root only for now — the `/autarkia` mount waits for this branch to merge,
+                        // the same way `places` did.
+                        .then(AgentCommands.store(registry))
                         .then(ConfigCommands.tree(Config.store(), configFile))));
     }
 }

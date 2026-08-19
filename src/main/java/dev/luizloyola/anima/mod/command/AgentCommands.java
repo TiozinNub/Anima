@@ -41,7 +41,9 @@ import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.task.BreakBlock;
 import dev.luizloyola.anima.core.brain.task.GoTo;
 import dev.luizloyola.anima.core.brain.task.ObtainItem;
+import dev.luizloyola.anima.core.brain.task.PutItems;
 import dev.luizloyola.anima.core.brain.task.SatisfyHunger;
+import dev.luizloyola.anima.core.brain.task.TakeItems;
 import dev.luizloyola.anima.core.config.ConfigValues;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
@@ -72,6 +74,7 @@ import dev.luizloyola.anima.mod.net.ContactsSync;
 import dev.luizloyola.anima.core.social.PartyId;
 import dev.luizloyola.anima.core.social.PlaceRow;
 import dev.luizloyola.anima.core.social.Places;
+import dev.luizloyola.anima.core.store.Store;
 import dev.luizloyola.anima.mod.social.ContactData;
 import dev.luizloyola.anima.mod.social.PartyData;
 import dev.luizloyola.anima.mod.social.PlacesData;
@@ -357,6 +360,86 @@ public final class AgentCommands {
         // LOGGED: same as found — a dropped claim is durable state nothing else narrates.
         Replies.send(source, () -> Component.translatable("anima.command.places.dropped", where)
                 .withStyle(ChatFormatting.AQUA), true);
+        return 1;
+    }
+
+    /** {@code (x, y, z)} alone — {@link #whereClaim} minus the kind, for a sentence that already
+     *  says what kind of place this is. */
+    private static String where(Pos at) {
+        return "(" + at.x() + ", " + at.y() + ", " + at.z() + ")";
+    }
+
+    /**
+     * Dev stand-ins for a motivation that does not exist yet, exactly as {@code party join} stands
+     * in for a handshake: {@code put}/{@code take} install the raw transfer primitive against the
+     * nearest known store — no walk. Reaching it by hand is {@code nav goto} today; walking there
+     * on its own is {@code EnsureStore}'s, and arrives with 2b.
+     *
+     * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
+     * so a shared subcommand must be built once per root that mounts it.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> store(CommandBuildContext registryAccess) {
+        return Commands.literal("store")
+                                .then(Commands.literal("put")
+                                        .then(Commands.argument("item", ItemArgument.item(registryAccess))
+                                                .executes(ctx -> storeTransfer(ctx.getSource(), true,
+                                                        ItemArgument.getItem(ctx, "item"), 1))
+                                                .then(Commands.argument("count", IntegerArgumentType.integer(1))
+                                                        .executes(ctx -> storeTransfer(ctx.getSource(), true,
+                                                                ItemArgument.getItem(ctx, "item"),
+                                                                IntegerArgumentType.getInteger(ctx, "count"))))))
+                                .then(Commands.literal("take")
+                                        .then(Commands.argument("item", ItemArgument.item(registryAccess))
+                                                .executes(ctx -> storeTransfer(ctx.getSource(), false,
+                                                        ItemArgument.getItem(ctx, "item"), 1))
+                                                .then(Commands.argument("count", IntegerArgumentType.integer(1))
+                                                        .executes(ctx -> storeTransfer(ctx.getSource(), false,
+                                                                ItemArgument.getItem(ctx, "item"),
+                                                                IntegerArgumentType.getInteger(ctx, "count"))))));
+    }
+
+    /**
+     * Installs {@link PutItems} ({@code put}) or {@link TakeItems} ({@code take}) against the
+     * nearest known store, on the resolved body's executor — the raw primitive, not a walk to it
+     * (see {@link #store}). Reach is checked BEFORE anything is installed: the primitive's own OPEN
+     * phase would otherwise fail a tick later with nothing to tell the operator why.
+     */
+    private static int storeTransfer(CommandSourceStack source, boolean put, ItemInput item, int count)
+            throws CommandSyntaxException {
+        AgentBody person = resolveBody(source);
+        if (person == null) return 0;
+        AgentId who = person.agentId();
+        if (who == null) {
+            Replies.fail(source, Component.translatable("anima.command.not_identified"));
+            return 0;
+        }
+        String name = person.entity().getName().getString();
+        AgentKnowledge knowledge = Knowledges.of(source.getServer()).forPerson(who);
+        Pos here = new Pos(person.entity().blockPosition().getX(),
+                person.entity().blockPosition().getY(), person.entity().blockPosition().getZ());
+        Optional<PoiMemory> known = knowledge.nearest(Store.POI, here);
+        if (known.isEmpty()) {
+            Replies.fail(source, Component.translatable("anima.command.store.none", name));
+            return 0;
+        }
+        Pos at = known.get().anchor();
+        double distance = Store.distance(at, here);
+        if (distance > Store.REACH) {
+            Replies.fail(source, Component.translatable("anima.command.store.too_far", name,
+                    String.format(Locale.ROOT, "%.1f", distance), where(at)));
+            return 0;
+        }
+        dev.luizloyola.anima.core.inv.ItemStack template =
+                ItemStacks.templateOf(item, source.registryAccess());
+        ItemSpec spec = ItemSpec.anyOf(Set.of(template.id()));
+        boolean autoDisabled = person.brain().run(put
+                ? new PutItems(at, spec, count)
+                : new TakeItems(at, spec, count));
+        Component suffix = autoDisabledNote(autoDisabled);
+        Replies.send(source, () -> Component.translatable(
+                        put ? "anima.command.store.put" : "anima.command.store.take",
+                        name, count, template.id(), where(at))
+                .append(suffix).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
@@ -1762,6 +1845,11 @@ public final class AgentCommands {
             for (PoiMemory memory : knowledge.all(kind)) {
                 Replies.send(source, () -> formatPoi(person, memory, now).copy()
                         .withStyle(ChatFormatting.GREEN));
+                // A store's contents are a second belief, written only by opening it — worth its
+                // own row rather than folding into formatPoi, which every other kind also uses.
+                if (kind == Store.POI) {
+                    Replies.send(source, () -> formatInside(knowledge, memory.anchor(), now));
+                }
             }
         }
         // The gist tier last and dimmer: these are not things they know, they are places worth
@@ -1830,6 +1918,42 @@ public final class AgentCommands {
             line.append(Component.translatable("anima.command.knowledge.partial"));
         }
         return line;
+    }
+
+    /** The row beneath a store's POI line: what was last seen inside and how long ago, or that
+     *  nobody has opened it. {@link AgentKnowledge.Seen} carries no {@link PoiMemory} to hand
+     *  {@link PoiLabels#age}, so this reuses {@link PoiLabels#ticks} instead — the same "seen …
+     *  ago" span {@link #formatGlimpse} already prints for the gist tier. */
+    private static Component formatInside(AgentKnowledge knowledge, Pos at, long now) {
+        Optional<AgentKnowledge.Seen> seen = knowledge.insideOf(at);
+        if (seen.isEmpty()) {
+            return indent(Component.translatable("anima.command.knowledge.unopened")
+                    .withStyle(ChatFormatting.GRAY));
+        }
+        return indent(Component.translatable("anima.command.knowledge.inside",
+                        summarizeContents(seen.get().stacks()), PoiLabels.ticks(seen.get().age(now)))
+                .withStyle(ChatFormatting.GRAY));
+    }
+
+    /** A container's stacks as a short list — {@code "16×oak_log, 3×stick"} — item ids raw like
+     *  every other line this readout prints, summed by id since a chest often splits one kind
+     *  across slots. */
+    private static String summarizeContents(List<dev.luizloyola.anima.core.inv.ItemStack> stacks) {
+        if (stacks.isEmpty()) {
+            return "nothing";
+        }
+        Map<String, Integer> totals = new LinkedHashMap<>();
+        for (dev.luizloyola.anima.core.inv.ItemStack stack : stacks) {
+            totals.merge(shortItem(stack.id()), stack.count(), Integer::sum);
+        }
+        StringBuilder summary = new StringBuilder();
+        for (Map.Entry<String, Integer> entry : totals.entrySet()) {
+            if (!summary.isEmpty()) {
+                summary.append(", ");
+            }
+            summary.append(entry.getValue()).append("×").append(entry.getKey());
+        }
+        return summary.toString();
     }
 
     /**
