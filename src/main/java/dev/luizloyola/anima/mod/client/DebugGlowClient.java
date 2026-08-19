@@ -9,9 +9,10 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Client-side read-only shadow of this player's server pin ({@code AgentSelection}), delivered by
- * {@link DebugGlowPayload}. {@link DebugGlow} reads it each tick to outline the selected AgentBody.
- * Nothing here is authoritative — the server owns the pin and pushes every change.
+ * Client-side read-only shadow of this player's server-side selection ({@code AgentSelection}),
+ * delivered by {@link DebugGlowPayload}. {@link DebugGlow} reads it each tick to outline the
+ * selected AgentBody. Nothing here is authoritative — the server owns the selection and pushes
+ * every change.
  */
 @Environment(EnvType.CLIENT)
 public final class DebugGlowClient {
@@ -23,11 +24,12 @@ public final class DebugGlowClient {
     public static void install() {
         ClientPlayNetworking.registerGlobalReceiver(DebugGlowPayload.TYPE,
                 (payload, context) -> selected = payload.personId());
-        // Drop the shadow on disconnect so a stale pin can't flash a glow before the next resync.
+        // Drop the shadow on disconnect so a stale selection can't flash a glow before the next
+        // resync.
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> selected = null);
     }
 
-    /** The AgentBody this client's player has pinned, or {@code null} if none. */
+    /** The AgentBody this client's player has selected, or {@code null} if none. */
     public static @Nullable AgentId get() {
         return selected;
     }

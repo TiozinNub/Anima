@@ -118,7 +118,7 @@ import dev.luizloyola.anima.core.agent.PrivateIdentity;
 /**
  * The command surface that belongs to <em>having a mind</em> rather than to being any
  * particular creature — navigation, the journal, remembered places, perception, the brain's
- * own state, the carried inventory, the selection pin, the contact book, and the grave.
+ * own state, the carried inventory, the selection, the contact book, and the grave.
  *
  * <p>Every subcommand is a <b>factory</b>, so more than one root can mount the same tree:
  * Brigadier parents a builder at registration, so a cached node could only ever be mounted once.
@@ -128,7 +128,7 @@ import dev.luizloyola.anima.core.agent.PrivateIdentity;
  */
 public final class AgentCommands {
 
-    /** How far the bare resolve ladder looks for a body when nothing is pinned. */
+    /** How far the bare resolve ladder looks for a body when nothing is selected. */
     private static final double NEAREST_RADIUS = 32.0;
 
     /**
@@ -143,7 +143,7 @@ public final class AgentCommands {
     }
 
     /**
-     * Pin the agent this source's later commands target.
+     * Select the agent this source's later commands target.
      *
      * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
      * so a shared subcommand must be built once per root that mounts it.
@@ -467,7 +467,7 @@ public final class AgentCommands {
                                 .then(logCategory("project", Category.PROJECT))
                                 // "for <name|id>" reaches any person by directory lookup — including one
                                 // whose entity is unloaded (the ring is AgentId-keyed and outlives the
-                                // entity), which the loaded-only nearest/pinned resolve() cannot.
+                                // entity), which the loaded-only nearest/selected resolve() cannot.
                                 .then(Commands.literal("for")
                                         .then(Commands.argument("person", StringArgumentType.string())
                                                 .suggests(ALL_PERSON_SUGGESTIONS)
@@ -1384,7 +1384,7 @@ public final class AgentCommands {
     }
 
     /**
-     * Dumps the journal of the {@link #resolve resolved} (pinned or nearest, and so necessarily
+     * Dumps the journal of the {@link #resolve resolved} (selected or nearest, and so necessarily
      * <em>loaded</em>) Person — the common case. {@code log for <name|id>} ({@link #logFor}) is the
      * variant that reaches an unloaded one.
      */
@@ -1844,7 +1844,7 @@ public final class AgentCommands {
 
     /**
      * The target for an agent-scoped command, in precedence order: the body this command runs
-     * <em>as</em>, else the source's pin, else the nearest body. Reports the reason and returns
+     * <em>as</em>, else the source's selection, else the nearest body. Reports the reason and returns
      * {@code null} when nothing resolves.
      */
     /** Public: a consuming mod's own subcommands resolve their target the same way. */
@@ -1857,9 +1857,9 @@ public final class AgentCommands {
             }
             return self;
         }
-        Optional<AgentId> pin = AgentSelection.pinned(source);
-        if (pin.isEmpty()) return nearestBody(source);
-        AgentId id = pin.get();
+        Optional<AgentId> selection = AgentSelection.selected(source);
+        if (selection.isEmpty()) return nearestBody(source);
+        AgentId id = selection.get();
         AgentBody live = AgentBodies.findLoaded(source.getServer(), id);
         if (live == null) {
             Replies.fail(source, Component.translatable("anima.command.select.not_loaded",
@@ -1893,7 +1893,7 @@ public final class AgentCommands {
         return SharedSuggestionProvider.suggest(tokens, builder);
     };
 
-    /** Pins the Person named (or short-id-prefixed) by {@code rawToken}. */
+    /** Selects the Person named (or short-id-prefixed) by {@code rawToken}. */
     private static int selectByToken(CommandSourceStack source, String rawToken) {
         String token = rawToken.trim();
         MinecraftServer server = source.getServer();
@@ -1929,15 +1929,15 @@ public final class AgentCommands {
             return 0;
         }
         AgentId id = matches.get(0).agentId();
-        AgentSelection.pin(source, id);
+        AgentSelection.select(source, id);
         Replies.send(source, () -> Component.translatable("anima.command.select.selected",
                 label(server, id)).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
-    /** No-argument {@code select}: running <em>as</em> a Person pins that Person
-     *  ({@code /execute as @e[…,limit=1] run anima select}); a player pins the Person under their
-     *  crosshair, or unpins when looking at nobody; the console pins the nearest one. */
+    /** No-argument {@code select}: running <em>as</em> a Person selects that Person
+     *  ({@code /execute as @e[…,limit=1] run anima select}); a player takes the Person under their
+     *  crosshair, or clears when looking at nobody; the console takes the nearest one. */
     private static int selectHere(CommandSourceStack source) {
         Entity self = source.getEntity();
         AgentBody target = self instanceof AgentBody body ? body
@@ -1945,7 +1945,7 @@ public final class AgentCommands {
                 : nearestBody(source);
         if (target == null) {
             if (self instanceof ServerPlayer) {
-                // Looking at nobody clears any current pin — the same as `select clear`.
+                // Looking at nobody clears any current selection — the same as `select clear`.
                 return selectClear(source);
             }
             // the console branch already reported via nearest()
@@ -1956,7 +1956,7 @@ public final class AgentCommands {
             Replies.fail(source, Component.translatable("anima.command.not_identified"));
             return 0;
         }
-        AgentSelection.pin(source, id);
+        AgentSelection.select(source, id);
         Replies.send(source, () -> Component.translatable("anima.command.select.selected",
                 label(source.getServer(), id)).withStyle(ChatFormatting.AQUA));
         return 1;
@@ -1974,13 +1974,13 @@ public final class AgentCommands {
     }
 
     private static int selectShow(CommandSourceStack source) {
-        Optional<AgentId> pin = AgentSelection.pinned(source);
-        if (pin.isEmpty()) {
+        Optional<AgentId> selection = AgentSelection.selected(source);
+        if (selection.isEmpty()) {
             Replies.send(source, () -> Component.translatable("anima.command.select.none")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        AgentId id = pin.get();
+        AgentId id = selection.get();
         boolean loaded = AgentBodies.findLoaded(source.getServer(), id) != null;
         Replies.send(source, () -> Component.translatable("anima.command.select.show",
                         label(source.getServer(), id))
@@ -1997,7 +1997,7 @@ public final class AgentCommands {
         AABB search = player.getBoundingBox().expandTowards(player.getViewVector(1.0F).scale(NEAREST_RADIUS)).inflate(1.0);
         EntityHitResult hit = ProjectileUtil.getEntityHitResult(
                 player, eye, far, search,
-                e -> e instanceof AgentBody body && body.entity().isAlive(), // never pin a corpse
+                e -> e instanceof AgentBody body && body.entity().isAlive(), // never select a corpse
                 NEAREST_RADIUS * NEAREST_RADIUS);
         return hit != null && hit.getEntity() instanceof AgentBody body ? body : null;
     }
@@ -2543,7 +2543,7 @@ public final class AgentCommands {
     /**
      * Switches one debug-view layer on or off for this player. Layers are per-player and combine
      * freely, which the debug wand's one-at-a-time cycle cannot; what gets drawn is whoever the
-     * player has selected, so the view moves with the pin.
+     * player has selected, so the view moves with it.
      *
      * <p>Player-only, and it fails loudly: the layers are drawn by a client, and the console has
      * none.

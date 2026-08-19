@@ -50,9 +50,9 @@ import org.jspecify.annotations.Nullable;
  * player every {@link #SEND_INTERVAL_TICKS}, carrying only what the client cannot see for itself.
  *
  * <p><b>The view follows the selection.</b> Layers are switched per PLAYER; the body drawn is that
- * player's pin in {@code AgentSelection}, the slot the debug wand and {@code /anima select} share.
+ * player's slot in {@code AgentSelection}, the one the debug wand and {@code /anima select} share.
  *
- * <p>Layers all off, or a pin that is empty or unloaded, gets exactly one
+ * <p>Layers all off, or a selection that is empty or unloaded, gets exactly one
  * {@link DebugViewPayload#clear()} and then silence — without that edge the client would redraw
  * its last snapshot forever. Transient state, one map per server, gone on stop: the
  * {@code Journals} lifecycle every viewer here follows.
@@ -170,13 +170,13 @@ public final class DebugView {
     }
 
     /**
-     * This player's frame: their pinned AgentBody read through the requested layers. An unresolvable
-     * pin yields the clear snapshot rather than an error — the selection going away should make the
-     * drawing stop, not spam a player who is mid-experiment.
+     * This player's frame: their selected AgentBody read through the requested layers. An
+     * unresolvable one yields the clear snapshot rather than an error — the selection going away
+     * should make the drawing stop, not spam a player who is mid-experiment.
      */
     private static DebugViewPayload snapshot(
             MinecraftServer server, ServerPlayer player, EnumSet<DebugLayer> layers) {
-        AgentId id = AgentSelection.pinned(player).orElse(null);
+        AgentId id = AgentSelection.selected(player).orElse(null);
         AgentBody person = id == null ? null : AgentBodies.findLoaded(server, id);
         if (person == null) {
             return DebugViewPayload.clear();

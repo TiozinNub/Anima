@@ -7,7 +7,7 @@ import net.fabricmc.api.ClientModInitializer;
  * Anima's client entrypoint — the receiving half of everything the library pushes to a player.
  *
  * <p>Inspecting a mind is client work and depends on no particular creature: the contact cache
- * decides which names a player may see, the selection glow follows a pin, and the debug view draws
+ * decides which names a player may see, the glow follows a selection, and the debug view draws
  * a path, a task tree, remembered places and perceived beings over whoever is selected. Baking an
  * appearance is the same kind of work — Anima turns a recipe into a texture id and owns that
  * texture's life; what the recipe <em>means</em> stays with whoever composed it.

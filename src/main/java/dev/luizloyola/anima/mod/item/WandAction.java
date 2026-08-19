@@ -45,7 +45,7 @@ public interface WandAction {
      * <p>A record rather than five parameters so that a later click detail — the hand, the exact
      * hit vector — can be carried without every consumer's action failing to compile.
      *
-     * @param agent  the pinned body this click is FOR, already resolved and loaded
+     * @param agent  the selected body this click is FOR, already resolved and loaded
      * @param player whose wand it is; the one who sees the returned line
      * @param level  the world the BLOCK is in, which is the player's — an action that cares
      *               whether the agent is in it too must compare, since the wand happily points

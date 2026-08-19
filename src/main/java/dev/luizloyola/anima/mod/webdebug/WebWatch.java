@@ -53,7 +53,7 @@ record WebWatch(Set<AgentId> expanded, @Nullable UUID actingAs, boolean ticks, b
         return new WebWatch(next, actingAs, ticks, dead);
     }
 
-    /** This watch driving commands as {@code player} — the per-player half of pin, layers and glow. */
+    /** This watch driving commands as {@code player} — the per-player half of selection, layers and glow. */
     WebWatch actingAs(@Nullable UUID player) {
         return new WebWatch(expanded, player, ticks, dead);
     }

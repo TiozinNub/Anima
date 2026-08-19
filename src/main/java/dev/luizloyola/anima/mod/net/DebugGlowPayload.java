@@ -13,9 +13,9 @@ import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.Nullable;
 
 /**
- * S2C debug payload: which {@link AgentId} this player has pinned (their slot in
+ * S2C debug payload: which {@link AgentId} this player has selected (their slot in
  * {@code AgentSelection}), empty for none. The one wire message behind the debug selection glow
- * ({@code mod.client.DebugGlow}); the pin lives only on the server, and this is the read-only
+ * ({@code mod.client.DebugGlow}); the selection lives only on the server, and this is the read-only
  * shadow the client keeps ({@code mod.client.DebugGlowClient}).
  */
 public record DebugGlowPayload(Optional<UUID> selected) implements CustomPacketPayload {
@@ -31,7 +31,7 @@ public record DebugGlowPayload(Optional<UUID> selected) implements CustomPacketP
         return new DebugGlowPayload(Optional.ofNullable(id).map(AgentId::value));
     }
 
-    /** The pinned id as a {@link AgentId}, or {@code null} when nothing is selected. */
+    /** The selection as a {@link AgentId}, or {@code null} when there is none. */
     public @Nullable AgentId personId() {
         return selected.map(AgentId::of).orElse(null);
     }

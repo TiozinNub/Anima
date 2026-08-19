@@ -25,10 +25,10 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * A development tool that <em>selects</em> an {@link AgentBody}: right-clicking one pins it to the
+ * A development tool that <em>selects</em> an {@link AgentBody}: right-clicking one puts it in the
  * player's slot in {@link AgentSelection}, the same slot {@code select} uses under either root. The
- * pin is per-player rather than per stack, lives on the server, and reaches the client only to draw
- * the selection glow. Right-clicking a block asks the pinned agent what that block MEANS to it
+ * selection is per-player rather than per stack, lives on the server, and reaches the client only to
+ * draw the glow. Right-clicking a block asks the selected agent what that block MEANS to it
  * ({@link #useOn}, {@link WandActions}), falling back to walking there. The item is stateless.
  */
 public class DebugWandItem extends Item {
@@ -52,7 +52,7 @@ public class DebugWandItem extends Item {
         if (level.isClientSide() || !(context.getPlayer() instanceof ServerPlayer player)) {
             return InteractionResult.SUCCESS;
         }
-        AgentId selected = AgentSelection.pinned(player).orElse(null);
+        AgentId selected = AgentSelection.selected(player).orElse(null);
         if (selected == null) {
             Players.overlay(player, Component.translatable("item.anima.debug_wand.no_selection"));
             return InteractionResult.SUCCESS;
@@ -96,14 +96,14 @@ public class DebugWandItem extends Item {
             return InteractionResult.SUCCESS;
         }
         // Mutate only on the server (the ServerPlayer cast implies server); the client returns
-        // SUCCESS to predict the arm swing. The pin mirrors to the client for the glow.
+        // SUCCESS to predict the arm swing. The selection mirrors to the client for the glow.
         if (player instanceof ServerPlayer serverPlayer) {
             AgentId id = agent.agentId();
             if (id == null) {
                 Players.overlay(serverPlayer,
                         Component.translatable("item.anima.debug_wand.no_identity"));
             } else {
-                AgentSelection.pin(serverPlayer, id);
+                AgentSelection.select(serverPlayer, id);
                 Players.overlay(serverPlayer,
                         Component.translatable("item.anima.debug_wand.selected", agent.entity().getName()));
             }
@@ -117,7 +117,7 @@ public class DebugWandItem extends Item {
      * adding to it (decision: Luiz): the wand is the one-handed sweep, {@code /anima debug} the
      * only way to have several layers up at once.
      *
-     * <p>Clicking also pins them, so a shift-click on someone new both selects and starts their
+     * <p>Clicking also selects them, so a shift-click on someone new both takes them and starts their
      * cycle; the view always draws whoever was last clicked.
      */
     private static void cycleDebugLayer(ServerPlayer player, AgentBody agent) {
@@ -127,9 +127,9 @@ public class DebugWandItem extends Item {
             return;
         }
         MinecraftServer server = player.level().getServer();
-        boolean reselected = !id.equals(AgentSelection.pinned(player).orElse(null));
+        boolean reselected = !id.equals(AgentSelection.selected(player).orElse(null));
         if (reselected) {
-            AgentSelection.pin(player, id);
+            AgentSelection.select(player, id);
         }
         // The cycle only CONTINUES from a single showing layer: with several up there is no
         // "current rung" to advance from, so the wand restarts at the first rather than guessing.

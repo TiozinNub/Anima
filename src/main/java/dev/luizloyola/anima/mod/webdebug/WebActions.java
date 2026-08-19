@@ -17,13 +17,13 @@ import org.jspecify.annotations.Nullable;
  * {@code WebDebugger} queues these through {@code server.execute}, because an HTTP thread touching
  * an agent is the race {@link WebFeed} exists to prevent.
  *
- * <p>Every verb here is <b>per-player</b>: a pin and a debug layer belong to whoever is watching,
- * not to the world. So each needs the player the panel is acting as, and with nobody picked there
- * is nothing to act on — the readouts still work, the buttons do not.
+ * <p>Every verb here is <b>per-player</b>: a selection and a debug layer belong to whoever is
+ * watching, not to the world. So each needs the player the panel is acting as, and with nobody
+ * picked there is nothing to act on — the readouts still work, the buttons do not.
  *
- * <p><b>There is no glow verb.</b> The selection glow follows the pin: {@code AgentSelection}
- * mirrors every pin change to that player's client, which is the single choke point it is
- * centralised in. A separate toggle would be a second source of truth for the same fact.
+ * <p><b>There is no glow verb.</b> The glow follows the selection: {@code AgentSelection} mirrors
+ * every change to that player's client, which is the single choke point it is centralised in. A
+ * separate toggle would be a second source of truth for the same fact.
  *
  * <p>The movement, brain and world verbs are reserved and not built — see
  * {@code docs/superpowers/specs/2026-08-17-dashboard-design.md}.
@@ -38,8 +38,8 @@ final class WebActions {
         // The switch comes first so an unknown verb is NAMED as one. Looking the player up here
         // instead would answer every typo with "nobody is picked", which is the wrong bug.
         switch (verb) {
-            case "pin" -> asPlayer(server, watch, verb, player -> pin(player, args.get("id")));
-            case "unpin" -> asPlayer(server, watch, verb, AgentSelection::clear);
+            case "select" -> asPlayer(server, watch, verb, p -> select(p, args.get("id")));
+            case "deselect" -> asPlayer(server, watch, verb, AgentSelection::clear);
             case "layer" -> asPlayer(server, watch, verb, player ->
                     layer(server, player, args.get("key"), !"0".equals(args.get("on"))));
             case "layers-clear" -> asPlayer(server, watch, verb, player ->
@@ -66,12 +66,12 @@ final class WebActions {
         return acting == null ? null : server.getPlayerList().getPlayer(acting);
     }
 
-    private static void pin(ServerPlayer player, @Nullable String id) {
+    private static void select(ServerPlayer player, @Nullable String id) {
         if (id == null) {
             return;
         }
         try {
-            AgentSelection.pin(player, new AgentId(UUID.fromString(id)));
+            AgentSelection.select(player, new AgentId(UUID.fromString(id)));
         } catch (IllegalArgumentException e) {
             AnimaMod.LOGGER.warn("web-debugger: \"{}\" is not an agent id", id);
         }

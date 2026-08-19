@@ -134,7 +134,7 @@ final class WebSnapshot {
     private static Roster agents(MinecraftServer server, WebWatch watch) {
         Graves graves = Graves.get(server);
         ServerPlayer viewer = viewer(server, watch);
-        AgentId pinned = viewer == null ? null : AgentSelection.pinned(viewer).orElse(null);
+        AgentId selected = viewer == null ? null : AgentSelection.selected(viewer).orElse(null);
         AgentDirectory directory = AgentDirectory.of(server);
         Map<AgentId, AgentBody> loaded = loaded(server);
 
@@ -148,7 +148,7 @@ final class WebSnapshot {
                     continue;
                 }
             }
-            out.add(row(directory, id, known.getValue(), graves, loaded.get(id), viewer, pinned));
+            out.add(row(directory, id, known.getValue(), graves, loaded.get(id), viewer, selected));
         }
         return new Roster(out, dead);
     }
@@ -191,7 +191,7 @@ final class WebSnapshot {
      * <p><b>No falling back to "the only player online".</b> That fallback made <em>nobody</em>
      * unsayable: the panel needs a choice that blanks every player-relative reading, and a server
      * that guesses would override it on the next frame. The browser guesses now, once, on the first
-     * frame it sees a player — which also puts distance, pin and {@link #layers} on one answer to
+     * frame it sees a player — which also puts distance, selection and {@link #layers} on one answer to
      * "who is watching".
      */
     private static @Nullable ServerPlayer viewer(MinecraftServer server, WebWatch watch) {
@@ -369,11 +369,11 @@ final class WebSnapshot {
      */
     private static JsonObject row(AgentDirectory directory, AgentId id, PrivateIdentity identity,
             Graves graves, @Nullable AgentBody body, @Nullable ServerPlayer viewer,
-            @Nullable AgentId pinned) {
+            @Nullable AgentId selected) {
         JsonObject row = new JsonObject();
         row.addProperty("id", id.value().toString());
         row.addProperty("name", identity.name());
-        row.addProperty("pinned", id.equals(pinned));
+        row.addProperty("selected", id.equals(selected));
 
         boolean dead = graves.isDead(id);
         row.addProperty("state", dead ? "dead" : body == null ? "unloaded" : "loaded");
