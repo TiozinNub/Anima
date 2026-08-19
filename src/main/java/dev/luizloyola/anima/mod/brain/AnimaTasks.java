@@ -267,6 +267,15 @@ public final class AnimaTasks {
                 ).apply(t, (kind, at) -> new dev.luizloyola.anima.core.brain.task.NotePlace(
                         kind, at.x(), at.y(), at.z()))));
 
+        TaskCodecs.register("anima:found_place", dev.luizloyola.anima.core.brain.task.FoundPlace.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POI_KIND.fieldOf("kind")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.FoundPlace::kind),
+                        POS.fieldOf("at")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.FoundPlace::anchor)
+                ).apply(t, (kind, at) -> new dev.luizloyola.anima.core.brain.task.FoundPlace(
+                        kind, at.x(), at.y(), at.z()))));
+
         TaskCodecs.register("anima:ensure_table",
                 dev.luizloyola.anima.core.brain.task.EnsureTable.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

@@ -66,13 +66,34 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aFoundPlaceComesBackWithItsKindAndAnchor() {
+        // No other coverage exercises this codec (NotePlace's has none either) — the party-places
+        // feature depends on this round trip: a claim founded mid-plan must survive a reload.
+        dev.luizloyola.anima.core.brain.knowledge.PoiKind kind =
+                dev.luizloyola.anima.core.brain.knowledge.PoiKind.register(
+                        "test_found_place_codec", 1, "");
+        dev.luizloyola.anima.core.brain.task.FoundPlace before =
+                new dev.luizloyola.anima.core.brain.task.FoundPlace(kind, 88, 64, -12);
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.FoundPlace.class,
+                roundTrip(before));
+        assertEquals(kind, after.kind());
+        assertEquals(new dev.luizloyola.anima.core.brain.sense.Pos(88, 64, -12), after.anchor());
+    }
+
+    @Test
     void everyRegisteredTypeIsReachableFromAnInstance() {
         // The dispatch is by concrete class; a type registered under a key its instances do not
         // map back to would encode fine and fail to parse, which is the worst way round.
         assertNotNull(TaskCodecs.keyOf(new Idle(1)));
         assertNotNull(TaskCodecs.keyOf(new GoTo(0, 0, 0)));
         assertNotNull(TaskCodecs.keyOf(new WanderStep(1)));
+        assertNotNull(TaskCodecs.keyOf(new dev.luizloyola.anima.core.brain.task.FoundPlace(
+                // same key+shape as the round trip test above — registration is idempotent, and
+                // JUnit does not promise these two methods run in declaration order
+                dev.luizloyola.anima.core.brain.knowledge.PoiKind.register(
+                        "test_found_place_codec", 1, ""), 0, 0, 0)));
         assertTrue(TaskCodecs.keys().contains("anima:idle"));
+        assertTrue(TaskCodecs.keys().contains("anima:found_place"));
     }
 
     @Test
