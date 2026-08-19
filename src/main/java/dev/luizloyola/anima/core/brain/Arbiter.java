@@ -70,6 +70,18 @@ public final class Arbiter {
     private boolean workRunning;
     /** The last drive journalled, so a re-grant of the same drive does not spam the BRAIN log. */
     private Instinct lastGranted;
+    /**
+     * The last drive to fail and why, so a run of identical failures writes one line instead of
+     * one per cooldown. Some drives fail as a matter of course — {@code seek_people} FAILs on
+     * every tick where nobody eligible is perceived, which IS its pacing — and a settler alone in
+     * a field was measured writing that line every ~101 ticks indefinitely (2026-08-19, in-world).
+     *
+     * <p>Deliberately NOT persisted, unlike {@link #lastGranted}: one repeated line after a reload
+     * is honest, since the situation really is being met afresh, and it is not worth widening a
+     * saved codec for.
+     */
+    private Instinct lastFailed;
+    private String lastFailureReason = "";
 
     /**
      * Every drive sitting out a fail-cooldown, by {@link Instinct#key()}, with the ticks left;
@@ -248,12 +260,24 @@ public final class Arbiter {
                 // BRAIN log: failures only — every wander SUCCESS would be noise, and the
                 // take-over lines already mark what they started.
                 String reason = executor.failureReason().orElse("");
-                ctx.journal().record(Category.BRAIN, active.describe(), "failed"
-                        + (reason.isEmpty() ? "" : " — " + reason));
+                // Only the first of a run, the way the grant path dedupes through lastGranted.
+                // A CHANGED reason still speaks: the same drive failing a new way is news, and
+                // collapsing that would hide the one failure somebody needs to see.
+                if (active != lastFailed || !reason.equals(lastFailureReason)) {
+                    ctx.journal().record(Category.BRAIN, active.describe(), "failed"
+                            + (reason.isEmpty() ? "" : " — " + reason));
+                    lastFailed = active;
+                    lastFailureReason = reason;
+                }
                 cooldowns[indexOf(active)] = active.failCooldown();
                 // Reported from here, not the driver: the cooldown and the terminal status are both
                 // known only here. Dormant in every board today — see WorkSource#driveFailed.
                 work.driveFailed(active, reason, ctx);
+            } else if (active != null) {
+                // It got somewhere. The run is over, so the next failure is a fresh story rather
+                // than the same one repeating.
+                lastFailed = null;
+                lastFailureReason = "";
             }
             active = null; // next tick's idle-grant re-arbitrates
         }

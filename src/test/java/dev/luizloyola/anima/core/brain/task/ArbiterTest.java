@@ -16,6 +16,7 @@ import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.ItemStack;
+import dev.luizloyola.anima.core.log.Entry;
 import dev.luizloyola.anima.core.agent.FoodValue;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,10 +45,23 @@ class ArbiterTest {
         int ticks;
         int cancels;
 
+        private final String reason;
+
         Step(String name, int runFor, TaskStatus end) {
+            this(name, runFor, end, null);
+        }
+
+        /** With a failure reason, for the tests about what the journal collapses. */
+        Step(String name, int runFor, TaskStatus end, String reason) {
             this.name = name;
             this.runFor = runFor;
             this.end = end;
+            this.reason = reason;
+        }
+
+        @Override
+        public String failureDetail() {
+            return reason == null ? PrimitiveTask.super.failureDetail() : reason;
         }
 
         @Override
@@ -297,6 +311,74 @@ class ArbiterTest {
     }
 
     // --- fail cooldown ---------------------------------------------------------------------------
+
+    /**
+     * A drive that keeps failing writes ONE line, not one per cooldown.
+     *
+     * <p>Measured in-world 2026-08-19: a settler whose only companion was suppressed by the hail
+     * guardrail FAILED {@code seek_people} every ~101 ticks for the guardrail's whole window, and
+     * every one of them landed in the journal. Some drives fail as a matter of course — that is
+     * the pacing mechanism, not an incident — and the repeats crowd out the lines a reader is
+     * actually looking for.
+     */
+    @Test
+    void aDriveThatKeepsFailingTheSameWayIsRecordedOnce() {
+        List<Entry> lines = new ArrayList<>();
+        ctx.journalService.subscribe((who, entry) -> lines.add(entry));
+        FakeInstinct a = new FakeInstinct("a", 1.0, failsImmediately("aRoot"));
+        Arbiter arbiter = new Arbiter(List.of(a));
+
+        for (int t = 0; t < 3 * (Instinct.DEFAULT_FAIL_COOLDOWN + 1); t++) {
+            arbiter.tick(ctx);
+        }
+
+        assertTrue(a.grantedRoots.size() >= 3, "it really did fail repeatedly: " + a.grantedRoots.size());
+        assertEquals(1, lines.stream().filter(e -> e.detail().startsWith("failed")).count(),
+                "three failures, one line: " + lines);
+    }
+
+    /** A DIFFERENT reason is news, so it is not swallowed with the repeats. */
+    @Test
+    void aFailureThatChangesItsReasonSpeaksAgain() {
+        List<Entry> lines = new ArrayList<>();
+        ctx.journalService.subscribe((who, entry) -> lines.add(entry));
+        List<String> reasons = List.of("no target", "no target", "path blocked");
+        int[] next = {0};
+        FakeInstinct a = new FakeInstinct("a", 1.0, () -> new Step("aRoot", 0, TaskStatus.FAILED,
+                reasons.get(Math.min(next[0]++, reasons.size() - 1))));
+        Arbiter arbiter = new Arbiter(List.of(a));
+
+        for (int t = 0; t < 3 * (Instinct.DEFAULT_FAIL_COOLDOWN + 1); t++) {
+            arbiter.tick(ctx);
+        }
+
+        List<String> failures = lines.stream().map(Entry::detail)
+                .filter(d -> d.startsWith("failed")).toList();
+        assertEquals(2, failures.size(), "the repeat collapses, the new reason does not: " + failures);
+        assertTrue(failures.get(1).contains("path blocked"), failures.toString());
+    }
+
+    /** Getting somewhere ends the run, so the next failure is a fresh story rather than a repeat. */
+    @Test
+    void aSuccessInBetweenLetsTheNextFailureSpeak() {
+        List<Entry> lines = new ArrayList<>();
+        ctx.journalService.subscribe((who, entry) -> lines.add(entry));
+        // A SUCCESS costs no cooldown, so the arbiter re-grants at once: the tail has to repeat
+        // rather than run out, and the repeats past the third then collapse into one line.
+        List<TaskStatus> outcomes = List.of(TaskStatus.FAILED, TaskStatus.SUCCESS, TaskStatus.FAILED);
+        int[] next = {0};
+        FakeInstinct a = new FakeInstinct("a", 1.0, () -> new Step("aRoot", 0,
+                outcomes.get(Math.min(next[0]++, outcomes.size() - 1))));
+        Arbiter arbiter = new Arbiter(List.of(a));
+
+        for (int t = 0; t < 3 * (Instinct.DEFAULT_FAIL_COOLDOWN + 1); t++) {
+            arbiter.tick(ctx);
+        }
+
+        assertEquals(2, lines.stream().filter(e -> e.detail().startsWith("failed")).count(),
+                "a success between them means the second failure is not a repeat: " + lines);
+    }
+
 
     @Test
     void failedRootPutsTheInstinctOnCooldownForExactlyItsOwnFailCooldownTicks() {
