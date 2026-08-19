@@ -324,6 +324,7 @@
   "anima.command.knowledge.partial": ", partial",
   "anima.command.knowledge.inside": "holds %s, seen %s ago",
   "anima.command.knowledge.unopened": "never opened",
+  "anima.command.knowledge.nothing": "nothing",
   "anima.command.inv.empty": "%s carries nothing.",
   "anima.command.inv.header": "%s carries:",
   "anima.command.inv.gave": "%s +%s %s",

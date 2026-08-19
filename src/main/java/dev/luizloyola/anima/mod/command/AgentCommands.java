@@ -1937,10 +1937,11 @@ public final class AgentCommands {
 
     /** A container's stacks as a short list — {@code "16×oak_log, 3×stick"} — item ids raw like
      *  every other line this readout prints, summed by id since a chest often splits one kind
-     *  across slots. */
-    private static String summarizeContents(List<dev.luizloyola.anima.core.inv.ItemStack> stacks) {
+     *  across slots. A {@link Component}, not a bare string: the empty case is prose ("nothing"),
+     *  and prose goes through a lang key like every other word a player reads here. */
+    private static Component summarizeContents(List<dev.luizloyola.anima.core.inv.ItemStack> stacks) {
         if (stacks.isEmpty()) {
-            return "nothing";
+            return Component.translatable("anima.command.knowledge.nothing");
         }
         Map<String, Integer> totals = new LinkedHashMap<>();
         for (dev.luizloyola.anima.core.inv.ItemStack stack : stacks) {
@@ -1953,7 +1954,7 @@ public final class AgentCommands {
             }
             summary.append(entry.getValue()).append("×").append(entry.getKey());
         }
-        return summary.toString();
+        return Component.literal(summary.toString());
     }
 
     /**

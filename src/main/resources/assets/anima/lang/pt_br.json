@@ -324,6 +324,7 @@
   "anima.command.knowledge.partial": ", parcial",
   "anima.command.knowledge.inside": "contém %s, visto há %s",
   "anima.command.knowledge.unopened": "nunca aberto",
+  "anima.command.knowledge.nothing": "nada",
   "anima.command.inv.empty": "%s não carrega nada.",
   "anima.command.inv.header": "%s carrega:",
   "anima.command.inv.gave": "%s +%s %s",
