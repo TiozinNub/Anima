@@ -72,10 +72,10 @@ class HailedTest {
         BeingReading caller = at(new Pos(40, 64, 0), 40.0);
 
         sense.hailedBy(caller, 0L);
-        sense.tick(new Pos(0, 64, 0), 0, 0, PATIENCE, BeingWorld.EMPTY);
+        sense.tick(new Pos(0, 64, 0), 0, 0, PATIENCE, new NoWorld());
         assertTrue(only(sense).hailing(), "still worth answering at the deadline");
 
-        sense.tick(new Pos(0, 64, 0), 0, 0, PATIENCE + 1, BeingWorld.EMPTY);
+        sense.tick(new Pos(0, 64, 0), 0, 0, PATIENCE + 1, new NoWorld());
         assertFalse(only(sense).hailing(), "past it, the call stopped being real");
     }
 
@@ -122,5 +122,23 @@ class HailedTest {
                 "a 600-tick call is not worth reviving across a restart — deliberate, not an "
                         + "oversight: see the voice-and-hail design");
         assertFalse(reloaded.calledLately(caller.id(), 0L));
+    }
+
+    /** A world with nobody in it: the sense still ticks, it just never sees anything. */
+    private static final class NoWorld implements BeingWorld {
+        @Override
+        public List<BeingReading> candidates() {
+            return List.of();
+        }
+
+        @Override
+        public BeingReading reading(BeingId id) {
+            return null;
+        }
+
+        @Override
+        public boolean inSight(BeingId id) {
+            return false;
+        }
     }
 }
