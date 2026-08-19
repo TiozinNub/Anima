@@ -201,6 +201,10 @@ public final class ProfileAspect {
             "How long a call stays worth anything to this body, both ways: how long a shout it "
                     + "heard is still worth answering, and how long before it would call the same "
                     + "body again. 600 ticks is thirty seconds.");
+    public static final ProfileAspect SOCIAL_HAIL_ANSWER_PRESSURE = register("social.hail_answer_pressure", Kind.DOUBLE, 0.0, 1.0,
+            "How much being called at is worth to this body. Above the company need's lonely "
+                    + "pressure, or answering loses to going looking; below mind.preempt, or a "
+                    + "shout cuts into work instead of waiting for a task boundary.");
     public static final ProfileAspect SOCIAL_COMPANY_SOLITUDE_TICKS = register("social.company_solitude_ticks", Kind.INT, 20, 480_000,
             "How long it takes complete solitude to drain this body's company from full to empty. "
                     + "24000 ticks is one in-game day.");

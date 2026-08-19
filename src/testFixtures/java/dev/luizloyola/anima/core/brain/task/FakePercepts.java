@@ -101,6 +101,26 @@ public final class FakePercepts implements Percepts {
                 Being.Gear.NONE, Being.Identified.SPECIES, Being.Awareness.SEEN);
     }
 
+    /**
+     * The 22-argument {@link Being} literal for a person-kind track, held once — every
+     * person-shaped fixture (this class's {@link #hailingPersonAt} and any sibling a later test
+     * adds) goes through this instead of copying the constructor call, so growing {@code Being} by
+     * a field means one edit here, not one per fixture.
+     */
+    private static Being personTrack(String name, Pos pos, double distance, boolean hailing,
+            Being.Identified identified, Being.Awareness awareness) {
+        return new Being(BeingId.of(UUID.randomUUID()), Being.Kind.AGENT, "person", name,
+                null, pos, distance, 1, 0, false, List.of(),
+                Being.Activity.IDLE, Being.Locomotion.STILL,
+                false, false, false, hailing, false, false, Being.Gear.NONE,
+                identified, awareness);
+    }
+
+    /** A person-shaped track that is calling out — the hail percept, for instinct tests. */
+    public static Being hailingPersonAt(Pos pos, double distance) {
+        return personTrack("", pos, distance, true, Being.Identified.SPECIES, Being.Awareness.HEARD);
+    }
+
     @Override
     public BlockProbe blocks() {
         return blocks;

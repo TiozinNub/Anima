@@ -175,6 +175,8 @@
   "anima.config.aspect.social.hail_radius.desc": "A que distância, em blocos, um chamado gritado é ouvido. Um chamado precisa alcançar mais longe que a visão, senão não acrescentaria nada a simplesmente notar alguém. Isso também dimensiona o ouvido da Pessoa; sons mais baixos continuam limitados ao alcance de audição.",
   "anima.config.aspect.social.hail_patience_ticks": "Tempo em que um chamado continua real",
   "anima.config.aspect.social.hail_patience_ticks.desc": "Por quanto tempo um grito ouvido ainda vale a pena responder, e quanto tempo até este corpo chamar a mesma pessoa de novo. 600 ticks são trinta segundos.",
+  "anima.config.aspect.social.hail_answer_pressure": "Atração do chamado",
+  "anima.config.aspect.social.hail_answer_pressure.desc": "O quanto ser chamado atrai este corpo. Forte o bastante para que alguém ocioso venha quando chamado; abaixo do limiar de interrupção de propósito, para que um chamado espere a pausa natural de uma tarefa em vez de interrompê-la.",
   "anima.config.aspect.social.company_solitude_ticks": "Tempo até sentir falta",
   "anima.config.aspect.social.company_solitude_ticks.desc": "Quanto tempo a solidão completa leva para esvaziar por inteiro a companhia deste corpo. 24000 ticks é um dia no jogo.",
   "anima.config.aspect.social.company_proximity_ticks": "Tempo perto de uma pessoa",

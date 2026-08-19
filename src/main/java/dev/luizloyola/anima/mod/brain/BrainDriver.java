@@ -13,6 +13,7 @@ import dev.luizloyola.anima.core.brain.act.ItemConsumer;
 import dev.luizloyola.anima.core.brain.act.Mover;
 import dev.luizloyola.anima.core.brain.act.Riser;
 import dev.luizloyola.anima.core.brain.board.AgentClaims;
+import dev.luizloyola.anima.core.brain.instinct.ConverseInstinct;
 import dev.luizloyola.anima.core.brain.instinct.Drives;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.instinct.EscapeInstinct;
@@ -305,6 +306,7 @@ public final class BrainDriver {
         // is a want about somewhere the body cannot currently get to.
         this.arbiter = new Arbiter(List.of(
                 new FleeInstinct(), new EscapeInstinct(), Drives.EAT,
+                new ConverseInstinct(),
                 this.wanderDrive),
                 celebrating);
     }

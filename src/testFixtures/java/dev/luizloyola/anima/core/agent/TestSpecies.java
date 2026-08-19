@@ -55,6 +55,9 @@ public final class TestSpecies {
             .set(ProfileAspect.DANGER_BABY_MULT, 1.2)
             .set(ProfileAspect.SOCIAL_HAIL_RADIUS, 48)
             .set(ProfileAspect.SOCIAL_HAIL_PATIENCE_TICKS, 600)
+            // Between lonely (0.50) and mind.preempt (0.60): an idle settler comes when called,
+            // one mid-chop finishes the tree first. That gap IS "he was busy".
+            .set(ProfileAspect.SOCIAL_HAIL_ANSWER_PRESSURE, 0.55)
             // A settler's company band and rates. Round numbers on purpose: the band is exactly
             // [0.35, 0.85] and one neighbour is exactly twice solitude, so a suite can assert what
             // a tick did without carrying a tolerance for it.
