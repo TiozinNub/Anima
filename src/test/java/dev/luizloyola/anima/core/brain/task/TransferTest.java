@@ -1,9 +1,12 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import java.util.ArrayList;
@@ -76,6 +79,23 @@ class TransferTest {
     }
 
     @Test
+    void takingWithAFullPackFailsWithoutDeletingTheStack() {
+        // ContainerAccess.take has already removed the stack from the world by the time the pack
+        // is asked to hold it; a full pack must push what does not fit back into the chest, not
+        // let it vanish between the two calls.
+        FakeContext ctx = ctxWithBox(List.of(ItemStack.of("minecraft:oak_log", 5, 64)));
+        for (int slot = 0; slot < Inventory.MAIN_START + Inventory.MAIN_SIZE; slot++) {
+            ctx.percepts.inventory().set(slot, ItemStack.of("minecraft:dirt", 64, 64));
+        }
+
+        assertEquals(TaskStatus.FAILED, run(new TakeItems(AT, LOGS, 5), ctx, 2000));
+        assertEquals(0, ctx.percepts.inventory().count(LOGS.matcher()),
+                "nothing fit, so nothing should have been added");
+        assertEquals(5, ctx.containers.boxes.get(AT).stream().mapToInt(ItemStack::count).sum(),
+                "what came out with nowhere to go must go back, not vanish");
+    }
+
+    @Test
     void aMissingContainerFailsWithoutInventingABelief() {
         FakeContext ctx = new FakeContext();
         assertEquals(TaskStatus.FAILED, run(new TakeItems(AT, LOGS, 1), ctx, 2000));
@@ -86,11 +106,21 @@ class TransferTest {
     void interruptingMidMoveKeepsWhatAlreadyLanded() {
         FakeContext ctx = ctxWithBox(List.of(
                 ItemStack.of("minecraft:oak_log", 64, 64), ItemStack.of("minecraft:oak_log", 64, 64)));
+        int open = ctx.profile.i(ProfileAspect.HANDLING_OPEN_TICKS);
+        int settle = ctx.profile.i(ProfileAspect.HANDLING_SETTLE_TICKS);
+        int stack = ctx.profile.i(ProfileAspect.HANDLING_STACK_TICKS);
         TakeItems take = new TakeItems(AT, LOGS, 128);
-        // Far enough in for the first stack to have landed, not far enough for the second.
-        for (int i = 0; i < 40; i++) {
+        // The first stack lands at open+settle+stack; stop partway into the second stack's own
+        // pause, so one has landed and the other has not — the property atomicity rests on.
+        int midSecondStack = open + settle + stack + Math.max(1, stack / 2);
+        for (int i = 0; i < midSecondStack; i++) {
             take.tick(ctx);
         }
+        assertEquals(64, ctx.percepts.inventory().count(LOGS.matcher()),
+                "one stack has landed in the pack");
+        assertEquals(64, ctx.containers.boxes.get(AT).stream().mapToInt(ItemStack::count).sum(),
+                "the other is still sitting in the chest, not half-taken");
+
         int carried = ctx.percepts.inventory().count(LOGS.matcher());
         take.cancel(ctx);
         assertEquals(carried, ctx.percepts.inventory().count(LOGS.matcher()),
@@ -156,5 +186,32 @@ class TransferTest {
         assertEquals(TaskStatus.SUCCESS, run(new PutItems(AT, LOGS, 8), ctx, 2000));
         assertEquals(0, ctx.percepts.inventory().count(LOGS.matcher()));
         assertEquals(8, ctx.containers.boxes.get(AT).get(0).count());
+    }
+
+    @Test
+    void puttingPartiallyPutsBackWhatTheBoxCouldNotHold() {
+        // The exact case FakeContainers.capacity was added for: a partial accept must not vanish
+        // the remainder.
+        FakeContext ctx = ctxWithBox(List.of());
+        ctx.containers.capacity.put(AT, 3);
+        ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 5, 64));
+
+        assertEquals(TaskStatus.SUCCESS, run(new PutItems(AT, LOGS, 5), ctx, 2000));
+        assertEquals(3, ctx.containers.boxes.get(AT).stream().mapToInt(ItemStack::count).sum(),
+                "the box took what it had room for");
+        assertEquals(2, ctx.percepts.inventory().count(LOGS.matcher()),
+                "the two it refused came back to the pack rather than vanishing");
+    }
+
+    @Test
+    void puttingWithAnEmptyPackFailsWithoutBlindingAGoodStore() {
+        // Arriving with nothing to put says nothing about the store — only a genuine refusal of
+        // a real stack earns the avoidance timer.
+        FakeContext ctx = ctxWithBox(List.of());
+        ctx.percepts.time = 100L;
+
+        assertEquals(TaskStatus.FAILED, run(new PutItems(AT, LOGS, 8), ctx, 2000));
+        assertFalse(ctx.knowledge.isAvoided(dev.luizloyola.anima.core.store.Store.POI, AT, 101L),
+                "an empty pack is not a full store");
     }
 }

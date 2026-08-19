@@ -243,13 +243,13 @@ class TaskCodecsTest {
                 java.util.Set.of("minecraft:oak_log"));
         dev.luizloyola.anima.core.brain.task.TakeItems before =
                 new dev.luizloyola.anima.core.brain.task.TakeItems(new Pos(4, 64, 4), logs, 16)
-                        .resume("MOVE", 3, 5);
+                        .resume(dev.luizloyola.anima.core.brain.task.HandlingPhase.MOVE, 3, 5);
         var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.TakeItems.class,
                 roundTrip(before));
         assertEquals(new Pos(4, 64, 4), after.at());
         assertEquals(logs.name(), after.spec().name());
         assertEquals(16, after.count());
-        assertEquals("MOVE", after.phaseName());
+        assertEquals(dev.luizloyola.anima.core.brain.task.HandlingPhase.MOVE, after.phase());
         assertEquals(3, after.pauseTicks());
         assertEquals(5, after.moved());
     }
@@ -260,13 +260,13 @@ class TaskCodecsTest {
                 java.util.Set.of("minecraft:oak_log"));
         dev.luizloyola.anima.core.brain.task.PutItems before =
                 new dev.luizloyola.anima.core.brain.task.PutItems(new Pos(4, 64, 4), logs, 8)
-                        .resume("SETTLE", 2, 0);
+                        .resume(dev.luizloyola.anima.core.brain.task.HandlingPhase.SETTLE, 2, 0);
         var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PutItems.class,
                 roundTrip(before));
         assertEquals(new Pos(4, 64, 4), after.at());
         assertEquals(logs.name(), after.spec().name());
         assertEquals(8, after.count());
-        assertEquals("SETTLE", after.phaseName());
+        assertEquals(dev.luizloyola.anima.core.brain.task.HandlingPhase.SETTLE, after.phase());
         assertEquals(2, after.pauseTicks());
         assertEquals(0, after.moved());
     }
@@ -283,6 +283,38 @@ class TaskCodecsTest {
                 new dev.luizloyola.anima.core.brain.task.PutItems(new Pos(0, 0, 0), logs, 1)));
         assertTrue(TaskCodecs.keys().contains("anima:take_items"));
         assertTrue(TaskCodecs.keys().contains("anima:put_items"));
+    }
+
+    @Test
+    void aCorruptTakePhaseIsRefusedRatherThanThrown() {
+        // Phase.valueOf must not be reachable raw from a hand-edited or future-renamed save —
+        // the same raw-exception-on-load family this task keeps tripping (see the class doc).
+        dev.luizloyola.anima.core.inv.ItemSpec logs = dev.luizloyola.anima.core.inv.ItemSpec.anyOf(
+                java.util.Set.of("minecraft:oak_log"));
+        dev.luizloyola.anima.core.brain.task.TakeItems before =
+                new dev.luizloyola.anima.core.brain.task.TakeItems(new Pos(0, 0, 0), logs, 1);
+        var encoded = TaskCodecs.codec().encodeStart(JsonOps.INSTANCE, before).getOrThrow();
+        com.google.gson.JsonObject corrupted = encoded.getAsJsonObject();
+        corrupted.addProperty("phase", "WOBBLE");
+        var parsed = TaskCodecs.codec().parse(JsonOps.INSTANCE, corrupted);
+        assertTrue(parsed.isError());
+        assertTrue(parsed.error().orElseThrow().message().contains("WOBBLE"),
+                "the complaint has to name the bad value, or nobody can act on it");
+    }
+
+    @Test
+    void aCorruptPutPhaseIsRefusedRatherThanThrown() {
+        dev.luizloyola.anima.core.inv.ItemSpec logs = dev.luizloyola.anima.core.inv.ItemSpec.anyOf(
+                java.util.Set.of("minecraft:oak_log"));
+        dev.luizloyola.anima.core.brain.task.PutItems before =
+                new dev.luizloyola.anima.core.brain.task.PutItems(new Pos(0, 0, 0), logs, 1);
+        var encoded = TaskCodecs.codec().encodeStart(JsonOps.INSTANCE, before).getOrThrow();
+        com.google.gson.JsonObject corrupted = encoded.getAsJsonObject();
+        corrupted.addProperty("phase", "WOBBLE");
+        var parsed = TaskCodecs.codec().parse(JsonOps.INSTANCE, corrupted);
+        assertTrue(parsed.isError());
+        assertTrue(parsed.error().orElseThrow().message().contains("WOBBLE"),
+                "the complaint has to name the bad value, or nobody can act on it");
     }
 
     @Test

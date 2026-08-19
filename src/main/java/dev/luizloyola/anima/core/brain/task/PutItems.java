@@ -17,17 +17,17 @@ import java.util.List;
  *
  * <p><b>A full container is a real outcome, not an error.</b> The belief that it holds real things
  * is not wrong, so nothing corrects it; {@code finish} marks the spot avoided for a while instead,
- * the way a body remembers a shop was closed rather than concluding it burned down.
+ * the way a body remembers a shop was closed rather than concluding it burned down. That only
+ * applies to a genuine refusal, though — arriving with an empty pack, or being shoved out of reach
+ * mid-errand, says nothing about the store and must not blind it.
  */
 public final class PutItems implements PrimitiveTask {
-
-    private enum Phase { OPEN, SETTLE, MOVE }
 
     private final Pos at;
     private final ItemSpec spec;
     private final int count;
 
-    private Phase phase = Phase.OPEN;
+    private HandlingPhase phase = HandlingPhase.OPEN;
     private final Pause pause = new Pause();
     private int moved;
 
@@ -57,7 +57,7 @@ public final class PutItems implements PrimitiveTask {
                 List<ItemStack> seen = ctx.actuators().containers().contents(at).orElse(List.of());
                 ctx.knowledge().sawInside(at, seen, ctx.percepts().time(),
                         AgentKnowledge.maxPerKind(ctx.profile()));
-                phase = Phase.SETTLE;
+                phase = HandlingPhase.SETTLE;
                 return TaskStatus.RUNNING;
             }
             case SETTLE -> {
@@ -67,7 +67,7 @@ public final class PutItems implements PrimitiveTask {
                 if (!pause.elapsed()) {
                     return TaskStatus.RUNNING;
                 }
-                phase = Phase.MOVE;
+                phase = HandlingPhase.MOVE;
                 return TaskStatus.RUNNING;
             }
             case MOVE -> {
@@ -92,8 +92,16 @@ public final class PutItems implements PrimitiveTask {
                 int accepted = ctx.actuators().containers().insert(at, pulled);
                 if (accepted < pulled.count()) {
                     // A partial accept must not vanish the remainder: what the container refused
-                    // is still real items, so it goes straight back into the pack.
-                    ctx.percepts().inventory().add(pulled.withCount(pulled.count() - accepted));
+                    // is still real items, so it goes straight back into the pack. That refund
+                    // always fits — it returns to the same pack the stack was just pulled from,
+                    // so the space it vacated is still free — but the return is captured and
+                    // recovered into the container rather than trusted blind, on the same
+                    // principle TakeItems now guards on the other side.
+                    ItemStack refused = ctx.percepts().inventory().add(
+                            pulled.withCount(pulled.count() - accepted));
+                    if (!refused.isEmpty()) {
+                        ctx.actuators().containers().insert(at, refused);
+                    }
                 }
                 moved += accepted;
                 ctx.knowledge().sawInside(at,
@@ -102,6 +110,15 @@ public final class PutItems implements PrimitiveTask {
                 // Nothing accepted means the container is full: trying again would just pull the
                 // same stack back out of the pack and refuse it forever.
                 if (accepted == 0) {
+                    // A real, non-empty stack was offered and refused — pulled was already
+                    // confirmed non-empty above, so an empty pack never reaches this branch.
+                    // contents(at) still being present rules out the other reason insert can
+                    // return 0: shoved out of reach mid-errand. That is a wrong belief, not a
+                    // full store, and only a genuine refusal earns the avoidance timer.
+                    if (ctx.actuators().containers().contents(at).isPresent()) {
+                        ctx.knowledge().avoid(Store.POI, at, ctx.percepts().time()
+                                + ctx.profile().i(ProfileAspect.STORES_FULL_AVOID_TICKS));
+                    }
                     return finish(ctx);
                 }
                 return TaskStatus.RUNNING;
@@ -148,10 +165,7 @@ public final class PutItems implements PrimitiveTask {
                     "put " + moved + "×" + spec.name() + " in a store");
             return TaskStatus.SUCCESS;
         }
-        // The belief is not wrong — it is full of real things — so nothing corrects it but a timer.
-        ctx.knowledge().avoid(Store.POI, at,
-                ctx.percepts().time() + ctx.profile().i(ProfileAspect.STORES_FULL_AVOID_TICKS));
-        ctx.journal().record(Category.BRAIN, "put", "no room in the store");
+        ctx.journal().record(Category.BRAIN, "put", "put nothing");
         return TaskStatus.FAILED;
     }
 
@@ -179,8 +193,8 @@ public final class PutItems implements PrimitiveTask {
         return count;
     }
 
-    public String phaseName() {
-        return phase.name();
+    public HandlingPhase phase() {
+        return phase;
     }
 
     public int pauseTicks() {
@@ -192,8 +206,8 @@ public final class PutItems implements PrimitiveTask {
     }
 
     /** Puts a reload back mid-transfer; the stacks already moved are in the world, not in here. */
-    public PutItems resume(String phase, int pauseTicks, int moved) {
-        this.phase = Phase.valueOf(phase);
+    public PutItems resume(HandlingPhase phase, int pauseTicks, int moved) {
+        this.phase = phase;
         this.pause.restore(pauseTicks);
         this.moved = moved;
         return this;

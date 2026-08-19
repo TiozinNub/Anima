@@ -19,13 +19,11 @@ import java.util.List;
  */
 public final class TakeItems implements PrimitiveTask {
 
-    private enum Phase { OPEN, SETTLE, MOVE }
-
     private final Pos at;
     private final ItemSpec spec;
     private final int count;
 
-    private Phase phase = Phase.OPEN;
+    private HandlingPhase phase = HandlingPhase.OPEN;
     private final Pause pause = new Pause();
     private int moved;
 
@@ -55,7 +53,7 @@ public final class TakeItems implements PrimitiveTask {
                 List<ItemStack> seen = ctx.actuators().containers().contents(at).orElse(List.of());
                 ctx.knowledge().sawInside(at, seen, ctx.percepts().time(),
                         AgentKnowledge.maxPerKind(ctx.profile()));
-                phase = Phase.SETTLE;
+                phase = HandlingPhase.SETTLE;
                 return TaskStatus.RUNNING;
             }
             case SETTLE -> {
@@ -65,7 +63,7 @@ public final class TakeItems implements PrimitiveTask {
                 if (!pause.elapsed()) {
                     return TaskStatus.RUNNING;
                 }
-                phase = Phase.MOVE;
+                phase = HandlingPhase.MOVE;
                 return TaskStatus.RUNNING;
             }
             case MOVE -> {
@@ -88,11 +86,24 @@ public final class TakeItems implements PrimitiveTask {
                 if (got.isEmpty()) {
                     return finish(ctx);
                 }
-                ctx.percepts().inventory().add(got);
-                moved += got.count();
+                // A full pack must not vanish what came out of the container: what does not fit
+                // goes straight back, and only what actually landed counts as moved — the same
+                // hazard CraftStep guards on the other side (roomFor: "consuming first and
+                // failing to place would vanish the bill").
+                ItemStack unplaced = ctx.percepts().inventory().add(got);
+                int landed = got.count() - unplaced.count();
+                if (!unplaced.isEmpty()) {
+                    ctx.actuators().containers().insert(at, unplaced);
+                }
+                moved += landed;
                 ctx.knowledge().sawInside(at,
                         ctx.actuators().containers().contents(at).orElse(List.of()),
                         ctx.percepts().time(), AgentKnowledge.maxPerKind(ctx.profile()));
+                // A full pack: trying again would just pull the same stack back out of the
+                // container and fail to carry it again, forever.
+                if (landed == 0) {
+                    return finish(ctx);
+                }
                 return TaskStatus.RUNNING;
             }
             default -> {
@@ -119,7 +130,7 @@ public final class TakeItems implements PrimitiveTask {
                     "took " + moved + "×" + spec.name() + " from a store");
             return TaskStatus.SUCCESS;
         }
-        ctx.journal().record(Category.BRAIN, "take", "nothing left in the store");
+        ctx.journal().record(Category.BRAIN, "take", "took nothing");
         return TaskStatus.FAILED;
     }
 
@@ -147,8 +158,8 @@ public final class TakeItems implements PrimitiveTask {
         return count;
     }
 
-    public String phaseName() {
-        return phase.name();
+    public HandlingPhase phase() {
+        return phase;
     }
 
     public int pauseTicks() {
@@ -160,8 +171,8 @@ public final class TakeItems implements PrimitiveTask {
     }
 
     /** Puts a reload back mid-transfer; the stacks already moved are in the world, not in here. */
-    public TakeItems resume(String phase, int pauseTicks, int moved) {
-        this.phase = Phase.valueOf(phase);
+    public TakeItems resume(HandlingPhase phase, int pauseTicks, int moved) {
+        this.phase = phase;
         this.pause.restore(pauseTicks);
         this.moved = moved;
         return this;

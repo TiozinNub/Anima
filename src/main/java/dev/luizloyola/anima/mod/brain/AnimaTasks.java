@@ -49,6 +49,19 @@ public final class AnimaTasks {
             },
             Gait::name);
 
+    /** Enums round-trip by name; an unknown one is an error rather than a silent default. */
+    private static final Codec<dev.luizloyola.anima.core.brain.task.HandlingPhase> HANDLING_PHASE =
+            Codec.STRING.comapFlatMap(
+                    name -> {
+                        try {
+                            return DataResult.success(
+                                    dev.luizloyola.anima.core.brain.task.HandlingPhase.valueOf(name));
+                        } catch (IllegalArgumentException e) {
+                            return DataResult.error(() -> "no handling phase called \"" + name + "\"");
+                        }
+                    },
+                    dev.luizloyola.anima.core.brain.task.HandlingPhase::name);
+
     /**
      * A class of items, in the two shapes a spec can have. A mod-declared spec's matcher is a
      * lambda and cannot be written down, so its NAME is the handle ({@link ItemSpec#byName}); an
@@ -294,8 +307,8 @@ public final class AnimaTasks {
                                 .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::spec),
                         Codec.INT.fieldOf("count")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::count),
-                        Codec.STRING.fieldOf("phase")
-                                .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::phaseName),
+                        HANDLING_PHASE.fieldOf("phase")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::phase),
                         Codec.INT.fieldOf("pause")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::pauseTicks),
                         Codec.INT.fieldOf("moved")
@@ -312,8 +325,8 @@ public final class AnimaTasks {
                                 .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::spec),
                         Codec.INT.fieldOf("count")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::count),
-                        Codec.STRING.fieldOf("phase")
-                                .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::phaseName),
+                        HANDLING_PHASE.fieldOf("phase")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::phase),
                         Codec.INT.fieldOf("pause")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::pauseTicks),
                         Codec.INT.fieldOf("moved")
