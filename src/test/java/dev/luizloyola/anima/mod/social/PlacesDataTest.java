@@ -163,8 +163,15 @@ class PlacesDataTest {
         // The spec's whole point for KIND_CODEC: an unknown POI kind must fail the row rather than
         // be dropped or guessed at, or a settlement's workshops vanish with nothing said.
         // TaskCodecsTest's "aTaskFromAMissingModIsRefusedRatherThanSkipped" is the precedent.
+        //
+        // A real owner rides along: without one, PlaceRow's both-null invariant would fail this
+        // row on its own even under a lenient KIND_CODEC, and the proof below would be accidental
+        // rather than pinning KIND_CODEC specifically.
+        var owner = net.minecraft.core.UUIDUtil.CODEC
+                .encodeStart(JsonOps.INSTANCE, java.util.UUID.randomUUID()).getOrThrow();
         var unknown = com.google.gson.JsonParser.parseString(
-                "{\"kind\":\"gone_mod:bench\",\"x\":1,\"y\":64,\"z\":1,\"since\":5}");
+                "{\"kind\":\"gone_mod:bench\",\"x\":1,\"y\":64,\"z\":1,\"since\":5}").getAsJsonObject();
+        unknown.add("owner", owner);
         var parsed = PlacesData.ROW_CODEC.parse(JsonOps.INSTANCE, unknown);
         assertTrue(parsed.isError(), "guessing here would silently delete a workshop's kind");
         assertTrue(parsed.error().orElseThrow().message().contains("gone_mod:bench"),
