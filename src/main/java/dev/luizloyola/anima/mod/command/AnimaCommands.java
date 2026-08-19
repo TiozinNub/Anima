@@ -36,6 +36,7 @@ public final class AnimaCommands {
                         .then(AgentCommands.select())
                         .then(AgentCommands.contacts())
                         .then(AgentCommands.party())
+                        .then(AgentCommands.places())
                         .then(AgentCommands.nav())
                         // A standing order, instead of typing nav goto at the body every 20 blocks.
                         .then(AgentCommands.follow())

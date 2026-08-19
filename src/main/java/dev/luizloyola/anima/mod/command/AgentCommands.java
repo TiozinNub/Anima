@@ -69,8 +69,11 @@ import dev.luizloyola.anima.mod.log.Journals;
 import dev.luizloyola.anima.mod.log.ThoughtBroadcast;
 import dev.luizloyola.anima.mod.net.ContactsSync;
 import dev.luizloyola.anima.core.social.PartyId;
+import dev.luizloyola.anima.core.social.PlaceRow;
+import dev.luizloyola.anima.core.social.Places;
 import dev.luizloyola.anima.mod.social.ContactData;
 import dev.luizloyola.anima.mod.social.PartyData;
+import dev.luizloyola.anima.mod.social.PlacesData;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -214,6 +217,146 @@ public final class AgentCommands {
                                                         StringArgumentType.getString(ctx, "person")))))
                                 .then(Commands.literal("leave")
                                         .executes(ctx -> partyLeave(ctx.getSource())));
+    }
+
+    /**
+     * What this agent owns or shares — the claims tier, as against the sightings {@code knowledge}
+     * dumps. {@code found}/{@code drop} are dev stand-ins for acts that do not exist yet, exactly as
+     * {@code party join}/{@code leave} stand in for the group-up handshake.
+     *
+     * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
+     * so a shared subcommand must be built once per root that mounts it.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> places() {
+        return Commands.literal("places")
+                                .executes(ctx -> placesShow(ctx.getSource(), null))
+                                .then(Commands.literal("of")
+                                        .then(Commands.argument("person", StringArgumentType.string())
+                                                .suggests(ALL_PERSON_SUGGESTIONS)
+                                                .executes(ctx -> placesShow(ctx.getSource(),
+                                                        StringArgumentType.getString(ctx, "person")))))
+                                .then(Commands.literal("found")
+                                        .then(Commands.argument("kind", StringArgumentType.word())
+                                                .then(Commands.argument("at", BlockPosArgument.blockPos())
+                                                        .executes(ctx -> placesFound(ctx.getSource(),
+                                                                StringArgumentType.getString(ctx, "kind"),
+                                                                BlockPosArgument.getLoadedBlockPos(ctx, "at"))))))
+                                .then(Commands.literal("drop")
+                                        .then(Commands.argument("kind", StringArgumentType.word())
+                                                .then(Commands.argument("at", BlockPosArgument.blockPos())
+                                                        .executes(ctx -> placesDrop(ctx.getSource(),
+                                                                StringArgumentType.getString(ctx, "kind"),
+                                                                BlockPosArgument.getLoadedBlockPos(ctx, "at"))))));
+    }
+
+    /** {@code KIND (x, y, z)} — how a claimed block is described, in a row or a command reply. */
+    private static String whereClaim(PoiKind kind, Pos at) {
+        return kind.key().toUpperCase(Locale.ROOT) + " (" + at.x() + ", " + at.y() + ", " + at.z() + ")";
+    }
+
+    /**
+     * The resolved agent's claims, personal, shared and communal alike, across every registered
+     * {@link PoiKind} — the claims-tier counterpart to {@code knowledge}'s sightings dump.
+     */
+    private static int placesShow(CommandSourceStack source, @Nullable String token) {
+        MinecraftServer server = source.getServer();
+        AgentId who;
+        if (token != null) {
+            who = resolveDirectory(source, token);
+            if (who == null) return 0;
+        } else {
+            AgentBody body = resolveBody(source);
+            if (body == null) return 0;
+            who = body.agentId();
+            if (who == null) {
+                Replies.fail(source, Component.translatable("anima.command.not_identified"));
+                return 0;
+            }
+        }
+        List<PlaceRow> rows = new ArrayList<>();
+        Places places = PlacesData.get(server).places();
+        for (PoiKind kind : PoiKind.all()) {
+            rows.addAll(places.viewFor(who).all(kind));
+        }
+        if (rows.isEmpty()) {
+            Replies.send(source, () -> Component.translatable("anima.command.places.none",
+                    label(server, who)).withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        Replies.send(source, () -> Component.translatable("anima.command.places.header",
+                label(server, who), rows.size()).withStyle(ChatFormatting.AQUA));
+        for (PlaceRow row : rows) {
+            String where = whereClaim(row.kind(), row.at());
+            // The three shapes a claim can be in — see PlaceRow's javadoc — each get their own key
+            // rather than building the middle word with getString(), which would freeze it to
+            // whichever locale the SERVER runs in, not the viewer's.
+            String key = row.owner() == null ? "anima.command.places.row.communal"
+                    : row.party() == null ? "anima.command.places.row.personal"
+                            : "anima.command.places.row.shared";
+            String owner = row.owner() == null ? shortId(row.party()) : label(server, row.owner());
+            Replies.send(source, () -> indent(Component.translatable(key, where, owner)
+                    .withStyle(ChatFormatting.GRAY)));
+        }
+        return rows.size();
+    }
+
+    /**
+     * A dev stand-in for placing something claim-worthy — always succeeds, since {@link Places#found}
+     * replaces rather than refuses, exactly as {@code party join} stands in for the group-up
+     * handshake until a real one exists.
+     */
+    private static int placesFound(CommandSourceStack source, String kindKey, BlockPos at) {
+        AgentBody body = resolveBody(source);
+        if (body == null) return 0;
+        AgentId who = body.agentId();
+        if (who == null) {
+            Replies.fail(source, Component.translatable("anima.command.not_identified"));
+            return 0;
+        }
+        Optional<PoiKind> kind = PoiKind.byKey(kindKey);
+        if (kind.isEmpty()) {
+            Replies.fail(source, Component.translatable("anima.command.places.unknown_kind", kindKey));
+            return 0;
+        }
+        MinecraftServer server = source.getServer();
+        Pos pos = new Pos(at.getX(), at.getY(), at.getZ());
+        long now = server.overworld().getGameTime();
+        PlaceRow row = PlacesData.get(server).places().viewFor(who).foundCommunal(kind.get(), pos, now);
+        String where = whereClaim(row.kind(), row.at());
+        // LOGGED: a claim is durable state nothing else narrates — same as party join/leave.
+        Replies.send(source, () -> Component.translatable("anima.command.places.founded",
+                where, shortId(row.party())).withStyle(ChatFormatting.AQUA), true);
+        return 1;
+    }
+
+    /**
+     * The dev stand-in for the probe correction: forgets {@code at} when the resolved agent may see
+     * it, refusing a claim that is not theirs to drop.
+     */
+    private static int placesDrop(CommandSourceStack source, String kindKey, BlockPos at) {
+        AgentBody body = resolveBody(source);
+        if (body == null) return 0;
+        AgentId who = body.agentId();
+        if (who == null) {
+            Replies.fail(source, Component.translatable("anima.command.not_identified"));
+            return 0;
+        }
+        Optional<PoiKind> kind = PoiKind.byKey(kindKey);
+        if (kind.isEmpty()) {
+            Replies.fail(source, Component.translatable("anima.command.places.unknown_kind", kindKey));
+            return 0;
+        }
+        MinecraftServer server = source.getServer();
+        Pos pos = new Pos(at.getX(), at.getY(), at.getZ());
+        String where = whereClaim(kind.get(), pos);
+        if (!PlacesData.get(server).places().viewFor(who).drop(kind.get(), pos)) {
+            Replies.fail(source, Component.translatable("anima.command.places.not_yours", where));
+            return 0;
+        }
+        // LOGGED: same as found — a dropped claim is durable state nothing else narrates.
+        Replies.send(source, () -> Component.translatable("anima.command.places.dropped", where)
+                .withStyle(ChatFormatting.AQUA), true);
+        return 1;
     }
 
     /**
