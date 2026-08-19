@@ -144,9 +144,12 @@ public final class PathfinderService {
      * Whether this body can leave where it stands. Snapshot and search on the SERVER thread: the
      * asker is a drive reading a percept mid-tick, with nowhere to put a future.
      *
-     * <p>Affordable only because {@code AgentPercepts.confinement} gates it behind a recent
-     * stranded report and caches the answer; a shut-in body's region is a handful of cells, so the
-     * expansion ends at once and the capture reuses the tick's shared snapshot.
+     * <p><b>There is no stranded-report gate</b>, whatever this comment said until 2026-08-18: it
+     * was dropped because a body can sit for minutes without attempting a walk, and the
+     * affordability argument was left behind describing it. What actually bounds the cost is
+     * {@link #SURVEY_MARGIN} — a free body expands only until it touches the rim of that box, and
+     * a shut-in one has a handful of cells by definition — and the slot
+     * {@code ConfinementCadence} puts each body on.
      */
     public static Confinement surveyFrom(ServerLevel level, BlockPos start, MoveCapabilities body) {
         WorldSnapshot snapshot = snapshotAround(level, start, start, SURVEY_MARGIN, false);
