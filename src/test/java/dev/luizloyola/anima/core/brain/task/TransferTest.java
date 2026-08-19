@@ -100,8 +100,8 @@ class TransferTest {
         // insert's return on the put-back path is not guaranteed either: a real container can
         // let take() succeed and still refuse the same stack coming back — a furnace's OUTPUT
         // slot is the concrete case (canPlaceItem lets an item out, not in). There is no
-        // drop-on-ground actuator today, so this is genuinely lost, but it must not be silently
-        // counted as moved.
+        // drop-on-ground actuator today, so this is genuinely lost — it must not be counted as
+        // moved, and it must not vanish with no trace either.
         FakeContext ctx = ctxWithBox(List.of(ItemStack.of("minecraft:oak_log", 5, 64)));
         ctx.containers.full.add(AT); // take() ignores full; insert() (the put-back) does not
         for (int slot = 0; slot < Inventory.MAIN_START + Inventory.MAIN_SIZE; slot++) {
@@ -111,6 +111,9 @@ class TransferTest {
         assertEquals(TaskStatus.FAILED, run(new TakeItems(AT, LOGS, 5), ctx, 2000));
         assertEquals(0, ctx.percepts.inventory().count(LOGS.matcher()),
                 "nothing fit, so nothing should have been credited as taken");
+        boolean journaled = ctx.journalService.recent(ctx.journal().id(), Integer.MAX_VALUE)
+                .stream().anyMatch(entry -> entry.detail().contains("lost"));
+        assertTrue(journaled, "a stranded stack must say so, not vanish with no trace");
     }
 
     @Test
