@@ -26,6 +26,13 @@ public final class Pause {
      * check, so a phase loop that starts the next unit on idle spins forever rather than
      * completing — which is why every duration knob that feeds this is floored at 1, not clamped
      * to 0 here.
+     *
+     * <p><b>The tick that calls this is also a counting tick.</b> A pause of N ticks costs exactly
+     * N — this call and the first {@link #elapsed()} that completes it may land on the very same
+     * tick. A caller must therefore fall through to {@link #elapsed()} in the same {@code tick()}
+     * invocation rather than returning {@code RUNNING} right after {@code start}; returning early
+     * spends a whole extra tick starting the pause before a single unit of it has counted down,
+     * making an N-tick pause cost N+1.
      */
     public void start(int ticks) {
         this.remaining = Math.max(0, ticks);

@@ -38,8 +38,9 @@ public final class CraftStep implements PrimitiveTask {
             if (!billCovered(pack) || !roomFor(recipe.output(), pack) || !sited(ctx)) {
                 return TaskStatus.FAILED;
             }
+            // Falls through to the elapsed check below rather than returning here: a pause of N
+            // ticks must cost exactly N, not N+1 for a tick spent starting it.
             pause.start(ctx.profile().i(ProfileAspect.HANDLING_CRAFT_TICKS));
-            return TaskStatus.RUNNING;
         }
         if (!pause.elapsed()) {
             return TaskStatus.RUNNING;
