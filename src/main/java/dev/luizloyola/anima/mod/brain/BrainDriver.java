@@ -306,7 +306,7 @@ public final class BrainDriver {
         // is a want about somewhere the body cannot currently get to.
         this.arbiter = new Arbiter(List.of(
                 new FleeInstinct(), new EscapeInstinct(), Drives.EAT,
-                new ConverseInstinct(),
+                new ConverseInstinct(), Drives.SEEK_PEOPLE,
                 this.wanderDrive),
                 celebrating);
     }

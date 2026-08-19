@@ -121,6 +121,12 @@ public final class FakePercepts implements Percepts {
         return personTrack("", pos, distance, true, Being.Identified.SPECIES, Being.Awareness.HEARD);
     }
 
+    /** A person-shaped track, seen and quiet. An empty name is a stranger — somebody whose name
+     *  we were never told; a filled one is somebody the contact book already knows. */
+    public static Being personAt(Pos pos, double distance, String name) {
+        return personTrack(name, pos, distance, false, Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
+    }
+
     @Override
     public BlockProbe blocks() {
         return blocks;
