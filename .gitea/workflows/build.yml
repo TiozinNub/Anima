@@ -27,6 +27,9 @@ on:
     - cron: '7 4 * * *'
   workflow_dispatch:
 
+# Step names carry no `${{ matrix.version }}`: Gitea's runner does not evaluate expressions in a
+# step's `name:` (GitHub does), so it renders the template at the reader. The matrix job header
+# already says `build (26.1.x)`. Artifact names under `with:` ARE expanded — leave those alone.
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -99,12 +102,12 @@ jobs:
       # assemble, so a unit-test failure can arrive after remapJar has run. Asking for it first
       # costs nothing (the build below finds it up to date), fails sooner, and names itself in the
       # step list, which is where somebody actually reads it.
-      - name: Unit-test ${{ matrix.version }}
+      - name: Unit-test
         run: ./gradlew ":${{ matrix.version }}:test" --no-daemon
 
       # One segment: this is a ROOT branch, so a node path is `:26.1.x`, never `:anima:26.1.x`.
       # `build` runs `check`, which is where ArchitectureTest enforces the core/compat/mod layering.
-      - name: Build ${{ matrix.version }}
+      - name: Build
         run: ./gradlew ":${{ matrix.version }}:build" --no-daemon
 
       - name: Upload jars
@@ -156,7 +159,7 @@ jobs:
       #
       # Per node, because the Minecraft version lives in the ARTIFACT ID (`anima-26.1.2`): the
       # three jobs publish three coordinates, and a red node simply leaves its own unpublished.
-      - name: Publish ${{ matrix.version }} to the Gitea maven
+      - name: Publish to the Gitea maven
         if: github.event_name == 'push'
         run: ./gradlew ":${{ matrix.version }}:publishModPublicationToGiteaRepository" --no-daemon
         env:
@@ -168,7 +171,7 @@ jobs:
       # Reuses the jar built above (Gradle sees it as up to date) — this is an upload, not a
       # rebuild. Without MODRINTH_TOKEN the plugin runs dry, so a missing secret publishes nothing
       # instead of failing loudly; that is the plugin's choice, not this file's.
-      - name: Release ${{ matrix.version }} to Modrinth
+      - name: Release to Modrinth
         if: startsWith(github.ref, 'refs/tags/v')
         run: ./gradlew ":${{ matrix.version }}:publishMods" --no-daemon
         env:
