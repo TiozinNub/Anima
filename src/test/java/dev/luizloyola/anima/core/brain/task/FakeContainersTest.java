@@ -77,4 +77,30 @@ class FakeContainersTest {
         assertEquals(3, taken.count(), "max exceeded what was there; only what was there comes out");
         assertTrue(containers.boxes.get(CELL).isEmpty(), "nothing left to leave a remainder of");
     }
+
+    @Test
+    void aBoxWithLimitedRoomAcceptsOnlyWhatFits() {
+        containers.boxes.put(CELL, new ArrayList<>());
+        containers.capacity.put(CELL, 3);
+
+        int accepted = containers.insert(CELL, ItemStack.of("minecraft:oak_log", 5, 64));
+
+        assertEquals(3, accepted, "room for 3 out of a stack of 5 accepts exactly 3");
+        assertEquals(3, containers.boxes.get(CELL).stream().mapToInt(ItemStack::count).sum(),
+                "the box holds what it had room for, not the whole stack — the other 2 are the caller's to keep");
+    }
+
+    @Test
+    void takingAtMostZeroOrFewerReturnsEmptyAndTouchesNothing() {
+        ItemStack original = ItemStack.of("minecraft:oak_log", 5, 64);
+        containers.boxes.put(CELL, new ArrayList<>(List.of(original)));
+
+        assertEquals(ItemStack.EMPTY, containers.take(CELL, LOGS, 0), "zero is not a request for everything");
+        assertEquals(List.of(original), containers.boxes.get(CELL),
+                "a zero max must not rewrite the slot it refused to take from");
+
+        assertEquals(ItemStack.EMPTY, containers.take(CELL, LOGS, -1), "negative is nonsense, not unlimited");
+        assertEquals(List.of(original), containers.boxes.get(CELL),
+                "a negative max must not grow the slot — that would be duplication wearing a no-op's face");
+    }
 }

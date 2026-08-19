@@ -19,6 +19,13 @@ public final class FakeContainers implements ContainerAccess {
     public final java.util.Set<Pos> full = new java.util.LinkedHashSet<>();
     /** Cells beyond the arm. */
     public final java.util.Set<Pos> outOfReach = new java.util.LinkedHashSet<>();
+    /**
+     * Per-box ceiling on total item count; a cell with no entry is unlimited. What lets a test
+     * script a genuine partial accept — {@code insert} of 5 into a box with room for 3 takes 3 and
+     * reports 3, the shape {@code WorldContainers} already has and {@code PutItems} (Task 6) must
+     * put the rest back rather than lose it.
+     */
+    public final Map<Pos, Integer> capacity = new LinkedHashMap<>();
 
     @Override
     public Optional<List<ItemStack>> contents(Pos at) {
@@ -33,13 +40,25 @@ public final class FakeContainers implements ContainerAccess {
         if (outOfReach.contains(at) || !boxes.containsKey(at) || full.contains(at)) {
             return 0;
         }
-        boxes.get(at).add(stack);
-        return stack.count();
+        List<ItemStack> box = boxes.get(at);
+        Integer cap = capacity.get(at);
+        if (cap == null) {
+            box.add(stack);
+            return stack.count();
+        }
+        int held = box.stream().mapToInt(ItemStack::count).sum();
+        int accepted = Math.min(stack.count(), Math.max(0, cap - held));
+        if (accepted > 0) {
+            box.add(stack.withCount(accepted));
+        }
+        return accepted;
     }
 
     @Override
     public ItemStack take(Pos at, ItemSpec spec, int max) {
-        if (outOfReach.contains(at) || !boxes.containsKey(at)) {
+        // A non-positive max must be a no-op, not a claim to take "everything up to a negative
+        // number" — Math.min below would otherwise let the remainder rewrite grow the slot.
+        if (max <= 0 || outOfReach.contains(at) || !boxes.containsKey(at)) {
             return ItemStack.EMPTY;
         }
         List<ItemStack> box = boxes.get(at);

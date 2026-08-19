@@ -107,6 +107,12 @@ public final class WorldContainers implements ContainerAccess {
 
     @Override
     public ItemStack take(Pos at, ItemSpec spec, int max) {
+        // A non-positive max must be a no-op: Math.min(max, count) below would otherwise let a
+        // negative max make the rewritten remainder LARGER than the slot's original count — a
+        // duplication hiding behind an EMPTY return.
+        if (max <= 0) {
+            return ItemStack.EMPTY;
+        }
         Container container = containerAt(at);
         if (container == null) {
             return ItemStack.EMPTY;
