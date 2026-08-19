@@ -12,6 +12,7 @@ import dev.luizloyola.anima.mod.nav.PathfinderService;
 import net.minecraft.server.level.ServerLevel;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Being;
+import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Drop;
 import dev.luizloyola.anima.core.brain.sense.FoodLookup;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
@@ -177,6 +178,12 @@ public final class AgentPercepts implements Percepts {
     @Override
     public List<Being> beings() {
         return this.beings.get();
+    }
+
+    /** Delegates to the sensor's own guardrail memory. */
+    @Override
+    public boolean calledLately(BeingId whom) {
+        return this.person.beingSense().calledLately(whom);
     }
 
     /** The overworld game clock — the same one knowledge timestamps carry. */

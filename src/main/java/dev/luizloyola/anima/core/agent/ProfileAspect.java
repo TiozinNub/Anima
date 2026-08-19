@@ -197,6 +197,10 @@ public final class ProfileAspect {
             "How far (blocks) a deliberate shout reaches this body, and how far its own carries. "
                     + "Must exceed this species' senses.radius or hailing adds nothing to simply "
                     + "noticing someone.");
+    public static final ProfileAspect SOCIAL_HAIL_PATIENCE_TICKS = register("social.hail_patience_ticks", Kind.INT, 20, 12_000,
+            "How long a call stays worth anything to this body, both ways: how long a shout it "
+                    + "heard is still worth answering, and how long before it would call the same "
+                    + "body again. 600 ticks is thirty seconds.");
     public static final ProfileAspect SOCIAL_COMPANY_SOLITUDE_TICKS = register("social.company_solitude_ticks", Kind.INT, 20, 480_000,
             "How long it takes complete solitude to drain this body's company from full to empty. "
                     + "24000 ticks is one in-game day.");

@@ -206,6 +206,25 @@ public final class BeingSense {
         return sensor.beings();
     }
 
+    /** Whether calling {@code whom} again would just be shouting twice. */
+    public boolean calledLately(BeingId whom) {
+        return sensor.calledLately(whom, person.level().getGameTime());
+    }
+
+    /** We called out to {@code whom} — spends the reason to do it again for a while. */
+    public void calledOut(BeingId whom) {
+        sensor.calledOut(whom, person.level().getGameTime());
+    }
+
+    /** A deliberate shout arrived — see {@link BeingSensorCore#hailedBy}. */
+    public void hailedBy(LivingEntity source) {
+        BeingReading reading = read(source);
+        if (reading != null) {
+            bodies.put(reading.id(), source);
+            sensor.hailedBy(reading, person.level().getGameTime());
+        }
+    }
+
     /**
      * The live body behind a perceived being, or {@code null} when none is tracked (herd aggregates
      * never have one).

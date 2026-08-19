@@ -35,7 +35,7 @@ class FleeInstinctTest {
     private static Being speciesAt(String species, double distance, Being.Gear gear) {
         return new Being(BeingId.of(UUID.randomUUID()), Being.Kind.MONSTER, species, "",
                 null, new Pos(0, 64, 0), distance, 1, 0, false, List.of(),
-                Being.Activity.IDLE, Being.Locomotion.STILL, false, false, false, false,
+                Being.Activity.IDLE, Being.Locomotion.STILL, false, false, false, false, false,
                 true, gear, Being.Identified.SPECIES, Being.Awareness.SEEN);
     }
 
@@ -121,7 +121,7 @@ class FleeInstinctTest {
         // masks aggression below the species tier): neither prices any fear.
         Being calm = new Being(BeingId.of(UUID.randomUUID()), Being.Kind.PASSIVE, "cow", "",
                 null, new Pos(0, 64, 0), 2.0, 1, 0, true, List.of(), Being.Activity.IDLE,
-                Being.Locomotion.STILL, false, false, false, false, false, Being.Gear.NONE,
+                Being.Locomotion.STILL, false, false, false, false, false, false, Being.Gear.NONE,
                 Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
         assertEquals(0.0, FleeInstinct.pressureOf(TestSpecies.PROFILE, TestDanger.TABLE, calm));
     }

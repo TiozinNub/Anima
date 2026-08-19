@@ -155,7 +155,10 @@ public final class BrainDriver {
 
             @Override
             public dev.luizloyola.anima.core.brain.act.Voice voice() {
-                return whom -> BeingHails.hailed(person.entity());
+                return whom -> {
+                    BeingHails.hailed(person.entity());
+                    person.beingSense().calledOut(whom);
+                };
             }
         };
         this.context = new BrainContext() {

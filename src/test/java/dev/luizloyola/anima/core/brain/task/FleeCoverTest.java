@@ -37,7 +37,7 @@ class FleeCoverTest {
     private Being threat(String species, Being.Gear gear, Pos at, double distance) {
         return new Being(BeingId.of(UUID.randomUUID()), Being.Kind.MONSTER, species, "", null,
                 at, distance, 1, 0, false, List.of(), Being.Activity.IDLE,
-                Being.Locomotion.STILL, false, false, false, false, true, gear,
+                Being.Locomotion.STILL, false, false, false, false, false, true, gear,
                 Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
     }
 

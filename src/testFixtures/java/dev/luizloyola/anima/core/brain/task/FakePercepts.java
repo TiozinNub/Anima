@@ -47,6 +47,8 @@ public final class FakePercepts implements Percepts {
     public long time;
     /** What the legs last found out about being shut in — settable; defaults to nothing known. */
     public Confinement confinement = Confinement.NONE;
+    /** Who this fake body has called lately — seeded by guardrail tests. */
+    public final java.util.Set<BeingId> called = new java.util.HashSet<>();
     private final Map<String, FoodValue> foodById = new HashMap<>();
     private final Map<String, FoodValue> cookedById = new HashMap<>();
 
@@ -85,12 +87,17 @@ public final class FakePercepts implements Percepts {
         return beings;
     }
 
+    @Override
+    public boolean calledLately(BeingId whom) {
+        return called.contains(whom);
+    }
+
     /** An identified, aggressive, bare-handed zombie (danger weight 1.0) at this range —
      *  the standard test threat; {@code approaching} maps to the old targeting bonus. */
     public static Being monsterAt(Pos pos, double distance, boolean approaching) {
         return new Being(BeingId.of(UUID.randomUUID()), Being.Kind.MONSTER, "zombie", "",
                 null, pos, distance, 1, 0, false, List.of(), Being.Activity.IDLE,
-                Being.Locomotion.STILL, false, false, false, approaching, true,
+                Being.Locomotion.STILL, false, false, false, false, approaching, true,
                 Being.Gear.NONE, Being.Identified.SPECIES, Being.Awareness.SEEN);
     }
 

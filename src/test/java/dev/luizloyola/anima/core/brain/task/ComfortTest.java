@@ -32,7 +32,7 @@ class ComfortTest {
         return new Being(BeingId.of(UUID.randomUUID()), Being.Kind.AGENT, "person", "", null,
                 new Pos(x, 64, z), Math.sqrt(x * x + z * z), 1, 0, false, List.of(),
                 Being.Activity.IDLE, Being.Locomotion.STILL, false, false, false, false, false,
-                Being.Gear.NONE, Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
+                false, Being.Gear.NONE, Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
     }
 
     private static Needs companyAt(double value) {
