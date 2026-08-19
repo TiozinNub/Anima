@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.knowledge;
 
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.social.Places;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -15,11 +16,28 @@ import java.util.Set;
  */
 public final class KnowledgeRegistry {
     private final Map<AgentId, AgentKnowledge> byPerson = new LinkedHashMap<>();
+    private Places places = Places.EMPTY;
+
+    /**
+     * Installs the claim store, re-pointing every knowledge already minted.
+     *
+     * <p>The loop is the point: knowledge objects are created lazily and the store is wired when the
+     * server starts, so binding only at mint time would leave whoever asked first looking at an
+     * empty store forever.
+     */
+    public void sees(Places places) {
+        this.places = places;
+        byPerson.forEach((id, knowledge) -> knowledge.sees(places.viewFor(id)));
+    }
 
     /** This person's knowledge, created empty on first ask — never null, always the same object. */
     public AgentKnowledge forPerson(AgentId id) {
         Objects.requireNonNull(id, "id");
-        return byPerson.computeIfAbsent(id, k -> new AgentKnowledge());
+        return byPerson.computeIfAbsent(id, k -> {
+            AgentKnowledge fresh = new AgentKnowledge();
+            fresh.sees(places.viewFor(k));
+            return fresh;
+        });
     }
 
     /** Every person who has (or ever asked for) knowledge, insertion-ordered — the codec's view. */

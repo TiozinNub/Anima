@@ -3,6 +3,8 @@ package dev.luizloyola.anima.core.brain.knowledge;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.social.PlaceRow;
+import dev.luizloyola.anima.core.social.Places;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -40,6 +42,27 @@ public final class AgentKnowledge {
      * method selection; the memory itself stays.
      */
     private final Map<PoiKind, Map<Pos, Long>> avoidedUntil = new java.util.LinkedHashMap<>();
+
+    /**
+     * What this body may claim, as against what it has seen — installed by the registry, empty for
+     * a knowledge built on its own.
+     *
+     * <p>Claims compose into {@link #nearest} and {@link #all} so every existing caller picks up a
+     * party's workshop with no change, and into {@link #forget} because that is the probe
+     * correction. They do NOT compose into {@link #note} or {@link #refresh}: walking past a chest
+     * and owning it are different claims and must not share a code path.
+     */
+    private Places.View claims = Places.View.EMPTY;
+
+    /** Installs this body's window onto what it owns or shares. */
+    public void sees(Places.View claims) {
+        this.claims = claims;
+    }
+
+    /** This body's claims, for the readout that wants them apart from the sightings. */
+    public Places.View claims() {
+        return claims;
+    }
 
     /**
      * Records a belief: merges into an existing same-kind entry within merge radius (the new
@@ -89,40 +112,70 @@ public final class AgentKnowledge {
         return true;
     }
 
-    /** Drops the entry anchored exactly at {@code anchor}; false when there was none. */
+    /**
+     * Drops the entry anchored exactly at {@code anchor}; false when there was none. Reaches a
+     * visible claim too — see {@link #claims}.
+     */
     public boolean forget(PoiKind kind, Pos anchor) {
         Map<Pos, PoiMemory> entries = byKind.get(kind);
-        return entries != null && entries.remove(anchor) != null;
+        boolean sighting = entries != null && entries.remove(anchor) != null;
+        // The probe correction reaches the claim too: a body standing where a table used to be is
+        // the only thing that ever tells the party it is gone.
+        boolean claim = claims.drop(kind, anchor);
+        return sighting || claim;
     }
 
     /**
-     * The remembered entry of this kind nearest to {@code from} (squared euclidean over anchors).
-     * Distance only — the method prices staleness, weighing {@code age()} against distance per the
-     * brain design's cost model.
+     * The remembered entry of this kind nearest to {@code from} (squared euclidean over anchors),
+     * considering both what this body has seen and what it may claim. Distance only — the method
+     * prices staleness, weighing {@code age()} against distance per the brain design's cost model.
      */
     public Optional<PoiMemory> nearest(PoiKind kind, Pos from) {
-        Map<Pos, PoiMemory> entries = byKind.get(kind);
-        if (entries == null || entries.isEmpty()) {
-            return Optional.empty();
-        }
         PoiMemory best = null;
         long bestDist = Long.MAX_VALUE;
-        for (PoiMemory memory : entries.values()) {
-            long dist = distanceSq(memory.anchor(), from);
-            if (dist < bestDist) {
-                bestDist = dist;
-                best = memory;
+        Map<Pos, PoiMemory> entries = byKind.get(kind);
+        if (entries != null) {
+            for (PoiMemory memory : entries.values()) {
+                long dist = distanceSq(memory.anchor(), from);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    best = memory;
+                }
             }
         }
-        return Optional.of(best);
+        for (PlaceRow row : claims.all(kind)) {
+            long dist = distanceSq(row.at(), from);
+            // <= so a claim wins a tie with a sighting of the same block: it is the authoritative
+            // record of the same thing, and it never goes stale.
+            if (dist <= bestDist) {
+                bestDist = dist;
+                best = row.toMemory(row.since());
+            }
+        }
+        return Optional.ofNullable(best);
     }
 
-    /** All entries of a kind, insertion-ordered, unmodifiable — the debug command's view. */
+    /**
+     * All entries of a kind, insertion-ordered, unmodifiable — the debug command's view. Sightings
+     * then claims, deduped by anchor: a block both seen and claimed is one entry, and the claim
+     * wins (see {@link #claims}).
+     */
     public Collection<PoiMemory> all(PoiKind kind) {
+        Collection<PlaceRow> claimed = claims.all(kind);
         Map<Pos, PoiMemory> entries = byKind.get(kind);
-        return entries == null
-                ? Collections.emptyList()
-                : Collections.unmodifiableCollection(entries.values());
+        if (claimed.isEmpty()) {
+            return entries == null
+                    ? Collections.emptyList()
+                    : Collections.unmodifiableCollection(entries.values());
+        }
+        Map<Pos, PoiMemory> merged = new LinkedHashMap<>();
+        if (entries != null) {
+            merged.putAll(entries);
+        }
+        for (PlaceRow row : claimed) {
+            merged.put(row.at(), row.toMemory(row.since())); // a claim supersedes a sighting of it
+        }
+        return Collections.unmodifiableCollection(merged.values());
     }
 
     /** Marks an anchor as not-worth-retrying until the given game time. Transient. */

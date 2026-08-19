@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.knowledge;
 
+import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -8,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.social.PartyId;
+import dev.luizloyola.anima.core.social.Places;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -16,6 +19,9 @@ import org.junit.jupiter.api.Test;
  * semantics, staleness-based eviction. No Minecraft — the whole point of the {@code core} layer.
  */
 class AgentKnowledgeTest {
+
+    /** Stands in for a claimed, perceivable block — the same shape as {@code PlacesTest}'s. */
+    private static final PoiKind BENCH = PoiKind.register("test_bench", 1, "");
 
     private static PoiMemory tree(int x, int y, int z, int logs, long seen) {
         Pos anchor = new Pos(x, y, z);
@@ -157,5 +163,88 @@ class AgentKnowledgeTest {
         Region grown = region.including(new Pos(3, 70, 8));
         assertEquals(new Region(new Pos(3, 64, 5), new Pos(5, 70, 8)), grown);
         assertEquals(grown, grown.including(new Pos(4, 65, 6)), "inside -> same box (same object)");
+    }
+
+    @Test
+    void aClaimIsFoundByAnAgentWhoNeverSawIt() {
+        AgentId hazel = AgentId.random();
+        Places places = new Places();
+        places.asks(everyoneAlone());
+        places.found(BENCH, new Pos(20, 64, 0), hazel, null, 1L);
+
+        AgentKnowledge knowledge = new AgentKnowledge();
+        knowledge.sees(places.viewFor(hazel));
+
+        assertEquals(new Pos(20, 64, 0),
+                knowledge.nearest(BENCH, new Pos(0, 0, 0)).orElseThrow().anchor(),
+                "nothing was ever noted; the claim is the whole of what is known");
+    }
+
+    @Test
+    void aBlockBothSeenAndClaimedIsOneEntry() {
+        AgentId hazel = AgentId.random();
+        Pos at = new Pos(4, 64, 4);
+        Places places = new Places();
+        places.asks(everyoneAlone());
+        places.found(BENCH, at, hazel, null, 1L);
+
+        AgentKnowledge knowledge = new AgentKnowledge();
+        knowledge.sees(places.viewFor(hazel));
+        knowledge.note(new PoiMemory(BENCH, at, Region.of(at), 0, false, 50L), 64);
+
+        assertEquals(1, knowledge.all(BENCH).size(),
+                "a workbench is perceived as well as claimed; it is still one workbench");
+    }
+
+    @Test
+    void forgettingCorrectsTheClaimAsWellAsTheSighting() {
+        AgentId hazel = AgentId.random();
+        Pos at = new Pos(6, 64, 6);
+        Places places = new Places();
+        places.asks(everyoneAlone());
+        places.found(BENCH, at, hazel, null, 1L);
+
+        AgentKnowledge knowledge = new AgentKnowledge();
+        knowledge.sees(places.viewFor(hazel));
+
+        assertTrue(knowledge.forget(BENCH, at), "the probe found nothing standing there");
+        assertTrue(knowledge.nearest(BENCH, new Pos(0, 0, 0)).isEmpty());
+        assertTrue(places.rows().isEmpty(), "the correction is the party's, not just this body's");
+    }
+
+    @Test
+    void notingASightingNeverMakesAClaim() {
+        AgentId hazel = AgentId.random();
+        Pos at = new Pos(8, 64, 8);
+        Places places = new Places();
+        places.asks(everyoneAlone());
+
+        AgentKnowledge knowledge = new AgentKnowledge();
+        knowledge.sees(places.viewFor(hazel));
+        knowledge.note(new PoiMemory(BENCH, at, Region.of(at), 0, false, 50L), 64);
+
+        assertTrue(places.rows().isEmpty(), "walking past a thing does not claim it");
+    }
+
+    @Test
+    void aKnowledgeWithNoViewBehavesExactlyAsBefore() {
+        AgentKnowledge knowledge = new AgentKnowledge();
+        assertTrue(knowledge.all(BENCH).isEmpty());
+        assertTrue(knowledge.nearest(BENCH, new Pos(0, 0, 0)).isEmpty());
+        assertFalse(knowledge.forget(BENCH, new Pos(0, 0, 0)));
+    }
+
+    private static Places.Parties everyoneAlone() {
+        return new Places.Parties() {
+            @Override
+            public java.util.Optional<PartyId> current(AgentId who) {
+                return java.util.Optional.empty();
+            }
+
+            @Override
+            public PartyId of(AgentId who) {
+                return PartyId.random();
+            }
+        };
     }
 }
