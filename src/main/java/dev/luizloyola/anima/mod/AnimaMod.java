@@ -69,6 +69,9 @@ public final class AnimaMod implements ModInitializer {
         // The follow-me leash's tick. Here rather than in a consumer: `/anima follow` is on the
         // library's own root, so the order must be drivable with Anima alone.
         dev.luizloyola.anima.mod.nav.Escorts.init();
+        // The hail channel. Anima's, not a consumer's: the Voice port and `/anima brain hail` are
+        // on this root, so a bare install must be able to call out. See BeingHails.
+        dev.luizloyola.anima.mod.brain.BeingHails.init();
         // The browser debug dashboard. Registers its lifecycle hooks only — it listens on nothing
         // until web_debugger.enabled says so.
         dev.luizloyola.anima.mod.webdebug.WebDebugger.install();
