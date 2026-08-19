@@ -132,7 +132,8 @@ class TakeFromStoreTest {
         assertEquals(2, plan.size());
 
         GoTo go = assertInstanceOf(GoTo.class, plan.get(0));
-        assertTrue(Math.abs(go.x() - at.x()) <= 1 && Math.abs(go.z() - at.z()) <= 1,
+        assertTrue(Math.abs(go.x() - at.x()) <= 1 && Math.abs(go.z() - at.z()) <= 1
+                        && !(go.x() == at.x() && go.z() == at.z()),
                 "the walk targets a cell BESIDE the store, not the store block itself");
 
         TakeItems take = assertInstanceOf(TakeItems.class, plan.get(1));

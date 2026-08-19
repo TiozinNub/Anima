@@ -10,9 +10,11 @@ import java.util.Optional;
  * anything carrying an inventory is a store, so barrels and modded crates count without this file
  * ever learning their names.
  *
- * <p>Gated on {@code state.hasBlockEntity()} first, which is a flag read on the state; only then is
- * the block entity fetched. Perception probes a great many columns, and a block-entity lookup per
- * candidate is the kind of cost that does not show up until a settlement does.
+ * <p><b>This classifier does what {@link BlockKinds} tells classifiers never to do</b> — it fetches
+ * a block entity. Capability is where the inventory lives, so there is no other way to recognise a
+ * container without the name list this exists to avoid. {@code state.hasBlockEntity()} is a flag on
+ * the state, so gating on it first means the fetch is paid only for the few cells that could
+ * possibly have one; that bounds the cost, it does not make the read free.
  */
 public final class StoreBlocks {
 

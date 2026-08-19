@@ -67,7 +67,8 @@ class EnsureTableTest {
                 "ten blocks of walk beats crafting a second table — settlements share benches");
         List<Task> plan = walk.decompose(ctx);
         GoTo go = assertInstanceOf(GoTo.class, plan.get(0));
-        assertTrue(Math.abs(go.x() - 20) <= 1 && Math.abs(go.z() - 10) <= 1,
+        assertTrue(Math.abs(go.x() - 20) <= 1 && Math.abs(go.z() - 10) <= 1
+                        && !(go.x() == 20 && go.z() == 10),
                 "the walk targets a cell BESIDE the bench, not the bench block itself");
     }
 

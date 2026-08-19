@@ -49,7 +49,7 @@ class PauseTest {
     }
 
     @Test
-    void aNegativePauseIsClampedRatherThanCountingUpForever() {
+    void aNegativePauseIsClampedRatherThanNeverElapsing() {
         pause.start(-5);
         assertTrue(pause.idle());
         assertEquals(0, pause.remaining());

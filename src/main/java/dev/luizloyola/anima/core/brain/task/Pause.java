@@ -21,11 +21,11 @@ public final class Pause {
     }
 
     /**
-     * Begins a pause of {@code ticks}, clamped to zero or above so a negative value cannot count
-     * up forever. Zero itself is not made safe here: idle() would read true again on the very next
-     * check, so a phase loop that starts the next unit on idle spins forever rather than
-     * completing — which is why every duration knob that feeds this is floored at 1, not clamped
-     * to 0 here.
+     * Begins a pause of {@code ticks}, clamped to zero or above because {@link #elapsed()} only
+     * counts a POSITIVE remainder down: a negative would never elapse, hanging the phase forever.
+     * Zero itself is not made safe here: idle() would read true again on the very next check, so a
+     * phase loop that starts the next unit on idle spins forever rather than completing — which is
+     * why every duration knob that feeds this is floored at 1, not clamped to 0 here.
      *
      * <p><b>The tick that calls this is also a counting tick.</b> A pause of N ticks costs exactly
      * N — this call and the first {@link #elapsed()} that completes it may land on the very same
