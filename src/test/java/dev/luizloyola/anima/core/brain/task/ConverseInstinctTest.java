@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.agent.need.NeedKind;
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.instinct.ConverseInstinct;
 import dev.luizloyola.anima.core.brain.sense.Pos;
@@ -38,6 +39,8 @@ class ConverseInstinctTest {
         assertEquals(ctx.profile.d(ProfileAspect.SOCIAL_HAIL_ANSWER_PRESSURE), bid, 1e-9);
         assertTrue(bid > ctx.profile.d(ProfileAspect.WANDER_IDLE_PRESSURE),
                 "an idle body comes when called");
+        assertTrue(bid > NeedKind.COMPANY.level("lonely").orElseThrow().pressure(ctx.profile),
+                "or a lonely body would rather go looking than answer someone already calling it");
         assertTrue(bid < Arbiter.preempt(ctx.profile),
                 "but a shout does not cut into work mid-errand — it waits for the boundary");
     }
