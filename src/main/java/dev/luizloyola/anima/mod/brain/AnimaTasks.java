@@ -16,6 +16,7 @@ import dev.luizloyola.anima.core.brain.task.FleeStep;
 import dev.luizloyola.anima.core.brain.task.GatherNearbyDrops;
 import dev.luizloyola.anima.core.brain.task.EscapeStep;
 import dev.luizloyola.anima.core.brain.task.GoTo;
+import dev.luizloyola.anima.core.brain.task.HandlingPhase;
 import dev.luizloyola.anima.core.brain.task.Idle;
 import dev.luizloyola.anima.core.brain.task.ObtainItem;
 import dev.luizloyola.anima.core.brain.task.SatisfyHunger;
@@ -50,17 +51,17 @@ public final class AnimaTasks {
             Gait::name);
 
     /** Enums round-trip by name; an unknown one is an error rather than a silent default. */
-    private static final Codec<dev.luizloyola.anima.core.brain.task.HandlingPhase> HANDLING_PHASE =
+    private static final Codec<HandlingPhase> HANDLING_PHASE =
             Codec.STRING.comapFlatMap(
                     name -> {
                         try {
                             return DataResult.success(
-                                    dev.luizloyola.anima.core.brain.task.HandlingPhase.valueOf(name));
+                                    HandlingPhase.valueOf(name));
                         } catch (IllegalArgumentException e) {
                             return DataResult.error(() -> "no handling phase called \"" + name + "\"");
                         }
                     },
-                    dev.luizloyola.anima.core.brain.task.HandlingPhase::name);
+                    HandlingPhase::name);
 
     /**
      * A class of items, in the two shapes a spec can have. A mod-declared spec's matcher is a

@@ -96,6 +96,24 @@ class TransferTest {
     }
 
     @Test
+    void aRefusedPutBackIsAccountedForRatherThanCounted() {
+        // insert's return on the put-back path is not guaranteed either: a real container can
+        // let take() succeed and still refuse the same stack coming back — a furnace's OUTPUT
+        // slot is the concrete case (canPlaceItem lets an item out, not in). There is no
+        // drop-on-ground actuator today, so this is genuinely lost, but it must not be silently
+        // counted as moved.
+        FakeContext ctx = ctxWithBox(List.of(ItemStack.of("minecraft:oak_log", 5, 64)));
+        ctx.containers.full.add(AT); // take() ignores full; insert() (the put-back) does not
+        for (int slot = 0; slot < Inventory.MAIN_START + Inventory.MAIN_SIZE; slot++) {
+            ctx.percepts.inventory().set(slot, ItemStack.of("minecraft:dirt", 64, 64));
+        }
+
+        assertEquals(TaskStatus.FAILED, run(new TakeItems(AT, LOGS, 5), ctx, 2000));
+        assertEquals(0, ctx.percepts.inventory().count(LOGS.matcher()),
+                "nothing fit, so nothing should have been credited as taken");
+    }
+
+    @Test
     void aMissingContainerFailsWithoutInventingABelief() {
         FakeContext ctx = new FakeContext();
         assertEquals(TaskStatus.FAILED, run(new TakeItems(AT, LOGS, 1), ctx, 2000));
@@ -213,5 +231,25 @@ class TransferTest {
         assertEquals(TaskStatus.FAILED, run(new PutItems(AT, LOGS, 8), ctx, 2000));
         assertFalse(ctx.knowledge.isAvoided(dev.luizloyola.anima.core.store.Store.POI, AT, 101L),
                 "an empty pack is not a full store");
+    }
+
+    @Test
+    void puttingWhenShovedOutOfReachFailsWithoutBlindingAGoodStore() {
+        // Reachable through OPEN so the errand actually reaches MOVE, then yanked out of reach —
+        // the OTHER reason insert can return 0, and the one contents(at).isPresent() must catch.
+        FakeContext ctx = ctxWithBox(List.of());
+        ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 8, 64));
+        ctx.percepts.time = 100L;
+        int open = ctx.profile.i(ProfileAspect.HANDLING_OPEN_TICKS);
+        int settle = ctx.profile.i(ProfileAspect.HANDLING_SETTLE_TICKS);
+        PutItems put = new PutItems(AT, LOGS, 8);
+        for (int i = 0; i < open + settle; i++) {
+            put.tick(ctx);
+        }
+        ctx.containers.outOfReach.add(AT);
+
+        assertEquals(TaskStatus.FAILED, run(put, ctx, 2000));
+        assertFalse(ctx.knowledge.isAvoided(dev.luizloyola.anima.core.store.Store.POI, AT, 101L),
+                "out of reach is a wrong belief about distance, not a full store");
     }
 }

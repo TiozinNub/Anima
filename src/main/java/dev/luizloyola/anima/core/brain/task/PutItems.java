@@ -16,10 +16,11 @@ import java.util.List;
  * open, beat and one-pause-per-stack shape as {@link TakeItems}, moving the other way.
  *
  * <p><b>A full container is a real outcome, not an error.</b> The belief that it holds real things
- * is not wrong, so nothing corrects it; {@code finish} marks the spot avoided for a while instead,
- * the way a body remembers a shop was closed rather than concluding it burned down. That only
- * applies to a genuine refusal, though — arriving with an empty pack, or being shoved out of reach
- * mid-errand, says nothing about the store and must not blind it.
+ * is not wrong, so nothing corrects it; a refusal of a real, non-empty stack marks the spot avoided
+ * for a while instead, the way a body remembers a shop was closed rather than concluding it burned
+ * down. That guard lives in the MOVE branch itself, not in {@code finish} — arriving with an empty
+ * pack, or being shoved out of reach mid-errand, also ends in FAILED, but neither is a refusal, and
+ * neither may blind the store.
  */
 public final class PutItems implements PrimitiveTask {
 
@@ -73,7 +74,7 @@ public final class PutItems implements PrimitiveTask {
             case MOVE -> {
                 if (pause.idle()) {
                     if (remaining(ctx) <= 0) {
-                        return finish(ctx);
+                        return finish(ctx, "nothing to put");
                     }
                     // One stack costs exactly handling.stack_ticks: the 65th stick must be one
                     // more pause than the 64th, not one more plus a tick spent starting it.
@@ -87,7 +88,7 @@ public final class PutItems implements PrimitiveTask {
                 int want = Math.min(remaining(ctx), oneStackOf(ctx));
                 ItemStack pulled = want <= 0 ? ItemStack.EMPTY : pullFromPack(ctx, want);
                 if (pulled.isEmpty()) {
-                    return finish(ctx);
+                    return finish(ctx, "nothing left to put");
                 }
                 int accepted = ctx.actuators().containers().insert(at, pulled);
                 if (accepted < pulled.count()) {
@@ -118,8 +119,9 @@ public final class PutItems implements PrimitiveTask {
                     if (ctx.actuators().containers().contents(at).isPresent()) {
                         ctx.knowledge().avoid(Store.POI, at, ctx.percepts().time()
                                 + ctx.profile().i(ProfileAspect.STORES_FULL_AVOID_TICKS));
+                        return finish(ctx, "no room in the store");
                     }
-                    return finish(ctx);
+                    return finish(ctx, "shoved out of reach");
                 }
                 return TaskStatus.RUNNING;
             }
@@ -159,13 +161,14 @@ public final class PutItems implements PrimitiveTask {
         return ItemStack.EMPTY;
     }
 
-    private TaskStatus finish(BrainContext ctx) {
+    /** {@code failureReason} is only used, and only journaled, when nothing ever moved. */
+    private TaskStatus finish(BrainContext ctx, String failureReason) {
         if (moved > 0) {
             ctx.journal().record(Category.BRAIN, "put",
                     "put " + moved + "×" + spec.name() + " in a store");
             return TaskStatus.SUCCESS;
         }
-        ctx.journal().record(Category.BRAIN, "put", "put nothing");
+        ctx.journal().record(Category.BRAIN, "put", failureReason);
         return TaskStatus.FAILED;
     }
 

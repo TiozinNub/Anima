@@ -14,8 +14,10 @@ import java.util.List;
  * one pause per stack.
  *
  * <p><b>SUCCEEDS on a partial take.</b> Finding four where sixteen were remembered is four logs, not a
- * failure; the parent's satisfied-check drives another round for the rest. Only an empty container
- * fails, and that failure is what corrects the belief.
+ * failure; the parent's satisfied-check drives another round for the rest. FAILS on two exits
+ * instead: a container with nothing left matching {@code spec}, which corrects the belief, and a
+ * pack too full to hold what came out, which goes straight back into the container rather than
+ * vanishing.
  */
 public final class TakeItems implements PrimitiveTask {
 
@@ -69,7 +71,7 @@ public final class TakeItems implements PrimitiveTask {
             case MOVE -> {
                 if (pause.idle()) {
                     if (remaining(ctx) <= 0) {
-                        return finish(ctx);
+                        return finish(ctx, "took nothing");
                     }
                     // One stack costs exactly handling.stack_ticks: the 65th stick must be one
                     // more pause than the 64th, not one more plus a tick spent starting it.
@@ -84,7 +86,7 @@ public final class TakeItems implements PrimitiveTask {
                 ItemStack got = want <= 0
                         ? ItemStack.EMPTY : ctx.actuators().containers().take(at, spec, want);
                 if (got.isEmpty()) {
-                    return finish(ctx);
+                    return finish(ctx, "nothing left in the store");
                 }
                 // A full pack must not vanish what came out of the container: what does not fit
                 // goes straight back, and only what actually landed counts as moved — the same
@@ -93,7 +95,18 @@ public final class TakeItems implements PrimitiveTask {
                 ItemStack unplaced = ctx.percepts().inventory().add(got);
                 int landed = got.count() - unplaced.count();
                 if (!unplaced.isEmpty()) {
-                    ctx.actuators().containers().insert(at, unplaced);
+                    // Not guaranteed to succeed either: this container just gave the stack up,
+                    // but insert can still refuse it back — a furnace's OUTPUT slot lets an item
+                    // out without letting one in (canPlaceItem), and an id the registry no longer
+                    // knows refuses too. There is no drop-on-ground actuator today, so a genuine
+                    // refusal here has nowhere left to go; journal it rather than let it vanish
+                    // with no trace, exactly the way a lost bill would be worth knowing about.
+                    int returned = ctx.actuators().containers().insert(at, unplaced);
+                    if (returned < unplaced.count()) {
+                        ctx.journal().record(Category.BRAIN, "take",
+                                (unplaced.count() - returned) + "×" + spec.name()
+                                        + " lost — pack and container both refused it");
+                    }
                 }
                 moved += landed;
                 ctx.knowledge().sawInside(at,
@@ -102,7 +115,7 @@ public final class TakeItems implements PrimitiveTask {
                 // A full pack: trying again would just pull the same stack back out of the
                 // container and fail to carry it again, forever.
                 if (landed == 0) {
-                    return finish(ctx);
+                    return finish(ctx, "no room in the pack");
                 }
                 return TaskStatus.RUNNING;
             }
@@ -124,13 +137,14 @@ public final class TakeItems implements PrimitiveTask {
                 .max().orElse(0);
     }
 
-    private TaskStatus finish(BrainContext ctx) {
+    /** {@code failureReason} is only used, and only journaled, when nothing ever moved. */
+    private TaskStatus finish(BrainContext ctx, String failureReason) {
         if (moved > 0) {
             ctx.journal().record(Category.BRAIN, "take",
                     "took " + moved + "×" + spec.name() + " from a store");
             return TaskStatus.SUCCESS;
         }
-        ctx.journal().record(Category.BRAIN, "take", "took nothing");
+        ctx.journal().record(Category.BRAIN, "take", failureReason);
         return TaskStatus.FAILED;
     }
 
