@@ -8,6 +8,9 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.instinct.Drives;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.log.Category;
+import dev.luizloyola.anima.core.log.Entry;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +21,60 @@ import org.junit.jupiter.api.Test;
 class SeekCompanyTest {
 
     private final FakeContext ctx = new FakeContext();
+
+    /** Every line this task writes, in order — the journal is the only record it leaves. */
+    private List<Entry> journal() {
+        List<Entry> lines = new ArrayList<>();
+        ctx.journalService.subscribe((who, entry) -> lines.add(entry));
+        return lines;
+    }
+
+    /**
+     * Reaching out is recorded, and SHOUTING reads differently from walking over in silence.
+     *
+     * <p>Without this the caller's half of a hail is invisible: the arbiter's own "take over" line
+     * is identical whether the body shouted or not, so the one decision {@code shouldHail} makes
+     * would leave no trace anywhere. A hail nobody is in range to hear would then be unfalsifiable.
+     */
+    @Test
+    void shoutingIsRecordedAndReadsDifferentlyFromWalkingOver() {
+        List<Entry> lines = journal();
+        ctx.percepts.company.setValue(0.0);
+        ctx.percepts.beings = List.of(FakePercepts.personAt(new Pos(40, 64, 0), 40.0, ""));
+
+        new SeekCompany().tick(ctx);
+
+        assertEquals(1, lines.size(), "one line per reaching-out: " + lines);
+        assertEquals(Category.BRAIN, lines.get(0).category());
+        assertEquals("seek_people", lines.get(0).event(),
+                "the drive's own key, so one grep follows the whole errand");
+        assertEquals("called out to a stranger", lines.get(0).detail());
+    }
+
+    @Test
+    void walkingOverInSilenceSaysSo() {
+        List<Entry> lines = journal();
+        ctx.percepts.company.setValue(0.0);
+        double close = ctx.profile.i(ProfileAspect.SENSES_HEARING_RADIUS) - 1.0;
+        ctx.percepts.beings = List.of(FakePercepts.personAt(new Pos(0, 64, (int) close), close, ""));
+
+        new SeekCompany().tick(ctx);
+
+        assertEquals("went over to a stranger", lines.get(0).detail(),
+                "inside the hearing radius nothing is shouted, and the line must not claim it was");
+    }
+
+    /** The name comes through the identification ladder: you cannot record a name nobody told you. */
+    @Test
+    void somebodyUnidentifiedIsRecordedAsSomeone() {
+        List<Entry> lines = journal();
+        ctx.percepts.company.setValue(0.0);
+        ctx.percepts.beings = List.of(FakePercepts.hailingPersonAt(new Pos(40, 64, 0), 40.0));
+
+        new SeekCompany().tick(ctx);
+
+        assertEquals("called out to someone", lines.get(0).detail());
+    }
 
     @Test
     void nobodyInSightMeansTheDriveFails() {

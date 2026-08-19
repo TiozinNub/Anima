@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
 
 /**
@@ -24,6 +25,11 @@ import dev.luizloyola.anima.core.nav.Gait;
  * this task would pick the same one, walk the two steps to its cell, SUCCEED, and be granted
  * again next tick, forever. Marking whoever is selected is what makes the design's own words true:
  * the same mark that stops a second shout stops a second walk.
+ *
+ * <p><b>Both branches journal.</b> This is the caller's only trace — the hearer narrates the axis
+ * flip, but a hail that nothing was in range to hear would otherwise be indistinguishable from no
+ * hail at all. Whoever is named comes through {@code knownAs}, so the record never puts a name to
+ * somebody who has not given one.
  */
 public final class SeekCompany implements PrimitiveTask {
 
@@ -36,10 +42,18 @@ public final class SeekCompany implements PrimitiveTask {
             if (target == null) {
                 return TaskStatus.FAILED;
             }
+            // RECORDED, and the two branches read differently on purpose: the arbiter's own
+            // "take over" line is identical whether this shouted or walked over in silence, so
+            // without this the one decision shouldHail makes leaves no trace — and a hail nobody
+            // was in range to hear could not be told from no hail at all.
             if (shouldHail(ctx, target)) {
                 ctx.actuators().voice().hail(target.id());
+                ctx.journal().record(Category.BRAIN, "seek_people",
+                        "called out to " + target.knownAs());
             } else {
                 ctx.actuators().voice().reachedOut(target.id());
+                ctx.journal().record(Category.BRAIN, "seek_people",
+                        "went over to " + target.knownAs());
             }
             Pos at = target.pos();
             walk = new GoTo(at.x(), at.y(), at.z(), Gait.WALK);
