@@ -72,7 +72,7 @@ class EnsureTableTest {
     }
 
     @Test
-    void withNoTableKnownThePlanMakesPlacesAndRemembersOne() {
+    void withNoTableKnownThePlanMakesPlacesAndClaimsOne() {
         standAt(10, 10);
         EnsureTable goal = new EnsureTable();
         assertFalse(goal.methods().get(0).applicable(ctx), "nothing known to walk to");
@@ -81,9 +81,9 @@ class EnsureTableTest {
         ObtainItem table = assertInstanceOf(ObtainItem.class, plan.get(0));
         assertTrue(table.spec().matches(Workbench.ITEM_ID));
         PlaceBlock put = assertInstanceOf(PlaceBlock.class, plan.get(1));
-        NotePlace note = assertInstanceOf(NotePlace.class, plan.get(2));
-        assertEquals(put.target(), note.anchor(),
-                "the memory is written exactly where the block went — the next subtask needs it");
+        FoundPlace found = assertInstanceOf(FoundPlace.class, plan.get(2));
+        assertEquals(put.target(), found.anchor(),
+                "the claim is founded exactly where the block went — the next subtask needs it");
         assertEquals(FakeProbe.GROUND_Y + 1, put.target().y(), "on the ground, beside the body");
     }
 }

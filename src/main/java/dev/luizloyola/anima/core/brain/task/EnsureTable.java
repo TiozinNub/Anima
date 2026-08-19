@@ -121,7 +121,7 @@ public final class EnsureTable implements AchieveTask {
         }
     }
 
-    /** Obtain a table item (craft it from the pack if need be), place it, remember it. */
+    /** Obtain a table item (craft it from the pack if need be), place it, claim it for the party. */
     private final class MakeAndPlace implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
@@ -139,7 +139,7 @@ public final class EnsureTable implements AchieveTask {
             return List.of(
                     new ObtainItem(ItemSpec.anyOf(Set.of(Workbench.ITEM_ID)), 1, pursued),
                     new PlaceBlock(Workbench.ITEM_ID, spot.x(), spot.y(), spot.z()),
-                    new NotePlace(Workbench.POI, spot.x(), spot.y(), spot.z()));
+                    new FoundPlace(Workbench.POI, spot.x(), spot.y(), spot.z()));
         }
 
         @Override
