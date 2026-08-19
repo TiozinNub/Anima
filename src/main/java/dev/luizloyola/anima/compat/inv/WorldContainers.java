@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -26,6 +27,11 @@ import org.jspecify.annotations.Nullable;
  * centre — the geometry the breaker and placer use over their own, looser number); a cell with no
  * {@link Container}, or one out of reach, answers empty rather than throwing. Every read or write
  * crosses through {@link ItemStacks}, so components round-trip the way they do everywhere else.
+ *
+ * <p><b>And it is not silent.</b> The lid, the creak and the vibration bus are {@link Lids}; the arm
+ * is here, one swing per stack that really moved, because a grab nobody sees is a chest emptying
+ * itself. Where the body LOOKS is neither — the transfer tasks hold that claim themselves, since a
+ * one-shot glance from an actuator lapses before the open beat is over.
  */
 public final class WorldContainers implements ContainerAccess {
     private final LivingEntity eyes;
@@ -51,6 +57,21 @@ public final class WorldContainers implements ContainerAccess {
             }
         }
         return Optional.of(List.copyOf(items));
+    }
+
+    @Override
+    public void open(Pos at) {
+        // Gated on one actually being there, so a body that walked to a chest somebody has since
+        // mined creaks at nothing. close() is deliberately NOT gated — see Lids.close.
+        if (containerAt(at) == null) {
+            return;
+        }
+        Lids.open(level, new BlockPos(at.x(), at.y(), at.z()), eyes);
+    }
+
+    @Override
+    public void close(Pos at) {
+        Lids.close(level, new BlockPos(at.x(), at.y(), at.z()), eyes);
     }
 
     @Override
@@ -101,6 +122,9 @@ public final class WorldContainers implements ContainerAccess {
         int accepted = stack.count() - remaining;
         if (accepted > 0) {
             container.setChanged();
+            // One grab, and only when something really moved. Vanilla's own guard means a second
+            // call in the same tick — the refund path PutItems runs — costs no extra packet.
+            eyes.swing(InteractionHand.MAIN_HAND);
         }
         return accepted;
     }
@@ -133,6 +157,7 @@ public final class WorldContainers implements ContainerAccess {
                     ? ItemStacks.toVanilla(core.withCount(remainder), registries)
                     : net.minecraft.world.item.ItemStack.EMPTY);
             container.setChanged();
+            eyes.swing(InteractionHand.MAIN_HAND);
             return core.withCount(taken);
         }
         return ItemStack.EMPTY;

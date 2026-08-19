@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
@@ -343,6 +344,109 @@ class TransferTest {
         assertEquals(TaskStatus.FAILED, run(new PutItems(AT, LOGS, 8), ctx, 2000));
         assertTrue(ctx.knowledge.all(Store.POI).isEmpty(), "the same correction, moving the other way");
         assertTrue(journaled(ctx, "nothing to open"));
+    }
+
+    // ---- the lid, and looking at what you are doing ------------------------------------
+
+    @Test
+    void takingLiftsTheLidAndPutsItBackDown() {
+        FakeContext ctx = ctxWithBox(List.of(ItemStack.of("minecraft:oak_log", 5, 64)));
+        assertEquals(TaskStatus.SUCCESS, run(new TakeItems(AT, LOGS, 5), ctx, 2000));
+        assertEquals(List.of(AT), ctx.containers.opened, "opened once, at the cell being worked");
+        assertEquals(List.of(AT), ctx.containers.closed, "and a settler who walks away shuts it");
+    }
+
+    @Test
+    void puttingLiftsTheLidAndPutsItBackDown() {
+        FakeContext ctx = ctxWithBox(List.of());
+        ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 8, 64));
+        assertEquals(TaskStatus.SUCCESS, run(new PutItems(AT, LOGS, 8), ctx, 2000));
+        assertEquals(List.of(AT), ctx.containers.opened);
+        assertEquals(List.of(AT), ctx.containers.closed);
+    }
+
+    @Test
+    void oneLidHoweverManyStacksMove() {
+        FakeContext ctx = ctxWithBox(List.of(
+                ItemStack.of("minecraft:stick", 1, 64),
+                ItemStack.of("minecraft:stick", 1, 64),
+                ItemStack.of("minecraft:stick", 1, 64)));
+        ItemSpec sticks = ItemSpec.anyOf(java.util.Set.of("minecraft:stick"));
+        assertEquals(TaskStatus.SUCCESS, run(new TakeItems(AT, sticks, 3), ctx, 2000));
+        assertEquals(1, ctx.containers.opened.size(), "three grabs, one lid");
+    }
+
+    @Test
+    void interruptingATransferStillShutsTheLid() {
+        // The one place cancel has real work to do. Every other bit of a transfer's state is a
+        // countdown or an item that already moved; a lid left up is a lie that outlives the task.
+        FakeContext ctx = ctxWithBox(List.of(ItemStack.of("minecraft:oak_log", 64, 64),
+                ItemStack.of("minecraft:oak_log", 64, 64)));
+        TakeItems take = new TakeItems(AT, LOGS, 128);
+        int midTransfer = ctx.profile.i(ProfileAspect.HANDLING_OPEN_TICKS)
+                + ctx.profile.i(ProfileAspect.HANDLING_SETTLE_TICKS) + 1;
+        for (int i = 0; i < midTransfer; i++) {
+            take.tick(ctx);
+        }
+        assertEquals(List.of(AT), ctx.containers.opened, "the lid is up mid-transfer");
+
+        take.cancel(ctx);
+        assertEquals(List.of(AT), ctx.containers.closed, "and preemption puts it back down");
+    }
+
+    @Test
+    void cancellingATransferThatNeverOpenedShutsNothing() {
+        // The executor cancels unconditionally, including before the first tick ever ran.
+        FakeContext ctx = ctxWithBox(List.of(ItemStack.of("minecraft:oak_log", 5, 64)));
+        new TakeItems(AT, LOGS, 5).cancel(ctx);
+        assertTrue(ctx.containers.closed.isEmpty(), "nothing was opened, so nothing is shut");
+    }
+
+    @Test
+    void aTransferThatFindsNoContainerTouchesNoLid() {
+        FakeContext ctx = new FakeContext();
+        assertEquals(TaskStatus.FAILED, run(new TakeItems(AT, LOGS, 1), ctx, 2000));
+        assertTrue(ctx.containers.opened.isEmpty(), "there was nothing there to open");
+        assertTrue(ctx.containers.closed.isEmpty());
+    }
+
+    @Test
+    void aRefusedPutStillShutsTheLid() {
+        FakeContext ctx = ctxWithBox(List.of());
+        ctx.containers.full.add(AT);
+        ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 8, 64));
+        assertEquals(TaskStatus.FAILED, run(new PutItems(AT, LOGS, 8), ctx, 2000));
+        assertEquals(List.of(AT), ctx.containers.closed,
+                "a wasted errand is not an excuse to leave it hanging open");
+    }
+
+    @Test
+    void aTransferLooksAtWhatItIsDoingEveryTick() {
+        // Re-asked every tick rather than claimed once: open_ticks + settle_ticks is 15 and a WORK
+        // hold is 10, so a one-shot claim would lapse and the head would drift off mid-rummage.
+        // The same lesson Face records, for the same reason.
+        FakeContext ctx = ctxWithBox(List.of(ItemStack.of("minecraft:oak_log", 5, 64)));
+        TakeItems take = new TakeItems(AT, LOGS, 5);
+        for (int i = 0; i < 5; i++) {
+            take.tick(ctx);
+        }
+        assertEquals(5, ctx.gazer.claims, "one claim per tick, not one per task");
+        assertEquals(AT.x() + 0.5, ctx.gazer.x);
+        assertEquals(AT.y() + 0.5, ctx.gazer.y);
+        assertEquals(AT.z() + 0.5, ctx.gazer.z);
+        assertEquals(Gazer.Priority.WORK, ctx.gazer.priority, "the arms outrank the legs' glance");
+    }
+
+    @Test
+    void aReloadedTransferPutsTheLidBackUp() {
+        // A lid is a client-side animation and a reloaded world draws it shut. resume() restores
+        // the phase but cannot restore a signal, so the first tick back has to send it again.
+        FakeContext ctx = ctxWithBox(List.of());
+        ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 5, 64));
+        PutItems put = new PutItems(AT, LOGS, 5).resume(HandlingPhase.MOVE, 0, 0);
+
+        put.tick(ctx);
+        assertEquals(List.of(AT), ctx.containers.opened, "mid-transfer means the lid belongs up");
     }
 
     /** A body standing next to a store it remembers, and a cell where the chest used to be. */

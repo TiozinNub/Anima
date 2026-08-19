@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.Inventory;
@@ -31,6 +32,7 @@ public final class TakeItems implements PrimitiveTask {
     private HandlingPhase phase = HandlingPhase.OPEN;
     private final Pause pause = new Pause();
     private int moved;
+    private boolean opened;
 
     public TakeItems(Pos at, ItemSpec spec, int count) {
         this.at = at;
@@ -40,6 +42,11 @@ public final class TakeItems implements PrimitiveTask {
 
     @Override
     public TaskStatus tick(BrainContext ctx) {
+        // Re-asked every tick rather than claimed once: the open and settle beats together outlast
+        // a WORK hold, so a single claim would lapse and leave the head pointed past the chest
+        // halfway through the rummage. Face records the same lesson for the same reason.
+        ctx.actuators().gazer().lookAt(at.x() + 0.5, at.y() + 0.5, at.z() + 0.5,
+                Gazer.Priority.WORK);
         switch (phase) {
             case OPEN -> {
                 if (pause.idle()) {
@@ -54,6 +61,7 @@ public final class TakeItems implements PrimitiveTask {
                     // pause of N ticks must cost exactly N, not N+1 for a tick spent starting it.
                     pause.start(ctx.profile().i(ProfileAspect.HANDLING_OPEN_TICKS));
                 }
+                lift(ctx);
                 if (!pause.elapsed()) {
                     return TaskStatus.RUNNING;
                 }
@@ -64,6 +72,7 @@ public final class TakeItems implements PrimitiveTask {
                 return TaskStatus.RUNNING;
             }
             case SETTLE -> {
+                lift(ctx);
                 if (pause.idle()) {
                     pause.start(ctx.profile().i(ProfileAspect.HANDLING_SETTLE_TICKS));
                 }
@@ -84,6 +93,7 @@ public final class TakeItems implements PrimitiveTask {
                     // more pause than the 64th, not one more plus a tick spent starting it.
                     pause.start(ctx.profile().i(ProfileAspect.HANDLING_STACK_TICKS));
                 }
+                lift(ctx);
                 if (!pause.elapsed()) {
                     return TaskStatus.RUNNING;
                 }
@@ -133,6 +143,7 @@ public final class TakeItems implements PrimitiveTask {
                 return TaskStatus.RUNNING;
             }
             default -> {
+                shut(ctx);
                 return TaskStatus.FAILED;
             }
         }
@@ -183,8 +194,29 @@ public final class TakeItems implements PrimitiveTask {
                 AgentKnowledge.maxPerKind(ctx.profile())));
     }
 
+    /**
+     * The lid goes up, once. Idempotent because SETTLE and MOVE ask again on every tick they own:
+     * {@link #resume} restores the phase but cannot restore a signal, so a transfer reloaded
+     * mid-stride has to raise a lid the world is drawing shut.
+     */
+    private void lift(BrainContext ctx) {
+        if (!opened) {
+            opened = true;
+            ctx.actuators().containers().open(at);
+        }
+    }
+
+    /** And back down, once, on every way out of this task — including a cancel. */
+    private void shut(BrainContext ctx) {
+        if (opened) {
+            opened = false;
+            ctx.actuators().containers().close(at);
+        }
+    }
+
     /** SUCCESS with the tally: any take that moved anything at all leaves through here. */
     private TaskStatus succeed(BrainContext ctx) {
+        shut(ctx);
         ctx.journal().record(Category.BRAIN, "take",
                 "took " + moved + "×" + spec.name() + " from a store");
         return TaskStatus.SUCCESS;
@@ -195,6 +227,7 @@ public final class TakeItems implements PrimitiveTask {
         if (moved > 0) {
             return succeed(ctx);
         }
+        shut(ctx);
         ctx.journal().record(Category.BRAIN, "take", failureReason);
         return TaskStatus.FAILED;
     }
@@ -202,7 +235,9 @@ public final class TakeItems implements PrimitiveTask {
     @Override
     public void cancel(BrainContext ctx) {
         // A pause is only a countdown, and every stack that already landed is real items in the
-        // pack — there is nothing here to release or roll back.
+        // pack — neither is rolled back. The LID is the one thing here that is a hold: left up, it
+        // outlives the task that raised it, so this is the one transfer primitive cancel has work.
+        shut(ctx);
     }
 
     @Override

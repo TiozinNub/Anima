@@ -24,6 +24,20 @@ public interface ContainerAccess {
     /** Puts what fits; returns how many items were accepted, 0 when the container is full. */
     int insert(Pos at, ItemStack stack);
 
+    /**
+     * Signals that a body has started reaching in — the lid, the creak, and the world's own event
+     * bus. Purely for show and for the vibration listeners: nothing about {@link #contents},
+     * {@link #insert} or {@link #take} depends on it, so a body whose port cannot signal still
+     * moves items, silently.
+     *
+     * <p><b>Paired with {@link #close}, and the pairing is the caller's job.</b> A container may be
+     * held open by several bodies at once, so an implementation counts rather than toggles.
+     */
+    void open(Pos at);
+
+    /** The other half of {@link #open}. Closing one nobody opened does nothing. */
+    void close(Pos at);
+
     /** Removes up to {@code max} matching items; returns what came out, {@code EMPTY} if none did. */
     ItemStack take(Pos at, ItemSpec spec, int max);
 }

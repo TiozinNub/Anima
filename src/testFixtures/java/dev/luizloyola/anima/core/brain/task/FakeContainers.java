@@ -27,6 +27,21 @@ public final class FakeContainers implements ContainerAccess {
      */
     public final Map<Pos, Integer> capacity = new LinkedHashMap<>();
 
+    /** Every {@code open}, in order — a lid the tests can watch go up. */
+    public final List<Pos> opened = new ArrayList<>();
+    /** Every {@code close}, in order. Never opening and never closing is a pass, not a leak. */
+    public final List<Pos> closed = new ArrayList<>();
+
+    @Override
+    public void open(Pos at) {
+        opened.add(at);
+    }
+
+    @Override
+    public void close(Pos at) {
+        closed.add(at);
+    }
+
     @Override
     public Optional<List<ItemStack>> contents(Pos at) {
         if (outOfReach.contains(at) || !boxes.containsKey(at)) {

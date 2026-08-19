@@ -52,6 +52,10 @@ public final class AnimaMod implements ModInitializer {
         dev.luizloyola.anima.compat.craft.WorkbenchBlocks.register();
         // By capability, not by name, so a store is perceivable before anything reaches into one.
         dev.luizloyola.anima.compat.store.StoreBlocks.register();
+        // A lid is a client-side animation, so nothing is persisted — but a count leaked by a body
+        // that died mid-reach would keep one chest stuck open for the rest of the session.
+        ServerLifecycleEvents.SERVER_STOPPED.register(
+                server -> dev.luizloyola.anima.compat.inv.Lids.forget());
         // Teaches the plan-codec registry Anima's own tasks, before anything can load a plan.
         dev.luizloyola.anima.mod.brain.AnimaTasks.install();
         // As the server finishes starting: refuses to run a world whose memory did not load,
