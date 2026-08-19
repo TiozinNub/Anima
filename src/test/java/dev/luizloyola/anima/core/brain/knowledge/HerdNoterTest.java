@@ -36,7 +36,7 @@ class HerdNoterTest {
                               List<BeingId> members) {
         return new Being(BeingId.of(UUID.randomUUID()), Being.Kind.PASSIVE, species, "", null,
                 centroid, 8.0, count, spread, true, members, Being.Activity.IDLE,
-                Being.Locomotion.STILL, false, false, false, false, false, Being.Gear.NONE,
+                Being.Locomotion.STILL, false, false, false, false, false, false, Being.Gear.NONE,
                 Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
     }
 
@@ -48,7 +48,7 @@ class HerdNoterTest {
     private static Being loner(String species, Pos at, BeingId who) {
         return new Being(who, Being.Kind.PASSIVE, species, "", null, at, 8.0, 1, 0, true,
                 List.of(), Being.Activity.IDLE, Being.Locomotion.STILL, false, false, false,
-                false, false, Being.Gear.NONE, Being.Identified.INDIVIDUAL,
+                false, false, false, Being.Gear.NONE, Being.Identified.INDIVIDUAL,
                 Being.Awareness.SEEN);
     }
 
@@ -243,7 +243,7 @@ class HerdNoterTest {
         HerdNoter.note(TestSpecies.PROFILE, observer, List.of(loner("pig", new Pos(6, 64, 6), pig)), knowledge, 100);
         Being remembered = new Being(pig, Being.Kind.PASSIVE, "pig", "", null,
                 new Pos(7, 64, 6), 4.0, 1, 0, true, List.of(), Being.Activity.IDLE,
-                Being.Locomotion.STILL, false, false, false, false, false, Being.Gear.NONE,
+                Being.Locomotion.STILL, false, false, false, false, false, false, Being.Gear.NONE,
                 Being.Identified.INDIVIDUAL, Being.Awareness.REMEMBERED);
         List<SenseEvent> events = HerdNoter.note(TestSpecies.PROFILE, new Pos(6, 64, 6), List.of(remembered),
                 knowledge, 500);
@@ -270,7 +270,7 @@ class HerdNoterTest {
     void rememberedSightingsNeverWrite() {
         Being remembered = new Being(BeingId.of(UUID.randomUUID()), Being.Kind.PASSIVE, "cow",
                 "", null, new Pos(10, 64, 10), 8.0, 5, 4, true, List.of(), Being.Activity.IDLE,
-                Being.Locomotion.STILL, false, false, false, false, false, Being.Gear.NONE,
+                Being.Locomotion.STILL, false, false, false, false, false, false, Being.Gear.NONE,
                 Being.Identified.INDIVIDUAL, Being.Awareness.REMEMBERED);
         List<SenseEvent> events = HerdNoter.note(TestSpecies.PROFILE, observer, List.of(remembered), knowledge, 100);
         assertTrue(events.isEmpty());

@@ -54,6 +54,13 @@ public final class BeingSensorCore {
     private static final long NEVER = Long.MIN_VALUE / 2;
 
     /**
+     * How close counts as having answered a call, in blocks. One more than {@code Comfort}'s
+     * personal space (2), because the walk stops ON the caller's cell and the pair settle a step
+     * apart. Not imported from {@code Comfort}: {@code sense} must not depend on {@code task}.
+     */
+    private static final double ANSWERED_WITHIN = 3.0;
+
+    /**
      * The view volume and the attention curve are read from the body's profile, not from Anima's
      * config, so the sense a wolf has is the wolf's. Held because it is a live view, not a
      * snapshot — see {@link AgentProfile}.
@@ -108,6 +115,11 @@ public final class BeingSensorCore {
         return profile.i(ProfileAspect.SENSES_ATTACK_DECAY_TICKS);
     }
 
+    /** How long a call stays worth anything to this body, both ways — see {@link Track#hailedAt}. */
+    public int hailPatienceTicks() {
+        return profile.i(ProfileAspect.SOCIAL_HAIL_PATIENCE_TICKS);
+    }
+
     /**
      * Base line-of-sight checks per tick. A LIMIT rather than an aspect: a species that could
      * raise its own is a species that can take a server down, so this one stays the operator's.
@@ -152,6 +164,15 @@ public final class BeingSensorCore {
          * decays on a much slower clock than the linger.
          */
         long attackedAt = NEVER;
+        /**
+         * When this track last called out to us, and when we last called out to it. Additive marks
+         * on {@code attackedAt}'s pattern, on their own clock
+         * ({@code social.hail_patience_ticks}) — and deliberately absent from {@link TrackState}:
+         * a call is worth thirty seconds, so reviving one across a restart would answer something
+         * that had stopped being real. See the voice-and-hail design.
+         */
+        long hailedAt = NEVER;
+        long calledAt = NEVER;
     }
 
     /** One herd aggregate: a stable id over a churning member set. */
@@ -268,6 +289,42 @@ public final class BeingSensorCore {
                 announceIfChanged(track, before);
             }
         }
+    }
+
+    /**
+     * Somebody called out nearby. A hail is a sound, so it climbs the ladder exactly as a voice
+     * does — SPECIES, never the individual: at hail range the honest reading is "someone called
+     * over there", and walking over is what upgrades it.
+     */
+    public void hailedBy(BeingReading who, long now) {
+        heard(who, now, true);
+        Track track = tracks.get(who.id());
+        if (track != null) {
+            Being before = being(track);
+            track.hailedAt = now;
+            if (track.herd == null) {
+                announceIfChanged(track, before);
+            }
+        }
+    }
+
+    /**
+     * We called out to that one. Spends the reason: the guardrail is not "I don't know you" but
+     * "I don't know you AND have not tried lately", which is why this is per-target and not a
+     * cooldown on the drive.
+     */
+    public void calledOut(BeingId whom, long now) {
+        Track track = tracks.get(whom);
+        if (track != null) {
+            track.calledAt = now;
+        }
+    }
+
+    /** Whether calling that one again would just be shouting twice. */
+    public boolean calledLately(BeingId whom, long now) {
+        Track track = tracks.get(whom);
+        return track != null && track.calledAt != NEVER
+                && now - track.calledAt <= hailPatienceTicks();
     }
 
     public void heard(BeingReading who, long now, boolean voice) {
@@ -591,7 +648,7 @@ public final class BeingSensorCore {
         }
         return new Being(herd.id, Being.Kind.PASSIVE, herd.species, "", null, centroid,
                 nearest, count, spread, true, live, Being.Activity.IDLE,
-                Being.Locomotion.STILL, false, false, false, false, false, Being.Gear.NONE,
+                Being.Locomotion.STILL, false, false, false, false, false, false, Being.Gear.NONE,
                 Being.Identified.INDIVIDUAL, best);
     }
 
@@ -600,14 +657,16 @@ public final class BeingSensorCore {
     /**
      * All channels dark: freeze as remembered, or (linger spent) forget and say so.
      *
-     * <p><b>Being attacked outlives the linger.</b> A track carrying a live attack mark is held
-     * past its linger and released when the grudge is spent, so an agent does not forget an
-     * ambush fifteen seconds into running from it.
+     * <p><b>Being attacked outlives the linger, and so does a live call.</b> A track carrying an
+     * attack or hail mark is held past its linger and released when the mark decays, so an agent
+     * does not forget an ambush fifteen seconds into running from it, nor a caller who stepped
+     * behind a wall mid-shout.
      */
     private void goDarkOrForget(Track track, BeingId id, long now,
                                 Iterator<Map.Entry<BeingId, Track>> it) {
         boolean attacked = track.attackedAt != NEVER;
-        if (!attacked && now - track.lastLiveAt > lingerTicks()) {
+        boolean called = track.hailedAt != NEVER;
+        if (!attacked && !called && now - track.lastLiveAt > lingerTicks()) {
             track.awareness = Being.Awareness.REMEMBERED;
             if (track.herd == null) {
                 pending.add(BeingEvent.lost(being(track)));
@@ -649,6 +708,28 @@ public final class BeingSensorCore {
                     announceIfChanged(track, before);
                 }
             }
+            // Both hail marks share one clock — see Track.hailedAt.
+            if (track.hailedAt != NEVER && now - track.hailedAt > hailPatienceTicks()) {
+                Being before = being(track);
+                track.hailedAt = NEVER;
+                if (track.herd == null) {
+                    announceIfChanged(track, before);
+                }
+            }
+            if (track.calledAt != NEVER && now - track.calledAt > hailPatienceTicks()) {
+                track.calledAt = NEVER; // never rendered, so nothing to announce
+            }
+            // Arriving ANSWERS the call — the sensor spends the mark, so no task ever writes into
+            // perception, and a hail answered by accident (the body was walking that way anyway)
+            // is spent too. Without this the answer re-grants for as long as the mark lives.
+            if (track.hailedAt != NEVER && track.tier == Being.Identified.INDIVIDUAL
+                    && distanceTo(track) <= ANSWERED_WITHIN) {
+                Being before = being(track);
+                track.hailedAt = NEVER;
+                if (track.herd == null) {
+                    announceIfChanged(track, before);
+                }
+            }
         }
     }
 
@@ -681,6 +762,7 @@ public final class BeingSensorCore {
                 || before.sneaking() != after.sneaking()
                 || before.watching() != after.watching()
                 || before.aimedAt() != after.aimedAt()
+                || before.hailing() != after.hailing()
                 || before.approaching() != after.approaching()
                 || before.awareness() != after.awareness()) {
             pending.add(BeingEvent.readingChanged(after, before));
@@ -744,6 +826,7 @@ public final class BeingSensorCore {
                 r.pos(), distanceTo(track), 1, 0,
                 speciesKnown && r.herdAnimal(), List.of(),
                 r.activity(), r.locomotion(), r.sneaking(), r.watching(), r.aimedAt(),
+                track.hailedAt != NEVER,
                 track.approaching && aggressive, aggressive,
                 seen ? r.gear() : Being.Gear.NONE,
                 tier, track.awareness);

@@ -54,6 +54,7 @@ public final class TestSpecies {
             .set(ProfileAspect.DANGER_MOUNTED_MULT, 1.15)
             .set(ProfileAspect.DANGER_BABY_MULT, 1.2)
             .set(ProfileAspect.SOCIAL_HAIL_RADIUS, 48)
+            .set(ProfileAspect.SOCIAL_HAIL_PATIENCE_TICKS, 600)
             // A settler's company band and rates. Round numbers on purpose: the band is exactly
             // [0.35, 0.85] and one neighbour is exactly twice solitude, so a suite can assert what
             // a tick did without carrying a tolerance for it.

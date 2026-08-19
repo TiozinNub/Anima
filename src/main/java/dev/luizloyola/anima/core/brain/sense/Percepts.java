@@ -69,6 +69,12 @@ public interface Percepts {
     List<Drop> drops();
 
     /**
+     * Whether this body called out to {@code whom} recently enough that doing it again would just
+     * be shouting twice — the per-target half of the hail guardrail.
+     */
+    boolean calledLately(BeingId whom);
+
+    /**
      * Nearby people — the {@link Being.Kind#PERSON} view over {@link #beings()}: other Persons
      * And live players, one list, indistinguishable. The substrate every social
      * behavior stands on.

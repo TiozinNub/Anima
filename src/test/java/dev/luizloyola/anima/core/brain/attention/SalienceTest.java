@@ -50,7 +50,7 @@ class SalienceTest {
             Being.Locomotion legs) {
         return new Being(id, Being.Kind.AGENT, "person", "Alice", null, new Pos(0, 64, z), z, 1, 0,
                 false, List.of(), Being.Activity.IDLE, legs, false, false, false, false, false,
-                Being.Gear.NONE, Being.Identified.INDIVIDUAL, awareness);
+                false, Being.Gear.NONE, Being.Identified.INDIVIDUAL, awareness);
     }
 
     @Test
@@ -166,7 +166,7 @@ class SalienceTest {
 
         Being cow = new Being(moo, Being.Kind.PASSIVE, "cow", "", null, new Pos(0, 64, 9), 9.0, 1,
                 0, false, List.of(), Being.Activity.IDLE, Being.Locomotion.STILL, false, false,
-                false, false, false, Being.Gear.NONE, Being.Identified.SPECIES,
+                false, false, false, false, Being.Gear.NONE, Being.Identified.SPECIES,
                 Being.Awareness.HEARD);
         percepts.beings = List.of(neighbour, cow);
         Attention.Focus startled = tick(now + Attention.DECIDE_INTERVAL);

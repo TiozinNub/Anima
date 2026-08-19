@@ -37,7 +37,8 @@ public record Being(BeingId id, Kind kind, String species, String name,
                     @Nullable String profession, Pos pos, double distance, int count,
                     int spread, boolean herdAnimal, java.util.List<BeingId> members,
                     Activity activity, Locomotion locomotion,
-                    boolean sneaking, boolean watching, boolean aimedAt, boolean approaching,
+                    boolean sneaking, boolean watching, boolean aimedAt, boolean hailing,
+                    boolean approaching,
                     boolean aggressive, Gear gear, Identified identified, Awareness awareness) {
 
     public Being {
@@ -238,6 +239,9 @@ public record Being(BeingId id, Kind kind, String species, String name,
         }
         if (watching) {
             tell.append(", watching ").append(observerPronoun);
+        }
+        if (hailing) {
+            tell.append(", calling out");
         }
         return tell.toString();
     }
