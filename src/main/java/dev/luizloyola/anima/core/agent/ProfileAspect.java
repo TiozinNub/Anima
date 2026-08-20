@@ -314,6 +314,18 @@ public final class ProfileAspect {
             "Ticks a store found FULL is left alone. Not a wrong belief to correct — it is full of "
                     + "real things — so only a timer un-blinds it.");
 
+    public static final ProfileAspect UNBURDEN_SLACK_SLOTS =
+            register("instincts.unburden_slack_slots", Kind.INT, 0, 36,
+                    "Empty pack slots at or below which a settler starts wanting to put things "
+                            + "away. Deliberately the LAST of the pack rather than a tidiness "
+                            + "line: routine clearing is the standing stow project's job, and "
+                            + "this only catches a single act that fills the rest at once.");
+    public static final ProfileAspect UNBURDEN_TOLERANCE =
+            register("instincts.unburden_tolerance", Kind.DOUBLE, 0.0, 512.0,
+                    "How far, in walk-blocks, a laden settler will go to reach a chest before "
+                            + "making one instead. This is the whole of the walk-or-build "
+                            + "decision: a remembered chest further than this prices itself out.");
+
     public static final ProfileAspect STORES_FOUND_RADIUS = register("stores.found_radius",
             Kind.INT, 0, 256,
             "How far a settler will walk to put a NEW chest beside something the party already "

@@ -18,6 +18,7 @@ import dev.luizloyola.anima.core.brain.instinct.Drives;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.instinct.EscapeInstinct;
 import dev.luizloyola.anima.core.brain.instinct.FleeInstinct;
+import dev.luizloyola.anima.core.brain.instinct.UnburdenInstinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
@@ -288,6 +289,9 @@ public final class BrainDriver {
         // is a want about somewhere the body cannot currently get to.
         this.arbiter = new Arbiter(List.of(
                 new FleeInstinct(), new EscapeInstinct(), Drives.EAT,
+                // After eating, before talking: a body that cannot carry anything sorts its hands
+                // out before it stops to chat. Position decides exact ties only.
+                new UnburdenInstinct(),
                 new ConverseInstinct(), Drives.SEEK_PEOPLE,
                 this.wanderDrive),
                 board);
