@@ -345,13 +345,25 @@ public final class AnimaTasks {
                                 : dev.luizloyola.anima.core.brain.task.PutItems.stow())
                                 .resume(phase, pause, moved))));
 
-        // Both stateless, so unit is the whole codec — the treatment anima:flee and anima:eat get.
+        // Both carry a destination since 3a. Optional fields: the 2b flavour writes neither, and a
+        // plan saved before the yard existed loads as that flavour without a migration.
         TaskCodecs.register("anima:ensure_store",
                 dev.luizloyola.anima.core.brain.task.EnsureStore.class,
-                MapCodec.unit(dev.luizloyola.anima.core.brain.task.EnsureStore::new));
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POS.optionalFieldOf("hint").forGetter(
+                                task -> java.util.Optional.ofNullable(task.hint()))
+                ).apply(t, hint -> new dev.luizloyola.anima.core.brain.task.EnsureStore(
+                        hint.orElse(null)))));
         TaskCodecs.register("anima:put_away_surplus",
                 dev.luizloyola.anima.core.brain.task.PutAwaySurplus.class,
-                MapCodec.unit(dev.luizloyola.anima.core.brain.task.PutAwaySurplus::new));
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POS.optionalFieldOf("hint").forGetter(
+                                task -> java.util.Optional.ofNullable(task.hint())),
+                        Codec.INT.optionalFieldOf("haul_line", 1).forGetter(
+                                dev.luizloyola.anima.core.brain.task.PutAwaySurplus::haulLine)
+                ).apply(t, (hint, line) ->
+                        new dev.luizloyola.anima.core.brain.task.PutAwaySurplus(
+                                hint.orElse(null), line))));
 
         TaskCodecs.register("anima:ensure_table",
                 dev.luizloyola.anima.core.brain.task.EnsureTable.class,
