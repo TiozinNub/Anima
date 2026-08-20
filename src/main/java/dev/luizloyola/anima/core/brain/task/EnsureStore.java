@@ -212,16 +212,39 @@ public final class EnsureStore implements AchieveTask {
          * round re-derive rather than inventing somewhere far away.
          */
         private static Pos groundNear(BrainContext ctx, Pos wanted) {
-            BlockProbe probe = ctx.percepts().blocks();
-            if (probe.at(wanted.x(), wanted.y(), wanted.z()) == BlockKind.AIR
-                    && probe.at(wanted.x(), wanted.y() - 1, wanted.z()) != BlockKind.AIR
-                    && !PlaceBlock.occupied(ctx, wanted)) {
-                return wanted;
+            // The COLUMN first, then the neighbours' columns. An operator points at a spot from
+            // wherever they are standing, and on real ground that is routinely a storey out — a
+            // yard asked for at y 73 over ground at y 63 left a settler "arriving" ten blocks
+            // beneath a cell she could never reach, re-deriving for ever (in-world, 2026-08-20).
+            Pos here = standable(ctx, wanted);
+            if (here != null) {
+                return here;
             }
             for (int ring = 1; ring <= 2; ring++) {
                 for (int[] side : SIDES) {
-                    Pos cell = new Pos(wanted.x() + side[0] * ring, wanted.y(),
-                            wanted.z() + side[1] * ring);
+                    Pos cell = standable(ctx, new Pos(wanted.x() + side[0] * ring, wanted.y(),
+                            wanted.z() + side[1] * ring));
+                    if (cell != null) {
+                        return cell;
+                    }
+                }
+            }
+            return wanted;
+        }
+
+        /** How far up and down a column is searched for the surface — a storey either way. */
+        private static final int COLUMN_REACH = 12;
+
+        /**
+         * The cell in {@code column}'s vertical line that a chest can stand in: air on solid
+         * ground, nobody in it. Searched from the asked-for height outward, nearest first, so a
+         * hint that is already right costs one read and a hint in the air finds the floor under it.
+         */
+        private static @Nullable Pos standable(BrainContext ctx, Pos column) {
+            BlockProbe probe = ctx.percepts().blocks();
+            for (int step = 0; step <= COLUMN_REACH; step++) {
+                for (int dy : step == 0 ? new int[]{0} : new int[]{-step, step}) {
+                    Pos cell = new Pos(column.x(), column.y() + dy, column.z());
                     if (probe.at(cell.x(), cell.y(), cell.z()) == BlockKind.AIR
                             && probe.at(cell.x(), cell.y() - 1, cell.z()) != BlockKind.AIR
                             && !PlaceBlock.occupied(ctx, cell)) {
@@ -229,7 +252,7 @@ public final class EnsureStore implements AchieveTask {
                     }
                 }
             }
-            return wanted;
+            return null;
         }
 
         /**

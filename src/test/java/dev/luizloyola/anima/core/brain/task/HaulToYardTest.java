@@ -88,6 +88,24 @@ class HaulToYardTest {
     }
 
     @Test
+    void aYardAskedForInTheAirLandsOnTheGroundUnderIt() {
+        FakeContext ctx = packWithCargo(12);
+        ctx.percepts.position = new Pos(0, 64, 0);
+        // FakeProbe's world is flat ground at y 63, so y 64 is the standable cell here. An
+        // operator pointing from a hilltop names something ten blocks up.
+        Pos inTheAir = new Pos(60, 74, 60);
+
+        List<Task> steps = new EnsureStore(inTheAir).methods().get(1).decompose(ctx);
+        Pos spot = steps.stream().filter(step -> step instanceof FoundPlace)
+                .map(step -> ((FoundPlace) step).anchor()).findFirst().orElseThrow();
+
+        assertEquals(64, spot.y(),
+                "the chest goes on the floor beneath the spot, not hanging where it was asked for");
+        assertEquals(60, spot.x());
+        assertEquals(60, spot.z());
+    }
+
+    @Test
     void beingAtSomeOtherChestDoesNotSatisfyAYardGoal() {
         FakeContext ctx = packWithCargo(12);
         ctx.percepts.position = new Pos(2, 64, 0);
