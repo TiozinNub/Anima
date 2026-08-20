@@ -261,6 +261,9 @@ public final class AnimaTasks {
                 Codec.INT.listOf().fieldOf("tries").forGetter(SurveyArea.State::tries),
                 Codec.INT.fieldOf("target").forGetter(SurveyArea.State::target)
         ).apply(t, SurveyArea.State::new));
+        // Restored with Coverage.NONE: a task rebuilt straight from a save reports nothing to the
+        // project that owns the pass. Nothing is lost by that — the project persists its own swept
+        // set — and the restored task is short-lived anyway, since plans are re-derived on resume.
         TaskCodecs.register("anima:survey_area", SurveyArea.class, sweep.xmap(
                 state -> new SurveyArea(state.area(), state.looking()).restore(state),
                 SurveyArea::snapshot));

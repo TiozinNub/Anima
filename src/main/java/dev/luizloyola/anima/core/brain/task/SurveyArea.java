@@ -77,9 +77,22 @@ public final class SurveyArea implements PrimitiveTask {
      */
     private static final double OBSTRUCTED_VIEW = 0.5;
 
+    /**
+     * Told as each cell reaches {@link #ENOUGH}, so whatever OWNS the pass can remember what has
+     * been swept. The grid itself lives on this task, and a task is rebuilt fresh on every grant
+     * and resume — which is why a preempted sweep used to start its box over.
+     */
+    public interface Coverage {
+        /** A survey nobody is tracking, which is every survey outside a project. */
+        Coverage NONE = corner -> { };
+
+        void swept(Pos corner);
+    }
+
     private final Region area;
     /** What a glimpse would have to be of for a cell to be worth walking into. */
     private final PoiKind looking;
+    private final Coverage coverage;
 
     private final int wide;
     private final int deep;
@@ -109,8 +122,15 @@ public final class SurveyArea implements PrimitiveTask {
      * no discount rather than a wrong one.
      */
     public SurveyArea(Region area, PoiKind looking, java.util.Set<Pos> settled) {
+        this(area, looking, settled, Coverage.NONE);
+    }
+
+    /** As above, reporting each cell it finishes to {@code coverage}. */
+    public SurveyArea(Region area, PoiKind looking, java.util.Set<Pos> settled,
+            Coverage coverage) {
         this.area = area;
         this.looking = looking;
+        this.coverage = coverage;
         this.wide = cellsAcross(area.max().x() - area.min().x() + 1);
         this.deep = cellsAcross(area.max().z() - area.min().z() + 1);
         this.confidence = new float[wide * deep];
@@ -119,6 +139,22 @@ public final class SurveyArea implements PrimitiveTask {
             if (settled.contains(cornerOf(cell))) {
                 confidence[cell] = 1.0f;
             }
+        }
+    }
+
+    /**
+     * Raises a cell's confidence, telling {@link Coverage} the first time it crosses
+     * {@link #ENOUGH}. Once per cell per task: a cell already past the line is swept, and saying
+     * so again would only make the owner's set churn.
+     */
+    private void raise(int cell, float to) {
+        float was = confidence[cell];
+        if (to <= was) {
+            return;
+        }
+        confidence[cell] = to;
+        if (was < ENOUGH && to >= ENOUGH) {
+            coverage.swept(cornerOf(cell));
         }
     }
 
@@ -188,14 +224,14 @@ public final class SurveyArea implements PrimitiveTask {
         int near = CrescentSampler.nearRadius(ctx.profile());
         int underfoot = cellAt(here);
         if (underfoot >= 0) {
-            confidence[underfoot] = 1.0f;
+            raise(underfoot, 1.0f);
         }
         for (int cell = 0; cell < confidence.length; cell++) {
             if (confidence[cell] >= 1.0f) {
                 continue;
             }
             if (horizontalDistance(here, centreOf(cell)) <= near) {
-                confidence[cell] = 1.0f;
+                raise(cell, 1.0f);
             }
         }
     }
@@ -314,7 +350,7 @@ public final class SurveyArea implements PrimitiveTask {
             if (!probe.sightClearBetween(from, groundOf(centreOf(cell), probe))) {
                 credit *= OBSTRUCTED_VIEW;
             }
-            confidence[cell] = (float) Math.max(confidence[cell], credit);
+            raise(cell, (float) credit);
         }
         seen.clear();
     }
