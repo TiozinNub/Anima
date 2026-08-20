@@ -234,6 +234,14 @@ public final class BrainDriver {
             }
 
             @Override
+            public java.util.List<dev.luizloyola.anima.core.inv.ItemCall> reserved() {
+                // NOT gated on `auto`, unlike costTolerance above: a dev-driven body still owns
+                // its things, and treating everything as surplus while autonomy is off would let
+                // a manual stow order empty a settler's own kit into a chest.
+                return arbiter.reserved(this);
+            }
+
+            @Override
             public java.util.random.RandomGenerator random() {
                 return BrainDriver.this.random;
             }

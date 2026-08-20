@@ -10,6 +10,9 @@ import dev.luizloyola.anima.core.brain.WorkToleranceCurve;
 import dev.luizloyola.anima.core.brain.board.WorkItem;
 import dev.luizloyola.anima.core.brain.board.WorkSource;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
+import dev.luizloyola.anima.core.inv.ItemCall;
+import dev.luizloyola.anima.core.inv.ItemSpec;
+import dev.luizloyola.anima.core.inv.Kit;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -79,6 +82,7 @@ class ArbiterWorkTest {
 
     /** A one-item board that records the arbiter's reports. */
     private static final class StubBoard implements WorkSource {
+        List<ItemCall> standing = List.of();
         WorkItem offered;
         int claims;
         int completions;
@@ -108,6 +112,11 @@ class ArbiterWorkTest {
         }
 
         @Override
+        public List<ItemCall> reserved(BrainContext c) {
+            return standing;
+        }
+
+        @Override
         public void completed(WorkItem item, BrainContext c) {
             completions++;
             offered = null;
@@ -121,6 +130,7 @@ class ArbiterWorkTest {
     }
 
     private static final class StubItem implements WorkItem {
+        Kit kit = Kit.NONE;
         final double priority;
         int rootTicks;
         TaskStatus end = TaskStatus.SUCCESS;
@@ -140,6 +150,11 @@ class ArbiterWorkTest {
         public Task root() {
             rootsBuilt++;
             return new StepsTask(rootTicks, end);
+        }
+
+        @Override
+        public Kit kit() {
+            return kit;
         }
 
         @Override
@@ -328,5 +343,36 @@ class ArbiterWorkTest {
         ticks(2);
         assertEquals(WorkToleranceCurve.tolerance(0.35), arbiter.costTolerance(ctx),
                 "the errand budgets by priority, not by any need's pressure");
+    }
+
+    @Test
+    void theHeldErrandsKitOutranksEveryStandingWant() {
+        ItemSpec pickaxes = ItemSpec.anyOf(java.util.Set.of("minecraft:stone_pickaxe"));
+        ItemSpec axes = ItemSpec.anyOf(java.util.Set.of("minecraft:stone_axe"));
+        board.standing = List.of(ItemCall.need(axes, 1));
+        StubItem item = new StubItem(0.35, 50);
+        item.kit = Kit.of(ItemCall.need(pickaxes, 1));
+        board.offered = item;
+        // The pack already holds the kit, so KittedErrand wraps to nothing and the errand runs.
+        // A body still shopping for its pickaxe has not claimed anything yet, which is a
+        // different state and not the one reservation is about.
+        ctx.percepts.inventory().set(0,
+                dev.luizloyola.anima.core.inv.ItemStack.of("minecraft:stone_pickaxe", 1, 1));
+        ticks(3);
+
+        List<ItemCall> spoken = arbiter.reserved(ctx);
+        assertEquals(2, spoken.size());
+        assertEquals(pickaxes, spoken.get(0).spec(),
+                "the errand in hand outranks what the body merely likes to carry");
+        assertEquals(axes, spoken.get(1).spec());
+    }
+
+    @Test
+    void withNothingClaimedOnlyTheStandingWantsAreSpokenFor() {
+        board.standing = List.of(ItemCall.need(
+                ItemSpec.anyOf(java.util.Set.of("minecraft:stone_axe")), 1));
+
+        assertEquals(1, arbiter.reserved(ctx).size(),
+                "no errand, no kit — but a body still keeps its own things");
     }
 }

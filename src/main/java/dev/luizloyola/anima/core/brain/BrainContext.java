@@ -5,6 +5,7 @@ import dev.luizloyola.anima.core.brain.board.AgentClaims;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
+import dev.luizloyola.anima.core.inv.ItemCall;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import java.util.random.RandomGenerator;
@@ -81,6 +82,18 @@ public interface BrainContext {
      * {@link Double#POSITIVE_INFINITY} is unbounded — a starving body, and manual driving.
      */
     double costTolerance();
+
+    /**
+     * What this body's work has a claim on, best first — the held errand's kit, then the standing
+     * wants of whatever boards it reaches. Set by the arbiter, exactly as {@link #costTolerance()}
+     * is, so a task or an instinct reads a list and never learns that a board exists.
+     *
+     * <p>Empty by default: the honest answer for a rig with no arbiter, and for every body whose
+     * work source is {@link dev.luizloyola.anima.core.brain.board.WorkSource#NONE}.
+     */
+    default java.util.List<ItemCall> reserved() {
+        return java.util.List.of();
+    }
 
     /**
      * Whether the work under way places or breaks structural blocks — mining, chopping, building.

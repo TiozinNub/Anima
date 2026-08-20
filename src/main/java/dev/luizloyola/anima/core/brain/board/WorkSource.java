@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.brain.board;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
+import dev.luizloyola.anima.core.inv.ItemCall;
 import java.util.List;
 import java.util.Optional;
 
@@ -62,6 +63,18 @@ public interface WorkSource {
      */
     default boolean stillMine(WorkItem item, BrainContext ctx) {
         return true;
+    }
+
+    /**
+     * What this source's standing wants lay claim to, best first — read by the stow machinery to
+     * tell cargo from kit. The arbiter prepends the held errand's own {@link WorkItem#kit()}, so a
+     * board answers only for what it wants KEPT, never for the errand in hand.
+     *
+     * <p>Empty by default: a drives-only body reserves nothing, and {@link #NONE} stays the
+     * one-screen anonymous class it is.
+     */
+    default List<ItemCall> reserved(BrainContext ctx) {
+        return List.of();
     }
 
     /**

@@ -7,6 +7,7 @@ import dev.luizloyola.anima.core.brain.board.WorkSource;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.task.TaskExecutor;
 import dev.luizloyola.anima.core.brain.task.TaskStatus;
+import dev.luizloyola.anima.core.inv.ItemCall;
 import dev.luizloyola.anima.core.log.Category;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -298,6 +299,24 @@ public final class Arbiter {
             return WorkToleranceCurve.tolerance(claimedItem.priority());
         }
         return active == null ? Double.POSITIVE_INFINITY : active.costTolerance(ctx);
+    }
+
+    /**
+     * What is spoken for right now, best first: the held errand's kit ahead of any standing want,
+     * because the pickaxe for the errand in hand outranks the axe a body merely likes to carry.
+     *
+     * <p>Read live rather than cached at the grant, for the reason {@link #costTolerance} is — a
+     * body that claims a mining errand mid-stow must stop stowing its pickaxe on the next tick, not
+     * on the next grant. {@link #claimedItem} survives a suspension, so a preempted errand keeps
+     * its kit reserved while the body is away doing something else.
+     */
+    public List<ItemCall> reserved(BrainContext ctx) {
+        List<ItemCall> spoken = new ArrayList<>();
+        if (claimedItem != null) {
+            spoken.addAll(claimedItem.kit().calls());
+        }
+        spoken.addAll(work.reserved(ctx));
+        return List.copyOf(spoken);
     }
 
     /** The executor the arbiter drives — the mod driver's manual-mode entry point and status source. */
