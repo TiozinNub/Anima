@@ -95,11 +95,22 @@ public final class EnsureStore implements AchieveTask {
         public List<Task> decompose(BrainContext ctx) {
             Optional<PoiMemory> anchor = nearestPartyPlace(ctx);
             List<Task> steps = new ArrayList<>();
-            Pos spot;
+            Pos spot = null;
             if (anchor.isPresent()) {
-                spot = EnsureTable.WalkToKnown.standableBeside(anchor.get().anchor(), ctx);
-                steps.add(new GoTo(spot.x(), spot.y(), spot.z()));
-            } else {
+                // Two DIFFERENT cells beside the bench: one to stand in, one to build in. The
+                // first cut used one for both, so a settler walked into the spot and then tried
+                // to put a chest where she was standing — which built the chest into her before
+                // the placer learned to refuse, and livelocked the goal afterwards (in-world,
+                // 2026-08-20).
+                Pos stand = EnsureTable.WalkToKnown.standableBeside(anchor.get().anchor(), ctx);
+                spot = freeBeside(ctx, anchor.get().anchor(), stand);
+                if (spot != null) {
+                    steps.add(new GoTo(stand.x(), stand.y(), stand.z()));
+                }
+            }
+            if (spot == null) {
+                // Nothing free beside the anchor, or nothing known: build next to the body, where
+                // spotBeside already refuses any cell somebody is standing in.
                 spot = spotBeside(ctx);
             }
             steps.add(new ObtainItem(ItemSpec.anyOf(Set.of(Store.ITEM_ID)), 1, Set.of()));
@@ -125,6 +136,27 @@ public final class EnsureStore implements AchieveTask {
             double radius = ctx.profile().i(ProfileAspect.STORES_FOUND_RADIUS);
             return ctx.knowledge().nearest(Workbench.POI, here)
                     .filter(known -> Store.distance(known.anchor(), here) <= radius);
+        }
+
+        /**
+         * A cell beside {@code anchor} that a chest can stand in and nobody is using — never
+         * {@code stand}, which is where the body is about to be. Null when the bench is boxed in,
+         * which sends the caller back to building next to itself.
+         */
+        private static Pos freeBeside(BrainContext ctx, Pos anchor, Pos stand) {
+            BlockProbe probe = ctx.percepts().blocks();
+            for (int[] side : SIDES) {
+                Pos cell = new Pos(anchor.x() + side[0], anchor.y(), anchor.z() + side[1]);
+                if (cell.x() == stand.x() && cell.y() == stand.y() && cell.z() == stand.z()) {
+                    continue;
+                }
+                if (probe.at(cell.x(), cell.y(), cell.z()) == BlockKind.AIR
+                        && probe.at(cell.x(), cell.y() - 1, cell.z()) != BlockKind.AIR
+                        && !PlaceBlock.occupied(ctx, cell)) {
+                    return cell;
+                }
+            }
+            return null;
         }
 
         /**

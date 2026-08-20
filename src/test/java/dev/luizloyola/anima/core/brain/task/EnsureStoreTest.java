@@ -61,6 +61,24 @@ class EnsureStoreTest {
     }
 
     @Test
+    void itNeverBuildsInTheCellItWalksInto() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(0, 64, 0);
+        remember(ctx, Workbench.POI, new Pos(20, 64, 0));
+
+        List<Task> steps = new EnsureStore().methods().get(1).decompose(ctx);
+
+        GoTo walk = (GoTo) steps.stream().filter(step -> step instanceof GoTo).findFirst()
+                .orElseThrow();
+        Pos spot = placedAt(steps);
+
+        assertFalse(walk.x() == spot.x() && walk.y() == spot.y() && walk.z() == spot.z(),
+                "one cell to stand in and a different one to build in — using one for both put a "
+                        + "chest inside the settler, then livelocked the goal when the placer "
+                        + "started refusing (in-world, 2026-08-20)");
+    }
+
+    @Test
     void withNothingKnownItGoesUnderfoot() {
         FakeContext ctx = new FakeContext();
         ctx.percepts.position = new Pos(0, 64, 0);
