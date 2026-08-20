@@ -2,7 +2,6 @@ package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.BrainContext;
-import dev.luizloyola.anima.core.brain.board.WorkItem;
 import dev.luizloyola.anima.core.brain.board.WorkLease;
 import dev.luizloyola.anima.core.brain.board.WorkSource;
 import dev.luizloyola.anima.core.brain.act.ActuatorAccess;
@@ -38,11 +37,7 @@ import dev.luizloyola.anima.mod.body.AgentBody;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 
 /**
  * Per-{@link AgentBody} brain host: mounts the pure-core machinery on the entity and hands it a
@@ -247,46 +242,6 @@ public final class BrainDriver {
         // directly; it seeds this one once at construction instead. Both random-driven instincts
         // (Flee's scatter, Wander's roam) draw from it — one stream per brain, never shared.
         this.random = new AgentRandom(person.entity().getRandom().nextLong());
-        // The board reaches the arbiter through a celebrating wrapper: a completed errand gets a
-        // beat in the world (decision: Luiz) before the core board hears of it. sendParticles
-        // broadcasts to every tracking client; no custom networking.
-        WorkSource celebrating = new WorkSource() {
-            @Override
-            public Optional<WorkItem> bestAvailable(BrainContext c) {
-                return board.bestAvailable(c);
-            }
-
-            @Override
-            public void claimed(WorkItem item, BrainContext c) {
-                board.claimed(item, c);
-            }
-
-            @Override
-            public void completed(WorkItem item, BrainContext c) {
-                celebrate();
-                board.completed(item, c);
-            }
-
-            @Override
-            public void failed(WorkItem item, BrainContext c) {
-                board.failed(item, c);
-            }
-
-            @Override
-            public void driveFailed(Instinct instinct, String detail, BrainContext c) {
-                board.driveFailed(instinct, detail, c); // nothing to celebrate; just don't swallow it
-            }
-
-            @Override
-            public void heartbeat(WorkItem item, BrainContext c) {
-                board.heartbeat(item, c);
-            }
-
-            @Override
-            public boolean stillMine(WorkItem item, BrainContext c) {
-                return board.stillMine(item, c);
-            }
-        };
         // A gate rather than removal from the list: muting zeroes the bid, and zero pressure is
         // not a bid (see Arbiter), so a muted wander never wins and everything else arbitrates
         // unchanged. A wrapper, not a flag in WanderInstinct: a dev override is the mod's business.
@@ -327,16 +282,9 @@ public final class BrainDriver {
                 new FleeInstinct(), new EscapeInstinct(), Drives.EAT,
                 new ConverseInstinct(), Drives.SEEK_PEOPLE,
                 this.wanderDrive),
-                celebrating);
+                board);
     }
 
-    private void celebrate() {
-        ServerLevel level = (ServerLevel) person.level();
-        level.sendParticles(ParticleTypes.HAPPY_VILLAGER,
-                person.entity().getX(), person.entity().getY() + 1.4, person.entity().getZ(), 12, 0.4, 0.5, 0.4, 0.0);
-        level.playSound(null, person.blockPosition(), SoundEvents.VILLAGER_YES,
-                SoundSource.NEUTRAL, 1.0F, 1.0F);
-    }
 
     /**
      * One brain tick, from {@link AgentBody#serverAiStep()}. Manual mode advances only the
