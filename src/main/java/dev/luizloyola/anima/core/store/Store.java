@@ -67,7 +67,20 @@ public final class Store {
 
     /** The nearest remembered store, wherever it stands. */
     public static Optional<PoiMemory> nearestKnown(BrainContext ctx) {
-        return ctx.knowledge().nearest(POI, ctx.percepts().position());
+        // Avoided stores are skipped, which is what makes a full chest self-correcting: the
+        // deposit marks it, the next round of the achieve-goal cannot see it, and the body either
+        // walks to another or builds one. Found in-world on 2026-08-20 — without this a settler
+        // stood over a chest somebody had filled with 10,000 grass blocks and re-opened it every
+        // round until the round cap, then failed the errand and wandered off.
+        //
+        // Deliberately NOT applied to standingAtOne: where a body IS standing is a fact, and an
+        // avoid-mark is a preference about where to go next.
+        long now = ctx.percepts().time();
+        Pos here = ctx.percepts().position();
+        return ctx.knowledge().all(POI).stream()
+                .filter(memory -> !ctx.knowledge().isAvoided(POI, memory.anchor(), now))
+                .min(java.util.Comparator.comparingDouble(
+                        memory -> distance(memory.anchor(), here)));
     }
 
     public static double distance(Pos a, Pos b) {

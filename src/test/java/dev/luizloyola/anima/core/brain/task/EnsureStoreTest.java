@@ -96,6 +96,36 @@ class EnsureStoreTest {
     }
 
     @Test
+    void aStoreJustFoundFullIsNotOneToWalkTo() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(0, 64, 0);
+        ctx.percepts.time = 1_000L;
+        Pos stuffed = new Pos(5, 64, 0);
+        remember(ctx, Store.POI, stuffed);
+        ctx.knowledge.avoid(Store.POI, stuffed, 2_000L);
+
+        EnsureStore goal = new EnsureStore();
+
+        assertFalse(goal.methods().get(0).applicable(ctx),
+                "a chest this body just found full is not somewhere to walk — without this the "
+                        + "achieve-loop re-opens it every round until the cap");
+        assertTrue(goal.methods().get(1).applicable(ctx), "so building one is what is left");
+    }
+
+    @Test
+    void anAvoidMarkExpiresAndTheStoreComesBack() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(0, 64, 0);
+        ctx.percepts.time = 3_000L;
+        Pos stuffed = new Pos(5, 64, 0);
+        remember(ctx, Store.POI, stuffed);
+        ctx.knowledge.avoid(Store.POI, stuffed, 2_000L);
+
+        assertTrue(new EnsureStore().methods().get(0).applicable(ctx),
+                "the belief was never wrong — only a timer un-blinds it");
+    }
+
+    @Test
     void beingRidOfCargoIsWhatSatisfiesTheGoalAbove() {
         FakeContext ctx = new FakeContext();
         assertTrue(new PutAwaySurplus().satisfied(ctx), "an empty pack has nothing to put away");
