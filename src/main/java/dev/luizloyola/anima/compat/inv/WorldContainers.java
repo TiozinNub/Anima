@@ -14,6 +14,8 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
@@ -23,7 +25,8 @@ import org.jspecify.annotations.Nullable;
  * {@link dev.luizloyola.anima.compat.sense.LevelProbe} uses, so this stays an ordinary compat
  * facade with nothing above it to reach into.
  *
- * <p>Resolves the block entity at the cell and refuses beyond {@link Store#REACH} (eye to block
+ * <p>Resolves the container at the cell — a double chest through both its halves, so either end
+ * of one is the whole of it — and refuses beyond {@link Store#REACH} (eye to block
  * centre — the geometry the breaker and placer use over their own, looser number); a cell with no
  * {@link Container}, or one out of reach, answers empty rather than throwing. Every read or write
  * crosses through {@link ItemStacks}, so components round-trip the way they do everywhere else.
@@ -169,6 +172,19 @@ public final class WorldContainers implements ContainerAccess {
         BlockPos pos = new BlockPos(at.x(), at.y(), at.z());
         if (eyes.getEyePosition().distanceToSqr(Vec3.atCenterOf(pos)) > Store.REACH * Store.REACH) {
             return null;
+        }
+        BlockState state = level.getBlockState(pos);
+        if (state.getBlock() instanceof ChestBlock chest) {
+            // Two block entities, ONE chest: whichever half is asked answers with all 54 slots, the
+            // way a hopper under either half drains the whole thing. Reaching into the block entity
+            // alone would have a settler read half a chest, call a half-full one full, and walk
+            // past a player's logs because they landed in the other 27 slots.
+            //
+            // `false` is the player's own rule rather than the hopper's: a chest with a solid block
+            // on its lid, or a cat sitting on it, does not open — and one blocked half shuts both.
+            // The refusal arrives upstream as "would not open", which costs a wasted trip and an
+            // avoid-mark and never the party's claim (Store.wouldNotOpen).
+            return ChestBlock.getContainer(chest, state, level, pos, false);
         }
         return level.getBlockEntity(pos) instanceof Container container ? container : null;
     }

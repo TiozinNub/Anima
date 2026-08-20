@@ -427,6 +427,35 @@ class TransferTest {
         assertTrue(journaled(ctx, "nothing to open"));
     }
 
+    /** A chest still standing that will not open — a slab on its lid, or a cat sitting on it. */
+    private static FakeContext ctxAtAStoreThatWillNotOpen() {
+        FakeContext ctx = ctxKnowingAStoreThatIsNoLongerThere();
+        ctx.percepts.blocks.set(AT.x(), AT.y(), AT.z(), Store.BLOCK);
+        ctx.percepts.time = 100L;
+        return ctx;
+    }
+
+    @Test
+    void takingFromAStoreThatWillNotOpenKeepsTheClaimAndSitsItOut() {
+        FakeContext ctx = ctxAtAStoreThatWillNotOpen();
+
+        assertEquals(TaskStatus.FAILED, run(new TakeItems(AT, LOGS, 4), ctx, 2000));
+        assertFalse(ctx.knowledge.all(Store.POI).isEmpty(),
+                "the chest is still standing — a cat on the lid must not cost the party its chest");
+        assertTrue(ctx.knowledge.isAvoided(Store.POI, AT, 101L),
+                "and unmarked it is the cheapest method again next round, all the way to the cap");
+    }
+
+    @Test
+    void puttingIntoAStoreThatWillNotOpenSitsItOutTheSameWay() {
+        FakeContext ctx = ctxAtAStoreThatWillNotOpen();
+        ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 8, 64));
+
+        assertEquals(TaskStatus.FAILED, run(PutItems.of(AT, LOGS, 8), ctx, 2000));
+        assertFalse(ctx.knowledge.all(Store.POI).isEmpty());
+        assertTrue(ctx.knowledge.isAvoided(Store.POI, AT, 101L));
+    }
+
     // ---- the lid, and looking at what you are doing ------------------------------------
 
     @Test

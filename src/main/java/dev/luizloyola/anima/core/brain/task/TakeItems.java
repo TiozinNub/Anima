@@ -51,10 +51,9 @@ public final class TakeItems implements PrimitiveTask {
             case OPEN -> {
                 if (pause.idle()) {
                     if (ctx.actuators().containers().contents(at).isEmpty()) {
-                        // Nothing there, or out of reach. One probe read tells those apart: a
-                        // chest genuinely gone is a claim the whole party must stop planning
-                        // against, not just a walk this body wasted.
-                        Store.standingAtOne(ctx);
+                        // Nothing there, shut to us, or out of reach — one probe read tells them
+                        // apart, and each earns a different correction. See Store.wouldNotOpen.
+                        Store.wouldNotOpen(ctx, at);
                         return finish(ctx, "nothing to open");
                     }
                     // Falls through to the elapsed check below rather than returning here: a

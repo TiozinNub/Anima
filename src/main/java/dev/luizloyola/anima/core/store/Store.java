@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.store;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
@@ -8,9 +9,11 @@ import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * A store as Anima's own vocabulary — a place the same shape as
@@ -20,11 +23,56 @@ import java.util.Optional;
  * chests stays a row of stores and never becomes one warehouse. Perception picks up every store,
  * including one another settler placed. Nothing here takes an item in or out; a store is
  * somewhere to stand.
+ *
+ * <p><b>One chest, not one cell.</b> A double chest is two block entities and one inventory, so it
+ * is one place spanning two cells, anchored at {@link #kindFor the lower half} — the same pick
+ * {@code Lids} counts their shared lid under and {@code WorldContainers} resolves their shared
+ * inventory from.
  */
 public final class Store {
 
     /** The block, as perception's vocabulary. Recognised by the compat classifier. */
     public static final BlockKind BLOCK = BlockKind.register("store");
+
+    /**
+     * The far half of a double store, whose anchor is one cell back along X.
+     *
+     * <p>Perception needs the halves told apart because <b>the world cannot tell it</b>: two single
+     * chests side by side and one double chest are the same two cells to a {@link BlockProbe}, and
+     * only the compat classifier can see the joint. Naming the axis rather than hunting for a
+     * neighbouring anchor is what keeps a wall of double chests pairing the way it was built — see
+     * {@link Rule#evaluate}.
+     */
+    public static final BlockKind FAR_X = BlockKind.register("store_far_x");
+
+    /** The far half of a double store joined along Z — {@link #FAR_X}'s twin. */
+    public static final BlockKind FAR_Z = BlockKind.register("store_far_z");
+
+    /** Every kind of store cell, and so every seed the classifier has to register. */
+    public static final List<BlockKind> SEEDS = List.of(BLOCK, FAR_X, FAR_Z);
+
+    /** Whether this is somewhere to put things. Either half of a double store counts. */
+    public static boolean isStore(BlockKind kind) {
+        return kind == BLOCK || kind == FAR_X || kind == FAR_Z;
+    }
+
+    /**
+     * Which kind a container cell is, given the offset to the other half of its pair — {@code (0,
+     * 0)} for anything joined to nothing.
+     *
+     * <p><b>The anchor is the half with the lower coordinate</b>, the same pick {@code Lids} counts
+     * a shared lid under. So the other half always lies at +X or +Z, and a far half has only its
+     * own axis left to name.
+     */
+    public static BlockKind kindFor(int dx, int dz) {
+        if (dx < 0) {
+            return FAR_X;
+        }
+        if (dz < 0) {
+            return FAR_Z;
+        }
+        return BLOCK;
+    }
 
     /** The remembered place. Merge radius 0: two adjacent chests are still two stores. */
     public static final PoiKind POI = PoiKind.register("store", 0, "");
@@ -38,7 +86,7 @@ public final class Store {
     /** The one item that places into a {@link #BLOCK}. String-level vanilla knowledge. */
     public static final String ITEM_ID = "minecraft:chest";
 
-    /** Each store cell is its own thing: a row of chests is a row of memories, not a warehouse. */
+    /** Each chest is its own thing: a row of chests is a row of memories, not a warehouse. */
     public static final GrowthRule RULE = new Rule();
 
     private Store() {
@@ -58,11 +106,35 @@ public final class Store {
             return false;
         }
         Pos anchor = known.get().anchor();
-        if (ctx.percepts().blocks().at(anchor.x(), anchor.y(), anchor.z()) != BLOCK) {
+        if (!isStore(ctx.percepts().blocks().at(anchor.x(), anchor.y(), anchor.z()))) {
             ctx.knowledge().disprove(POI, anchor);
             return false;
         }
         return true;
+    }
+
+    /**
+     * A store beside the body that would not open, and the one correction the world supports.
+     *
+     * <p><b>Gone</b> — mined, burned — is a claim the whole party must stop planning against, so it
+     * is disproven. <b>Still standing</b> is a chest shut to us: a solid block on the lid, or a cat
+     * sitting on it. That belief is RIGHT, so only a timer un-blinds it — unmarked, the chest is
+     * the cheapest method again the very next round and the body walks back to it until the round
+     * cap. Same shape as a chest found full, and the same knob, rather than a second number for
+     * the same idea.
+     *
+     * <p>Out of reach is neither: no evidence at all, and the memory survives the walk away.
+     */
+    public static void wouldNotOpen(BrainContext ctx, Pos at) {
+        if (distance(at, ctx.percepts().position()) > REACH) {
+            return;
+        }
+        if (isStore(ctx.percepts().blocks().at(at.x(), at.y(), at.z()))) {
+            ctx.knowledge().avoid(POI, at, ctx.percepts().time()
+                    + ctx.profile().i(ProfileAspect.STORES_FULL_AVOID_TICKS));
+        } else {
+            ctx.knowledge().disprove(POI, at);
+        }
     }
 
     /** The nearest remembered store, wherever it stands. */
@@ -90,7 +162,7 @@ public final class Store {
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    /** One evaluation per cell — a store is a thing, never a mass. */
+    /** One evaluation per CHEST — a store is a thing, never a mass, and a double chest is one. */
     private static final class Rule implements GrowthRule {
         @Override
         public PoiKind kind() {
@@ -99,16 +171,47 @@ public final class Store {
 
         @Override
         public boolean joins(Pos p, BlockKind kind, BlockProbe probe) {
-            return kind == BLOCK;
+            return isStore(kind);
         }
 
+        /**
+         * <b>Anchors are paired first, and only with the half that names them.</b> A far half can
+         * touch a neighbouring chest's anchor, and that neighbour can sort below its own — so
+         * pairing by nearest or lowest adjacent anchor mispairs a wall of double chests, while the
+         * axis in the kind cannot be misread. What no anchor claimed then stands alone: a single
+         * chest, or a far half whose anchor fell outside a scan cut short, which is half-remembered
+         * rather than not remembered at all.
+         */
         @Override
         public List<Evaluation> evaluate(Map<Pos, BlockKind> blocks, BlockProbe probe) {
             List<Evaluation> each = new ArrayList<>(blocks.size());
-            for (Pos cell : blocks.keySet()) {
-                each.add(new Evaluation(cell, 1, Map.of(cell, BLOCK)));
+            Set<Pos> paired = new HashSet<>();
+            for (Map.Entry<Pos, BlockKind> cell : blocks.entrySet()) {
+                Pos far = cell.getValue() == BLOCK ? farHalfOf(cell.getKey(), blocks) : null;
+                if (far != null) {
+                    paired.add(cell.getKey());
+                    paired.add(far);
+                    each.add(new Evaluation(cell.getKey(), 2,
+                            Map.of(cell.getKey(), BLOCK, far, blocks.get(far))));
+                }
+            }
+            for (Map.Entry<Pos, BlockKind> cell : blocks.entrySet()) {
+                if (!paired.contains(cell.getKey())) {
+                    each.add(new Evaluation(cell.getKey(), 1,
+                            Map.of(cell.getKey(), cell.getValue())));
+                }
             }
             return each;
+        }
+
+        /** The far half naming {@code anchor}, or null when it stands alone. */
+        private static Pos farHalfOf(Pos anchor, Map<Pos, BlockKind> blocks) {
+            Pos alongX = new Pos(anchor.x() + 1, anchor.y(), anchor.z());
+            if (blocks.get(alongX) == FAR_X) {
+                return alongX;
+            }
+            Pos alongZ = new Pos(anchor.x(), anchor.y(), anchor.z() + 1);
+            return blocks.get(alongZ) == FAR_Z ? alongZ : null;
         }
     }
 }
