@@ -219,6 +219,8 @@
   "anima.config.aspect.handling.stack_ticks.desc": "Ticks para mover uma pilha, para dentro ou para fora — um por SLOT vasculhado, não por pilha de itens. Um slot com uma espada, quatro maçãs ou sessenta e quatro gravetos custa isso uma vez cada, então um baú organizado sai barato e um bagunçado, com um graveto solto em cada um de três slots, custa três.",
   "anima.config.aspect.handling.craft_ticks": "Tempo de fabricação",
   "anima.config.aspect.handling.craft_ticks.desc": "Ticks de pausa trabalhada por fabricação — longo o bastante para parecer trabalho, curto o bastante para não entediar.",
+  "anima.config.aspect.stores.found_radius": "Raio de busca para novo depósito",
+  "anima.config.aspect.stores.found_radius.desc": "Quão longe um colono anda para colocar um baú novo ao lado de algo que o grupo já possui, em vez de largá-lo onde está. É o que faz um assentamento crescer em torno de um centro em vez de virar um rastro de baús avulsos pela beira da mata; em 0, todo baú cai aos pés.",
   "anima.config.aspect.stores.staleness_weight": "Desconfiança da memória",
   "anima.config.aspect.stores.staleness_weight.desc": "Equivalente em blocos somado ao custo de um estoque a cada 100 ticks desde a última vez que foi olhado. O quanto esta mente desconfia de uma memória antiga: quanto maior, menos longe anda com base em informação pior.",
   "anima.config.aspect.stores.full_avoid_ticks": "Tempo de espera de estoque cheio",

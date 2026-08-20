@@ -342,6 +342,14 @@ public final class AnimaTasks {
                                 : dev.luizloyola.anima.core.brain.task.PutItems.stow())
                                 .resume(phase, pause, moved))));
 
+        // Both stateless, so unit is the whole codec — the treatment anima:flee and anima:eat get.
+        TaskCodecs.register("anima:ensure_store",
+                dev.luizloyola.anima.core.brain.task.EnsureStore.class,
+                MapCodec.unit(dev.luizloyola.anima.core.brain.task.EnsureStore::new));
+        TaskCodecs.register("anima:put_away_surplus",
+                dev.luizloyola.anima.core.brain.task.PutAwaySurplus.class,
+                MapCodec.unit(dev.luizloyola.anima.core.brain.task.PutAwaySurplus::new));
+
         TaskCodecs.register("anima:ensure_table",
                 dev.luizloyola.anima.core.brain.task.EnsureTable.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

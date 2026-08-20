@@ -86,6 +86,7 @@ public final class TestSpecies {
             .set(ProfileAspect.HANDLING_CRAFT_TICKS, 10)
             .set(ProfileAspect.STORES_STALENESS_WEIGHT, 0.5)
             .set(ProfileAspect.STORES_FULL_AVOID_TICKS, 2400)
+            .set(ProfileAspect.STORES_FOUND_RADIUS, 48)
             .build();
 
     /** {@link #BIPED} as a profile — fixed, with no config file behind it. */

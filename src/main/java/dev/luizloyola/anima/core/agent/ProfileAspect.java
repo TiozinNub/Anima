@@ -314,6 +314,13 @@ public final class ProfileAspect {
             "Ticks a store found FULL is left alone. Not a wrong belief to correct — it is full of "
                     + "real things — so only a timer un-blinds it.");
 
+    public static final ProfileAspect STORES_FOUND_RADIUS = register("stores.found_radius",
+            Kind.INT, 0, 256,
+            "How far a settler will walk to put a NEW chest beside something the party already "
+                    + "owns, instead of dropping it where they stand. What makes a settlement grow "
+                    + "a centre rather than a trail of one-off chests along the treeline; at 0 "
+                    + "every chest lands underfoot.");
+
     private final String key;
     private final Kind kind;
     private final double min;
