@@ -320,10 +320,13 @@ public final class AnimaTasks {
 
         TaskCodecs.register("anima:put_items", dev.luizloyola.anima.core.brain.task.PutItems.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
-                        POS.fieldOf("at")
-                                .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::at),
-                        ITEM_SPEC.fieldOf("spec")
-                                .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::spec),
+                        // Optional since 2026-08-20: a stow names neither, resolving its store at
+                        // OPEN and its selection from the context. Saves written before that carry
+                        // both and take the of(...) branch below, so old worlds load unchanged.
+                        POS.optionalFieldOf("at")
+                                .forGetter(task -> java.util.Optional.ofNullable(task.at())),
+                        ITEM_SPEC.optionalFieldOf("spec")
+                                .forGetter(task -> java.util.Optional.ofNullable(task.spec())),
                         Codec.INT.fieldOf("count")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::count),
                         HANDLING_PHASE.fieldOf("phase")
@@ -333,7 +336,10 @@ public final class AnimaTasks {
                         Codec.INT.fieldOf("moved")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::moved)
                 ).apply(t, (at, spec, count, phase, pause, moved) ->
-                        new dev.luizloyola.anima.core.brain.task.PutItems(at, spec, count)
+                        (at.isPresent() && spec.isPresent()
+                                ? dev.luizloyola.anima.core.brain.task.PutItems.of(
+                                        at.get(), spec.get(), count)
+                                : dev.luizloyola.anima.core.brain.task.PutItems.stow())
                                 .resume(phase, pause, moved))));
 
         TaskCodecs.register("anima:ensure_table",

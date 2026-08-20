@@ -259,7 +259,7 @@ class TaskCodecsTest {
         dev.luizloyola.anima.core.inv.ItemSpec logs = dev.luizloyola.anima.core.inv.ItemSpec.anyOf(
                 java.util.Set.of("minecraft:oak_log"));
         dev.luizloyola.anima.core.brain.task.PutItems before =
-                new dev.luizloyola.anima.core.brain.task.PutItems(new Pos(4, 64, 4), logs, 8)
+                dev.luizloyola.anima.core.brain.task.PutItems.of(new Pos(4, 64, 4), logs, 8)
                         .resume(dev.luizloyola.anima.core.brain.task.HandlingPhase.SETTLE, 2, 0);
         var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PutItems.class,
                 roundTrip(before));
@@ -280,7 +280,7 @@ class TaskCodecsTest {
         assertNotNull(TaskCodecs.keyOf(
                 new dev.luizloyola.anima.core.brain.task.TakeItems(new Pos(0, 0, 0), logs, 1)));
         assertNotNull(TaskCodecs.keyOf(
-                new dev.luizloyola.anima.core.brain.task.PutItems(new Pos(0, 0, 0), logs, 1)));
+                dev.luizloyola.anima.core.brain.task.PutItems.of(new Pos(0, 0, 0), logs, 1)));
         assertTrue(TaskCodecs.keys().contains("anima:take_items"));
         assertTrue(TaskCodecs.keys().contains("anima:put_items"));
     }
@@ -307,7 +307,7 @@ class TaskCodecsTest {
         dev.luizloyola.anima.core.inv.ItemSpec logs = dev.luizloyola.anima.core.inv.ItemSpec.anyOf(
                 java.util.Set.of("minecraft:oak_log"));
         dev.luizloyola.anima.core.brain.task.PutItems before =
-                new dev.luizloyola.anima.core.brain.task.PutItems(new Pos(0, 0, 0), logs, 1);
+                dev.luizloyola.anima.core.brain.task.PutItems.of(new Pos(0, 0, 0), logs, 1);
         var encoded = TaskCodecs.codec().encodeStart(JsonOps.INSTANCE, before).getOrThrow();
         com.google.gson.JsonObject corrupted = encoded.getAsJsonObject();
         corrupted.addProperty("phase", "WOBBLE");

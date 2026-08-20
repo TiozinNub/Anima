@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
+import dev.luizloyola.anima.core.inv.ItemCall;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.ArmorType;
@@ -38,6 +39,86 @@ class TransferTest {
             }
         }
         throw new AssertionError("still RUNNING after " + maxTicks + " ticks");
+    }
+
+    private static final ItemSpec SHOVELS =
+            ItemSpec.anyOf(java.util.Set.of("minecraft:stone_shovel"));
+
+    /** A store the body is standing at, which is what EnsureStore guarantees before a stow. */
+    private FakeContext ctxStandingAtBox() {
+        FakeContext ctx = ctxWithBox(List.of());
+        ctx.percepts.position = new Pos(AT.x(), AT.y(), AT.z());
+        ctx.knowledge.note(new PoiMemory(Store.POI, AT, Region.of(AT), 1, false, 0L), 64);
+        return ctx;
+    }
+
+    @Test
+    void stowingMovesTheCargoAndLeavesWhatIsSpokenFor() {
+        FakeContext ctx = ctxStandingAtBox();
+        Inventory pack = ctx.percepts.inventory();
+        pack.set(0, ItemStack.of("minecraft:stone_shovel", 1, 1));
+        pack.set(1, ItemStack.of("minecraft:stone_shovel", 1, 1));
+        pack.set(2, ItemStack.of("minecraft:oak_log", 64, 64));
+        ctx.reserved = new ArrayList<>(List.of(ItemCall.need(SHOVELS, 1)));
+
+        assertEquals(TaskStatus.SUCCESS, run(PutItems.stow(), ctx, 4000));
+
+        assertEquals(1, pack.count(SHOVELS.matcher()), "the working shovel stays");
+        assertEquals(0, pack.count(LOGS.matcher()), "the logs are cargo and go");
+    }
+
+    @Test
+    void stowingKeepsFood() {
+        FakeContext ctx = ctxStandingAtBox();
+        ctx.percepts.food("minecraft:bread",
+                new dev.luizloyola.anima.core.agent.FoodValue(5, 0.6f, false));
+        Inventory pack = ctx.percepts.inventory();
+        pack.set(0, ItemStack.of("minecraft:bread", 8, 64));
+        pack.set(1, ItemStack.of("minecraft:oak_log", 64, 64));
+
+        assertEquals(TaskStatus.SUCCESS, run(PutItems.stow(), ctx, 4000));
+
+        assertEquals(8, pack.count(id -> id.equals("minecraft:bread")),
+                "nothing named the bread and it stays anyway");
+        assertEquals(0, pack.count(LOGS.matcher()));
+    }
+
+    @Test
+    void stowingPaysOneOpenForTheWholePack() {
+        FakeContext ctx = ctxStandingAtBox();
+        Inventory pack = ctx.percepts.inventory();
+        pack.set(0, ItemStack.of("minecraft:oak_log", 64, 64));
+        pack.set(1, ItemStack.of("minecraft:dirt", 64, 64));
+        pack.set(2, ItemStack.of("minecraft:cobblestone", 64, 64));
+
+        run(PutItems.stow(), ctx, 4000);
+
+        assertEquals(1, ctx.containers.opened.size(),
+                "one lid raise for the trip, not one per kind");
+    }
+
+    @Test
+    void stowingWithNothingSpareNeverOpensAnything() {
+        FakeContext ctx = ctxStandingAtBox();
+        ctx.percepts.inventory().set(0, ItemStack.of("minecraft:stone_shovel", 1, 1));
+        ctx.reserved = new ArrayList<>(List.of(ItemCall.need(SHOVELS, 1)));
+
+        assertEquals(TaskStatus.FAILED, run(PutItems.stow(), ctx, 4000),
+                "nothing to do is not a success — the goal above decides what happens next");
+        assertTrue(ctx.containers.opened.isEmpty());
+    }
+
+    @Test
+    void stowingOutOfReachOfAnyStoreFailsWithoutTouchingTheBelief() {
+        FakeContext ctx = ctxWithBox(List.of());
+        ctx.percepts.position = new Pos(100, 64, 100);
+        ctx.knowledge.note(new PoiMemory(Store.POI, AT, Region.of(AT), 1, false, 0L), 64);
+        ctx.percepts.inventory().set(0, ItemStack.of("minecraft:oak_log", 64, 64));
+
+        assertEquals(TaskStatus.FAILED, run(PutItems.stow(), ctx, 4000));
+        assertTrue(ctx.knowledge.insideOf(AT).isEmpty(),
+                "a plan that went stale between decompose and arrival learns nothing about a "
+                        + "chest it never reached");
     }
 
     private FakeContext ctxWithBox(List<ItemStack> contents) {
@@ -239,7 +320,7 @@ class TransferTest {
         ctx.percepts.time = 100L;
         ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 8, 64));
 
-        assertEquals(TaskStatus.FAILED, run(new PutItems(AT, LOGS, 8), ctx, 2000));
+        assertEquals(TaskStatus.FAILED, run(PutItems.of(AT, LOGS, 8), ctx, 2000));
         assertTrue(ctx.knowledge.isAvoided(Store.POI, AT, 101L),
                 "the belief is right — it is full of real things — so only a timer un-blinds it");
     }
@@ -248,7 +329,7 @@ class TransferTest {
     void puttingMovesStacksIntoTheContainer() {
         FakeContext ctx = ctxWithBox(List.of());
         ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 8, 64));
-        assertEquals(TaskStatus.SUCCESS, run(new PutItems(AT, LOGS, 8), ctx, 2000));
+        assertEquals(TaskStatus.SUCCESS, run(PutItems.of(AT, LOGS, 8), ctx, 2000));
         assertEquals(0, ctx.percepts.inventory().count(LOGS.matcher()));
         assertEquals(8, ctx.containers.boxes.get(AT).get(0).count());
     }
@@ -261,7 +342,7 @@ class TransferTest {
         ctx.containers.capacity.put(AT, 3);
         ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 5, 64));
 
-        assertEquals(TaskStatus.SUCCESS, run(new PutItems(AT, LOGS, 5), ctx, 2000));
+        assertEquals(TaskStatus.SUCCESS, run(PutItems.of(AT, LOGS, 5), ctx, 2000));
         assertEquals(3, ctx.containers.boxes.get(AT).stream().mapToInt(ItemStack::count).sum(),
                 "the box took what it had room for");
         assertEquals(2, ctx.percepts.inventory().count(LOGS.matcher()),
@@ -275,7 +356,7 @@ class TransferTest {
         FakeContext ctx = ctxWithBox(List.of());
         ctx.percepts.time = 100L;
 
-        assertEquals(TaskStatus.FAILED, run(new PutItems(AT, LOGS, 8), ctx, 2000));
+        assertEquals(TaskStatus.FAILED, run(PutItems.of(AT, LOGS, 8), ctx, 2000));
         assertFalse(ctx.knowledge.isAvoided(Store.POI, AT, 101L),
                 "an empty pack is not a full store");
     }
@@ -290,7 +371,7 @@ class TransferTest {
         ctx.percepts.time = 100L;
         int open = ctx.profile.i(ProfileAspect.HANDLING_OPEN_TICKS);
         int settle = ctx.profile.i(ProfileAspect.HANDLING_SETTLE_TICKS);
-        PutItems put = new PutItems(AT, LOGS, 8);
+        PutItems put = PutItems.of(AT, LOGS, 8);
         for (int i = 0; i < open + settle; i++) {
             put.tick(ctx);
         }
@@ -316,7 +397,7 @@ class TransferTest {
         pack.setOffhand(ItemStack.of("minecraft:iron_helmet", 1, 1));
         pack.set(Inventory.HOTBAR_START, ItemStack.of("minecraft:iron_helmet", 1, 1));
 
-        assertEquals(TaskStatus.SUCCESS, run(new PutItems(AT, HELMETS, 3), ctx, 2000));
+        assertEquals(TaskStatus.SUCCESS, run(PutItems.of(AT, HELMETS, 3), ctx, 2000));
         assertEquals(1, ctx.containers.boxes.get(AT).stream().mapToInt(ItemStack::count).sum(),
                 "only the spare in the pack is a thing to put away");
         assertFalse(pack.armor(ArmorType.HEAD).isEmpty(), "the helmet it is wearing stays on");
@@ -341,7 +422,7 @@ class TransferTest {
         FakeContext ctx = ctxKnowingAStoreThatIsNoLongerThere();
         ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 8, 64));
 
-        assertEquals(TaskStatus.FAILED, run(new PutItems(AT, LOGS, 8), ctx, 2000));
+        assertEquals(TaskStatus.FAILED, run(PutItems.of(AT, LOGS, 8), ctx, 2000));
         assertTrue(ctx.knowledge.all(Store.POI).isEmpty(), "the same correction, moving the other way");
         assertTrue(journaled(ctx, "nothing to open"));
     }
@@ -360,7 +441,7 @@ class TransferTest {
     void puttingLiftsTheLidAndPutsItBackDown() {
         FakeContext ctx = ctxWithBox(List.of());
         ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 8, 64));
-        assertEquals(TaskStatus.SUCCESS, run(new PutItems(AT, LOGS, 8), ctx, 2000));
+        assertEquals(TaskStatus.SUCCESS, run(PutItems.of(AT, LOGS, 8), ctx, 2000));
         assertEquals(List.of(AT), ctx.containers.opened);
         assertEquals(List.of(AT), ctx.containers.closed);
     }
@@ -415,7 +496,7 @@ class TransferTest {
         FakeContext ctx = ctxWithBox(List.of());
         ctx.containers.full.add(AT);
         ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 8, 64));
-        assertEquals(TaskStatus.FAILED, run(new PutItems(AT, LOGS, 8), ctx, 2000));
+        assertEquals(TaskStatus.FAILED, run(PutItems.of(AT, LOGS, 8), ctx, 2000));
         assertEquals(List.of(AT), ctx.containers.closed,
                 "a wasted errand is not an excuse to leave it hanging open");
     }
@@ -459,7 +540,7 @@ class TransferTest {
         // the phase but cannot restore a signal, so the first tick back has to send it again.
         FakeContext ctx = ctxWithBox(List.of());
         ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 5, 64));
-        PutItems put = new PutItems(AT, LOGS, 5).resume(HandlingPhase.MOVE, 0, 0);
+        PutItems put = PutItems.of(AT, LOGS, 5).resume(HandlingPhase.MOVE, 0, 0);
 
         put.tick(ctx);
         assertEquals(List.of(AT), ctx.containers.opened, "mid-transfer means the lid belongs up");

@@ -4,14 +4,18 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
+import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.inv.ItemStack;
+import dev.luizloyola.anima.core.inv.Surplus;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.store.Store;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Put up to {@code count} of {@code spec} from the pack into the container at {@code at} — the same
@@ -29,30 +33,80 @@ import java.util.Optional;
  */
 public final class PutItems implements PrimitiveTask {
 
-    private final Pos at;
-    private final ItemSpec spec;
+    /** Where to put things, or null when the store is whatever the body is standing at. */
+    private final @Nullable Pos fixedAt;
+    /** What to move, or null for "everything nobody has spoken for". */
+    private final @Nullable ItemSpec spec;
     private final int count;
+
+    /** The store this run settled on. Equal to {@link #fixedAt} unless this is a stow. */
+    private @Nullable Pos at;
 
     private HandlingPhase phase = HandlingPhase.OPEN;
     private final Pause pause = new Pause();
     private int moved;
     private boolean opened;
 
-    public PutItems(Pos at, ItemSpec spec, int count) {
-        this.at = at;
+    private PutItems(@Nullable Pos fixedAt, @Nullable ItemSpec spec, int count) {
+        this.fixedAt = fixedAt;
         this.spec = spec;
         this.count = Math.max(1, count);
+        this.at = fixedAt;
+    }
+
+    /** Put up to {@code count} of {@code spec} from the pack into the container at {@code at}. */
+    public static PutItems of(Pos at, ItemSpec spec, int count) {
+        return new PutItems(Objects.requireNonNull(at, "at"),
+                Objects.requireNonNull(spec, "spec"), count);
+    }
+
+    /**
+     * Put away everything in storage that nothing has spoken for — the errand both halves of the
+     * stow machinery run.
+     *
+     * <p><b>It carries neither a position nor a keep-list.</b> The store is whatever the body is
+     * standing at, which {@code EnsureStore} has just guaranteed; what to keep is read from
+     * {@link BrainContext#reserved()} on the tick each stack moves. Both omissions are what keep
+     * this out of the codec — a keep-list held as a field would be persisted and would then be a
+     * snapshot, so a settler who claimed a mining errand mid-stow would go on stowing against the
+     * reservations of an hour ago.
+     */
+    public static PutItems stow() {
+        return new PutItems(null, null, Integer.MAX_VALUE);
     }
 
     @Override
     public TaskStatus tick(BrainContext ctx) {
         // Re-asked every tick rather than claimed once, for the reason TakeItems gives: the open
         // and settle beats together outlast a WORK hold, so one claim would lapse mid-errand.
-        ctx.actuators().gazer().lookAt(at.x() + 0.5, at.y() + 0.5, at.z() + 0.5,
-                Gazer.Priority.WORK);
+        // Skipped on a stow's very first tick, which has not yet worked out which chest it is
+        // standing at — there is nothing to look at until OPEN resolves one.
+        if (at != null) {
+            ctx.actuators().gazer().lookAt(at.x() + 0.5, at.y() + 0.5, at.z() + 0.5,
+                    Gazer.Priority.WORK);
+        }
         switch (phase) {
             case OPEN -> {
+                if (at == null) {
+                    // EnsureStore put the body here; nothing else may assume it. A stow that finds
+                    // no store in reach is a plan that went stale between decompose and arrival,
+                    // and the goal above re-derives rather than guessing at another chest.
+                    at = Store.nearestKnown(ctx)
+                            .map(PoiMemory::anchor)
+                            .filter(anchor -> Store.distance(anchor, ctx.percepts().position())
+                                    <= Store.REACH)
+                            .orElse(null);
+                    if (at == null) {
+                        return finish(ctx, "no store in reach");
+                    }
+                }
                 if (pause.idle()) {
+                    if (spec == null && cargoSlots(ctx).isEmpty()) {
+                        // Checked before the lid, not after: a stow whose cargo went somewhere
+                        // else between decompose and arrival should cost nothing, and the goal
+                        // above is already satisfied so nothing will re-derive this.
+                        return finish(ctx, "nothing to put away");
+                    }
                     if (ctx.actuators().containers().contents(at).isEmpty()) {
                         // Nothing there, or out of reach. One probe read tells those apart: a
                         // chest genuinely gone is a claim the whole party must stop planning
@@ -101,9 +155,13 @@ public final class PutItems implements PrimitiveTask {
                 // Re-verified here, because the pause is real time and another body can fill a
                 // chest while this one stands over it.
                 Inventory pack = ctx.percepts().inventory();
-                int slot = firstStored(pack);
+                int slot = firstStored(ctx);
                 int want = slot < 0 ? 0
-                        : Math.min(remaining(ctx), pack.get(slot).maxStackSize());
+                        : spec == null
+                                // The whole slot goes: a stow is not counting items, it is
+                                // emptying the pack one slot at a time.
+                                ? pack.get(slot).count()
+                                : Math.min(remaining(ctx), pack.get(slot).maxStackSize());
                 ItemStack pulled = want <= 0 ? ItemStack.EMPTY : pullFromPack(pack, slot, want);
                 if (pulled.isEmpty()) {
                     return finish(ctx, "nothing left to put");
@@ -123,7 +181,7 @@ public final class PutItems implements PrimitiveTask {
                         landed += recovered;
                         if (recovered < refused.count()) {
                             ctx.journal().record(Category.BRAIN, "put",
-                                    (refused.count() - recovered) + "×" + spec.name()
+                                    (refused.count() - recovered) + "×" + label(pulled)
                                             + " lost — store and pack both refused it");
                         }
                     }
@@ -158,7 +216,15 @@ public final class PutItems implements PrimitiveTask {
     }
 
     private int remaining(BrainContext ctx) {
-        return Math.min(count - moved, stored(ctx.percepts().inventory()));
+        return spec == null
+                ? cargoSlots(ctx).size()
+                : Math.min(count - moved, stored(ctx.percepts().inventory()));
+    }
+
+    /** The storage slots this run is entitled to move — re-asked per stack, never cached. */
+    private List<Integer> cargoSlots(BrainContext ctx) {
+        return Surplus.slots(ctx.percepts().inventory(), ctx.reserved(),
+                stack -> ctx.percepts().foods().of(stack).isPresent());
     }
 
     /**
@@ -183,7 +249,12 @@ public final class PutItems implements PrimitiveTask {
      * is what makes one pause per source SLOT: 64/64/1 is three, and so is a messy pack holding a
      * single stick in each of three slots.
      */
-    private int firstStored(Inventory pack) {
+    private int firstStored(BrainContext ctx) {
+        if (spec == null) {
+            List<Integer> cargo = cargoSlots(ctx);
+            return cargo.isEmpty() ? -1 : cargo.get(0);
+        }
+        Inventory pack = ctx.percepts().inventory();
         for (int slot = 0; slot < Inventory.ARMOR_START; slot++) {
             ItemStack held = pack.get(slot);
             if (!held.isEmpty() && spec.matches(held.id())) {
@@ -221,14 +292,14 @@ public final class PutItems implements PrimitiveTask {
     private void lift(BrainContext ctx) {
         // Only what the actuator says it got: a refused open paired with a close would drop
         // another body's lid, so a refusal is retried next tick rather than assumed.
-        if (!opened) {
+        if (!opened && at != null) {
             opened = ctx.actuators().containers().open(at);
         }
     }
 
     /** And back down, once, on every way out of this task — including a cancel. */
     private void shut(BrainContext ctx) {
-        if (opened) {
+        if (opened && at != null) {
             opened = false;
             ctx.actuators().containers().close(at);
         }
@@ -239,7 +310,7 @@ public final class PutItems implements PrimitiveTask {
         shut(ctx);
         if (moved > 0) {
             ctx.journal().record(Category.BRAIN, "put",
-                    "put " + moved + "×" + spec.name() + " in a store");
+                    "put " + moved + "×" + (spec == null ? "things" : spec.name()) + " in a store");
             return TaskStatus.SUCCESS;
         }
         ctx.journal().record(Category.BRAIN, "put", failureReason);
@@ -254,17 +325,27 @@ public final class PutItems implements PrimitiveTask {
         shut(ctx);
     }
 
+    /** What a moved stack is called in a journal line — a stow has no spec to name. */
+    private String label(ItemStack pulled) {
+        return spec == null ? pulled.id() : spec.name();
+    }
+
     @Override
     public String describe() {
+        if (spec == null) {
+            return "put away what nobody wants";
+        }
         return "put " + spec.name() + " x" + count + " into (" + at.x() + ", " + at.y() + ", "
                 + at.z() + ")";
     }
 
-    public Pos at() {
-        return at;
+    /** Null for a stow, which resolves its store at OPEN and persists none. */
+    public @Nullable Pos at() {
+        return fixedAt;
     }
 
-    public ItemSpec spec() {
+    /** Null for a stow, whose selection is "whatever nobody spoke for". */
+    public @Nullable ItemSpec spec() {
         return spec;
     }
 

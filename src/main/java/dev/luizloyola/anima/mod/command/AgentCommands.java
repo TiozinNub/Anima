@@ -435,7 +435,7 @@ public final class AgentCommands {
                 ItemStacks.templateOf(item, source.registryAccess());
         ItemSpec spec = ItemSpec.anyOf(Set.of(template.id()));
         boolean autoDisabled = person.brain().run(put
-                ? new PutItems(at, spec, count)
+                ? PutItems.of(at, spec, count)
                 : new TakeItems(at, spec, count));
         Component suffix = autoDisabledNote(autoDisabled);
         Replies.send(source, () -> Component.translatable(
