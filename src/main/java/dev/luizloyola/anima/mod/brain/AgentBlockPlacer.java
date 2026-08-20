@@ -14,6 +14,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 
 /**
  * The {@link BlockPlacer} port over a live {@link AgentBody}: the item must actually be carried
@@ -45,6 +46,14 @@ public final class AgentBlockPlacer implements BlockPlacer {
         Level level = person.level();
         BlockState state = blockItem.getBlock().defaultBlockState();
         if (!level.getBlockState(pos).canBeReplaced() || !state.canSurvive(level, pos)) {
+            return false;
+        }
+        // Nothing may be built INTO a body — the check a player's own placement always makes and
+        // this one never did. Found in-world on 2026-08-20: a settler picked the air block Luiz was
+        // standing in and put a workbench there, because the core spot-choosers ask a BlockProbe
+        // (which knows only blocks) whether a cell is empty. Entities are not blocks, so this has
+        // to be here, where the level can be asked.
+        if (!level.isUnobstructed(state, pos, CollisionContext.empty())) {
             return false;
         }
         if (person.entity().getEyePosition().distanceToSqr(Vec3.atCenterOf(pos)) > REACH * REACH) {

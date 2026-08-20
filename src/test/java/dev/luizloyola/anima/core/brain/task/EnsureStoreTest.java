@@ -126,6 +126,20 @@ class EnsureStoreTest {
     }
 
     @Test
+    void nothingIsEverBuiltIntoABody() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(0, 64, 0);
+
+        Pos spot = placedAt(new EnsureStore().methods().get(1).decompose(ctx));
+
+        assertFalse(PlaceBlock.occupied(ctx, spot),
+                "the chooser must not hand back a cell somebody is standing in — found in-world "
+                        + "on 2026-08-20, when a settler put a workbench inside Luiz");
+        assertTrue(PlaceBlock.occupied(ctx, ctx.percepts.position),
+                "and the asking body counts as an occupant of its own feet");
+    }
+
+    @Test
     void beingRidOfCargoIsWhatSatisfiesTheGoalAbove() {
         FakeContext ctx = new FakeContext();
         assertTrue(new PutAwaySurplus().satisfied(ctx), "an empty pack has nothing to put away");

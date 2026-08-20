@@ -48,4 +48,23 @@ public final class PlaceBlock implements PrimitiveTask {
     public Pos target() {
         return target;
     }
+
+    /**
+     * Whether a body is standing in {@code cell} — the check a {@code BlockProbe} cannot make,
+     * because entities are not blocks. Spot-choosers ask this so a plan does not pick a cell that
+     * the placer will refuse on arrival; the placer refuses anyway, since somebody can walk into
+     * the spot while the settler is on their way to it.
+     *
+     * <p>Counts the ASKING body too: a settler standing where they meant to build has to step out
+     * first, and a chooser that ignored this would hand them their own feet.
+     */
+    public static boolean occupied(BrainContext ctx, Pos cell) {
+        Pos feet = ctx.percepts().position();
+        if (feet.x() == cell.x() && feet.y() == cell.y() && feet.z() == cell.z()) {
+            return true;
+        }
+        return ctx.percepts().beings().stream().anyMatch(being ->
+                being.pos().x() == cell.x() && being.pos().y() == cell.y()
+                        && being.pos().z() == cell.z());
+    }
 }

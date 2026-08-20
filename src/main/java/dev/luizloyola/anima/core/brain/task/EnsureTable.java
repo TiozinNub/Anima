@@ -161,9 +161,11 @@ public final class EnsureTable implements AchieveTask {
                 for (int[] side : SIDES) {
                     int x = feet.x() + side[0] * ring;
                     int z = feet.z() + side[1] * ring;
+                    Pos cell = new Pos(x, feet.y(), z);
                     if (probe.at(x, feet.y(), z) == BlockKind.AIR
-                            && probe.at(x, feet.y() - 1, z) != BlockKind.AIR) {
-                        return new Pos(x, feet.y(), z);
+                            && probe.at(x, feet.y() - 1, z) != BlockKind.AIR
+                            && !PlaceBlock.occupied(ctx, cell)) {
+                        return cell;
                     }
                 }
             }
