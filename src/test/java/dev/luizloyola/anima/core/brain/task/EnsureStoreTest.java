@@ -79,6 +79,23 @@ class EnsureStoreTest {
     }
 
     @Test
+    void itDoesNotWalkToTheCellItIsStandingIn() {
+        FakeContext ctx = new FakeContext();
+        Pos bench = new Pos(20, 64, 0);
+        remember(ctx, Workbench.POI, bench);
+        // Standing on the cell standableBeside would pick — the nearest free side of the bench.
+        ctx.percepts.position = EnsureTable.WalkToKnown.standableBeside(bench, ctx);
+
+        List<Task> steps = new EnsureStore().methods().get(1).decompose(ctx);
+
+        assertFalse(steps.stream().anyMatch(step -> step instanceof GoTo),
+                "the navigator answers PATHING to the cell you already occupy and never arrives, "
+                        + "so asking for that walk hangs the goal (in-world, 2026-08-20)");
+        assertTrue(steps.stream().anyMatch(step -> step instanceof PlaceBlock),
+                "and it still builds");
+    }
+
+    @Test
     void withNothingKnownItGoesUnderfoot() {
         FakeContext ctx = new FakeContext();
         ctx.percepts.position = new Pos(0, 64, 0);

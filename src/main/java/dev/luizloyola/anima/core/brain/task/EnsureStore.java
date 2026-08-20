@@ -104,7 +104,14 @@ public final class EnsureStore implements AchieveTask {
                 // 2026-08-20).
                 Pos stand = EnsureTable.WalkToKnown.standableBeside(anchor.get().anchor(), ctx);
                 spot = freeBeside(ctx, anchor.get().anchor(), stand);
-                if (spot != null) {
+                Pos feet = ctx.percepts().position();
+                boolean alreadyThere = feet.x() == stand.x() && feet.y() == stand.y()
+                        && feet.z() == stand.z();
+                if (spot != null && !alreadyThere) {
+                    // Never walk to the cell you are standing in: the navigator answers PATHING to
+                    // its own cell and never arrives, so the goal hangs there for ever rather than
+                    // failing (in-world, 2026-08-20). Cheaper to not ask than to fix arrival
+                    // tolerance from here.
                     steps.add(new GoTo(stand.x(), stand.y(), stand.z()));
                 }
             }
