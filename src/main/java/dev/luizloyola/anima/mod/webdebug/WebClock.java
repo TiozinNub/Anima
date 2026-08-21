@@ -38,8 +38,18 @@ enum WebClock {
     /** {@code detail}: the expensive one — journal tail, inventory, knowledge counts, needs. */
     DETAIL(4),
 
-    /** {@code samples}: a hundred samples covering five seconds; the ring loses nothing between. */
-    CHART(4),
+    /**
+     * {@code samples}: a hundred samples covering five seconds, one added per tick.
+     *
+     * <p><b>60 is above the tick, deliberately.</b> The ring gains one sample per tick, so any rate
+     * below the tick's makes the chart jump rather than slide — at 4/s it stepped five samples at a
+     * time. Above every ordinary tick rate it fires every tick instead, and under {@code /tick
+     * sprint}, where a second holds thousands of them, it stops at 60 rather than following.
+     *
+     * <p>Affordable at that rate because {@link WebWatch#ticks()} gates it: a closed chart builds
+     * nothing at all.
+     */
+    CHART(60),
 
     /** {@code players}, {@code layers}, {@code actingAs}: change detection suppresses nearly all. */
     SLOW(2);

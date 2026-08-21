@@ -22,8 +22,8 @@ import org.jspecify.annotations.Nullable;
  * <p>Immutable and swapped whole, for the reason everything else here is.
  *
  * @param ticks whether the tick-time chart is open. A hundred samples a frame is roughly six
- *     hundred bytes twenty times a second — nothing beside a settlement's roster, and pure waste on
- *     every frame nobody is looking at a chart.
+ *     hundred bytes a tick, and up to sixty times a second under a sprint — nothing beside a
+ *     settlement's roster, and pure waste on every frame nobody is looking at a chart.
  */
 record WebWatch(Set<AgentId> expanded, @Nullable UUID actingAs, boolean ticks, boolean dead) {
 

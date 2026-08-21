@@ -81,7 +81,7 @@ class WebClocksTest {
         assertEquals(20, WebClock.HEALTH.perSecond());
         assertEquals(10, WebClock.ROSTER.perSecond());
         assertEquals(4, WebClock.DETAIL.perSecond());
-        assertEquals(4, WebClock.CHART.perSecond());
+        assertEquals(60, WebClock.CHART.perSecond());
         assertEquals(2, WebClock.SLOW.perSecond());
     }
 }
