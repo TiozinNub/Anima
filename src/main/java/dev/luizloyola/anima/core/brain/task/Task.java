@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.brain.knowledge.Coverage;
+
 /**
  * A node of the task tree — sealed over exactly two kinds: {@link PrimitiveTask} does (an
  * executable leaf state machine), {@link CompoundTask} decides (a goal achieved by one of several
@@ -30,5 +32,16 @@ public sealed interface Task permits PrimitiveTask, CompoundTask {
      */
     default boolean reshapesGround() {
         return false;
+    }
+
+    /**
+     * Where this operation banks the ground the body crosses while it runs, or {@link Coverage#NONE}.
+     *
+     * <p>Answered by the OPERATION, not the primitive it bottoms out in, and the executor asks the
+     * whole running chain — the same shape as {@link #reshapesGround()}, for the same reason: an
+     * errand that fills in a map is still filling it in through whatever it was decomposed into.
+     */
+    default Coverage coverage() {
+        return Coverage.NONE;
     }
 }

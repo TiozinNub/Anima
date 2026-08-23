@@ -2,9 +2,14 @@ package dev.luizloyola.anima.core.brain.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.MoveState;
+import dev.luizloyola.anima.core.brain.knowledge.Coverage;
+import dev.luizloyola.anima.core.brain.sense.Pos;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -107,5 +112,52 @@ class TaskExecutorTest {
         executor.run(new GoTo(4, 5, 6), ctx);
         executor.cancel(ctx);
         assertEquals("idle (last: goto (1, 2, 3) -> SUCCESS)", executor.describe());
+    }
+
+    @Test
+    void aRunningChainBanksTheGroundTheBodyCrosses() {
+        List<Pos> banked = new ArrayList<>();
+        Coverage sink = new Coverage() {
+            @Override
+            public void near(Pos here, int radius) {
+                banked.add(here);
+            }
+
+            @Override
+            public void settled(Pos corner) {
+            }
+        };
+        PrimitiveTask mapping = new PrimitiveTask() {
+            @Override
+            public TaskStatus tick(BrainContext ctx) {
+                return TaskStatus.RUNNING;
+            }
+
+            @Override
+            public void cancel(BrainContext ctx) {
+            }
+
+            @Override
+            public Coverage coverage() {
+                return sink;
+            }
+
+            @Override
+            public String describe() {
+                return "map as you go";
+            }
+        };
+        executor.run(mapping, ctx);
+
+        executor.tick(ctx);
+
+        assertFalse(banked.isEmpty(),
+                "the chain is asked for a sink the same way it is asked whether it reshapes "
+                        + "ground — a fact about the operation, not about the primitive");
+    }
+
+    @Test
+    void anOrdinaryErrandDeclaresNoSinkAndCostsNothing() {
+        assertSame(Coverage.NONE, new Idle(3).coverage());
     }
 }

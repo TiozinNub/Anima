@@ -1,6 +1,8 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.knowledge.Coverage;
+import dev.luizloyola.anima.core.brain.knowledge.CrescentSampler;
 import java.util.ArrayList;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -125,6 +127,10 @@ public final class TaskExecutor {
         if (leaf == null) {
             return; // the tree reached a terminal during expansion; recorded already
         }
+        // Every tick a chain runs is evidence about the ground under the body, whatever the errand
+        // was for. The near field does not care which task holds the wheel.
+        chainCoverage().near(ctx.percepts().position(),
+                CrescentSampler.nearRadius(ctx.profile()));
         TaskStatus status = leaf.tick(ctx);
         if (status == TaskStatus.SUCCESS) {
             succeedCurrent(ctx);
@@ -229,6 +235,26 @@ public final class TaskExecutor {
         }
         Task node = currentNode();
         return node != null && node.reshapesGround();
+    }
+
+    /**
+     * The sink the work under way banks ground into — see {@link Task#coverage()}. First one wins,
+     * outermost first: a nested errand does not get to redirect its parent's map.
+     */
+    private Coverage chainCoverage() {
+        if (root == null) {
+            return Coverage.NONE;
+        }
+        if (root.coverage() != Coverage.NONE) {
+            return root.coverage();
+        }
+        for (Frame frame : stack) {
+            if (frame.compound.coverage() != Coverage.NONE) {
+                return frame.compound.coverage();
+            }
+        }
+        Task node = currentNode();
+        return node == null ? Coverage.NONE : node.coverage();
     }
 
     // --- internals -------------------------------------------------------------------------------
