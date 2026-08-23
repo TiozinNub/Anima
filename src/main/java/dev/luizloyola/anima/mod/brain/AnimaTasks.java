@@ -439,5 +439,15 @@ public final class AnimaTasks {
                         TaskCodecs.codec().fieldOf("work")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.KittedErrand::work)
                 ).apply(t, dev.luizloyola.anima.core.brain.task.KittedErrand::new)));
+
+        // Restored with Coverage.NONE, same as SurveyArea's own sink above: the project that owns
+        // the sweep re-attaches its live Coverage on the next grant, and nothing is lost by that —
+        // the project persists its own swept set, not this wrapper's reference to it.
+        TaskCodecs.register("anima:sweeping",
+                dev.luizloyola.anima.core.brain.task.SweepingErrand.class,
+                TaskCodecs.codec().fieldOf("work").xmap(
+                        work -> new dev.luizloyola.anima.core.brain.task.SweepingErrand(
+                                work, dev.luizloyola.anima.core.brain.knowledge.Coverage.NONE),
+                        dev.luizloyola.anima.core.brain.task.SweepingErrand::work));
     }
 }
