@@ -257,7 +257,8 @@ public final class AnimaTasks {
         MapCodec<SurveyArea.State> sweep = RecordCodecBuilder.mapCodec(t -> t.group(
                 REGION.fieldOf("area").forGetter(SurveyArea.State::area),
                 POI_KIND.fieldOf("looking").forGetter(SurveyArea.State::looking),
-                Codec.FLOAT.listOf().fieldOf("known").forGetter(SurveyArea.State::confidence),
+                Codec.FLOAT.listOf().fieldOf("looked").forGetter(SurveyArea.State::looked),
+                Codec.INT.listOf().fieldOf("masks").forGetter(SurveyArea.State::masks),
                 Codec.INT.listOf().fieldOf("tries").forGetter(SurveyArea.State::tries),
                 Codec.INT.fieldOf("target").forGetter(SurveyArea.State::target)
         ).apply(t, SurveyArea.State::new));

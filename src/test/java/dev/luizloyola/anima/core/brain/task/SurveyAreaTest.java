@@ -12,6 +12,8 @@ import dev.luizloyola.anima.core.agent.ModifiedProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.brain.act.MoveState;
+import dev.luizloyola.anima.core.brain.knowledge.Coverage;
+import dev.luizloyola.anima.core.brain.knowledge.CoverageGrid;
 import dev.luizloyola.anima.core.brain.knowledge.CrescentSampler;
 import dev.luizloyola.anima.core.brain.knowledge.FakeGrowthRule;
 import dev.luizloyola.anima.core.brain.knowledge.GrowthRules;
@@ -301,5 +303,75 @@ class SurveyAreaTest {
     void theReadoutSaysHowMuchOfTheBoxIsKnown() {
         SurveyArea sweep = new SurveyArea(smallBox(), SOUGHT);
         assertTrue(sweep.describe().startsWith("survey 0/4"));
+    }
+
+    /** A sink that records what it was told, so the seam can be observed rather than inferred. */
+    private static final class Banked implements Coverage {
+        final List<Pos> walked = new ArrayList<>();
+        final List<Pos> settled = new ArrayList<>();
+
+        @Override
+        public void near(Pos here, int radius) {
+            walked.add(here);
+        }
+
+        @Override
+        public void settled(Pos corner) {
+            settled.add(corner);
+        }
+    }
+
+    @Test
+    void aSweepBanksTheGroundItWalksAsItWalksIt() {
+        Banked sink = new Banked();
+        FakeContext ctx = looking(new Pos(0, 63, 0));
+        SurveyArea sweep = new SurveyArea(smallBox(), SOUGHT, java.util.Map.of(), sink);
+
+        sweep.tick(ctx);
+
+        assertFalse(sink.walked.isEmpty(),
+                "the near field is always on, so every tick of a sweep is evidence about the ground");
+    }
+
+    @Test
+    void aSweepStartsFromTheMasksItIsHanded() {
+        SurveyArea sweep = new SurveyArea(smallBox(), SOUGHT,
+                java.util.Map.of(new Pos(0, 63, 0), CoverageGrid.FULL), Coverage.NONE);
+
+        assertEquals(1, sweep.cellsKnown(),
+                "ground somebody has already covered is not walked again");
+    }
+
+    @Test
+    void aCellWrittenOffAsUnreachableReachesTheSink() {
+        Banked sink = new Banked();
+        FakeContext ctx = looking(new Pos(0, 63, 0));
+        ctx.percepts.blocks.placeOak(44, 44); // something to insist on going to
+        SurveyArea sweep = new SurveyArea(wideBox(), SOUGHT, java.util.Map.of(), sink);
+
+        TaskStatus status = TaskStatus.RUNNING;
+        for (int tick = 0; tick < 40_000 && status == TaskStatus.RUNNING; tick++) {
+            status = sweep.tick(ctx);
+            if (ctx.mover.moveToCalls > 0) {
+                ctx.mover.setState(MoveState.FAILED);
+            }
+        }
+
+        assertEquals(TaskStatus.SUCCESS, status);
+        assertFalse(sink.settled.isEmpty(),
+                "a write-off the sink never hears about leaves that cell on the frontier forever, "
+                        + "and its slice is re-offered, claimed and abandoned without end");
+    }
+
+    @Test
+    void walkingCreditsTheGroundCoveredAndNotTheCellBeside() {
+        FakeContext ctx = looking(new Pos(4, 63, 4)); // the middle of cell (0,0); near_radius 6
+        SurveyArea sweep = new SurveyArea(midBox(), SOUGHT, java.util.Map.of(), Coverage.NONE);
+
+        sweep.tick(ctx);
+
+        assertEquals(1, sweep.cellsKnown(),
+                "standing in a cell covers that cell; the one next door is clipped, not known — "
+                        + "the centre test called it fully known and nothing ever re-checked it");
     }
 }

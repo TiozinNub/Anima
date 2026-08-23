@@ -3,6 +3,8 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
+import dev.luizloyola.anima.core.brain.knowledge.Coverage;
+import dev.luizloyola.anima.core.brain.knowledge.CoverageGrid;
 import dev.luizloyola.anima.core.brain.knowledge.CrescentSampler;
 import dev.luizloyola.anima.core.brain.knowledge.HorizonScanner;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
@@ -29,8 +31,9 @@ import org.jspecify.annotations.Nullable;
  * <p>Confidence in a cell comes from either:
  *
  * <ul>
- *   <li><b>Walked near</b> — individuated and remembered by the near field. Full confidence, and
- *       the only way to clear a cell something was glimpsed in.</li>
+ *   <li><b>Walked near</b> — individuated and remembered by the near field, a sub-cell square at a
+ *       time and unioned across visits. The only way to clear a cell something was glimpsed in, and
+ *       no longer full on one pass unless the whole cell was in range.</li>
  *   <li><b>Looked at, and nothing was there</b> — a ray reached it and no glimpse of the kind
  *       sought landed in it. Confidence falls off with viewing distance: a fan of rays spreads, so
  *       far out a thing can sit between adjacent bearings.</li>
@@ -41,19 +44,11 @@ import org.jspecify.annotations.Nullable;
  */
 public final class SurveyArea implements PrimitiveTask {
 
-    /**
-     * Edge of one coverage cell, in blocks. Matched to the glimpse grid on purpose — a sighting
-     * lands on an 8-block cell, so a finer coverage grid would be recording a precision the
-     * evidence does not have.
-     */
-    public static final int CELL = 8;
+    /** Edge of one coverage cell, in blocks — defined by the grid every sweep now shares. */
+    public static final int CELL = CoverageGrid.CELL;
 
-    /**
-     * Confidence a cell needs before the box is considered known. A third was tried and reverted:
-     * both passes read the same rule, so a threshold loose enough to miss a tree misses it twice.
-     * The speed that argument wanted belongs in {@link #READS_PER_TICK}.
-     */
-    public static final double ENOUGH = 0.5;
+    /** Confidence a cell needs before the box is considered known. */
+    public static final double ENOUGH = CoverageGrid.ENOUGH;
 
     /**
      * Block reads one tick of looking may spend. A survey is fifty-odd thousand reads for a Person:
@@ -77,18 +72,6 @@ public final class SurveyArea implements PrimitiveTask {
      */
     private static final double OBSTRUCTED_VIEW = 0.5;
 
-    /**
-     * Told as each cell reaches {@link #ENOUGH}, so whatever OWNS the pass can remember what has
-     * been swept. The grid itself lives on this task, and a task is rebuilt fresh on every grant
-     * and resume — which is why a preempted sweep used to start its box over.
-     */
-    public interface Coverage {
-        /** A survey nobody is tracking, which is every survey outside a project. */
-        Coverage NONE = corner -> { };
-
-        void swept(Pos corner);
-    }
-
     private final Region area;
     /** What a glimpse would have to be of for a cell to be worth walking into. */
     private final PoiKind looking;
@@ -96,8 +79,14 @@ public final class SurveyArea implements PrimitiveTask {
 
     private final int wide;
     private final int deep;
-    /** Row-major over the cell grid: how well this cell is known, 0..1. */
-    private final float[] confidence;
+    /** What the body has covered on its feet — partial, unioned, and the part worth banking. */
+    private final CoverageGrid walked;
+    /**
+     * What a look ruled out, 0..1 per cell. Per-look and never banked as such: a survey's occlusion
+     * is only coherent from where it was taken, so a partial look is not a fact about the ground the
+     * way a partial walk is. A look that carries a cell over ENOUGH banks the cell whole.
+     */
+    private final float[] looked;
     /** Walks attempted at each cell, so an unreachable one cannot hold the survey open forever. */
     private final int[] tries;
 
@@ -108,54 +97,60 @@ public final class SurveyArea implements PrimitiveTask {
     /** Where the in-flight survey is anchored — its occlusion is only coherent from one spot. */
     private @Nullable Pos standing;
     /** Where the last completed look was taken from, so the body does not survey twice on the spot. */
-    private @Nullable Pos looked;
+    private @Nullable Pos lookedFrom;
     private final List<SenseEvent> seen = new ArrayList<>();
 
     public SurveyArea(Region area, PoiKind looking) {
-        this(area, looking, java.util.Set.of());
+        this(area, looking, java.util.Map.of());
     }
 
     /**
-     * A sweep that starts already knowing some of its ground: {@code settled} holds the MIN CORNERS
-     * of cells somebody has proved empty, which begin at full confidence and are neither walked nor
-     * looked at. Corners rather than indices, so a caller whose grid is offset from this one gets
-     * no discount rather than a wrong one.
+     * A sweep that starts already knowing some of its ground: {@code known} is corner → covered
+     * squares, on the SAME grid this sweep lays. Corners rather than indices, so a caller whose grid
+     * is offset gets no discount rather than a wrong one.
      */
-    public SurveyArea(Region area, PoiKind looking, java.util.Set<Pos> settled) {
-        this(area, looking, settled, Coverage.NONE);
+    public SurveyArea(Region area, PoiKind looking, java.util.Map<Pos, Integer> known) {
+        this(area, looking, known, Coverage.NONE);
     }
 
-    /** As above, reporting each cell it finishes to {@code coverage}. */
-    public SurveyArea(Region area, PoiKind looking, java.util.Set<Pos> settled,
+    /** As above, reporting what it covers to {@code coverage} as it covers it. */
+    public SurveyArea(Region area, PoiKind looking, java.util.Map<Pos, Integer> known,
             Coverage coverage) {
         this.area = area;
         this.looking = looking;
         this.coverage = coverage;
+        this.walked = new CoverageGrid(area);
         this.wide = cellsAcross(area.max().x() - area.min().x() + 1);
         this.deep = cellsAcross(area.max().z() - area.min().z() + 1);
-        this.confidence = new float[wide * deep];
+        this.looked = new float[wide * deep];
         this.tries = new int[wide * deep];
-        for (int cell = 0; cell < confidence.length; cell++) {
-            if (settled.contains(cornerOf(cell))) {
-                confidence[cell] = 1.0f;
-            }
-        }
+        known.forEach(walked::markMask);
+    }
+
+    /** How well this cell is known — the better of what was walked and what a look ruled out. */
+    private double confidence(int cell) {
+        return Math.max(looked[cell], walked.confidence(cell));
     }
 
     /**
-     * Raises a cell's confidence, telling {@link Coverage} the first time it crosses
-     * {@link #ENOUGH}. Once per cell per task: a cell already past the line is swept, and saying
-     * so again would only make the owner's set churn.
+     * Credits a look, and banks the cell WHOLE if that carried it over the line. A partial look is
+     * not banked: it is a fact about a viewpoint, not about the ground.
      */
     private void raise(int cell, float to) {
-        float was = confidence[cell];
-        if (to <= was) {
+        if (to <= looked[cell] || confidence(cell) >= ENOUGH) {
             return;
         }
-        confidence[cell] = to;
-        if (was < ENOUGH && to >= ENOUGH) {
-            coverage.swept(cornerOf(cell));
+        looked[cell] = to;
+        if (to >= ENOUGH) {
+            settle(cell);
         }
+    }
+
+    /** Declares a whole cell known, and tells whoever is tracking this sweep. */
+    private void settle(int cell) {
+        looked[cell] = 1.0f;
+        walked.markFull(walked.cornerOf(cell));
+        coverage.settled(walked.cornerOf(cell));
     }
 
     /** The min corner of a cell, in world coordinates — the handle a caller names it by. */
@@ -205,34 +200,34 @@ public final class SurveyArea implements PrimitiveTask {
      * finish the box would stand still surveying the same view forever.
      */
     private boolean worthLookingHere(BrainContext ctx) {
-        Pos lastLook = this.looked;
+        Pos lastLook = this.lookedFrom;
         return lastLook == null
                 || horizontalDistance(lastLook, ctx.percepts().position()) >= CELL;
     }
 
     /**
-     * Cells the body's near field is currently passing over are known — the <b>omnidirectional</b>
-     * halo, not the wider aperture the crescent sweeps, or the sweep declares ground known that
-     * nobody looked at and leaves a tree standing in a box somebody was told was clear.
+     * The ground the body's near field is passing over — the OMNIDIRECTIONAL halo, not the wider
+     * aperture the crescent sweeps, or a sweep declares ground known that nobody looked at and
+     * leaves a tree standing in a box somebody was told was clear.
      *
-     * <p>The cell underfoot is known whatever the profile says: {@code places.near_radius} of zero
-     * is legal (the test species does it), and such a body would otherwise learn nothing by walking
-     * and, with no horizon, never finish.
+     * <p><b>A body with no near field at all still learns by walking.</b>
+     * {@code places.near_radius} of zero is legal (the test species does it) and such a body would
+     * otherwise never finish a box, since it walks to cell centres and no square would ever be in
+     * range. Only then is the cell underfoot taken whole — for anything with a near field the
+     * geometry already covers it, and taking it whole would be the overclaim this model removes.
      */
     private void markWalked(BrainContext ctx) {
         Pos here = ctx.percepts().position();
         int near = CrescentSampler.nearRadius(ctx.profile());
-        int underfoot = cellAt(here);
-        if (underfoot >= 0) {
-            raise(underfoot, 1.0f);
+        if (near <= 0) {
+            int underfoot = walked.cellAt(here.x(), here.z());
+            if (underfoot >= 0) {
+                settle(underfoot);
+            }
+            return;
         }
-        for (int cell = 0; cell < confidence.length; cell++) {
-            if (confidence[cell] >= 1.0f) {
-                continue;
-            }
-            if (horizontalDistance(here, centreOf(cell)) <= near) {
-                raise(cell, 1.0f);
-            }
+        if (walked.markNear(here, near)) {
+            coverage.near(here, near);
         }
     }
 
@@ -255,7 +250,9 @@ public final class SurveyArea implements PrimitiveTask {
                 // behind a cliff would otherwise hold the box open forever.
                 this.walk = null;
                 if (target >= 0 && ++tries[target] >= WALK_TRIES) {
-                    confidence[target] = (float) ENOUGH;
+                    // Through settle(), not a direct write: a write-off the sink never hears about
+                    // stays on the frontier forever and its slice is re-offered without end.
+                    settle(target);
                     ctx.journal().record(Category.BRAIN, describe(),
                             "cannot reach " + at(centreOf(target)) + " — writing that corner off");
                 }
@@ -276,7 +273,7 @@ public final class SurveyArea implements PrimitiveTask {
         if (!attempt.possible()) {
             // No reach beyond the near field: this body sweeps on its feet alone. Recording the
             // spot anyway is what stops it asking the same question every tick forever.
-            this.looked = here;
+            this.lookedFrom = here;
             return;
         }
         this.survey = attempt;
@@ -292,7 +289,7 @@ public final class SurveyArea implements PrimitiveTask {
             return TaskStatus.RUNNING;
         }
         applyLook(ctx);
-        this.looked = this.standing;
+        this.lookedFrom = this.standing;
         this.survey = null;
         this.standing = null;
         this.target = -1;
@@ -328,11 +325,11 @@ public final class SurveyArea implements PrimitiveTask {
         // declared a box clear with an oak eleven blocks from the surveyor (2026-08-10).
         int blind = CrescentSampler.radius(ctx.profile());
         BlockProbe probe = ctx.percepts().blocks();
-        for (int cell = 0; cell < confidence.length; cell++) {
+        for (int cell = 0; cell < looked.length; cell++) {
             if (occupied.contains(cell)) {
                 continue; // something is there; only walking near it will say what.
             }
-            if (confidence[cell] >= 1.0f) {
+            if (confidence(cell) >= 1.0) {
                 continue;
             }
             double distance = horizontalDistance(from, centreOf(cell));
@@ -360,13 +357,13 @@ public final class SurveyArea implements PrimitiveTask {
         Pos here = ctx.percepts().position();
         int worst = -1;
         double worstScore = Double.MAX_VALUE;
-        for (int cell = 0; cell < confidence.length; cell++) {
-            if (confidence[cell] >= ENOUGH) {
+        for (int cell = 0; cell < looked.length; cell++) {
+            if (confidence(cell) >= ENOUGH) {
                 continue;
             }
             // Confidence first, distance only to break ties: a body should not cross the box for a
             // slightly emptier cell, and should not stay near home ignoring an unknown corner.
-            double score = confidence[cell] * 1_000_000 + horizontalDistance(here, centreOf(cell));
+            double score = confidence(cell) * 1_000_000 + horizontalDistance(here, centreOf(cell));
             if (score < worstScore) {
                 worstScore = score;
                 worst = cell;
@@ -383,8 +380,8 @@ public final class SurveyArea implements PrimitiveTask {
     }
 
     private boolean covered() {
-        for (float known : confidence) {
-            if (known < ENOUGH) {
+        for (int cell = 0; cell < looked.length; cell++) {
+            if (confidence(cell) < ENOUGH) {
                 return false;
             }
         }
@@ -394,8 +391,8 @@ public final class SurveyArea implements PrimitiveTask {
     /** How many cells are known well enough — the progress everything else reports. */
     public int cellsKnown() {
         int known = 0;
-        for (float value : confidence) {
-            if (value >= ENOUGH) {
+        for (int cell = 0; cell < looked.length; cell++) {
+            if (confidence(cell) >= ENOUGH) {
                 known++;
             }
         }
@@ -403,7 +400,7 @@ public final class SurveyArea implements PrimitiveTask {
     }
 
     public int cells() {
-        return confidence.length;
+        return looked.length;
     }
 
     /**
@@ -412,7 +409,7 @@ public final class SurveyArea implements PrimitiveTask {
      */
     public double confidenceAt(Pos at) {
         int cell = cellAt(at);
-        return cell < 0 ? 0.0 : confidence[cell];
+        return cell < 0 ? 0.0 : confidence(cell);
     }
 
     private Pos centreOf(int cell) {
@@ -483,28 +480,39 @@ public final class SurveyArea implements PrimitiveTask {
      *
      * <p>A survey in flight is not carried: its rays are anchored to one spot and the
      * look costs a fraction of a second to take again. The cell being walked to is kept.
+     *
+     * <p>{@code looked} and {@code masks} are the two halves {@link #confidence(int)} maxes
+     * together — a look's per-cell credit, and the walked grid's per-cell bitmask — carried
+     * separately because they mean different things and only one of them unions.
      */
-    public record State(Region area, PoiKind looking, List<Float> confidence, List<Integer> tries,
-                        int target) {
+    public record State(Region area, PoiKind looking, List<Float> looked, List<Integer> masks,
+                        List<Integer> tries, int target) {
     }
 
     /** What this sweep would need to carry on where it left off. */
     public State snapshot() {
-        List<Float> known = new ArrayList<>(confidence.length);
-        for (float value : confidence) {
-            known.add(value);
+        List<Float> lookedState = new ArrayList<>(looked.length);
+        for (float value : looked) {
+            lookedState.add(value);
+        }
+        List<Integer> masks = new ArrayList<>(cells());
+        for (int cell = 0; cell < cells(); cell++) {
+            masks.add(walked.mask(cell));
         }
         List<Integer> attempts = new ArrayList<>(tries.length);
         for (int value : tries) {
             attempts.add(value);
         }
-        return new State(area, looking, known, attempts, target);
+        return new State(area, looking, lookedState, masks, attempts, target);
     }
 
     /** Puts the coverage back. A walk or a look in flight is re-decided on the next tick. */
     public SurveyArea restore(State state) {
-        for (int cell = 0; cell < confidence.length && cell < state.confidence().size(); cell++) {
-            confidence[cell] = state.confidence().get(cell);
+        for (int cell = 0; cell < looked.length && cell < state.looked().size(); cell++) {
+            looked[cell] = state.looked().get(cell);
+        }
+        for (int cell = 0; cell < cells() && cell < state.masks().size(); cell++) {
+            walked.markMask(walked.cornerOf(cell), state.masks().get(cell));
         }
         for (int cell = 0; cell < tries.length && cell < state.tries().size(); cell++) {
             tries[cell] = state.tries().get(cell);
