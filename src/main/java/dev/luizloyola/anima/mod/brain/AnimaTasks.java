@@ -440,9 +440,10 @@ public final class AnimaTasks {
                                 .forGetter(dev.luizloyola.anima.core.brain.task.KittedErrand::work)
                 ).apply(t, dev.luizloyola.anima.core.brain.task.KittedErrand::new)));
 
-        // Restored with Coverage.NONE, same as SurveyArea's own sink above: the project that owns
-        // the sweep re-attaches its live Coverage on the next grant, and nothing is lost by that —
-        // the project persists its own swept set, not this wrapper's reference to it.
+        // Restored with Coverage.NONE: the project that owns the errand re-attaches its live
+        // Coverage on the next grant. Every step walked in between IS lost — a SweepingErrand banks
+        // nothing until it is re-granted. Pure loss, though, never a false "covered": NONE's methods
+        // are no-ops, so the worst case is ground walked twice.
         TaskCodecs.register("anima:sweeping",
                 dev.luizloyola.anima.core.brain.task.SweepingErrand.class,
                 TaskCodecs.codec().fieldOf("work").xmap(

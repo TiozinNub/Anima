@@ -47,8 +47,16 @@ public final class SurveyArea implements PrimitiveTask {
     /** Edge of one coverage cell, in blocks — defined by the grid every sweep now shares. */
     public static final int CELL = CoverageGrid.CELL;
 
-    /** Confidence a cell needs before the box is considered known. */
-    public static final double ENOUGH = CoverageGrid.ENOUGH;
+    /**
+     * What a LOOK has to be worth before it settles a cell — half the horizon, which is what the
+     * 2026-08-10 design costed survey walking against.
+     *
+     * <p>Deliberately not the walked bar. Ruling ground out at distance and individuating it
+     * underfoot are different evidence: {@link CoverageGrid#WALKED_SQUARES} says how much of a cell
+     * feet have to have covered, and it is stricter because partial walked credit reaches cells the
+     * body never entered.
+     */
+    public static final double ENOUGH = 0.5;
 
     /**
      * Block reads one tick of looking may spend. A survey is fifty-odd thousand reads for a Person:
@@ -127,7 +135,20 @@ public final class SurveyArea implements PrimitiveTask {
         known.forEach(walked::markMask);
     }
 
-    /** How well this cell is known — the better of what was walked and what a look ruled out. */
+    /**
+     * Whether this cell counts as known. Two kinds of evidence, two bars, and no averaging between
+     * them: a look that ruled the cell out is worth {@link #ENOUGH}, feet are worth
+     * {@link CoverageGrid#WALKED_SQUARES}. Maxing the two fractions and testing one threshold let
+     * the looser bar settle a cell on the stricter evidence.
+     */
+    private boolean known(int cell) {
+        return looked[cell] >= ENOUGH || walked.settled(cell);
+    }
+
+    /**
+     * How well this cell is known, 0..1 — graded, so {@link #startNext} can head for the least
+     * known rather than any unknown. Never a verdict: {@link #known} is.
+     */
     private double confidence(int cell) {
         return Math.max(looked[cell], walked.confidence(cell));
     }
@@ -137,7 +158,7 @@ public final class SurveyArea implements PrimitiveTask {
      * not banked: it is a fact about a viewpoint, not about the ground.
      */
     private void raise(int cell, float to) {
-        if (to <= looked[cell] || confidence(cell) >= ENOUGH) {
+        if (to <= looked[cell] || known(cell)) {
             return;
         }
         looked[cell] = to;
@@ -159,12 +180,6 @@ public final class SurveyArea implements PrimitiveTask {
         looked[cell] = 1.0f;
         walked.markFull(walked.cornerOf(cell));
         coverage.settled(walked.cornerOf(cell));
-    }
-
-    /** The min corner of a cell, in world coordinates — the handle a caller names it by. */
-    public Pos cornerOf(int cell) {
-        return new Pos(area.min().x() + (cell / deep) * CELL, area.min().y(),
-                area.min().z() + (cell % deep) * CELL);
     }
 
     private static int cellsAcross(int blocks) {
@@ -223,10 +238,11 @@ public final class SurveyArea implements PrimitiveTask {
      * otherwise never finish a box, since it walks to cell centres and no square would ever be in
      * range. Only then is the cell underfoot taken whole.
      *
-     * <p>A near field too small to carry a cell over {@link #ENOUGH} from its centre alone — or a
-     * walk target clamped short of the true centre on a clipped edge cell — is NOT accommodated
-     * here. It is left short, and {@link #stepWalk} counts an arrival that made no further progress
-     * as a try, writing the cell off after {@link #WALK_TRIES} of them. That is the honest failure:
+     * <p>A near field too small to cover {@link CoverageGrid#WALKED_SQUARES} of a cell from its
+     * centre — or a walk target clamped short of the true centre on a clipped edge cell — is NOT
+     * accommodated here. It is left short, and {@link #stepWalk} counts an arrival that made no
+     * further progress as a try, writing the cell off after {@link #WALK_TRIES} of them. That is
+     * the honest failure:
      * a body whose geometry cannot clear a cell does not get to claim it knows the ground anyway.
      */
     private void markWalked(BrainContext ctx) {
@@ -252,12 +268,12 @@ public final class SurveyArea implements PrimitiveTask {
                 return TaskStatus.RUNNING;
             }
             case SUCCESS -> {
-                // Arrived does not mean ENOUGH: a near field too small, or a target clamped short
+                // Arrived does not mean known: a near field too small, or a target clamped short
                 // of a clipped edge cell's true centre, leaves GoTo reporting success every time
                 // with nothing left to walk toward. Counting the arrival itself as a try is what
                 // lets WALK_TRIES write the cell off instead of re-picking it forever.
                 this.walk = null;
-                if (target >= 0 && confidence(target) < ENOUGH && ++tries[target] >= WALK_TRIES) {
+                if (target >= 0 && !known(target) && ++tries[target] >= WALK_TRIES) {
                     settle(target);
                     ctx.journal().record(Category.BRAIN, describe(),
                             "near field cannot clear " + at(centreOf(target))
@@ -352,7 +368,7 @@ public final class SurveyArea implements PrimitiveTask {
             if (occupied.contains(cell)) {
                 continue; // something is there; only walking near it will say what.
             }
-            if (confidence(cell) >= 1.0) {
+            if (known(cell)) {
                 continue;
             }
             double distance = horizontalDistance(from, centreOf(cell));
@@ -381,7 +397,7 @@ public final class SurveyArea implements PrimitiveTask {
         int worst = -1;
         double worstScore = Double.MAX_VALUE;
         for (int cell = 0; cell < looked.length; cell++) {
-            if (confidence(cell) >= ENOUGH) {
+            if (known(cell)) {
                 continue;
             }
             // Confidence first, distance only to break ties: a body should not cross the box for a
@@ -404,7 +420,7 @@ public final class SurveyArea implements PrimitiveTask {
 
     private boolean covered() {
         for (int cell = 0; cell < looked.length; cell++) {
-            if (confidence(cell) < ENOUGH) {
+            if (!known(cell)) {
                 return false;
             }
         }
@@ -413,13 +429,13 @@ public final class SurveyArea implements PrimitiveTask {
 
     /** How many cells are known well enough — the progress everything else reports. */
     public int cellsKnown() {
-        int known = 0;
+        int count = 0;
         for (int cell = 0; cell < looked.length; cell++) {
-            if (confidence(cell) >= ENOUGH) {
-                known++;
+            if (known(cell)) {
+                count++;
             }
         }
-        return known;
+        return count;
     }
 
     public int cells() {

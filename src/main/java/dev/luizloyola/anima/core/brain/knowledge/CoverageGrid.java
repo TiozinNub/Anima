@@ -36,10 +36,16 @@ public final class CoverageGrid {
     public static final int FULL = 0xFFFF;
 
     /**
-     * Fraction of a cell that has to be covered before it counts as known. A third was tried on the
-     * old float model and reverted: a threshold loose enough to miss a tree misses it twice.
+     * Squares a cell needs before WALKING counts as having known it. Three quarters, not half.
+     *
+     * <p>Partial credit is honest — a near field cannot contain a whole cell — but half is a bar a
+     * body reaches for ground it never entered. At {@code near_radius} 8 a body standing at a cell
+     * centre banks 8 of 16 in each of its four orthogonal NEIGHBOURS, whose far square centres sit
+     * 9 and 11 blocks out, past anything it can individuate. At half, a chopper's corridor claimed a
+     * 24-block band while walking 16, and the slice was never minted as a survey errand. Twelve
+     * separates entering a cell (16 at its centre, 13 at its corner) from passing beside one (8).
      */
-    public static final double ENOUGH = 0.5;
+    public static final int WALKED_SQUARES = 12;
 
     private final int originX;
     private final int originY;
@@ -88,8 +94,9 @@ public final class CoverageGrid {
         return Integer.bitCount(masks[cell]) / (double) (SUB * SUB);
     }
 
+    /** Whether enough of this cell was actually individuated to call it known. */
     public boolean settled(int cell) {
-        return confidence(cell) >= ENOUGH;
+        return Integer.bitCount(masks[cell]) >= WALKED_SQUARES;
     }
 
     public boolean allSettled() {

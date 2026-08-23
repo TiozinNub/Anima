@@ -35,10 +35,44 @@ class CoverageGridTest {
 
         assertEquals(CoverageGrid.FULL, grid.mask(grid.cellAt(4, 4)),
                 "every square centre in this cell is within 4.25 blocks of the middle");
-        assertTrue(grid.confidence(grid.cellAt(12, 4)) < 1.0,
-                "the neighbour is only clipped — the centre test called it fully known");
+        assertFalse(grid.settled(grid.cellAt(12, 4)),
+                "the neighbour is only clipped — its far square centres are 9 and 11 blocks out, "
+                        + "and a bar this credit clears is a bar a body clears without walking");
         assertEquals(0, grid.mask(grid.cellAt(28, 28)),
                 "and a cell nothing reached is untouched");
+    }
+
+    /**
+     * The whole point of the walked bar, as arithmetic. Entering a cell banks 16 squares from its
+     * centre and 13 from its corner; passing beside one banks 8, and cornering it banks 1. Twelve is
+     * the only bar that separates the two — at eight, a chopper's corridor settles a 24-block band
+     * having individuated 16, and nothing re-checks it.
+     */
+    @Test
+    void theWalkedBarSeparatesEnteringACellFromPassingBesideIt() {
+        assertEquals(16, squaresFrom(new Pos(4, 64, 4), 4, 4), "standing at the cell's centre");
+        assertEquals(13, squaresFrom(new Pos(0, 64, 0), 4, 4), "standing at its corner");
+        assertEquals(8, squaresFrom(new Pos(4, 64, 4), 12, 4), "an orthogonal neighbour");
+        assertEquals(1, squaresFrom(new Pos(4, 64, 4), 12, 12), "a diagonal one");
+
+        assertTrue(settledFrom(new Pos(4, 64, 4), 4, 4));
+        assertTrue(settledFrom(new Pos(0, 64, 0), 4, 4));
+        assertFalse(settledFrom(new Pos(4, 64, 4), 12, 4),
+                "eight of sixteen is ground the body never entered");
+        assertFalse(settledFrom(new Pos(4, 64, 4), 12, 12));
+    }
+
+    /** Squares a single near field of eight banks in the cell holding {@code (x, z)}. */
+    private static int squaresFrom(Pos stood, int x, int z) {
+        CoverageGrid grid = grid();
+        grid.markNear(stood, 8);
+        return Integer.bitCount(grid.mask(grid.cellAt(x, z)));
+    }
+
+    private static boolean settledFrom(Pos stood, int x, int z) {
+        CoverageGrid grid = grid();
+        grid.markNear(stood, 8);
+        return grid.settled(grid.cellAt(x, z));
     }
 
     @Test
@@ -49,7 +83,7 @@ class CoverageGridTest {
         int cell = grid.cellAt(0, 0);
         assertTrue(grid.confidence(cell) < 1.0,
                 "the far square centre is 9.9 blocks off — beyond what a near field individuates");
-        assertTrue(grid.settled(cell), "thirteen of sixteen is still past ENOUGH");
+        assertTrue(grid.settled(cell), "thirteen of sixteen is still most of the cell");
     }
 
     @Test
@@ -61,7 +95,8 @@ class CoverageGridTest {
         grid.markNear(new Pos(7, 64, 4), 3);
 
         assertTrue(grid.confidence(grid.cellAt(4, 4)) > afterOne, "the second visit adds squares");
-        assertTrue(grid.settled(grid.cellAt(4, 4)), "and together they clear the line");
+        assertTrue(grid.settled(grid.cellAt(4, 4)),
+                "six squares each, disjoint — twelve between them, which is the bar exactly");
     }
 
     @Test
