@@ -345,7 +345,8 @@ class SurveyAreaTest {
     @Test
     void aCellWrittenOffAsUnreachableReachesTheSink() {
         Banked sink = new Banked();
-        FakeContext ctx = looking(new Pos(0, 63, 0));
+        Pos here = new Pos(0, 63, 0);
+        FakeContext ctx = looking(here);
         ctx.percepts.blocks.placeOak(44, 44); // something to insist on going to
         SurveyArea sweep = new SurveyArea(wideBox(), SOUGHT, java.util.Map.of(), sink);
 
@@ -358,7 +359,12 @@ class SurveyAreaTest {
         }
 
         assertEquals(TaskStatus.SUCCESS, status);
-        assertFalse(sink.settled.isEmpty(),
+        // Farther than one look can ever settle on its own — credit is 1 - d/horizon and ENOUGH is
+        // half, so nothing past 24 blocks clears from a single look — and the body never moves
+        // here, since every walk fails. A settled corner this far out can only be a write-off; an
+        // assertion that only checked "settled is non-empty" would pass on ordinary look-settles
+        // even with the write-off still silently bypassing the sink.
+        assertTrue(sink.settled.stream().anyMatch(corner -> horizontal(here, corner) > 24),
                 "a write-off the sink never hears about leaves that cell on the frontier forever, "
                         + "and its slice is re-offered, claimed and abandoned without end");
     }

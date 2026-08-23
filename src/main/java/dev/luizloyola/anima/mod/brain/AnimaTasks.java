@@ -254,11 +254,16 @@ public final class AnimaTasks {
         // Named rather than chained: inference follows the target type through an xmap, so
         // building the group inline against SurveyArea makes javac read the task's fields off the
         // task instead of off its state, in four hundred lines of DFU generics.
+        // "known" keeps the pre-split key: an old save's per-cell look credit restores straight
+        // into `looked` and reproduces the old confidence(cell) exactly. "masks" is optional, not
+        // required — vanilla parses with resultOrPartial, so a save from before the walked grid
+        // existed would otherwise silently drop the whole SurveyArea.State row and "load fine".
         MapCodec<SurveyArea.State> sweep = RecordCodecBuilder.mapCodec(t -> t.group(
                 REGION.fieldOf("area").forGetter(SurveyArea.State::area),
                 POI_KIND.fieldOf("looking").forGetter(SurveyArea.State::looking),
-                Codec.FLOAT.listOf().fieldOf("looked").forGetter(SurveyArea.State::looked),
-                Codec.INT.listOf().fieldOf("masks").forGetter(SurveyArea.State::masks),
+                Codec.FLOAT.listOf().fieldOf("known").forGetter(SurveyArea.State::looked),
+                Codec.INT.listOf().optionalFieldOf("masks", java.util.List.of())
+                        .forGetter(SurveyArea.State::masks),
                 Codec.INT.listOf().fieldOf("tries").forGetter(SurveyArea.State::tries),
                 Codec.INT.fieldOf("target").forGetter(SurveyArea.State::target)
         ).apply(t, SurveyArea.State::new));

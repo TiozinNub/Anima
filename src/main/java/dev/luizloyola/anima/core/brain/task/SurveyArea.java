@@ -146,8 +146,16 @@ public final class SurveyArea implements PrimitiveTask {
         }
     }
 
-    /** Declares a whole cell known, and tells whoever is tracking this sweep. */
+    /**
+     * Declares a whole cell known, and tells whoever is tracking this sweep — once. A cell already
+     * FULL returns without telling {@link Coverage} again: the {@code near <= 0} accommodation in
+     * {@link #markWalked} calls this every tick a body stands in a settled cell, and an owner
+     * re-told the same corner every tick would have its set churn for nothing.
+     */
     private void settle(int cell) {
+        if (walked.mask(cell) == CoverageGrid.FULL) {
+            return;
+        }
         looked[cell] = 1.0f;
         walked.markFull(walked.cornerOf(cell));
         coverage.settled(walked.cornerOf(cell));
@@ -213,8 +221,13 @@ public final class SurveyArea implements PrimitiveTask {
      * <p><b>A body with no near field at all still learns by walking.</b>
      * {@code places.near_radius} of zero is legal (the test species does it) and such a body would
      * otherwise never finish a box, since it walks to cell centres and no square would ever be in
-     * range. Only then is the cell underfoot taken whole — for anything with a near field the
-     * geometry already covers it, and taking it whole would be the overclaim this model removes.
+     * range. Only then is the cell underfoot taken whole.
+     *
+     * <p>A near field too small to carry a cell over {@link #ENOUGH} from its centre alone — or a
+     * walk target clamped short of the true centre on a clipped edge cell — is NOT accommodated
+     * here. It is left short, and {@link #stepWalk} counts an arrival that made no further progress
+     * as a try, writing the cell off after {@link #WALK_TRIES} of them. That is the honest failure:
+     * a body whose geometry cannot clear a cell does not get to claim it knows the ground anyway.
      */
     private void markWalked(BrainContext ctx) {
         Pos here = ctx.percepts().position();
@@ -239,9 +252,19 @@ public final class SurveyArea implements PrimitiveTask {
                 return TaskStatus.RUNNING;
             }
             case SUCCESS -> {
-                // Arrived. The look happens next tick through the idle branch, the one place that
-                // decides to look.
+                // Arrived does not mean ENOUGH: a near field too small, or a target clamped short
+                // of a clipped edge cell's true centre, leaves GoTo reporting success every time
+                // with nothing left to walk toward. Counting the arrival itself as a try is what
+                // lets WALK_TRIES write the cell off instead of re-picking it forever.
                 this.walk = null;
+                if (target >= 0 && confidence(target) < ENOUGH && ++tries[target] >= WALK_TRIES) {
+                    settle(target);
+                    ctx.journal().record(Category.BRAIN, describe(),
+                            "near field cannot clear " + at(centreOf(target))
+                                    + " — writing that corner off");
+                }
+                // The look happens next tick through the idle branch, the one place that decides
+                // to look — unless the write-off above just finished the box.
                 this.target = -1;
                 return TaskStatus.RUNNING;
             }
