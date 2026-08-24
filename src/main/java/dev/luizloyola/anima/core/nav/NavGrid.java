@@ -1,9 +1,14 @@
 package dev.luizloyola.anima.core.nav;
 
 /**
- * The pathfinder's only view of the world: a classification per block-sized cell. Implementations
- * must be safe to read from a worker thread — in practice that means immutable snapshots
- * (the compat layer's {@code WorldSnapshot}) or fixed test grids; never a live level.
+ * A classification per block-sized cell: the pathfinder's only view of the world, and the brain's
+ * terrain sense ({@code Percepts.terrain()}).
+ *
+ * <p><b>The thread rule is the reader's, not this interface's.</b> {@link Pathfinder#find} and
+ * {@link Pathfinder#survey} run their A* off the server thread, so they must be handed an immutable
+ * snapshot (the compat layer's {@code WorldSnapshot}) or a fixed test grid — never a live grid,
+ * which would shift under a search already halfway through it. Every other reader is free to be
+ * server-thread-only and live, which is what perception wants.
  */
 public interface NavGrid {
     /**
@@ -43,4 +48,21 @@ public interface NavGrid {
     default boolean inBounds(int x, int y, int z) {
         return true;
     }
+
+    /**
+     * A grid that knows nothing: nowhere is reachable and nowhere is standable. What a rig with no
+     * terrain sense reads, and the honest answer for one — a body that cannot see the ground has no
+     * business claiming it could stand on it.
+     */
+    NavGrid UNKNOWN = new NavGrid() {
+        @Override
+        public CellType cell(int x, int y, int z) {
+            return CellType.OBSTACLE;
+        }
+
+        @Override
+        public boolean inBounds(int x, int y, int z) {
+            return false;
+        }
+    };
 }

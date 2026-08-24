@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.agent.Metabolism;
 import dev.luizloyola.anima.core.agent.need.Needs;
+import dev.luizloyola.anima.core.nav.NavGrid;
 import java.util.List;
 
 /**
@@ -61,6 +62,19 @@ public interface Percepts {
      * side; use them budgeted the way the sensor does — this is the expensive sense class.
      */
     BlockProbe blocks();
+
+    /**
+     * The same world in the PATHFINDER's vocabulary ({@code CellType}), where {@link #blocks()} is
+     * it in perception's botany. Two instruments, not two names for one: {@code BlockKind} cannot
+     * say lava, fire, fence or slab — every one of them is {@code OTHER} — so a decision about
+     * whether this body can <em>stand</em> somewhere has to be read through here.
+     *
+     * <p>Live reads, server side, to be budgeted exactly the way {@link #blocks()} is. The default
+     * is "nothing known", so a rig with no terrain sense finds nowhere to stand.
+     */
+    default NavGrid terrain() {
+        return NavGrid.UNKNOWN;
+    }
 
     /**
      * Nearby dropped items, sensed right now — budgeted and briefly cached. Bare sightings (cell

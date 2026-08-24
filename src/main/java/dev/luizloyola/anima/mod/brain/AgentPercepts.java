@@ -2,12 +2,14 @@ package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.compat.inv.CookedForms;
 import dev.luizloyola.anima.compat.inv.FoodValues;
+import dev.luizloyola.anima.compat.nav.LevelGrid;
 import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.ConfinementCadence;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
+import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.mod.nav.PathfinderService;
 import net.minecraft.server.level.ServerLevel;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
@@ -58,6 +60,9 @@ public final class AgentPercepts implements Percepts {
     /** The block sense — one {@link LevelProbe} over this person's level and eyes, shared with
      *  nothing (the sensor builds its own): stateless views are cheap, aliasing is not. */
     private final LevelProbe blocks;
+    /** The terrain sense — one {@link LevelGrid} over this person's level, shared with nothing: it
+     *  holds the chunk under its last read, which bodies in different columns would thrash. */
+    private final LevelGrid terrain;
     /** Where perceived beings come from: the sensor is the body owner's to run, not the percept's
      *  to reach for. Handed in so this adapter never has to know what kind of sensor it is. */
     private final Supplier<List<Being>> beings;
@@ -75,6 +80,7 @@ public final class AgentPercepts implements Percepts {
         this.person = person;
         this.beings = beings;
         this.blocks = new LevelProbe(person.entity());
+        this.terrain = new LevelGrid(person.level());
         this.foods = new FoodLookup() {
             @Override
             public Optional<FoodValue> of(ItemStack stack) {
@@ -125,6 +131,12 @@ public final class AgentPercepts implements Percepts {
     @Override
     public BlockProbe blocks() {
         return this.blocks;
+    }
+
+    /** The same world in the pathfinder's vocabulary — see {@link LevelGrid}. */
+    @Override
+    public NavGrid terrain() {
+        return this.terrain;
     }
 
     /**
