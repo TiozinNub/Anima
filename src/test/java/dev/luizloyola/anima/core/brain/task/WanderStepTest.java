@@ -13,6 +13,8 @@ import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.Test;
@@ -55,6 +57,7 @@ class WanderStepTest {
         return runBeat(random, ctx);
     }
 
+    /** The seam underneath both: for a beat that has to script more than position and terrain. */
     private static Beat runBeat(RandomGenerator random, FakeContext ctx) {
         TaskExecutor executor = new TaskExecutor();
         executor.run(new WanderStep(RADIUS), ctx.seed(random));
@@ -159,8 +162,12 @@ class WanderStepTest {
 
     /**
      * Feet at (8, 1, 8) so the whole 17-wide roam box is drawn: an open pond, three bottomless
-     * holes and a lava cell, which between them refuse roughly a sixth of the box — those cells and
-     * the cliff lips, ledges and shores around them.
+     * holes and a lava cell, spread out rather than clustered so draws land on them often enough
+     * that the rejection path is actually exercised, not merely available.
+     *
+     * <p>No fraction quoted on purpose — how much of the box these refuse depends on how the ledge
+     * rule reads a shoreline for a body that can swim, and that is {@link Standing}'s to move.
+     * {@code walked > 0} is what keeps the case from going vacuous either way.
      */
     private static AsciiWorld hostileWorld() {
         return AsciiWorld.of(
@@ -284,6 +291,45 @@ class WanderStepTest {
         assertEquals(new Pos(dx, 64, dz), beat.target(), "the target IS that first draw");
         assertEquals(mirror.nextLong(), stream.nextLong(),
                 "an untroubled beat on good ground draws once and stops");
+    }
+
+    /**
+     * The other half of the contract, and the half more likely to rot: weighing takes a different
+     * branch of {@code wanted}, so a later {@code MAX_ROLLS} retune or one more {@code continue} in
+     * the loop would quietly spend more of the stream here while the calm pin above stayed green.
+     *
+     * <p>The monster is at (14, 64, 14) — nineteen blocks off, so it makes
+     * {@link Comfort#worthWeighing} true without tripping {@link Comfort#crowded}, which would
+     * force the walk and turn this into a test about crowding instead. Seed 4096 for the reason
+     * given above: it is the first that opens on a walk.
+     */
+    @Test
+    void aWeighingBeatSpendsExactlyFourTargetDraws() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(0, 64, 0);
+        ctx.percepts.beings = List.of(FakePercepts.monsterAt(new Pos(14, 64, 14), 19.8, false));
+        RandomGenerator stream = new Random(4096);
+        Beat beat = runBeat(stream, ctx);
+        assertTrue(beat.walked(), "the seed has to walk for this to pin anything");
+
+        RandomGenerator mirror = new Random(4096);
+        mirror.nextDouble(); // the walk roll
+        mirror.nextInt(WanderStep.IDLE_RANGE); // the pause
+        List<Pos> drawn = new ArrayList<>();
+        while (drawn.size() < 4) {
+            int dx;
+            int dz;
+            do {
+                dx = mirror.nextInt(2 * RADIUS + 1) - RADIUS;
+                dz = mirror.nextInt(2 * RADIUS + 1) - RADIUS;
+            } while (dx == 0 && dz == 0);
+            drawn.add(new Pos(dx, 64, dz));
+        }
+
+        assertTrue(drawn.contains(beat.target()),
+                "it kept " + beat.target() + ", which is not one of the four it drew: " + drawn);
+        assertEquals(mirror.nextLong(), stream.nextLong(),
+                "a wary beat on good ground draws four candidates and stops");
     }
 
     @Test
