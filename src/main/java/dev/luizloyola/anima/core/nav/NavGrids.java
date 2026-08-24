@@ -16,8 +16,34 @@ public final class NavGrids {
      * <p><b>A puddle is not a hazard.</b> Water with a bed directly under it is waded, not fallen
      * into. Judged by the bed alone, not by whether this body would fit — the helper is given no
      * body, and one block of water over stone is not a pool.
+     *
+     * <p><b>Body-blind: deep water counts against everyone here.</b> Right for a caller pricing
+     * the ground it is about to cross — a shoreline is worth crossing slowly and steering tight on
+     * whether or not the body can swim. A caller asking whether a cell is <em>safe</em> wants
+     * {@link #isNearDeepDrop(NavGrid, MoveCapabilities, int, int, int)}, which does not hold an
+     * ocean against a swimmer.
      */
     public static boolean isNearDeepDrop(NavGrid grid, int maxDrop, int x, int y, int z) {
+        return isNearDeepDrop(grid, maxDrop, true, x, y, z);
+    }
+
+    /**
+     * As {@link #isNearDeepDrop(NavGrid, int, int, int, int)} but asked of a body — <b>the form a
+     * new caller wants</b>, because the question is what could kill this body and only the body
+     * answers that. Chasms and lava are unchanged; deep water is a hazard only to a body that
+     * cannot swim.
+     *
+     * <p>The puddle rule carried to its end: water is a hazard when stepping in is worse than
+     * standing in it, and to a swimmer an ocean is what one block over stone is to everybody.
+     * Held against swimmers too, it refused {@code Standing} every dry cell on a shoreline and
+     * every plank of a dock — the neighbour scan stops on the water and never finds a bed.
+     */
+    public static boolean isNearDeepDrop(NavGrid grid, MoveCapabilities body, int x, int y, int z) {
+        return isNearDeepDrop(grid, body.maxDrop(), !body.canSwim(), x, y, z);
+    }
+
+    private static boolean isNearDeepDrop(NavGrid grid, int maxDrop, boolean drowns,
+            int x, int y, int z) {
         for (int i = 0; i < 4; i++) {
             int nx = x + (i == 0 ? 1 : i == 1 ? -1 : 0);
             int nz = z + (i == 2 ? 1 : i == 3 ? -1 : 0);
@@ -38,7 +64,8 @@ public final class NavGrids {
             if (landing == CellType.DANGER) {
                 return true;
             }
-            if (landing == CellType.WATER && grid.cell(nx, floor - 1, nz) != CellType.GROUND) {
+            if (drowns && landing == CellType.WATER
+                    && grid.cell(nx, floor - 1, nz) != CellType.GROUND) {
                 return true; // deep enough that stepping in is swimming, not wading
             }
         }

@@ -50,7 +50,11 @@ public final class Standing {
                 return false;
             }
         }
-        return !NavGrids.isNearDeepDrop(grid, body.maxDrop(), x, y, z);
+        // The body, not just its drop distance: what is being tested is lethality, and deep water
+        // is not lethal to a swimmer. Body-blind, this refused every dry cell cardinally beside
+        // open water — the whole shore of a lake, and every plank of a dock or bridge over one,
+        // since the neighbour scan stops on the water and never finds ground under it.
+        return !NavGrids.isNearDeepDrop(grid, body, x, y, z);
     }
 
     /**

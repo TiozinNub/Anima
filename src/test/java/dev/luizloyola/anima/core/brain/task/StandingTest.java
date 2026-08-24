@@ -32,6 +32,12 @@ class StandingTest {
      */
     private static final MoveCapabilities PERSON = new MoveCapabilities(1.8, 1, 3, 3, true, 36);
 
+    /**
+     * The same body that cannot swim. Nothing else about it differs from {@link #PERSON}, so a map
+     * the two disagree on is a map where swimming is the whole of the difference.
+     */
+    private static final MoveCapabilities SINKER = new MoveCapabilities(1.8, 1, 3, 3, false, 36);
+
     /** A bottom slab: a floor half a block up inside its own cell. */
     private static final double SLAB = 0.5;
 
@@ -89,6 +95,40 @@ class StandingTest {
                 "and is deliberately refused here: a wander target is dry land");
     }
 
+    /**
+     * Deep water beside a cell endangers whoever it would drown and nobody else. Charged to every
+     * body it cost a lakeside settlement its own shore and its own dock, since the neighbour scan
+     * stops on the water and never reaches a bed — so open water read exactly like a chasm.
+     */
+    @Test
+    @DisplayName("a swimmer stands on a shore and on a dock over deep water; a body that sinks does not")
+    void deepWaterBesideACellIsAHazardOnlyToABodyThatCannotSwim() {
+        // x=1 is the last dry cell before the lake; x=3 a one-cell dock standing in it.
+        AsciiWorld lakeside = AsciiWorld.of("11WWW11").fill(3, 0, 0, 3, 0, 0, CellType.GROUND);
+
+        assertTrue(Standing.standable(lakeside, PERSON, 1, 1, 0), "the shore");
+        assertTrue(Standing.standable(lakeside, PERSON, 3, 1, 0), "the dock, water on all four sides");
+        assertFalse(Standing.standable(lakeside, SINKER, 1, 1, 0),
+                "the same shore, one step from drowning");
+        assertFalse(Standing.standable(lakeside, SINKER, 3, 1, 0), "and the same dock");
+        assertTrue(Standing.standable(lakeside, SINKER, 0, 1, 0),
+                "one cell further inland it stands — without this the two refusals prove nothing");
+    }
+
+    @Test
+    @DisplayName("a wadeable puddle beside a cell was never a hazard, to either body")
+    void aPuddleBesideACellIsNoHazardToEitherBody() {
+        AsciiWorld puddle = AsciiWorld.of("1w1");
+        AsciiWorld lake = AsciiWorld.of("1W1");
+
+        assertTrue(Standing.standable(puddle, PERSON, 0, 1, 0), "beside one block of water over a bed");
+        assertTrue(Standing.standable(puddle, SINKER, 0, 1, 0),
+                "and a body that cannot swim can still wade, so the bed is what decides");
+        assertTrue(Standing.standable(lake, PERSON, 0, 1, 0), "the same shore one block deeper");
+        assertFalse(Standing.standable(lake, SINKER, 0, 1, 0),
+                "where the body that cannot swim is out of its depth");
+    }
+
     @Test
     void aCliffLipIsNotStandable() {
         // The last cell of the plateau, with a bottomless column beside it — a step in any
@@ -97,6 +137,35 @@ class StandingTest {
 
         assertFalse(Standing.standable(plateau, PERSON, 2, 1, 0), "x=2 is the lip");
         assertTrue(Standing.standable(plateau, PERSON, 1, 1, 0), "one cell back from it is fine");
+    }
+
+    /**
+     * Swimming exempts a body from deep water and from nothing else. If it ever buys a general
+     * pass on the hazard check, these are the two cases that say so — a swimmer drowns in neither
+     * a chasm nor a lava pool, it dies in both.
+     */
+    @Test
+    @DisplayName("a swimmer is refused a one-wide bridge over a chasm, exactly as a body that sinks is")
+    void swimmingIsNoExemptionFromAChasm() {
+        // x=1 is a bridge one cell wide, bottomless on both sides; x=4 is the middle of a plateau.
+        AsciiWorld bridge = AsciiWorld.of(" 1 111");
+
+        assertFalse(Standing.standable(bridge, PERSON, 1, 1, 0), "a step off either side is a fall");
+        assertFalse(Standing.standable(bridge, SINKER, 1, 1, 0), "and no better for a body that sinks");
+        assertTrue(Standing.standable(bridge, PERSON, 4, 1, 0),
+                "solid ground on the same map, so the refusals are about the void beside it");
+        assertTrue(Standing.standable(bridge, SINKER, 4, 1, 0));
+    }
+
+    @Test
+    @DisplayName("a swimmer is refused the rim of a lava pool, exactly as a body that sinks is")
+    void swimmingIsNoExemptionFromLava() {
+        AsciiWorld pool = AsciiWorld.of("11L11");
+
+        assertFalse(Standing.standable(pool, PERSON, 1, 1, 0), "x=1 is the rim");
+        assertFalse(Standing.standable(pool, SINKER, 1, 1, 0), "swimming is not fireproofing");
+        assertTrue(Standing.standable(pool, PERSON, 0, 1, 0), "one cell back from the rim");
+        assertTrue(Standing.standable(pool, SINKER, 0, 1, 0));
     }
 
     @Test
