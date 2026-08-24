@@ -6,26 +6,35 @@ import dev.luizloyola.anima.core.brain.sense.DangerField;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.MoveCapabilities;
+import dev.luizloyola.anima.core.nav.NavGrid;
 import java.util.List;
+import java.util.Optional;
 import java.util.random.RandomGenerator;
+import org.jspecify.annotations.Nullable;
 
 /**
  * One beat of a wander: usually just stand around; sometimes amble somewhere nearby. A
  * {@link CompoundTask} rather than a bare primitive so the roll happens at DECOMPOSE time against
  * fresh percepts — offset from where they ACTUALLY stand when the executor reaches this node.
  *
- * <p>The roll (draw order is part of the test contract: walk-roll, then pause, then target): with
- * probability {@link #WALK_CHANCE} a random {@code (dx, dz)} each uniform in
- * {@code [-radius, radius]}, re-rolled while both are zero, {@code y} unchanged, decomposing to
- * {@code [GoTo(target, STROLL), Idle(pause)]}; otherwise just {@code [Idle(pause)]}. Pauses run
+ * <p>The roll (draw order is part of the test contract: walk-roll, then pause, then target — and a
+ * rejected candidate costs a draw): with probability {@link #WALK_CHANCE} a random {@code (dx, dz)}
+ * each uniform in {@code [-radius, radius]}, re-rolled while both are zero, whose column is then
+ * resolved through {@link Standing} to footing this body could actually stand on near its feet
+ * cell. That gives {@code [GoTo(target, STROLL), Idle(pause)]}; a beat that never rolled to walk —
+ * or drew nowhere standable inside {@link #MAX_ROLLS} — is just {@code [Idle(pause)]}. Pauses run
  * {@code IDLE_MIN + [0, IDLE_RANGE)} ticks either way.
  *
  * <p>Tuned down deliberately (Luiz): idling is the default, walking the exception, the walk a
  * {@link Gait#STROLL}.
  *
- * <p><b>Failure self-heals.</b> An unreachable roll fails the {@link GoTo} and so the step; the
- * arbiter re-grants wander and a fresh {@link WanderStep} rolls a new target. The grant loop is the
- * retry — re-plan on surprise, never patch mid-plan.
+ * <p><b>Failure still self-heals — but it is no longer the mechanism.</b> An unreachable roll fails
+ * the {@link GoTo} and so the step; the arbiter re-grants wander and a fresh {@link WanderStep}
+ * rolls a new target, because re-planning on surprise beats patching mid-plan. That backstop stays,
+ * since standable is not reachable and nothing here runs a search. What changed is how often it
+ * fires: the failures it used to absorb every few beats — a target in mid-air, buried in a hill, or
+ * out on a lake — are refused now, before the leg is ordered.
  */
 public final class WanderStep implements CompoundTask {
     /** Fraction of wander beats that actually go anywhere; the rest just stand. */
@@ -40,6 +49,8 @@ public final class WanderStep implements CompoundTask {
      * for a mechanism it is not using.
      */
     private static final int CAUTIOUS_ROLLS = 4;
+    /** How many draws a beat will spend looking for somewhere to stand before giving up on walking. */
+    private static final int MAX_ROLLS = 8;
 
     private final int radius;
     private final List<Method> methods;
@@ -91,6 +102,13 @@ public final class WanderStep implements CompoundTask {
             DangerField field = DangerField.of(ctx.danger(), beings,
                     ctx.knowledge(), ctx.percepts().time(), DangerField.FADE_TICKS);
             Pos target = roll(here, beings, field, ctx, random);
+            if (target == null) {
+                // The pause was drawn before the target, so nothing is wasted and the stream stays
+                // aligned with a beat that did walk. Standing about IS the answer here: being
+                // sealed in is EscapeInstinct's to notice, not the wander's to paper over.
+                ctx.journal().record(Category.BRAIN, "wander", "nowhere nearby to stand");
+                return List.of(new Idle(pause));
+            }
             int tx = target.x();
             int ty = target.y();
             int tz = target.z();
@@ -102,7 +120,8 @@ public final class WanderStep implements CompoundTask {
 
         /**
          * Where to potter off to — a plain roll when there is nothing to think about, the most
-         * comfortable of a few rolls when there is.
+         * comfortable of a few rolls when there is. Draw, then validate: {@code null} when nothing
+         * drawn inside the budget was anywhere this body could stand.
          *
          * <p>A remembered fright must change where a calm body chooses to be, not only how it runs;
          * elbow room and wanting company are the same kind of opinion (see {@link Comfort}). Not a
@@ -111,20 +130,38 @@ public final class WanderStep implements CompoundTask {
          * <p>The leg it picks is never re-aimed — a beat is five to fifteen seconds, and biasing
          * the next roll converges just as fast and cannot thrash.
          */
-        private Pos roll(Pos here, List<Being> beings, DangerField field, BrainContext ctx,
-                RandomGenerator random) {
+        private @Nullable Pos roll(Pos here, List<Being> beings, DangerField field,
+                BrainContext ctx, RandomGenerator random) {
+            NavGrid terrain = ctx.percepts().terrain();
+            MoveCapabilities body = MoveCapabilities.of(ctx.profile());
+            // Symmetric, where the ruling said jump-up and max-drop-down. jumpHeight is 0 or 1 by
+            // ProfileAspect's own range and maxDrop is 3 for a Person, so that window rejects every
+            // uphill candidate and accepts every downhill one: on any slope it biases every roll
+            // downhill, and a hillside settlement drains into the valley over an afternoon. It
+            // would have read as a pathfinder bug.
+            int reach = Math.max(body.jumpHeight(), body.maxDrop());
             boolean weighing = Comfort.worthWeighing(beings, field);
+            int wanted = weighing ? CAUTIOUS_ROLLS : 1;
             Pos best = null;
             double bestCost = Double.MAX_VALUE;
-            int rolls = weighing ? CAUTIOUS_ROLLS : 1;
-            for (int i = 0; i < rolls; i++) {
+            int acceptable = 0;
+            // Counts ACCEPTABLE candidates, caps DRAWS: on ordinary ground the two coincide and the
+            // documented draw order is untouched, while a body ringed by lake stops at MAX_ROLLS
+            // instead of rolling out the beat.
+            for (int draw = 0; draw < MAX_ROLLS && acceptable < wanted; draw++) {
                 int dx;
                 int dz;
                 do {
                     dx = random.nextInt(2 * radius + 1) - radius;
                     dz = random.nextInt(2 * radius + 1) - radius;
                 } while (dx == 0 && dz == 0);
-                Pos candidate = new Pos(here.x() + dx, here.y(), here.z() + dz);
+                Optional<Pos> footing = Standing.spot(terrain, body,
+                        here.x() + dx, here.z() + dz, here.y(), reach);
+                if (footing.isEmpty()) {
+                    continue; // a rejected candidate costs a draw
+                }
+                acceptable++;
+                Pos candidate = footing.get();
                 double cost = weighing
                         ? Comfort.cost(candidate, beings, field, ctx.percepts().needs(),
                                 ctx.profile())

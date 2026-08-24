@@ -2,11 +2,17 @@ package dev.luizloyola.anima.core.brain.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.nav.AsciiWorld;
+import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.MoveCapabilities;
+import dev.luizloyola.anima.core.nav.NavGrid;
 import java.util.Random;
 import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.Test;
@@ -14,15 +20,20 @@ import org.junit.jupiter.api.Test;
 /**
  * Pins {@link WanderStep} — walk chance ({@link WanderStep#WALK_CHANCE}), {@link Gait#STROLL}
  * inside the radius with a never-zero offset, the pause range, the lazy position read at decompose
- * time, determinism — through the real {@link TaskExecutor}: targets are read off the
+ * time, determinism, and that every target is somewhere the body could actually stand
+ * ({@link Standing}) — through the real {@link TaskExecutor}: targets are read off the
  * {@link FakeMover}, pauses counted as busy {@link Idle} ticks.
  *
  * <p>The draw order (walk-roll, then pause, then target) is class contract here — reordering the
- * draws changes which seeds walk.
+ * draws changes which seeds walk. The footing checks below therefore run over hand-drawn worlds
+ * rather than by retuning the flat one the seed-pinned cases stand on.
  */
 class WanderStepTest {
 
     private static final int RADIUS = 8;
+
+    /** The body {@link FakeContext} wanders with — 1.8 tall, jumps 1, drops 3, so a reach of 3. */
+    private static final MoveCapabilities BODY = MoveCapabilities.of(TestSpecies.PROFILE);
 
     private record Beat(boolean walked, Pos target, Gait gait, int pause) {}
 
@@ -33,6 +44,18 @@ class WanderStepTest {
     private static Beat runBeat(RandomGenerator random, Pos start) {
         FakeContext ctx = new FakeContext();
         ctx.percepts.position = start;
+        return runBeat(random, ctx);
+    }
+
+    /** As above, over a hand-drawn world instead of the fixture's flat ground under the feet. */
+    private static Beat runBeat(RandomGenerator random, Pos start, NavGrid terrain) {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = start;
+        ctx.percepts.terrain = terrain;
+        return runBeat(random, ctx);
+    }
+
+    private static Beat runBeat(RandomGenerator random, FakeContext ctx) {
         TaskExecutor executor = new TaskExecutor();
         executor.run(new WanderStep(RADIUS), ctx.seed(random));
         executor.tick(ctx); // expand; ticks the first primitive (GoTo issue, or Idle's first tick)
@@ -132,6 +155,135 @@ class WanderStepTest {
             Beat beatB = runBeat(b, new Pos(0, 64, 0));
             assertEquals(beatA, beatB, "same seed -> same beat #" + i);
         }
+    }
+
+    /**
+     * Feet at (8, 1, 8) so the whole 17-wide roam box is drawn: an open pond, three bottomless
+     * holes and a lava cell, which between them refuse roughly a sixth of the box — those cells and
+     * the cliff lips, ledges and shores around them.
+     */
+    private static AsciiWorld hostileWorld() {
+        return AsciiWorld.of(
+                "11111111111111111",
+                "11111111111111111",
+                "11WWW111111111111",
+                "11WWW1111111  111",
+                "11WWW1111111  111",
+                "11111111111111111",
+                "11111111111111111",
+                "1111111111  11111",
+                "11111111111111111",
+                "11111111111111111",
+                "111111111111L1111",
+                "11111111111111111",
+                "1111 111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111");
+    }
+
+    @Test
+    void aWanderNeverTargetsSomewhereItCouldNotStand() {
+        AsciiWorld world = hostileWorld();
+        RandomGenerator random = new Random(1234);
+        int walked = 0;
+        for (int i = 0; i < 300; i++) {
+            Beat beat = runBeat(random, new Pos(8, 1, 8), world);
+            if (!beat.walked()) {
+                continue;
+            }
+            walked++;
+            Pos target = beat.target();
+            assertTrue(Standing.standable(world, BODY, target.x(), target.y(), target.z()),
+                    "wandered to " + target + ", where this body could not stand");
+        }
+        assertTrue(walked > 0, "the stream must walk sometimes, or this asserts nothing");
+    }
+
+    /**
+     * Also the pin on {@link dev.luizloyola.anima.core.brain.sense.Percepts#terrain()}'s default,
+     * which IS {@link NavGrid#UNKNOWN}: a rig with no terrain sense must never stroll.
+     */
+    @Test
+    void aBodyWithNowhereToStandIdlesInsteadOfWalking() {
+        RandomGenerator random = new Random(1234);
+        for (int i = 0; i < 60; i++) {
+            Beat beat = runBeat(random, new Pos(0, 64, 0), NavGrid.UNKNOWN);
+            assertFalse(beat.walked(), "a body that can see no ground has nowhere to walk to");
+            assertTrue(beat.pause() >= WanderStep.IDLE_MIN
+                            && beat.pause() < WanderStep.IDLE_MIN + WanderStep.IDLE_RANGE,
+                    "the beat still runs its full pause; it was " + beat.pause());
+        }
+    }
+
+    /** An open pond ('W') and a wadeable puddle ('w'): dry land only means both. */
+    private static AsciiWorld pondWorld() {
+        return AsciiWorld.of(
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "111WWWWW111111111",
+                "111WWWWW111111111",
+                "111WWWWW111111111",
+                "111WWWWW111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111www111",
+                "11111111111www111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111");
+    }
+
+    @Test
+    void aWanderNeverTargetsWater() {
+        AsciiWorld world = pondWorld();
+        RandomGenerator random = new Random(1234);
+        int walked = 0;
+        for (int i = 0; i < 300; i++) {
+            Beat beat = runBeat(random, new Pos(8, 1, 8), world);
+            if (!beat.walked()) {
+                continue;
+            }
+            walked++;
+            Pos target = beat.target();
+            assertNotEquals(CellType.WATER, world.cell(target.x(), target.y(), target.z()),
+                    "waded out to " + target + " to stand there for a quarter of a minute");
+            assertNotEquals(CellType.WATER, world.cell(target.x(), target.y() - 1, target.z()),
+                    "settled on the surface of the water at " + target);
+        }
+        assertTrue(walked > 0, "the stream must walk sometimes, or this asserts nothing");
+    }
+
+    /**
+     * The draw-order contract, asserted rather than trusted: a calm beat on good ground spends one
+     * {@code (dx, dz)} draw, so adding the footing budget cannot quietly re-baseline every seed in
+     * this file. Seed 4096 because {@code Random}'s first {@code nextDouble} sits near 0.73 for
+     * every small seed, which never walks.
+     */
+    @Test
+    void aCalmBeatSpendsExactlyOneTargetDraw() {
+        RandomGenerator stream = new Random(4096);
+        Beat beat = runBeat(stream, new Pos(0, 64, 0));
+        assertTrue(beat.walked(), "the seed has to walk for this to pin anything");
+
+        RandomGenerator mirror = new Random(4096);
+        mirror.nextDouble(); // the walk roll
+        mirror.nextInt(WanderStep.IDLE_RANGE); // the pause
+        int dx;
+        int dz;
+        do {
+            dx = mirror.nextInt(2 * RADIUS + 1) - RADIUS;
+            dz = mirror.nextInt(2 * RADIUS + 1) - RADIUS;
+        } while (dx == 0 && dz == 0);
+
+        assertEquals(new Pos(dx, 64, dz), beat.target(), "the target IS that first draw");
+        assertEquals(mirror.nextLong(), stream.nextLong(),
+                "an untroubled beat on good ground draws once and stops");
     }
 
     @Test

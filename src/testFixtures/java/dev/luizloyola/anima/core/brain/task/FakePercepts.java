@@ -12,6 +12,8 @@ import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.ItemStack;
+import dev.luizloyola.anima.core.nav.CellType;
+import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.agent.FoodValue;
 import dev.luizloyola.anima.core.agent.Metabolism;
 import dev.luizloyola.anima.core.agent.TestSpecies;
@@ -42,6 +44,21 @@ public final class FakePercepts implements Percepts {
     public List<Being> beings = List.of();
     /** The block world — a real {@link FakeProbe} (flat ground at y 63, sparse blocks on top). */
     public final FakeProbe blocks = new FakeProbe();
+    /**
+     * The same world in the pathfinder's vocabulary — settable; defaults to flat dry ground whose
+     * floor is directly under {@link #position}, open air above, everywhere in bounds.
+     *
+     * <p>Written against the live field rather than pinned at a y, because {@code position} is
+     * mutable and several suites stand their body somewhere other than the default. A grid fixed at
+     * y 63 would leave those bodies nowhere to stand, so a wander over it idles every beat and
+     * still passes the weaker assertions — green while testing nothing.
+     */
+    public NavGrid terrain = new NavGrid() {
+        @Override
+        public CellType cell(int x, int y, int z) {
+            return y < position.y() ? CellType.GROUND : CellType.PASSABLE;
+        }
+    };
     public List<Drop> drops = List.of();
     /** The game clock — settable; tests that price staleness advance it. */
     public long time;
@@ -130,6 +147,11 @@ public final class FakePercepts implements Percepts {
     @Override
     public BlockProbe blocks() {
         return blocks;
+    }
+
+    @Override
+    public NavGrid terrain() {
+        return terrain;
     }
 
     @Override
