@@ -21,10 +21,16 @@ import java.util.Optional;
 public final class TakeFromStore implements Method {
     private final ItemSpec spec;
     private final int count;
+    private final boolean allowed;
 
     public TakeFromStore(ItemSpec spec, int count) {
+        this(spec, count, true);
+    }
+
+    public TakeFromStore(ItemSpec spec, int count, boolean allowed) {
         this.spec = spec;
         this.count = count;
+        this.allowed = allowed;
     }
 
     @Override
@@ -58,6 +64,9 @@ public final class TakeFromStore implements Method {
      * every candidate here rather than {@code Store.POI} membership alone.
      */
     private Optional<Candidate> bestStore(BrainContext ctx) {
+        if (!allowed) {
+            return Optional.empty();
+        }
         Pos here = ctx.percepts().position();
         long now = ctx.percepts().time();
         double weight = ctx.profile().d(ProfileAspect.STORES_STALENESS_WEIGHT);

@@ -141,4 +141,33 @@ class TakeFromStoreTest {
         assertEquals(LOGS, take.spec());
         assertEquals(4, take.count());
     }
+
+    @Test
+    void anObtainThatMayNotEmptyStoresKeepsTheMethodButNeverPicksIt() {
+        Pos at = new Pos(6, 64, 0);
+        FakeContext ctx = ctxKnowing(at, 0L, 0L);
+
+        List<Method> roster = new ObtainItem(LOGS, 4, java.util.Set.of(),
+                ObtainItem.Sources.NOT_STORES).methods();
+        Method last = roster.get(roster.size() - 1);
+        assertInstanceOf(TakeFromStore.class, last,
+                "the method stays at its index — a saved plan resumes by index, so nothing is removed");
+        assertFalse(last.applicable(ctx),
+                "a store full of logs is not a source for an errand whose job is to fill one");
+        assertEquals(Double.MAX_VALUE, last.estimateCost(ctx),
+                "and it prices itself out, so cost-based selection never reaches it");
+    }
+
+    @Test
+    void theSameStoreIsStillFairGameForAnOrdinaryObtain() {
+        Pos at = new Pos(6, 64, 0);
+        FakeContext ctx = ctxKnowing(at, 0L, 0L);
+
+        // Index 3 assumes a 4-method roster (as ObtainItemTest's LOGS gets, via a registered
+        // producer); this class's own LOGS has no producer, so its roster is only 3 long — the
+        // last method, whatever its index, is still TakeFromStore.
+        List<Method> roster = new ObtainItem(LOGS, 4).methods();
+        Method last = roster.get(roster.size() - 1);
+        assertTrue(last.applicable(ctx), "the default is unchanged: any obtain may raid a store");
+    }
 }

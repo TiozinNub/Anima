@@ -16,13 +16,29 @@ import java.util.List;
  * posts requirements; nobody wants logs as an end state.
  */
 public final class ObtainItem implements AchieveTask {
+    /**
+     * Where the goods may come from. A project that is FILLING a store must not be satisfied by
+     * emptying one — it would be sent to fetch the very goods it is counting.
+     */
+    public enum Sources {
+        /** Everything Anima knows: pick one up, produce it, craft it, or take it from a store. */
+        ANY,
+        /** Everything except taking it out of a store. */
+        NOT_STORES
+    }
+
     private final ItemSpec spec;
     private final int count;
     private final java.util.Set<String> pursued;
+    private final Sources sources;
     private final List<Method> methods;
 
     public ObtainItem(ItemSpec spec, int count) {
         this(spec, count, java.util.Set.of());
+    }
+
+    public ObtainItem(ItemSpec spec, int count, java.util.Set<String> pursued) {
+        this(spec, count, pursued, Sources.ANY);
     }
 
     /**
@@ -35,10 +51,11 @@ public final class ObtainItem implements AchieveTask {
      *                which simply restores {@code false} (untried); see
      *                {@link TaskExecutor#restore}.
      */
-    public ObtainItem(ItemSpec spec, int count, java.util.Set<String> pursued) {
+    public ObtainItem(ItemSpec spec, int count, java.util.Set<String> pursued, Sources sources) {
         this.spec = spec;
         this.count = count;
         this.pursued = java.util.Set.copyOf(pursued);
+        this.sources = sources;
         List<Method> ways = new ArrayList<>();
         // Picking one up is the way Anima always knows: it needs no knowledge of where the
         // thing came from. Everything else is the consuming mod's to teach.
@@ -51,7 +68,7 @@ public final class ObtainItem implements AchieveTask {
         ways.add(new CraftFor(spec, count, this.pursued));
         // Appended AFTER CraftFor on purpose: a saved plan resumes its method by index, so nothing
         // may be inserted above it. Selection is by cost, so last in the list still wins when cheap.
-        ways.add(new TakeFromStore(spec, count));
+        ways.add(new TakeFromStore(spec, count, sources == Sources.ANY));
         this.methods = List.copyOf(ways);
     }
 
@@ -87,5 +104,10 @@ public final class ObtainItem implements AchieveTask {
     /** The occurs-check's ancestor set — what the codec writes so a reload keeps refusing cycles. */
     public java.util.Set<String> pursued() {
         return pursued;
+    }
+
+    /** Where this obtain may source from — what the codec writes so a reload keeps the policy. */
+    public Sources sources() {
+        return sources;
     }
 }

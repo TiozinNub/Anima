@@ -228,9 +228,15 @@ public final class AnimaTasks {
                         // optional so every save from before crafting reads as an empty set.
                         Codec.STRING.listOf().optionalFieldOf("pursued", java.util.List.of())
                                 .forGetter(task -> java.util.List.copyOf(
-                                        new java.util.TreeSet<>(task.pursued())))
-                ).apply(t, (spec, count, pursued) ->
-                        new ObtainItem(spec, count, new java.util.HashSet<>(pursued)))));
+                                        new java.util.TreeSet<>(task.pursued()))),
+                        // By NAME rather than ordinal — an ordinal is a position in a list
+                        // somebody will reorder, and a save file is the one reader that cannot be
+                        // recompiled with it. Optional so every save from before today reads ANY.
+                        Codec.STRING.optionalFieldOf("sources", ObtainItem.Sources.ANY.name())
+                                .forGetter(task -> task.sources().name())
+                ).apply(t, (spec, count, pursued, sources) ->
+                        new ObtainItem(spec, count, new java.util.HashSet<>(pursued),
+                                ObtainItem.Sources.valueOf(sources)))));
 
         // The recipe rides INLINE, bill and all, rather than as a name to look up: a datapack
         // reload can remove a recipe mid-craft, and finishing a valid plan beats a load error
