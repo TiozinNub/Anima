@@ -75,6 +75,26 @@ public final class PutItems implements PrimitiveTask {
         return new PutItems(null, null, Integer.MAX_VALUE);
     }
 
+    /**
+     * Put up to {@code count} of {@code spec} into whatever store the body is standing at — the
+     * combination a gather errand needs: cargo already named by {@code ObtainItem}, but no chest
+     * anchor exists to hand it until {@code EnsureStore} has grown one on arrival.
+     *
+     * <p>Resolves its container the way {@link #stow()} does (whatever {@code EnsureStore} just
+     * guaranteed, re-derived at OPEN rather than carried as a field) and selects stacks the way
+     * {@link #of} does (by {@code spec}, counted, ignoring nothing).
+     *
+     * <p><b>Deliberately does not consult {@link BrainContext#reserved()}.</b> A reservation
+     * exists to stop {@code Unburden} from stowing cargo into a personal stash on the way to the
+     * yard; the errand that IS the delivery is not the thief the reservation is guarding against.
+     * Making {@code deposit} check {@code reserved()} the way {@code stow()} does would "fix" an
+     * inconsistency that is the whole point — and would leave the gather with nothing to hand
+     * over, since its own cargo is exactly what the reservation names.
+     */
+    public static PutItems deposit(ItemSpec spec, int count) {
+        return new PutItems(null, Objects.requireNonNull(spec, "spec"), count);
+    }
+
     @Override
     public TaskStatus tick(BrainContext ctx) {
         // Re-asked every tick rather than claimed once, for the reason TakeItems gives: the open
@@ -334,11 +354,14 @@ public final class PutItems implements PrimitiveTask {
         if (spec == null) {
             return "put away what nobody wants";
         }
-        return "put " + spec.name() + " x" + count + " into (" + at.x() + ", " + at.y() + ", "
-                + at.z() + ")";
+        // A deposit's `at` is still null here on its very first tick — OPEN has not resolved a
+        // store yet — where `of`'s never is, since its constructor fixes `at` up front.
+        String where = at == null ? "wherever it is standing"
+                : "(" + at.x() + ", " + at.y() + ", " + at.z() + ")";
+        return "put " + spec.name() + " x" + count + " into " + where;
     }
 
-    /** Null for a stow, which resolves its store at OPEN and persists none. */
+    /** Null for a stow or a deposit, both of which resolve their store at OPEN and persist none. */
     public @Nullable Pos at() {
         return fixedAt;
     }

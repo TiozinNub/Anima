@@ -338,6 +338,8 @@ public final class AnimaTasks {
                         // Optional since 2026-08-20: a stow names neither, resolving its store at
                         // OPEN and its selection from the context. Saves written before that carry
                         // both and take the of(...) branch below, so old worlds load unchanged.
+                        // A deposit sits between the two — named spec, no anchor — added
+                        // 2026-08-25; it round-trips through the same optional fields untouched.
                         POS.optionalFieldOf("at")
                                 .forGetter(task -> java.util.Optional.ofNullable(task.at())),
                         ITEM_SPEC.optionalFieldOf("spec")
@@ -354,7 +356,10 @@ public final class AnimaTasks {
                         (at.isPresent() && spec.isPresent()
                                 ? dev.luizloyola.anima.core.brain.task.PutItems.of(
                                         at.get(), spec.get(), count)
-                                : dev.luizloyola.anima.core.brain.task.PutItems.stow())
+                                : spec.isPresent()
+                                        ? dev.luizloyola.anima.core.brain.task.PutItems.deposit(
+                                                spec.get(), count)
+                                        : dev.luizloyola.anima.core.brain.task.PutItems.stow())
                                 .resume(phase, pause, moved))));
 
         // Both carry a destination since 3a. Optional fields: the 2b flavour writes neither, and a
