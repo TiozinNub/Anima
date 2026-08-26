@@ -125,9 +125,18 @@ public final class FakeProbe implements BlockProbe {
         return y <= GROUND_Y ? BlockKind.OTHER : BlockKind.AIR;
     }
 
-    /** Whatever {@link #setId} named at this cell, or {@code ""} — no read counted, no inference. */
+    /**
+     * Whatever {@link #setId} named at this cell, or {@code ""} — no read counted, no inference.
+     *
+     * <p>{@code ""} is overloaded here in a way it is not on {@link
+     * dev.luizloyola.anima.compat.sense.LevelProbe}: there it means specifically "no loaded chunk",
+     * while here it is also the default for any cell nobody called {@code setId} on.
+     */
     @Override
     public String idAt(int x, int y, int z) {
+        if (unloaded.contains(new Column(x, z))) {
+            return "";
+        }
         return ids.getOrDefault(new Pos(x, y, z), "");
     }
 
