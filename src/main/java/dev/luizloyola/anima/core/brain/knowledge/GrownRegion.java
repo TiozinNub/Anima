@@ -35,9 +35,22 @@ public record GrownRegion(PoiKind kind, boolean partial, Map<Pos, BlockKind> blo
      *                 growth was cut short. The distinction the mass-wide {@code partial} flag
      *                 cannot draw: a scan stopped at its spread cap still holds dozens of entire
      *                 trees; only the ones straddling the cut are provisional.
+     * @param detail   carried straight from {@link GrowthRule.Evaluation#detail}; {@code ""} when
+     *                 nothing qualifies this. Never null.
      */
     public record Part(List<Pos> approach, Region bounds, int units, Map<Pos, BlockKind> blocks,
-                       boolean complete) {
+                       boolean complete, String detail) {
+        public Part {
+            if (detail == null) {
+                throw new IllegalArgumentException("detail is null (use \"\" for none)");
+            }
+        }
+
+        /** The detail-free shape — every rule but the one that actually has a species. */
+        public Part(List<Pos> approach, Region bounds, int units, Map<Pos, BlockKind> blocks,
+                   boolean complete) {
+            this(approach, bounds, units, blocks, complete, "");
+        }
 
         /** Where a body standing at {@code from} would walk to reach this thing. */
         public Pos anchorFrom(Pos from) {
@@ -58,7 +71,7 @@ public record GrownRegion(PoiKind kind, boolean partial, Map<Pos, BlockKind> blo
      * cut-short scan partial used to cost it the crown test.
      */
     public PoiMemory toMemory(Part part, Pos from, long now) {
-        return new PoiMemory(kind, Anchors.choose(part.approach(), from), part.bounds(),
-                part.units(), !part.complete(), now);
+        return new PoiMemory(kind, part.detail(), Anchors.choose(part.approach(), from),
+                part.bounds(), part.units(), !part.complete(), now);
     }
 }

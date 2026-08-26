@@ -54,16 +54,19 @@ public final class PlaceIndex {
         private final Region bounds;
         private final int units;
         private final Map<Pos, BlockKind> blocks;
+        /** Carried from {@link GrownRegion.Part#detail}; {@code ""} when nothing qualifies this. */
+        private final String detail;
         /** Things whose boundary was decided jointly with this one — see the class doc. */
         private final Set<Place> seam = new HashSet<>();
 
         private Place(PoiKind kind, List<Pos> approach, Region bounds, int units,
-                Map<Pos, BlockKind> blocks) {
+                Map<Pos, BlockKind> blocks, String detail) {
             this.kind = kind;
             this.approach = approach;
             this.bounds = bounds;
             this.units = units;
             this.blocks = blocks;
+            this.detail = detail;
         }
 
         public PoiKind kind() {
@@ -88,9 +91,15 @@ public final class PlaceIndex {
             return blocks;
         }
 
+        /** Kind-specific qualifier, carried from the scan that found this — {@code ""} for none. */
+        public String detail() {
+            return detail;
+        }
+
         /** This thing as a belief held by a body at {@code from}, stamped now. */
         public PoiMemory toMemory(Pos from, long now) {
-            return new PoiMemory(kind, Anchors.choose(approach, from), bounds, units, false, now);
+            return new PoiMemory(kind, detail, Anchors.choose(approach, from), bounds, units,
+                    false, now);
         }
     }
 
@@ -161,7 +170,7 @@ public final class PlaceIndex {
             }
         }
         Place place = new Place(kind, part.approach(), part.bounds(), part.units(),
-                Collections.unmodifiableMap(part.blocks()));
+                Collections.unmodifiableMap(part.blocks()), part.detail());
         for (Pos cell : place.blocks.keySet()) {
             byCell.put(cell, place);
         }

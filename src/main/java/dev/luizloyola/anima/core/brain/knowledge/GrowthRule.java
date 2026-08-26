@@ -63,18 +63,30 @@ public interface GrowthRule {
      * observer, so one structure hands two bodies different anchors without being evaluated twice.
      * Never empty for an accepted structure, and every cell in it should be one of
      * {@code blocks}.
+     *
+     * @param detail kind-specific qualifier a rule may hand the memory it feeds — the SPECIES for
+     *               a grove ({@code "minecraft:oak_log"}), same rule as {@link PoiMemory#detail}.
+     *               {@code ""} when nothing qualifies this; never null.
      */
-    record Evaluation(List<Pos> approach, int units, Map<Pos, BlockKind> blocks) {
+    record Evaluation(List<Pos> approach, int units, Map<Pos, BlockKind> blocks, String detail) {
         public Evaluation {
             if (approach.isEmpty()) {
                 throw new IllegalArgumentException("an accepted structure with nowhere to walk");
             }
+            if (detail == null) {
+                throw new IllegalArgumentException("detail is null (use \"\" for none)");
+            }
             approach = List.copyOf(approach);
+        }
+
+        /** The detail-free shape — water and workbenches qualify nothing, and pay nothing. */
+        public Evaluation(List<Pos> approach, int units, Map<Pos, BlockKind> blocks) {
+            this(approach, units, blocks, "");
         }
 
         /** The single-cell shape — a rule with exactly one sensible way in. */
         public Evaluation(Pos approach, int units, Map<Pos, BlockKind> blocks) {
-            this(List.of(approach), units, blocks);
+            this(List.of(approach), units, blocks, "");
         }
     }
 }

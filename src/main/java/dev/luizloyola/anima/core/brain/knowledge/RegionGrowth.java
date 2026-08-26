@@ -282,7 +282,7 @@ public final class RegionGrowth {
         for (GrowthRule.Evaluation eval : rule.evaluate(blocks, probe)) {
             parts.add(new GrownRegion.Part(eval.approach(), boundsOf(eval.blocks().keySet()),
                     eval.units(), Collections.unmodifiableMap(eval.blocks()),
-                    whole(eval.blocks().keySet(), cutEdge)));
+                    whole(eval.blocks().keySet(), cutEdge), eval.detail()));
         }
         return new GrownRegion(rule.kind(), partial, Collections.unmodifiableMap(blocks),
                 List.copyOf(parts));

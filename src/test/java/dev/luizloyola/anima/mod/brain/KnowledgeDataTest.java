@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.mod.brain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonArray;
@@ -10,6 +11,8 @@ import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
+import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
+import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import dev.luizloyola.anima.core.social.Places;
@@ -28,6 +31,9 @@ import org.junit.jupiter.api.Test;
 class KnowledgeDataTest {
 
     private static final PoiKind BENCH = PoiKind.register("test_knowledge_data_bench", 1, "");
+
+    /** A block POI, not a herd — the round trip the detail codec had never been asked for. */
+    private static final PoiKind TREE = PoiKind.register("test_knowledge_data_tree", 1, " logs");
 
     @Test
     void aFoundedClaimNeverEntersTheKnowledgeFile() {
@@ -68,6 +74,44 @@ class KnowledgeDataTest {
         assertEquals("minecraft:oak_log", seen.stacks().get(0).id());
         assertEquals(32, seen.stacks().get(0).count());
         assertEquals(100L, seen.seenTick(), "the tick it was seen is what prices the walk later");
+    }
+
+    @Test
+    void aTreesSpeciesRoundTripsThroughJsonNotJustAHerds() {
+        AgentId hazel = AgentId.random();
+        Pos anchor = new Pos(4, 64, 4);
+        PoiMemory oak = new PoiMemory(TREE, "minecraft:oak_log", anchor, Region.of(anchor), 23,
+                false, 100L);
+
+        KnowledgeData data = new KnowledgeData();
+        data.registry().forPerson(hazel).note(oak, AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
+
+        var encoded = KnowledgeData.CODEC.encodeStart(JsonOps.INSTANCE, data).getOrThrow();
+        KnowledgeData decoded = KnowledgeData.CODEC.parse(JsonOps.INSTANCE, encoded).getOrThrow();
+
+        PoiMemory roundTripped = decoded.registry().forPerson(hazel).all(TREE).iterator().next();
+        assertEquals("minecraft:oak_log", roundTripped.detail(),
+                "the codec already wrote this field for herds; a block POI must round-trip it too");
+    }
+
+    @Test
+    void aDetailFreeMemoryEncodesWithNoDetailKeyAtAll() {
+        AgentId hazel = AgentId.random();
+        Pos anchor = new Pos(4, 64, 4);
+        PoiMemory plain = new PoiMemory(TREE, anchor, Region.of(anchor), 23, false, 100L);
+
+        KnowledgeData data = new KnowledgeData();
+        data.registry().forPerson(hazel)
+                .note(plain, AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
+
+        var encoded = KnowledgeData.CODEC.encodeStart(JsonOps.INSTANCE, data).getOrThrow();
+        JsonObject poi = encoded.getAsJsonObject().getAsJsonArray("persons")
+                .get(0).getAsJsonObject().getAsJsonArray("pois")
+                .get(0).getAsJsonObject();
+
+        assertFalse(poi.has("detail"),
+                "an unspeciated thing must cost nothing on disk — worth pinning before somebody "
+                        + "\"tidies\" the optional away");
     }
 
     @Test
