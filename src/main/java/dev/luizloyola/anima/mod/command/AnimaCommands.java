@@ -5,6 +5,8 @@ import dev.luizloyola.anima.mod.config.ConfigFile;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.Commands;
 
+import java.util.List;
+
 /**
  * The {@code /anima} command root — the library's own operator surface.
  *
@@ -25,45 +27,27 @@ public final class AnimaCommands {
      */
     public static void register(ConfigFile configFile) {
         CommandRegistrationCallback.EVENT.register((dispatcher, registry, environment) ->
-                dispatcher.register(Commands.literal("anima")
-                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
-                        // The whole agent-shaped surface, for a world running the library on its
-                        // own — and mounted again by each consumer under its own root, so nobody
-                        // relearns a command they already type.
-                        .then(AgentCommands.list())
-                        // The only readout here that answers when there is no body left to ask.
-                        .then(AgentCommands.grave())
-                        .then(AgentCommands.select())
-                        .then(AgentCommands.contacts())
-                        .then(AgentCommands.party())
-                        .then(AgentCommands.places())
-                        .then(AgentCommands.nav())
-                        // A standing order, instead of typing nav goto at the body every 20 blocks.
-                        .then(AgentCommands.follow())
-                        .then(AgentCommands.probe())
-                        // The craftbook lens — read-only.
-                        .then(AgentCommands.recipes())
-                        .then(AgentCommands.brain())
-                        .then(AgentCommands.think())
-                        .then(AgentCommands.log())
-                        .then(AgentCommands.knowledge())
-                        .then(AgentCommands.horizon())
-                        .then(AgentCommands.survey())
-                        .then(AgentCommands.claims())
-                        .then(AgentCommands.peers())
-                        // Every gauge the body declared — hunger and company today.
-                        .then(AgentCommands.needs())
-                        // What this one is running: species -> modifiers -> effective.
-                        .then(AgentCommands.profile())
-                        .then(AgentCommands.debug())
-                        // The browser dashboard's address, and its on/off switch. Anima's root
-                        // only: the port and the token are the library's, not any consumer's.
-                        .then(dev.luizloyola.anima.mod.webdebug.WebCommands.tree())
-                        .then(AgentCommands.inv(registry))
-                        // The dev stand-ins for putting into / taking from a known store. Anima's
-                        // root only for now — the `/autarkia` mount waits for this branch to merge,
-                        // the same way `places` did.
-                        .then(AgentCommands.store(registry))
-                        .then(ConfigCommands.tree(Config.store(), configFile))));
+                dispatcher.register(CommandSurface.mount(
+                        Commands.literal("anima")
+                                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)),
+                        // hasSubject — mounted at the root AND under `as <person>`. One entry for
+                        // now: the seam is proved end to end on the smallest surface it can be,
+                        // before the rest of the tree is hung off it.
+                        List.of(AgentCommands::log),
+                        // noSubject — the root alone.
+                        List.of(AgentCommands::list, AgentCommands::grave, AgentCommands::select,
+                                AgentCommands::contacts, AgentCommands::party,
+                                AgentCommands::places, AgentCommands::nav, AgentCommands::follow,
+                                AgentCommands::probe, AgentCommands::recipes,
+                                AgentCommands::brain, AgentCommands::think,
+                                AgentCommands::knowledge, AgentCommands::horizon,
+                                AgentCommands::survey, AgentCommands::claims,
+                                AgentCommands::peers, AgentCommands::needs,
+                                AgentCommands::profile, AgentCommands::debug,
+                                dev.luizloyola.anima.mod.webdebug.WebCommands::tree,
+                                () -> AgentCommands.inv(registry),
+                                () -> AgentCommands.store(registry),
+                                () -> ConfigCommands.tree(Config.store(), configFile)),
+                        List.of())));
     }
 }
