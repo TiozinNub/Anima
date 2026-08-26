@@ -343,6 +343,7 @@
   "anima.command.select.nobody_near": "Ninguém com uma mente a até %s blocos.",
   "anima.command.select.dead": "%s está morto — não há mais o que comandar.",
   "anima.command.select.not_loaded": "%s, o selecionado, não está carregado — /anima select clear, ou selecione outro.",
+  "anima.command.subject.not_loaded": "%s não está carregado — esse comando precisa de um corpo no mundo.",
   "anima.command.select.no_match": "Ninguém carregado corresponde a '%s' — tente o comando list.",
   "anima.command.select.ambiguous": "%s agentes correspondem a '%s' — escolha um pelo id: %s",
   "anima.command.select.selected": "Selecionado %s",

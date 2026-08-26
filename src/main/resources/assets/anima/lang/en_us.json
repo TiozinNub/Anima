@@ -343,6 +343,7 @@
   "anima.command.select.nobody_near": "Nobody with a mind within %s blocks.",
   "anima.command.select.dead": "%s is dead — nothing left to command.",
   "anima.command.select.not_loaded": "Selected %s isn't loaded — /anima select clear, or select someone else.",
+  "anima.command.subject.not_loaded": "%s isn't loaded — that command needs a body standing in the world.",
   "anima.command.select.no_match": "Nobody loaded matches '%s' — try the list command.",
   "anima.command.select.ambiguous": "%s agents match '%s' — pick one by id: %s",
   "anima.command.select.selected": "Selected %s",

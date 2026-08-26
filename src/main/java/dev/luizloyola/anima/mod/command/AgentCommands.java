@@ -21,6 +21,7 @@ import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import dev.luizloyola.anima.compat.inv.ItemStacks;
@@ -135,9 +136,6 @@ import dev.luizloyola.anima.core.agent.PrivateIdentity;
  */
 public final class AgentCommands {
 
-    /** How far the bare resolve ladder looks for a body when nothing is selected. */
-    private static final double NEAREST_RADIUS = 32.0;
-
     /**
      * One line nested under the one above it. The gutter stays in Java rather than in every
      * translation of the line, where it is one edit away from being trimmed off.
@@ -233,24 +231,24 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> places() {
         return Commands.literal("places")
-                                .executes(ctx -> placesShow(ctx.getSource(), null))
+                                .executes(ctx -> placesShow(ctx, null))
                                 .then(Commands.literal("of")
                                         .then(Commands.argument("person", StringArgumentType.string())
                                                 .suggests(ALL_PERSON_SUGGESTIONS)
-                                                .executes(ctx -> placesShow(ctx.getSource(),
+                                                .executes(ctx -> placesShow(ctx,
                                                         StringArgumentType.getString(ctx, "person")))))
                                 .then(Commands.literal("found")
                                         .then(Commands.argument("kind", StringArgumentType.word())
                                                 .suggests(POI_KIND_SUGGESTIONS)
                                                 .then(Commands.argument("at", BlockPosArgument.blockPos())
-                                                        .executes(ctx -> placesFound(ctx.getSource(),
+                                                        .executes(ctx -> placesFound(ctx,
                                                                 StringArgumentType.getString(ctx, "kind"),
                                                                 BlockPosArgument.getLoadedBlockPos(ctx, "at"))))))
                                 .then(Commands.literal("drop")
                                         .then(Commands.argument("kind", StringArgumentType.word())
                                                 .suggests(POI_KIND_SUGGESTIONS)
                                                 .then(Commands.argument("at", BlockPosArgument.blockPos())
-                                                        .executes(ctx -> placesDrop(ctx.getSource(),
+                                                        .executes(ctx -> placesDrop(ctx,
                                                                 StringArgumentType.getString(ctx, "kind"),
                                                                 BlockPosArgument.getLoadedBlockPos(ctx, "at"))))));
     }
@@ -264,14 +262,15 @@ public final class AgentCommands {
      * The resolved agent's claims, personal, shared and communal alike, across every registered
      * {@link PoiKind} — the claims-tier counterpart to {@code knowledge}'s sightings dump.
      */
-    private static int placesShow(CommandSourceStack source, @Nullable String token) {
+    private static int placesShow(CommandContext<CommandSourceStack> ctx, @Nullable String token) {
+        CommandSourceStack source = ctx.getSource();
         MinecraftServer server = source.getServer();
         AgentId who;
         if (token != null) {
-            who = resolveDirectory(source, token);
+            who = Subject.directoryId(source, token);
             if (who == null) return 0;
         } else {
-            AgentBody body = resolveBody(source);
+            AgentBody body = Subject.body(ctx);
             if (body == null) return 0;
             who = body.agentId();
             if (who == null) {
@@ -311,8 +310,9 @@ public final class AgentCommands {
      * replaces rather than refuses, exactly as {@code party join} stands in for the group-up
      * handshake until a real one exists.
      */
-    private static int placesFound(CommandSourceStack source, String kindKey, BlockPos at) {
-        AgentBody body = resolveBody(source);
+    private static int placesFound(CommandContext<CommandSourceStack> ctx, String kindKey, BlockPos at) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody body = Subject.body(ctx);
         if (body == null) return 0;
         AgentId who = body.agentId();
         if (who == null) {
@@ -339,8 +339,9 @@ public final class AgentCommands {
      * The dev stand-in for the probe correction: forgets {@code at} when the resolved agent may see
      * it, refusing a claim that is not theirs to drop.
      */
-    private static int placesDrop(CommandSourceStack source, String kindKey, BlockPos at) {
-        AgentBody body = resolveBody(source);
+    private static int placesDrop(CommandContext<CommandSourceStack> ctx, String kindKey, BlockPos at) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody body = Subject.body(ctx);
         if (body == null) return 0;
         AgentId who = body.agentId();
         if (who == null) {
@@ -384,18 +385,18 @@ public final class AgentCommands {
         return Commands.literal("store")
                                 .then(Commands.literal("put")
                                         .then(Commands.argument("item", ItemArgument.item(registryAccess))
-                                                .executes(ctx -> storeTransfer(ctx.getSource(), true,
+                                                .executes(ctx -> storeTransfer(ctx, true,
                                                         ItemArgument.getItem(ctx, "item"), 1))
                                                 .then(Commands.argument("count", IntegerArgumentType.integer(1))
-                                                        .executes(ctx -> storeTransfer(ctx.getSource(), true,
+                                                        .executes(ctx -> storeTransfer(ctx, true,
                                                                 ItemArgument.getItem(ctx, "item"),
                                                                 IntegerArgumentType.getInteger(ctx, "count"))))))
                                 .then(Commands.literal("take")
                                         .then(Commands.argument("item", ItemArgument.item(registryAccess))
-                                                .executes(ctx -> storeTransfer(ctx.getSource(), false,
+                                                .executes(ctx -> storeTransfer(ctx, false,
                                                         ItemArgument.getItem(ctx, "item"), 1))
                                                 .then(Commands.argument("count", IntegerArgumentType.integer(1))
-                                                        .executes(ctx -> storeTransfer(ctx.getSource(), false,
+                                                        .executes(ctx -> storeTransfer(ctx, false,
                                                                 ItemArgument.getItem(ctx, "item"),
                                                                 IntegerArgumentType.getInteger(ctx, "count"))))));
     }
@@ -406,9 +407,10 @@ public final class AgentCommands {
      * (see {@link #store}). Reach is checked BEFORE anything is installed: the primitive's own OPEN
      * phase would otherwise fail a tick later with nothing to tell the operator why.
      */
-    private static int storeTransfer(CommandSourceStack source, boolean put, ItemInput item, int count)
+    private static int storeTransfer(CommandContext<CommandSourceStack> ctx, boolean put, ItemInput item, int count)
             throws CommandSyntaxException {
-        AgentBody person = resolveBody(source);
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         AgentId who = person.agentId();
         if (who == null) {
@@ -455,12 +457,12 @@ public final class AgentCommands {
         return Commands.literal("nav")
                                 .then(Commands.literal("goto")
                                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
-                                                .executes(ctx -> navGoto(ctx.getSource(),
+                                                .executes(ctx -> navGoto(ctx,
                                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                                 .then(Commands.literal("stop")
-                                        .executes(ctx -> navStop(ctx.getSource())))
+                                        .executes(ctx -> navStop(ctx)))
                                 .then(Commands.literal("status")
-                                        .executes(ctx -> navStatus(ctx.getSource())))
+                                        .executes(ctx -> navStatus(ctx)))
                                 .then(NavDump.node());
     }
 
@@ -485,20 +487,20 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> follow() {
         return Commands.literal("follow")
-                                .executes(ctx -> followMe(ctx.getSource()))
+                                .executes(ctx -> followMe(ctx))
                                 // Literals, so they beat a player named stop/list — reach one of
                                 // those with a selector (@p[name=stop]), the way `select` does.
                                 .then(Commands.literal("stop")
-                                        .executes(ctx -> followStop(ctx.getSource())))
+                                        .executes(ctx -> followStop(ctx)))
                                 .then(Commands.literal("list")
                                         .executes(ctx -> followList(ctx.getSource())))
                                 .then(Commands.argument("target", EntityArgument.entity())
-                                        .executes(ctx -> followTarget(ctx.getSource(),
+                                        .executes(ctx -> followTarget(ctx,
                                                 EntityArgument.getEntity(ctx, "target"),
                                                 Escorts.DEFAULT_NEAR, Escorts.DEFAULT_FAR))
                                         .then(Commands.argument("near", DoubleArgumentType.doubleArg(0.0))
                                                 .then(Commands.argument("far", DoubleArgumentType.doubleArg(0.0))
-                                                        .executes(ctx -> followTarget(ctx.getSource(),
+                                                        .executes(ctx -> followTarget(ctx,
                                                                 EntityArgument.getEntity(ctx, "target"),
                                                                 DoubleArgumentType.getDouble(ctx, "near"),
                                                                 DoubleArgumentType.getDouble(ctx, "far"))))));
@@ -636,36 +638,36 @@ public final class AgentCommands {
         return Commands.literal("brain")
                                 .then(Commands.literal("goto")
                                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
-                                                .executes(ctx -> brainGoto(ctx.getSource(),
+                                                .executes(ctx -> brainGoto(ctx,
                                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                                 .then(Commands.literal("eat")
-                                        .executes(ctx -> brainEat(ctx.getSource())))
+                                        .executes(ctx -> brainEat(ctx)))
                                 .then(Commands.literal("hail")
-                                        .executes(ctx -> brainHail(ctx.getSource())))
+                                        .executes(ctx -> brainHail(ctx)))
                                 .then(Commands.literal("break")
                                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
-                                                .executes(ctx -> brainBreak(ctx.getSource(),
+                                                .executes(ctx -> brainBreak(ctx,
                                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                                 .then(Commands.literal("status")
-                                        .executes(ctx -> brainStatus(ctx.getSource())))
+                                        .executes(ctx -> brainStatus(ctx)))
                                 .then(Commands.literal("cancel")
-                                        .executes(ctx -> brainCancel(ctx.getSource())))
+                                        .executes(ctx -> brainCancel(ctx)))
                                 // The autonomy switch — spawns start ON. Bare, it READS the
                                 // switch rather than flipping it (see the note on toggles below).
                                 .then(Commands.literal("auto")
-                                        .executes(ctx -> brainAutoShow(ctx.getSource()))
+                                        .executes(ctx -> brainAutoShow(ctx))
                                         .then(Commands.literal("true")
-                                                .executes(ctx -> brainAuto(ctx.getSource(), true)))
+                                                .executes(ctx -> brainAuto(ctx, true)))
                                         .then(Commands.literal("false")
-                                                .executes(ctx -> brainAuto(ctx.getSource(), false))))
+                                                .executes(ctx -> brainAuto(ctx, false))))
                                 // The wander mute — one drive off, the brain otherwise whole.
                                 // Bare, it READS the switch, same as `auto`.
                                 .then(Commands.literal("wander")
-                                        .executes(ctx -> brainWanderShow(ctx.getSource()))
+                                        .executes(ctx -> brainWanderShow(ctx))
                                         .then(Commands.literal("true")
-                                                .executes(ctx -> brainWander(ctx.getSource(), true)))
+                                                .executes(ctx -> brainWander(ctx, true)))
                                         .then(Commands.literal("false")
-                                                .executes(ctx -> brainWander(ctx.getSource(), false))));
+                                                .executes(ctx -> brainWander(ctx, false))));
     }
 
     /**
@@ -676,7 +678,7 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> think() {
         return Commands.literal("think")
-                                .executes(ctx -> thinkToggle(ctx.getSource()));
+                                .executes(ctx -> thinkToggle(ctx));
     }
 
     /**
@@ -687,9 +689,9 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> log() {
         return Commands.literal("log")
-                                .executes(ctx -> logDump(ctx.getSource(), null, DEFAULT_LOG_COUNT))
+                                .executes(ctx -> logDump(ctx, null, DEFAULT_LOG_COUNT))
                                 .then(Commands.argument("count", IntegerArgumentType.integer(1))
-                                        .executes(ctx -> logDump(ctx.getSource(), null,
+                                        .executes(ctx -> logDump(ctx, null,
                                                 IntegerArgumentType.getInteger(ctx, "count"))))
                                 .then(logCategory("brain", Category.BRAIN))
                                 .then(logCategory("pathfind", Category.PATHFIND))
@@ -723,13 +725,13 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> knowledge() {
         return Commands.literal("knowledge")
-                                .executes(ctx -> knowledgeList(ctx.getSource()))
+                                .executes(ctx -> knowledgeList(ctx))
                                 .then(Commands.literal("view")
-                                        .executes(ctx -> knowledgeViewShow(ctx.getSource()))
+                                        .executes(ctx -> knowledgeViewShow(ctx))
                                         .then(Commands.literal("true")
-                                                .executes(ctx -> knowledgeView(ctx.getSource(), true)))
+                                                .executes(ctx -> knowledgeView(ctx, true)))
                                         .then(Commands.literal("false")
-                                                .executes(ctx -> knowledgeView(ctx.getSource(), false))));
+                                                .executes(ctx -> knowledgeView(ctx, false))));
     }
 
     /** Who they can currently perceive. */
@@ -752,7 +754,7 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> horizon() {
         return Commands.literal("horizon")
-                                .executes(ctx -> horizonShow(ctx.getSource()));
+                                .executes(ctx -> horizonShow(ctx));
     }
 
     /**
@@ -769,14 +771,15 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> survey() {
         return Commands.literal("survey")
-                .executes(ctx -> surveyNow(ctx.getSource()));
+                .executes(ctx -> surveyNow(ctx));
     }
 
     /** How many reads one hand-driven survey may spend before it gives up and says so. */
     private static final int SURVEY_READ_CAP = 400_000;
 
-    private static int surveyNow(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int surveyNow(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         String name = person.entity().getName().getString();
         Pos feet = new Pos(person.entity().blockPosition().getX(),
@@ -816,8 +819,9 @@ public final class AgentCommands {
     }
 
     /** The skyline as a line of text — how much of it is swept, and what it is topped by. */
-    private static int horizonShow(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int horizonShow(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         String name = person.entity().getName().getString();
         int radius = HorizonScanner.radius(person.profile());
@@ -862,7 +866,7 @@ public final class AgentCommands {
 
     public static LiteralArgumentBuilder<CommandSourceStack> claims() {
         return Commands.literal("claims")
-                                .executes(ctx -> claimsShow(ctx.getSource()));
+                                .executes(ctx -> claimsShow(ctx));
     }
 
     /**
@@ -879,33 +883,33 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> needs() {
         return Commands.literal("needs")
-                                .executes(ctx -> needsShow(ctx.getSource()))
+                                .executes(ctx -> needsShow(ctx))
                                 .then(Commands.literal("food")
                                         .then(Commands.argument("food",
                                                         IntegerArgumentType.integer(0, Metabolism.MAX_FOOD))
-                                                .executes(ctx -> setFood(ctx.getSource(),
+                                                .executes(ctx -> setFood(ctx,
                                                         IntegerArgumentType.getInteger(ctx, "food"), 0.0F))
                                                 .then(Commands.argument("saturation",
                                                                 FloatArgumentType.floatArg(0.0F, Metabolism.MAX_FOOD))
-                                                        .executes(ctx -> setFood(ctx.getSource(),
+                                                        .executes(ctx -> setFood(ctx,
                                                                 IntegerArgumentType.getInteger(ctx, "food"),
                                                                 FloatArgumentType.getFloat(ctx, "saturation"))))))
                                 .then(Commands.literal("company")
                                         .then(Commands.argument("level",
                                                         DoubleArgumentType.doubleArg(0.0, 1.0))
-                                                .executes(ctx -> setCompany(ctx.getSource(),
+                                                .executes(ctx -> setCompany(ctx,
                                                         DoubleArgumentType.getDouble(ctx, "level")))));
     }
 
     public static LiteralArgumentBuilder<CommandSourceStack> peers() {
         return Commands.literal("peers")
-                                .executes(ctx -> peersList(ctx.getSource()))
+                                .executes(ctx -> peersList(ctx))
                                 .then(Commands.literal("view")
-                                        .executes(ctx -> peersViewShow(ctx.getSource()))
+                                        .executes(ctx -> peersViewShow(ctx))
                                         .then(Commands.literal("true")
-                                                .executes(ctx -> peersView(ctx.getSource(), true)))
+                                                .executes(ctx -> peersView(ctx, true)))
                                         .then(Commands.literal("false")
-                                                .executes(ctx -> peersView(ctx.getSource(), false))));
+                                                .executes(ctx -> peersView(ctx, false))));
     }
 
 
@@ -925,25 +929,25 @@ public final class AgentCommands {
                         ProfileAspect.all().stream()
                                 .map(ProfileAspect::key).toList(), builder);
         return Commands.literal("profile")
-                                .executes(ctx -> profileShow(ctx.getSource(), null))
+                                .executes(ctx -> profileShow(ctx, null))
                                 .then(Commands.literal("all")
-                                        .executes(ctx -> profileAll(ctx.getSource())))
+                                        .executes(ctx -> profileAll(ctx)))
                                 // The only way to exercise the modifier stack until something
                                 // grows real jobs and traits: shift one aspect under a fixed id,
                                 // or drop it again. A hand on the machinery, not a game mechanic.
                                 .then(Commands.literal("debug")
                                         .then(Commands.literal("clear")
-                                                .executes(ctx -> profileDebugClear(ctx.getSource())))
+                                                .executes(ctx -> profileDebugClear(ctx)))
                                         .then(Commands.argument("aspect", StringArgumentType.string())
                                                 .suggests(aspects)
                                                 .then(Commands.argument("amount",
                                                                 DoubleArgumentType.doubleArg())
-                                                        .executes(ctx -> profileDebug(ctx.getSource(),
+                                                        .executes(ctx -> profileDebug(ctx,
                                                                 StringArgumentType.getString(ctx, "aspect"),
                                                                 DoubleArgumentType.getDouble(ctx, "amount"))))))
                                 .then(Commands.argument("aspect", StringArgumentType.string())
                                         .suggests(aspects)
-                                        .executes(ctx -> profileShow(ctx.getSource(),
+                                        .executes(ctx -> profileShow(ctx,
                                                 StringArgumentType.getString(ctx, "aspect"))));
     }
 
@@ -951,8 +955,9 @@ public final class AgentCommands {
     private static final String DEBUG_MODIFIER = "debug";
 
     /** Shifts one aspect on the resolved agent by a flat amount, under the debug id. */
-    private static int profileDebug(CommandSourceStack source, String aspectKey, double amount) {
-        AgentBody person = resolveBody(source);
+    private static int profileDebug(CommandContext<CommandSourceStack> ctx, String aspectKey, double amount) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         ProfileAspect aspect = ProfileAspect.byKey(aspectKey).orElse(null);
         if (aspect == null) {
@@ -973,8 +978,9 @@ public final class AgentCommands {
     }
 
     /** Drops every {@code profile debug} shift on the resolved agent. */
-    private static int profileDebugClear(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int profileDebugClear(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         boolean removed = person.modifiers() != AgentModifiers.NONE
                 && person.modifiers().remove(DEBUG_MODIFIER);
@@ -987,8 +993,9 @@ public final class AgentCommands {
     }
 
     /** Bare: only what differs from the species. With an aspect: that one, in full. */
-    private static int profileShow(CommandSourceStack source, String aspectKey) {
-        AgentBody person = resolveBody(source);
+    private static int profileShow(CommandContext<CommandSourceStack> ctx, String aspectKey) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         AgentProfile profile = person.profile();
         String name = person.entity().getName().getString();
@@ -1034,8 +1041,9 @@ public final class AgentCommands {
     }
 
     /** Every aspect, grouped by section — "what is this agent running", in full. */
-    private static int profileAll(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int profileAll(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         AgentProfile profile = person.profile();
         Replies.send(source, () -> Component.translatable("anima.command.profile.species",
@@ -1102,20 +1110,20 @@ public final class AgentCommands {
     public static LiteralArgumentBuilder<CommandSourceStack> inv(CommandBuildContext registryAccess) {
         return Commands.literal("inv")
                                 .then(Commands.literal("list")
-                                        .executes(ctx -> invList(ctx.getSource())))
+                                        .executes(ctx -> invList(ctx)))
                                 .then(Commands.literal("clear")
-                                        .executes(ctx -> invClear(ctx.getSource())))
+                                        .executes(ctx -> invClear(ctx)))
                                 .then(Commands.literal("give")
                                         .then(Commands.argument("item", ItemArgument.item(registryAccess))
-                                                .executes(ctx -> invGive(ctx.getSource(),
+                                                .executes(ctx -> invGive(ctx,
                                                         ItemArgument.getItem(ctx, "item"), 1))
                                                 .then(Commands.argument("count", IntegerArgumentType.integer(1))
-                                                        .executes(ctx -> invGive(ctx.getSource(),
+                                                        .executes(ctx -> invGive(ctx,
                                                                 ItemArgument.getItem(ctx, "item"),
                                                                 IntegerArgumentType.getInteger(ctx, "count"))))))
                                 .then(Commands.literal("equip")
                                         .then(Commands.argument("item", ItemArgument.item(registryAccess))
-                                                .executes(ctx -> invEquip(ctx.getSource(),
+                                                .executes(ctx -> invEquip(ctx,
                                                         ItemArgument.getItem(ctx, "item")))));
     }
 
@@ -1127,8 +1135,9 @@ public final class AgentCommands {
             EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND,
             EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET);
 
-    private static int navGoto(CommandSourceStack source, BlockPos pos) {
-        AgentBody person = resolveBody(source);
+    private static int navGoto(CommandContext<CommandSourceStack> ctx, BlockPos pos) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         person.navigateTo(Vec3.atBottomCenterOf(pos));
         Replies.send(source, () -> Component.translatable("anima.command.nav.goto",
@@ -1136,8 +1145,9 @@ public final class AgentCommands {
         return 1;
     }
 
-    private static int navStop(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int navStop(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         person.navigator().stop();
         Replies.send(source, () -> Component.translatable("anima.command.nav.stopped",
@@ -1145,8 +1155,9 @@ public final class AgentCommands {
         return 1;
     }
 
-    private static int navStatus(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int navStatus(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         // The swimmer's state rides along with the follower's, and only when it has something to
         // say: every water bug this pair produced was the two disagreeing about what the body was
@@ -1169,12 +1180,13 @@ public final class AgentCommands {
     }
 
     /** Bare {@code follow}: the player who typed it is the one to follow. */
-    private static int followMe(CommandSourceStack source) {
+    private static int followMe(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
         if (!(source.getEntity() instanceof ServerPlayer player)) {
             Replies.fail(source, Component.translatable("anima.command.follow.whom"));
             return 0;
         }
-        return followTarget(source, player, Escorts.DEFAULT_NEAR, Escorts.DEFAULT_FAR);
+        return followTarget(ctx, player, Escorts.DEFAULT_NEAR, Escorts.DEFAULT_FAR);
     }
 
     /**
@@ -1183,9 +1195,10 @@ public final class AgentCommands {
      * legs first (see {@link AgentCommands#follow()}): a running task is cancelled and autonomy
      * switched off, or the arbiter would drive over the escort within the half-second.
      */
-    private static int followTarget(CommandSourceStack source, Entity target,
+    private static int followTarget(CommandContext<CommandSourceStack> ctx, Entity target,
             double near, double far) {
-        AgentBody person = resolveBody(source);
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
@@ -1229,8 +1242,9 @@ public final class AgentCommands {
     }
 
     /** Calls the resolved agent's follow order off — the legs stop where they are. */
-    private static int followStop(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int followStop(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
@@ -1281,8 +1295,9 @@ public final class AgentCommands {
 
     /** Runs a {@link GoTo} task on the resolved Person through the brain's executor — same walk
      *  as {@link #navGoto}, but through the task machinery, so the whole pipeline is exercised. */
-    private static int brainGoto(CommandSourceStack source, BlockPos pos) {
-        AgentBody person = resolveBody(source);
+    private static int brainGoto(CommandContext<CommandSourceStack> ctx, BlockPos pos) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         boolean autoDisabled = person.brain().run(new GoTo(pos.getX(), pos.getY(), pos.getZ()));
         Component suffix = autoDisabledNote(autoDisabled);
@@ -1294,8 +1309,9 @@ public final class AgentCommands {
 
     /** Runs a {@link BreakBlock} on the resolved Person — the working arm's debug leaf (slice-2
      *  ladder step 1): reach-checked, vanilla break time for the held stack, real drops. */
-    private static int brainBreak(CommandSourceStack source, BlockPos pos) {
-        AgentBody person = resolveBody(source);
+    private static int brainBreak(CommandContext<CommandSourceStack> ctx, BlockPos pos) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         boolean autoDisabled = person.brain().run(new BreakBlock(pos.getX(), pos.getY(), pos.getZ()));
         Component suffix = autoDisabledNote(autoDisabled);
@@ -1311,8 +1327,9 @@ public final class AgentCommands {
      * player; from the console they broadcast (and land in the server log). That is what
      * makes the toggle usable headlessly.
      */
-    private static int peersView(CommandSourceStack source, boolean on) {
-        AgentBody person = resolveBody(source);
+    private static int peersView(CommandContext<CommandSourceStack> ctx, boolean on) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
@@ -1338,8 +1355,9 @@ public final class AgentCommands {
     }
 
     /** {@code peers view} with no {@code true|false}: who, if anyone, hears the narration. */
-    private static int peersViewShow(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int peersViewShow(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
@@ -1383,8 +1401,9 @@ public final class AgentCommands {
      * — for a gauge whose number has parts — the {@code because:} block itemising them. All of it
      * without knowing what any of them are.
      */
-    private static int needsShow(CommandSourceStack source) {
-        AgentBody body = resolveBody(source);
+    private static int needsShow(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody body = Subject.body(ctx);
         if (body == null) return 0;
         String name = body.entity().getName().getString();
         Collection<Gauge> gauges = body.needs().all();
@@ -1425,8 +1444,9 @@ public final class AgentCommands {
      * <p>Reaches for the ORGAN, not the gauge, as every need setter will: {@code need.food} is a
      * view, so there is no level here to write.
      */
-    private static int setFood(CommandSourceStack source, int food, float saturation) {
-        AgentBody body = resolveBody(source);
+    private static int setFood(CommandContext<CommandSourceStack> ctx, int food, float saturation) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody body = Subject.body(ctx);
         if (body == null) return 0;
         Metabolism metabolism = body.metabolism();
         metabolism.setFoodLevel(food);
@@ -1444,8 +1464,9 @@ public final class AgentCommands {
      * Sets the resolved body's company level directly — the dev knob for staging a lonely settler
      * without leaving one alone for two in-game days. LOGGED for the same reason as the food one.
      */
-    private static int setCompany(CommandSourceStack source, double level) {
-        AgentBody body = resolveBody(source);
+    private static int setCompany(CommandContext<CommandSourceStack> ctx, double level) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody body = Subject.body(ctx);
         if (body == null) return 0;
         Optional<Company> gauge = body.needs().gauge(NeedKind.COMPANY, Company.class);
         if (gauge.isEmpty()) {
@@ -1461,8 +1482,9 @@ public final class AgentCommands {
         return 1;
     }
 
-    private static int peersList(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int peersList(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         List<Being> beings = person.brain().percepts().beings();
         String name = person.entity().getName().getString();
@@ -1492,8 +1514,9 @@ public final class AgentCommands {
 
     /** Runs {@link SatisfyHunger} on the resolved Person — the first COMPOUND task, and the
      *  machinery the Eat instinct also drives (autonomously) via the arbiter. */
-    private static int brainEat(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int brainEat(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         boolean autoDisabled = person.brain().run(new SatisfyHunger());
         Component suffix = autoDisabledNote(autoDisabled);
@@ -1511,8 +1534,9 @@ public final class AgentCommands {
      * target parameter exists to stamp a per-target "already called that one" mark, and a staging
      * order has nobody in mind — stamping here would suppress a later genuine hail at that target.
      */
-    private static int brainHail(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int brainHail(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         BeingHails.hailed(person.entity());
         Replies.send(source, () -> Component.translatable("anima.command.brain.hailed",
@@ -1520,8 +1544,9 @@ public final class AgentCommands {
         return 1;
     }
 
-    private static int brainStatus(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int brainStatus(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         Replies.send(source, () -> Component.translatable("anima.command.state",
                 person.entity().getName(), person.brain().describe())
@@ -1529,8 +1554,9 @@ public final class AgentCommands {
         return 1;
     }
 
-    private static int brainCancel(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int brainCancel(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         person.brain().cancel();
         Replies.send(source, () -> Component.translatable("anima.command.brain.cancelled",
@@ -1541,8 +1567,9 @@ public final class AgentCommands {
 
     /** Flips the resolved Person's autonomy switch and echoes the new describe() line (now
      *  reporting auto|manual up front). */
-    private static int brainAuto(CommandSourceStack source, boolean auto) {
-        AgentBody person = resolveBody(source);
+    private static int brainAuto(CommandContext<CommandSourceStack> ctx, boolean auto) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         person.brain().setAuto(auto);
         Replies.send(source, () -> Component.translatable("anima.command.state",
@@ -1554,8 +1581,9 @@ public final class AgentCommands {
     /** {@code brain auto} with no {@code true|false}: reads the switch instead of flipping it. */
     /** Toggle the thinking-out-loud chat channel for the resolved Person — see
      *  {@link ThoughtBroadcast}. */
-    private static int thinkToggle(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int thinkToggle(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         boolean on = ThoughtBroadcast.toggle(person.agentId());
         Replies.send(source, () -> Component.literal(person.entity().getName().getString()
@@ -1564,8 +1592,9 @@ public final class AgentCommands {
         return 1;
     }
 
-    private static int brainAutoShow(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int brainAutoShow(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         boolean auto = person.brain().isAuto();
         Replies.send(source, () -> Component.translatable(auto
@@ -1577,8 +1606,9 @@ public final class AgentCommands {
 
     /** Mutes or unmutes the resolved agent's idle wander drive and echoes the new brain readout —
      *  the pressure line then reads {@code wander (muted) 0.00}. */
-    private static int brainWander(CommandSourceStack source, boolean wander) {
-        AgentBody person = resolveBody(source);
+    private static int brainWander(CommandContext<CommandSourceStack> ctx, boolean wander) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         person.brain().setWander(wander);
         Replies.send(source, () -> Component.translatable("anima.command.state",
@@ -1588,8 +1618,9 @@ public final class AgentCommands {
     }
 
     /** {@code brain wander} with no {@code true|false}: reads the mute instead of flipping it. */
-    private static int brainWanderShow(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int brainWanderShow(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         boolean wander = person.brain().isWander();
         Replies.send(source, () -> Component.translatable(wander
@@ -1614,9 +1645,9 @@ public final class AgentCommands {
     /** A {@code log <category>} branch: dumps only that subsystem's lines (optionally a count). */
     private static LiteralArgumentBuilder<CommandSourceStack> logCategory(String name, Category category) {
         return Commands.literal(name)
-                .executes(ctx -> logDump(ctx.getSource(), category, DEFAULT_LOG_COUNT))
+                .executes(ctx -> logDump(ctx, category, DEFAULT_LOG_COUNT))
                 .then(Commands.argument("count", IntegerArgumentType.integer(1))
-                        .executes(ctx -> logDump(ctx.getSource(), category,
+                        .executes(ctx -> logDump(ctx, category,
                                 IntegerArgumentType.getInteger(ctx, "count"))));
     }
 
@@ -1636,8 +1667,9 @@ public final class AgentCommands {
      * <em>loaded</em>) Person — the common case. {@code log for <name|id>} ({@link #logFor}) is the
      * variant that reaches an unloaded one.
      */
-    private static int logDump(CommandSourceStack source, @Nullable Category category, int count) {
-        AgentBody person = resolveBody(source);
+    private static int logDump(CommandContext<CommandSourceStack> ctx, @Nullable Category category, int count) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
@@ -1649,12 +1681,12 @@ public final class AgentCommands {
 
     /**
      * Dumps the journal of the person the {@code token} names — resolved against the whole
-     * {@link PersonDirectory} ({@link #resolveDirectory}), so it reaches a person whose entity is
+     * {@link PersonDirectory} ({@link Subject#directoryId}), so it reaches a person whose entity is
      * unloaded (or never spawned): the ring is {@code AgentId}-keyed and outlives the entity. The
      * readout is tagged {@code (not loaded)} when there is no live entity, so a ghost's log reads as one.
      */
     private static int logFor(CommandSourceStack source, String token, @Nullable Category category, int count) {
-        AgentId id = resolveDirectory(source, token);
+        AgentId id = Subject.directoryId(source, token);
         if (id == null) return 0;
         MinecraftServer server = source.getServer();
         String name = label(server, id);
@@ -1693,40 +1725,6 @@ public final class AgentCommands {
         return lines.size();
     }
 
-    /**
-     * Resolves a {@code name|id} token against everyone {@link #nameable} — the whole directory
-     * (every registered agent, loaded or not) and the online players — to a single {@link AgentId},
-     * or {@code null} (having reported why). An id or short-id prefix is tried first, then a
-     * case-insensitive name. Names are not unique and there is no "nearest" for an unloaded agent,
-     * so an ambiguous name is a hard failure listing the candidates' short-ids — a Person sharing a
-     * player's name lands there too.
-     */
-    private static @Nullable AgentId resolveDirectory(CommandSourceStack source, String rawToken) {
-        String token = rawToken.trim();
-        String lower = token.toLowerCase(Locale.ROOT);
-        Map<AgentId, String> all = nameable(source.getServer());
-        List<AgentId> matches = all.keySet().stream()
-                .filter(id -> id.toString().toLowerCase(Locale.ROOT).startsWith(lower))
-                .toList();
-        if (matches.isEmpty()) {
-            matches = all.entrySet().stream()
-                    .filter(e -> e.getValue().equalsIgnoreCase(token))
-                    .map(Map.Entry::getKey)
-                    .toList();
-        }
-        if (matches.isEmpty()) {
-            Replies.fail(source, Component.translatable("anima.command.no_match", token));
-            return null;
-        }
-        if (matches.size() > 1) {
-            String ids = matches.stream().map(AgentCommands::shortId)
-                    .collect(java.util.stream.Collectors.joining(", "));
-            Replies.fail(source, Component.translatable("anima.command.ambiguous_name",
-                    matches.size(), token, ids));
-            return null;
-        }
-        return matches.get(0);
-    }
 
     /** One journal line, the {@code Bob - pathfind - target(…) - success N nodes} shape, tick-prefixed. */
     private static String formatLine(String name, Entry entry) {
@@ -1747,7 +1745,8 @@ public final class AgentCommands {
      * ignores it, and printing it would invent a state nobody can act on. Ordered by how soon each
      * dies, so the thing about to change is at the top.
      */
-    private static int claimsShow(CommandSourceStack source) {
+    private static int claimsShow(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
         MinecraftServer server = source.getServer();
         long now = server.overworld().getGameTime();
         List<SiteClaims.Held> sites = Claims.of(server).held(now);
@@ -1766,7 +1765,7 @@ public final class AgentCommands {
                         .withStyle(ChatFormatting.GRAY)));
             }
         }
-        AgentBody person = resolveBody(source);
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 1; // the site half stands on its own; no agent, no lease half
         String name = person.entity().getName().getString();
         List<WorkLease> leases = person.brain().leases();
@@ -1790,8 +1789,9 @@ public final class AgentCommands {
      * Beliefs, not world state: a listed grove may already be chopped (that is the staleness
      * the store is designed around), and "claimed blocks" is the transient dismissal index.
      */
-    private static int knowledgeList(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int knowledgeList(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
@@ -1964,8 +1964,9 @@ public final class AgentCommands {
      * bounds corner, and discovery chat routed to the toggling player (which is why "true" needs
      * a player source; "false" works from anywhere).
      */
-    private static int knowledgeView(CommandSourceStack source, boolean on) {
-        AgentBody person = resolveBody(source);
+    private static int knowledgeView(CommandContext<CommandSourceStack> ctx, boolean on) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
@@ -1999,8 +2000,9 @@ public final class AgentCommands {
      * whose. Unlike switching it on, asking works from the console — the answer is a chat line
      * here, not particles over there.
      */
-    private static int knowledgeViewShow(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int knowledgeViewShow(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         AgentId id = person.agentId();
         if (id == null) {
@@ -2032,8 +2034,9 @@ public final class AgentCommands {
     }
 
     /** Prints every non-empty slot of the resolved Person's inventory (storage + equipment). */
-    private static int invList(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int invList(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         List<Inventory.Entry> occupied = person.inventory().occupied();
         if (occupied.isEmpty()) {
@@ -2053,9 +2056,10 @@ public final class AgentCommands {
     }
 
     /** Adds {@code count} of the given item to the resolved Person, reporting anything that didn't fit. */
-    private static int invGive(CommandSourceStack source, ItemInput input, int count)
+    private static int invGive(CommandContext<CommandSourceStack> ctx, ItemInput input, int count)
             throws CommandSyntaxException {
-        AgentBody person = resolveBody(source);
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         // A count-1 template never trips the item argument's stack-size guard; the real count is set
         // in the core layer, which splits it across slots at the item's own cap. Components (from any
@@ -2081,8 +2085,9 @@ public final class AgentCommands {
      * piece it displaces to storage. The brain-less driver for wearing gear — like
      * {@code nav goto} is for walking.
      */
-    private static int invEquip(CommandSourceStack source, ItemInput input) throws CommandSyntaxException {
-        AgentBody person = resolveBody(source);
+    private static int invEquip(CommandContext<CommandSourceStack> ctx, ItemInput input) throws CommandSyntaxException {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         // The template resolves the kind + its natural slot only; the piece actually equipped is
         // pulled from storage below, so its own components (enchants, damage, …) are preserved.
@@ -2114,8 +2119,9 @@ public final class AgentCommands {
         return 1;
     }
 
-    private static int invClear(CommandSourceStack source) {
-        AgentBody person = resolveBody(source);
+    private static int invClear(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         person.inventory().clear();
         Replies.send(source, () -> Component.translatable("anima.command.inv.cleared",
@@ -2134,48 +2140,7 @@ public final class AgentCommands {
         return "offhand";
     }
 
-    /** The nearest live agent body of any kind — the generic half of the resolve ladder. */
-    private static @Nullable AgentBody nearestBody(CommandSourceStack source) {
-        ServerLevel level = source.getLevel();
-        Vec3 origin = source.getPosition();
-        AABB box = AABB.ofSize(origin, NEAREST_RADIUS * 2, NEAREST_RADIUS * 2, NEAREST_RADIUS * 2);
-        AgentBody nearest = level.getEntitiesOfClass(LivingEntity.class, box,
-                        e -> e.isAlive() && e instanceof AgentBody).stream()
-                .min((a, b) -> Double.compare(a.distanceToSqr(origin), b.distanceToSqr(origin)))
-                .map(AgentBody.class::cast)
-                .orElse(null);
-        if (nearest == null) {
-            Replies.fail(source, Component.translatable("anima.command.select.nobody_near",
-                    (int) NEAREST_RADIUS));
-        }
-        return nearest;
-    }
 
-    /**
-     * The target for an agent-scoped command, in precedence order: the body this command runs
-     * <em>as</em>, else the source's selection, else the nearest body. Reports the reason and returns
-     * {@code null} when nothing resolves.
-     */
-    /** Public: a consuming mod's own subcommands resolve their target the same way. */
-    public static @Nullable AgentBody resolveBody(CommandSourceStack source) {
-        if (source.getEntity() instanceof AgentBody self) {
-            if (!self.entity().isAlive()) {
-                Replies.fail(source, Component.translatable("anima.command.select.dead",
-                        self.entity().getName()));
-                return null;
-            }
-            return self;
-        }
-        Optional<AgentId> selection = AgentSelection.selected(source);
-        if (selection.isEmpty()) return nearestBody(source);
-        AgentId id = selection.get();
-        AgentBody live = AgentBodies.findLoaded(source.getServer(), id);
-        if (live == null) {
-            Replies.fail(source, Component.translatable("anima.command.select.not_loaded",
-                    label(source.getServer(), id)));
-        }
-        return live;
-    }
 
     private static final SuggestionProvider<CommandSourceStack> PERSON_SUGGESTIONS = (ctx, builder) -> {
         MinecraftServer server = ctx.getSource().getServer();
@@ -2191,7 +2156,7 @@ public final class AgentCommands {
         return SharedSuggestionProvider.suggest(tokens, builder);
     };
 
-    /** Suggests every name + short id that {@link #resolveDirectory} accepts — every registered
+    /** Suggests every name + short id that {@link Subject#directoryId} accepts — every registered
      *  agent, loaded or not (so {@code log for} can reach an unloaded person's journal, which
      *  {@code select} cannot), plus the online players a contact book has to be able to name. */
     private static final SuggestionProvider<CommandSourceStack> ALL_PERSON_SUGGESTIONS = (ctx, builder) -> {
@@ -2251,7 +2216,7 @@ public final class AgentCommands {
         Entity self = source.getEntity();
         AgentBody target = self instanceof AgentBody body ? body
                 : self instanceof ServerPlayer player ? lookedAt(player)
-                : nearestBody(source);
+                : Subject.nearest(source);
         if (target == null) {
             if (self instanceof ServerPlayer) {
                 // Looking at nobody clears any current selection — the same as `select clear`.
@@ -2299,15 +2264,15 @@ public final class AgentCommands {
         return loaded ? 1 : 0;
     }
 
-    /** The Person a player's crosshair is on, within {@link #NEAREST_RADIUS}, or {@code null}. */
+    /** The Person a player's crosshair is on, within {@link Subject#NEAREST_RADIUS}, or {@code null}. */
     private static @Nullable AgentBody lookedAt(ServerPlayer player) {
         Vec3 eye = player.getEyePosition();
-        Vec3 far = eye.add(player.getViewVector(1.0F).scale(NEAREST_RADIUS));
-        AABB search = player.getBoundingBox().expandTowards(player.getViewVector(1.0F).scale(NEAREST_RADIUS)).inflate(1.0);
+        Vec3 far = eye.add(player.getViewVector(1.0F).scale(Subject.NEAREST_RADIUS));
+        AABB search = player.getBoundingBox().expandTowards(player.getViewVector(1.0F).scale(Subject.NEAREST_RADIUS)).inflate(1.0);
         EntityHitResult hit = ProjectileUtil.getEntityHitResult(
                 player, eye, far, search,
                 e -> e instanceof AgentBody body && body.entity().isAlive(), // never select a corpse
-                NEAREST_RADIUS * NEAREST_RADIUS);
+                Subject.NEAREST_RADIUS * Subject.NEAREST_RADIUS);
         return hit != null && hit.getEntity() instanceof AgentBody body ? body : null;
     }
 
@@ -2334,7 +2299,7 @@ public final class AgentCommands {
      *
      * <p>Directory first, so a consumer's own record for an id wins over the account behind it.
      */
-    private static Map<AgentId, String> nameable(MinecraftServer server) {
+    static Map<AgentId, String> nameable(MinecraftServer server) {
         Map<AgentId, String> named = new LinkedHashMap<>();
         AgentDirectory.of(server).known().forEach((id, identity) -> named.put(id, identity.name()));
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
@@ -2394,7 +2359,7 @@ public final class AgentCommands {
 
     /** Everyone that Person can name — the omniscient view: a dev tool reads any book. */
     private static int contactsOf(CommandSourceStack source, String token) {
-        AgentId who = resolveDirectory(source, token);
+        AgentId who = Subject.directoryId(source, token);
         return who == null ? 0
                 : printContacts(source, who, Component.translatable(
                         "anima.command.contacts.agent_knows", label(source.getServer(), who)));
@@ -2433,7 +2398,7 @@ public final class AgentCommands {
     private static int contactsMeet(CommandSourceStack source, String token) {
         AgentId self = sourceIdentity(source);
         if (self == null) return 0;
-        AgentId other = resolveDirectory(source, token);
+        AgentId other = Subject.directoryId(source, token);
         if (other == null) return 0;
         MinecraftServer server = source.getServer();
         if (self.equals(other)) {
@@ -2459,7 +2424,7 @@ public final class AgentCommands {
     private static int contactsForget(CommandSourceStack source, String token) {
         AgentId self = sourceIdentity(source);
         if (self == null) return 0;
-        AgentId other = resolveDirectory(source, token);
+        AgentId other = Subject.directoryId(source, token);
         if (other == null) return 0;
         MinecraftServer server = source.getServer();
         if (!ContactData.get(server).forget(self, other)) {
@@ -2500,7 +2465,7 @@ public final class AgentCommands {
 
     /** That agent's party — the omniscient view: a dev tool reads any roster. */
     private static int partyOfAgent(CommandSourceStack source, String token) {
-        AgentId who = resolveDirectory(source, token);
+        AgentId who = Subject.directoryId(source, token);
         if (who == null) return 0;
         MinecraftServer server = source.getServer();
         return printParty(source, PartyData.get(server).partyOf(who),
@@ -2536,7 +2501,7 @@ public final class AgentCommands {
     private static int partyJoin(CommandSourceStack source, String token) {
         AgentId self = sourceIdentity(source);
         if (self == null) return 0;
-        AgentId other = resolveDirectory(source, token);
+        AgentId other = Subject.directoryId(source, token);
         if (other == null) return 0;
         MinecraftServer server = source.getServer();
         if (self.equals(other)) {
@@ -2724,7 +2689,7 @@ public final class AgentCommands {
      * whose entity has not finished despawning.
      */
     private static int graveOf(CommandSourceStack source, String token) {
-        AgentId who = resolveDirectory(source, token);
+        AgentId who = Subject.directoryId(source, token);
         if (who == null) {
             return 0;
         }
