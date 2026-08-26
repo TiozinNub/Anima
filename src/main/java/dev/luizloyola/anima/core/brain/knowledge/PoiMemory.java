@@ -11,9 +11,10 @@ import org.jspecify.annotations.Nullable;
  * so a wrong memory costs a failed step and an update, never a crash.
  *
  * @param kind         what they believe this is
- * @param detail       kind-specific qualifier — the SPECIES for a {@link PoiKind#HERD} ("cow"),
- *                     compared by the store's merge so a cow flock never merges into the sheep
- *                     flock beside it. Empty when nothing needs qualifying.
+ * @param detail       kind-specific qualifier — the SPECIES for a {@link PoiKind#HERD} ("cow") or
+ *                     a {@link PoiKind#TREE} ("minecraft:oak_log"), compared by the store's merge
+ *                     so a cow flock never merges into the sheep flock beside it, nor an oak grove
+ *                     into a birch one. Empty when nothing needs qualifying (WATER, still).
  * @param individual   the entity UUID for a memory of one specific animal (a loner
  *                     {@link PoiKind#HERD} entry), null for aggregates and block POIs.
  *                     World-unique and save-stable, so a wandering pig DRAGS its memory along
@@ -42,7 +43,10 @@ public record PoiMemory(PoiKind kind, String detail, @Nullable UUID individual, 
         }
     }
 
-    /** The detail-free shape every pre-herd kind uses — TREE and WATER qualify nothing. */
+    /**
+     * The detail-free shape — WATER and plain POI kinds never qualify, and a TREE takes this
+     * overload too whenever a test does not care which species grew there.
+     */
     public PoiMemory(PoiKind kind, Pos anchor, Region bounds, int units, boolean partial,
                      long lastSeenTick) {
         this(kind, "", null, anchor, bounds, units, partial, lastSeenTick);
