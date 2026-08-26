@@ -155,15 +155,13 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> select() {
         return Commands.literal("select")
-                                .executes(ctx -> selectHere(ctx.getSource()))
+                                .executes(AgentCommands::selectShowOrSet)
                                 .then(Commands.literal("clear")
                                         .executes(ctx -> selectClear(ctx.getSource())))
-                                .then(Commands.literal("show")
-                                        .executes(ctx -> selectShow(ctx.getSource())))
-                                .then(Commands.argument("person", StringArgumentType.string())
-                                        .suggests(PERSON_SUGGESTIONS)
-                                        .executes(ctx -> selectByToken(ctx.getSource(),
-                                                StringArgumentType.getString(ctx, "person"))));
+                                // `here` is the crosshair pick that bare `select` used to be. Bare
+                                // now READS, like every other group node.
+                                .then(Commands.literal("here")
+                                        .executes(ctx -> selectHere(ctx.getSource())));
     }
 
     /**
@@ -174,24 +172,23 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> contacts() {
         return Commands.literal("contacts")
-                                .executes(ctx -> contactsList(ctx.getSource()))
-                                .then(Commands.literal("of")
-                                        .then(Commands.argument("person", StringArgumentType.string())
-                                                .suggests(ALL_PERSON_SUGGESTIONS)
-                                                .executes(ctx -> contactsOf(ctx.getSource(),
-                                                        StringArgumentType.getString(ctx, "person")))))
+                                .executes(AgentCommands::contactsList)
                                 .then(Commands.literal("meet")
-                                        .then(Commands.argument("person", StringArgumentType.string())
-                                                .suggests(ALL_PERSON_SUGGESTIONS)
-                                                .executes(ctx -> contactsMeet(ctx.getSource(),
-                                                        StringArgumentType.getString(ctx, "person")))))
+                                        // `whom`, not `person`: the reserved name is the SUBJECT's,
+                                        // and two arguments of one name collide in Brigadier's map.
+                                        .then(Commands.argument("whom", StringArgumentType.string())
+                                                .suggests(Subject.suggestions())
+                                                .executes(ctx -> contactsMeet(ctx,
+                                                        StringArgumentType.getString(ctx, "whom")))))
                                 .then(Commands.literal("forget")
-                                        .then(Commands.argument("person", StringArgumentType.string())
-                                                .suggests(ALL_PERSON_SUGGESTIONS)
-                                                .executes(ctx -> contactsForget(ctx.getSource(),
-                                                        StringArgumentType.getString(ctx, "person")))))
+                                        // `whom`, not `person`: the reserved name is the SUBJECT's,
+                                        // and two arguments of one name collide in Brigadier's map.
+                                        .then(Commands.argument("whom", StringArgumentType.string())
+                                                .suggests(Subject.suggestions())
+                                                .executes(ctx -> contactsForget(ctx,
+                                                        StringArgumentType.getString(ctx, "whom")))))
                                 .then(Commands.literal("clear")
-                                        .executes(ctx -> contactsClear(ctx.getSource())));
+                                        .executes(ctx -> contactsClear(ctx)));
     }
 
     /**
@@ -206,19 +203,16 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> party() {
         return Commands.literal("party")
-                                .executes(ctx -> partyList(ctx.getSource()))
-                                .then(Commands.literal("of")
-                                        .then(Commands.argument("person", StringArgumentType.string())
-                                                .suggests(ALL_PERSON_SUGGESTIONS)
-                                                .executes(ctx -> partyOfAgent(ctx.getSource(),
-                                                        StringArgumentType.getString(ctx, "person")))))
+                                .executes(AgentCommands::partyList)
                                 .then(Commands.literal("join")
-                                        .then(Commands.argument("person", StringArgumentType.string())
-                                                .suggests(ALL_PERSON_SUGGESTIONS)
-                                                .executes(ctx -> partyJoin(ctx.getSource(),
-                                                        StringArgumentType.getString(ctx, "person")))))
+                                        // `whom`, not `person`: the reserved name is the SUBJECT's,
+                                        // and two arguments of one name collide in Brigadier's map.
+                                        .then(Commands.argument("whom", StringArgumentType.string())
+                                                .suggests(Subject.suggestions())
+                                                .executes(ctx -> partyJoin(ctx,
+                                                        StringArgumentType.getString(ctx, "whom")))))
                                 .then(Commands.literal("leave")
-                                        .executes(ctx -> partyLeave(ctx.getSource())));
+                                        .executes(ctx -> partyLeave(ctx)));
     }
 
     /**
@@ -231,12 +225,7 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> places() {
         return Commands.literal("places")
-                                .executes(ctx -> placesShow(ctx, null))
-                                .then(Commands.literal("of")
-                                        .then(Commands.argument("person", StringArgumentType.string())
-                                                .suggests(ALL_PERSON_SUGGESTIONS)
-                                                .executes(ctx -> placesShow(ctx,
-                                                        StringArgumentType.getString(ctx, "person")))))
+                                .executes(AgentCommands::placesShow)
                                 .then(Commands.literal("found")
                                         .then(Commands.argument("kind", StringArgumentType.word())
                                                 .suggests(POI_KIND_SUGGESTIONS)
@@ -262,22 +251,11 @@ public final class AgentCommands {
      * The resolved agent's claims, personal, shared and communal alike, across every registered
      * {@link PoiKind} — the claims-tier counterpart to {@code knowledge}'s sightings dump.
      */
-    private static int placesShow(CommandContext<CommandSourceStack> ctx, @Nullable String token) {
+    private static int placesShow(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
         MinecraftServer server = source.getServer();
-        AgentId who;
-        if (token != null) {
-            who = Subject.directoryId(source, token);
-            if (who == null) return 0;
-        } else {
-            AgentBody body = Subject.body(ctx);
-            if (body == null) return 0;
-            who = body.agentId();
-            if (who == null) {
-                Replies.fail(source, Component.translatable("anima.command.not_identified"));
-                return 0;
-            }
-        }
+        AgentId who = Subject.id(ctx);
+        if (who == null) return 0; // already reported
         List<PlaceRow> rows = new ArrayList<>();
         Places places = PlacesData.get(server).places();
         for (PoiKind kind : PoiKind.all()) {
@@ -487,7 +465,11 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> follow() {
         return Commands.literal("follow")
-                                .executes(ctx -> followMe(ctx))
+                                .executes(AgentCommands::followShow)
+                                // The order bare `follow` used to be. Bare now READS, like every
+                                // other group node in the tree.
+                                .then(Commands.literal("me")
+                                        .executes(ctx -> followMe(ctx)))
                                 // Literals, so they beat a player named stop/list — reach one of
                                 // those with a selector (@p[name=stop]), the way `select` does.
                                 .then(Commands.literal("stop")
@@ -697,24 +679,7 @@ public final class AgentCommands {
                                 .then(logCategory("pathfind", Category.PATHFIND))
                                 .then(logCategory("body", Category.BODY))
                                 .then(logCategory("sense", Category.SENSE))
-                                .then(logCategory("project", Category.PROJECT))
-                                // "for <name|id>" reaches any person by directory lookup — including one
-                                // whose entity is unloaded (the ring is AgentId-keyed and outlives the
-                                // entity), which the loaded-only nearest/selected resolve() cannot.
-                                .then(Commands.literal("for")
-                                        .then(Commands.argument("person", StringArgumentType.string())
-                                                .suggests(ALL_PERSON_SUGGESTIONS)
-                                                .executes(ctx -> logFor(ctx.getSource(),
-                                                        StringArgumentType.getString(ctx, "person"),
-                                                        null, DEFAULT_LOG_COUNT))
-                                                .then(Commands.argument("count", IntegerArgumentType.integer(1))
-                                                        .executes(ctx -> logFor(ctx.getSource(),
-                                                                StringArgumentType.getString(ctx, "person"),
-                                                                null, IntegerArgumentType.getInteger(ctx, "count"))))
-                                                .then(logForCategory("brain", Category.BRAIN))
-                                                .then(logForCategory("pathfind", Category.PATHFIND))
-                                                .then(logForCategory("body", Category.BODY))
-                                                .then(logForCategory("sense", Category.SENSE))));
+                                .then(logCategory("project", Category.PROJECT));
     }
 
     /**
@@ -1179,7 +1144,31 @@ public final class AgentCommands {
         return 1;
     }
 
-    /** Bare {@code follow}: the player who typed it is the one to follow. */
+    /** What standing order this agent is under, if any — bare {@code follow}'s readout. */
+    private static int followShow(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        MinecraftServer server = source.getServer();
+        AgentId id = person.agentId();
+        String name = person.entity().getName().getString();
+        Escorts.Order order = id == null ? null : Escorts.all(server).get(id);
+        if (order == null) {
+            Replies.send(source, () -> Component.translatable("anima.command.follow.idle", name)
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        Entity target = Escorts.following(server, id);
+        Replies.send(source, () -> Component.translatable("anima.command.follow.order", name,
+                        target == null ? Component.translatable("anima.command.follow.target_gone")
+                                : target.getName(),
+                        String.format(Locale.ROOT, "%.1f", order.near()),
+                        String.format(Locale.ROOT, "%.1f", order.far()))
+                .withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
+    /** {@code follow me}: the player who typed it is the one to follow. */
     private static int followMe(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
         if (!(source.getEntity() instanceof ServerPlayer player)) {
@@ -1651,48 +1640,26 @@ public final class AgentCommands {
                                 IntegerArgumentType.getInteger(ctx, "count"))));
     }
 
-    /** As {@link #logCategory}, but under {@code log for <person>} — targets that resolved token. */
-    private static LiteralArgumentBuilder<CommandSourceStack> logForCategory(String name, Category category) {
-        return Commands.literal(name)
-                .executes(ctx -> logFor(ctx.getSource(),
-                        StringArgumentType.getString(ctx, "person"), category, DEFAULT_LOG_COUNT))
-                .then(Commands.argument("count", IntegerArgumentType.integer(1))
-                        .executes(ctx -> logFor(ctx.getSource(),
-                                StringArgumentType.getString(ctx, "person"), category,
-                                IntegerArgumentType.getInteger(ctx, "count"))));
-    }
 
     /**
      * Dumps the journal of the {@link #resolve resolved} (selected or nearest, and so necessarily
      * <em>loaded</em>) Person — the common case. {@code log for <name|id>} ({@link #logFor}) is the
      * variant that reaches an unloaded one.
      */
+    /**
+     * The subject's journal — an ID, not a body, so {@code as <person> log} reads the ring of
+     * somebody whose entity is unloaded. That is what {@code log for <person>} existed to do, and
+     * the reason the subject is bound as an id in the first place.
+     */
     private static int logDump(CommandContext<CommandSourceStack> ctx, @Nullable Category category, int count) {
         CommandSourceStack source = ctx.getSource();
-        AgentBody person = Subject.body(ctx);
-        if (person == null) return 0;
-        AgentId id = person.agentId();
-        if (id == null) {
-            Replies.fail(source, Component.translatable("anima.command.not_identified"));
-            return 0;
-        }
-        return dumpJournal(source, id, person.entity().getName().getString(), true, category, count);
+        AgentId id = Subject.id(ctx);
+        if (id == null) return 0; // already reported
+        MinecraftServer server = source.getServer();
+        boolean loaded = AgentBodies.findLoaded(server, id) != null;
+        return dumpJournal(source, id, label(server, id), loaded, category, count);
     }
 
-    /**
-     * Dumps the journal of the person the {@code token} names — resolved against the whole
-     * {@link PersonDirectory} ({@link Subject#directoryId}), so it reaches a person whose entity is
-     * unloaded (or never spawned): the ring is {@code AgentId}-keyed and outlives the entity. The
-     * readout is tagged {@code (not loaded)} when there is no live entity, so a ghost's log reads as one.
-     */
-    private static int logFor(CommandSourceStack source, String token, @Nullable Category category, int count) {
-        AgentId id = Subject.directoryId(source, token);
-        if (id == null) return 0;
-        MinecraftServer server = source.getServer();
-        String name = label(server, id);
-        boolean loaded = AgentBodies.findLoaded(server, id) != null;
-        return dumpJournal(source, id, name, loaded, category, count);
-    }
 
     /**
      * The shared journal readout: the last {@code count} lines for {@code id} (newest last),
@@ -2142,72 +2109,10 @@ public final class AgentCommands {
 
 
 
-    private static final SuggestionProvider<CommandSourceStack> PERSON_SUGGESTIONS = (ctx, builder) -> {
-        MinecraftServer server = ctx.getSource().getServer();
-        AgentDirectory directory = AgentDirectory.of(server);
-        Stream<String> tokens = AgentBodies.loaded(server).stream().flatMap(body -> {
-            AgentId id = body.agentId();
-            if (id == null) return Stream.empty();
-            String shortId = shortId(id);
-            return directory.nameOf(id)
-                    .map(name -> Stream.of(name.contains(" ") ? '"' + name + '"' : name, shortId))
-                    .orElseGet(() -> Stream.of(shortId));
-        });
-        return SharedSuggestionProvider.suggest(tokens, builder);
-    };
 
-    /** Suggests every name + short id that {@link Subject#directoryId} accepts — every registered
-     *  agent, loaded or not (so {@code log for} can reach an unloaded person's journal, which
-     *  {@code select} cannot), plus the online players a contact book has to be able to name. */
-    private static final SuggestionProvider<CommandSourceStack> ALL_PERSON_SUGGESTIONS = (ctx, builder) -> {
-        Stream<String> tokens = nameable(ctx.getSource().getServer()).entrySet().stream()
-                .flatMap(entry -> Stream.of(
-                        entry.getValue().contains(" ") ? '"' + entry.getValue() + '"' : entry.getValue(),
-                        shortId(entry.getKey())));
-        return SharedSuggestionProvider.suggest(tokens, builder);
-    };
 
-    /** Selects the Person named (or short-id-prefixed) by {@code rawToken}. */
-    private static int selectByToken(CommandSourceStack source, String rawToken) {
-        String token = rawToken.trim();
-        MinecraftServer server = source.getServer();
-        AgentDirectory directory = AgentDirectory.of(server);
-        List<AgentBody> loaded = AgentBodies.loaded(server);
 
-        // An id (or short-id prefix) is an unambiguous handle, so it's tried first; only if nothing
-        // matches by id do we fall back to a case-insensitive name match (names aren't unique).
-        String lower = token.toLowerCase(Locale.ROOT);
-        List<AgentBody> matches = loaded.stream()
-                .filter(b -> b.agentId() != null
-                        && b.agentId().toString().toLowerCase(Locale.ROOT).startsWith(lower))
-                .toList();
-        if (matches.isEmpty()) {
-            matches = loaded.stream()
-                    .filter(b -> b.agentId() != null
-                            && directory.nameOf(b.agentId()).map(n -> n.equalsIgnoreCase(token)).orElse(false))
-                    .toList();
-        }
-        if (matches.isEmpty()) {
-            Replies.fail(source, Component.translatable("anima.command.select.no_match", token));
-            return 0;
-        }
-        // Ambiguity FAILS rather than guessing (decision: Luiz): a name collides across kinds once
-        // several mods share a world, and picking the closer of a settler and a wolf is a worse
-        // answer than asking. Ids are always unambiguous.
-        if (matches.size() > 1) {
-            String ids = matches.stream()
-                    .map(b -> shortId(b.agentId()))
-                    .collect(java.util.stream.Collectors.joining(", "));
-            Replies.fail(source, Component.translatable("anima.command.select.ambiguous",
-                    matches.size(), token, ids));
-            return 0;
-        }
-        AgentId id = matches.get(0).agentId();
-        AgentSelection.select(source, id);
-        Replies.send(source, () -> Component.translatable("anima.command.select.selected",
-                label(server, id)).withStyle(ChatFormatting.AQUA));
-        return 1;
-    }
+
 
     /** No-argument {@code select}: running <em>as</em> a Person selects that Person
      *  ({@code /execute as @e[…,limit=1] run anima select}); a player takes the Person under their
@@ -2245,6 +2150,24 @@ public final class AgentCommands {
         Replies.send(source, () -> Component.translatable("anima.command.select.none_was")
                 .withStyle(ChatFormatting.GRAY));
         return 0;
+    }
+
+    /**
+     * Bare {@code select} READS the selection; {@code as <person> select} SETS it.
+     *
+     * <p>The source is still whoever typed the command — that is the point of binding a subject in
+     * the context rather than rebinding the source — so a player's {@code as Cleo select} lands in
+     * that PLAYER's slot and not in the console's shared one.
+     */
+    private static int selectShowOrSet(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        if (!Subject.bound(ctx)) return selectShow(source);
+        AgentId id = Subject.id(ctx);
+        if (id == null) return 0; // already reported
+        AgentSelection.select(source, id);
+        Replies.send(source, () -> Component.translatable("anima.command.select.selected",
+                label(source.getServer(), id)).withStyle(ChatFormatting.AQUA));
+        return 1;
     }
 
     private static int selectShow(CommandSourceStack source) {
@@ -2313,6 +2236,17 @@ public final class AgentCommands {
      * one, else the player who typed it (their account uuid is their person-identity, the same rule
      * the sense uses). The console has no book — it is nobody, and omniscient besides.
      */
+    /**
+     * The identity a subject-scoped command ACTS AS: the {@code as} subject when one is bound, else
+     * the source's own ({@link #sourceIdentity}).
+     *
+     * <p>The difference between "who is typing" and "who it is about", made concrete — a player
+     * typing {@code as Ada contacts meet Bram} is introducing ADA to Bram, not themselves.
+     */
+    private static @Nullable AgentId actingIdentity(CommandContext<CommandSourceStack> ctx) {
+        return Subject.bound(ctx) ? Subject.id(ctx) : sourceIdentity(ctx.getSource());
+    }
+
     private static @Nullable AgentId sourceIdentity(CommandSourceStack source) {
         Entity self = source.getEntity();
         if (self instanceof AgentBody body) {
@@ -2337,7 +2271,16 @@ public final class AgentCommands {
      * cannot disagree with the nameplates. A vantage point, not a book: stepping back into survival
      * lists only what they earned.
      */
-    private static int contactsList(CommandSourceStack source) {
+    private static int contactsList(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        // Bare, this is the SOURCE's own book — a player's own contacts, not the nearest agent's.
+        // Only a bound subject moves it, which is what `contacts of <person>` used to say.
+        if (Subject.bound(ctx)) {
+            AgentId who = Subject.id(ctx);
+            return who == null ? 0
+                    : printContacts(source, who, Component.translatable(
+                            "anima.command.contacts.agent_knows", label(source.getServer(), who)));
+        }
         AgentId self = sourceIdentity(source);
         if (self == null) {
             return 0;
@@ -2357,13 +2300,6 @@ public final class AgentCommands {
                 Component.translatable("anima.command.contacts.you_know"));
     }
 
-    /** Everyone that Person can name — the omniscient view: a dev tool reads any book. */
-    private static int contactsOf(CommandSourceStack source, String token) {
-        AgentId who = Subject.directoryId(source, token);
-        return who == null ? 0
-                : printContacts(source, who, Component.translatable(
-                        "anima.command.contacts.agent_knows", label(source.getServer(), who)));
-    }
 
     private static int printContacts(CommandSourceStack source, AgentId who, Component heading) {
         return printNames(source, ContactData.get(source.getServer()).contactsOf(who), heading);
@@ -2395,8 +2331,9 @@ public final class AgentCommands {
      * will do in-world. Both books gain an entry, because being told a name and telling yours are
      * two facts, not one.
      */
-    private static int contactsMeet(CommandSourceStack source, String token) {
-        AgentId self = sourceIdentity(source);
+    private static int contactsMeet(CommandContext<CommandSourceStack> ctx, String token) {
+        CommandSourceStack source = ctx.getSource();
+        AgentId self = actingIdentity(ctx);
         if (self == null) return 0;
         AgentId other = Subject.directoryId(source, token);
         if (other == null) return 0;
@@ -2421,8 +2358,9 @@ public final class AgentCommands {
     }
 
     /** One-sided forgetting: the source loses the name, the other keeps theirs. */
-    private static int contactsForget(CommandSourceStack source, String token) {
-        AgentId self = sourceIdentity(source);
+    private static int contactsForget(CommandContext<CommandSourceStack> ctx, String token) {
+        CommandSourceStack source = ctx.getSource();
+        AgentId self = actingIdentity(ctx);
         if (self == null) return 0;
         AgentId other = Subject.directoryId(source, token);
         if (other == null) return 0;
@@ -2439,8 +2377,9 @@ public final class AgentCommands {
         return 1;
     }
 
-    private static int contactsClear(CommandSourceStack source) {
-        AgentId self = sourceIdentity(source);
+    private static int contactsClear(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentId self = actingIdentity(ctx);
         if (self == null) return 0;
         MinecraftServer server = source.getServer();
         if (!ContactData.get(server).clear(self)) {
@@ -2455,22 +2394,21 @@ public final class AgentCommands {
     }
 
     /** The source's own party — who they belong with, themselves included. */
-    private static int partyList(CommandSourceStack source) {
+    private static int partyList(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        MinecraftServer server = source.getServer();
+        if (Subject.bound(ctx)) {
+            AgentId who = Subject.id(ctx);
+            return who == null ? 0
+                    : printParty(source, PartyData.get(server).partyOf(who),
+                            Component.translatable("anima.command.party.theirs", label(server, who)));
+        }
         AgentId self = sourceIdentity(source);
         if (self == null) return 0;
-        MinecraftServer server = source.getServer();
         return printParty(source, PartyData.get(server).partyOf(self),
                 Component.translatable("anima.command.party.yours"));
     }
 
-    /** That agent's party — the omniscient view: a dev tool reads any roster. */
-    private static int partyOfAgent(CommandSourceStack source, String token) {
-        AgentId who = Subject.directoryId(source, token);
-        if (who == null) return 0;
-        MinecraftServer server = source.getServer();
-        return printParty(source, PartyData.get(server).partyOf(who),
-                Component.translatable("anima.command.party.theirs", label(server, who)));
-    }
 
     private static int printParty(CommandSourceStack source, PartyId party, Component heading) {
         MinecraftServer server = source.getServer();
@@ -2498,8 +2436,9 @@ public final class AgentCommands {
      * emptied, matching the social spec's handshake direction ("Bob joins Alice's party, his
      * disbands"). A hand-run stand-in until the group-up encounter rung exists.
      */
-    private static int partyJoin(CommandSourceStack source, String token) {
-        AgentId self = sourceIdentity(source);
+    private static int partyJoin(CommandContext<CommandSourceStack> ctx, String token) {
+        CommandSourceStack source = ctx.getSource();
+        AgentId self = actingIdentity(ctx);
         if (self == null) return 0;
         AgentId other = Subject.directoryId(source, token);
         if (other == null) return 0;
@@ -2524,8 +2463,9 @@ public final class AgentCommands {
     }
 
     /** The source strikes out on their own; their next ask mints a fresh party of one. */
-    private static int partyLeave(CommandSourceStack source) {
-        AgentId self = sourceIdentity(source);
+    private static int partyLeave(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentId self = actingIdentity(ctx);
         if (self == null) return 0;
         MinecraftServer server = source.getServer();
         if (!PartyData.get(server).leave(self)) {
@@ -2650,12 +2590,7 @@ public final class AgentCommands {
      * <p>A factory, not a cached node: Brigadier parents a builder when it is registered.
      */
     public static LiteralArgumentBuilder<CommandSourceStack> grave() {
-        return Commands.literal("grave")
-                .executes(ctx -> graveRoll(ctx.getSource()))
-                .then(Commands.argument("person", StringArgumentType.string())
-                        .suggests(ALL_PERSON_SUGGESTIONS)
-                        .executes(ctx -> graveOf(ctx.getSource(),
-                                StringArgumentType.getString(ctx, "person"))));
+        return Commands.literal("grave").executes(AgentCommands::graveRollOrOne);
     }
 
     /** Everyone buried here, oldest death first. */
@@ -2688,11 +2623,14 @@ public final class AgentCommands {
      * there is nothing standing there. {@link #resolveBody} would answer only for the freshly dead
      * whose entity has not finished despawning.
      */
-    private static int graveOf(CommandSourceStack source, String token) {
-        AgentId who = Subject.directoryId(source, token);
-        if (who == null) {
-            return 0;
-        }
+    /** Bare, everyone buried; under {@code as <person>}, that one's black box. */
+    private static int graveRollOrOne(CommandContext<CommandSourceStack> ctx) {
+        if (!Subject.bound(ctx)) return graveRoll(ctx.getSource());
+        AgentId who = Subject.id(ctx);
+        return who == null ? 0 : graveOf(ctx.getSource(), who);
+    }
+
+    private static int graveOf(CommandSourceStack source, AgentId who) {
         MinecraftServer server = source.getServer();
         String name = label(server, who);
         Optional<Graves.Death> found = Graves.get(server).deathOf(who);

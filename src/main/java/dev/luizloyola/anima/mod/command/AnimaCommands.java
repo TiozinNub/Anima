@@ -30,23 +30,25 @@ public final class AnimaCommands {
                 dispatcher.register(CommandSurface.mount(
                         Commands.literal("anima")
                                 .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)),
-                        // hasSubject — mounted at the root AND under `as <person>`. One entry for
-                        // now: the seam is proved end to end on the smallest surface it can be,
-                        // before the rest of the tree is hung off it.
-                        List.of(AgentCommands::log),
-                        // noSubject — the root alone.
-                        List.of(AgentCommands::list, AgentCommands::grave, AgentCommands::select,
-                                AgentCommands::contacts, AgentCommands::party,
-                                AgentCommands::places, AgentCommands::nav, AgentCommands::follow,
-                                AgentCommands::probe, AgentCommands::recipes,
-                                AgentCommands::brain, AgentCommands::think,
-                                AgentCommands::knowledge, AgentCommands::horizon,
-                                AgentCommands::survey, AgentCommands::claims,
-                                AgentCommands::peers, AgentCommands::needs,
-                                AgentCommands::profile, AgentCommands::debug,
-                                dev.luizloyola.anima.mod.webdebug.WebCommands::tree,
+                        // hasSubject — mounted at the root AND under `as <person>`. A node
+                        // belongs here if and only if its behaviour depends on WHICH agent it is
+                        // about.
+                        List.of(AgentCommands::select, AgentCommands::contacts,
+                                AgentCommands::party, AgentCommands::places, AgentCommands::nav,
+                                AgentCommands::follow, AgentCommands::brain, AgentCommands::think,
+                                AgentCommands::log, AgentCommands::knowledge,
+                                AgentCommands::horizon, AgentCommands::survey,
+                                AgentCommands::claims, AgentCommands::peers, AgentCommands::needs,
+                                AgentCommands::profile, AgentCommands::grave,
                                 () -> AgentCommands.inv(registry),
-                                () -> AgentCommands.store(registry),
+                                () -> AgentCommands.store(registry)),
+                        // noSubject — the root alone. `debug` is here on purpose: its layers are a
+                        // per-player switch drawn over the SELECTION, so nothing about it varies
+                        // with a subject and `as Cleo debug horizon true` would read like a promise
+                        // it does not keep.
+                        List.of(AgentCommands::list, AgentCommands::probe, AgentCommands::recipes,
+                                AgentCommands::debug,
+                                dev.luizloyola.anima.mod.webdebug.WebCommands::tree,
                                 () -> ConfigCommands.tree(Config.store(), configFile)),
                         List.of())));
     }

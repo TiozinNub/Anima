@@ -62,6 +62,18 @@ public final class Subject {
         return SharedSuggestionProvider.suggest(tokens, builder);
     };
 
+    /**
+     * The suggester alone, for a node naming an agent as a verb's OBJECT rather than as the
+     * subject — {@code contacts meet <whom>}, {@code party join <whom>}.
+     *
+     * <p><b>Such a node must not be called {@code person}.</b> Brigadier keys a command's arguments
+     * by NAME, so a second one of that name overwrites the first: in
+     * {@code as Ada contacts meet Bram} the subject would silently read back as Bram.
+     */
+    public static SuggestionProvider<CommandSourceStack> suggestions() {
+        return SUGGESTIONS;
+    }
+
     /** The subject argument, for {@code as} and for any leaf that names an agent positionally. */
     public static RequiredArgumentBuilder<CommandSourceStack, String> argument() {
         return Commands.argument(ARG, StringArgumentType.string()).suggests(SUGGESTIONS);
