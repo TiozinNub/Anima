@@ -24,7 +24,7 @@ public final class PoiLabels {
     public static String of(PoiMemory memory, long now) {
         StringBuilder label = new StringBuilder(memory.kind().key().toUpperCase(Locale.ROOT));
         if (!memory.detail().isEmpty()) {
-            label.append(' ').append(memory.detail());
+            label.append(' ').append(detail(memory));
         }
         // Units only where they mean something. "1 cells" beside a danger marker is noise; the
         // count of logs in a grove or head in a herd is the whole reason to look at it.
@@ -67,6 +67,15 @@ public final class PoiLabels {
      */
     public static String ticks(long ticks) {
         return brief(ticks);
+    }
+
+    /**
+     * {@link PoiMemory#detail}, minus the {@code minecraft:} namespace a viewer does not need to
+     * read — every debug readout shows {@code "oak_log"}, never {@code "minecraft:oak_log"}.
+     */
+    public static String detail(PoiMemory memory) {
+        String detail = memory.detail();
+        return detail.startsWith("minecraft:") ? detail.substring("minecraft:".length()) : detail;
     }
 
     /** Ticks as the shortest thing worth reading: {@code "32s"}, {@code "2m"}. */

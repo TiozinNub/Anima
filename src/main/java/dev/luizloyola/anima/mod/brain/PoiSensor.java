@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.knowledge.SenseEvent;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.mod.body.AgentBody;
+import dev.luizloyola.anima.mod.debug.PoiLabels;
 import java.util.List;
 import java.util.Locale;
 import net.minecraft.core.BlockPos;
@@ -91,7 +92,7 @@ public final class PoiSensor {
         StringBuilder line = new StringBuilder(event.kind().key().toUpperCase(Locale.ROOT));
         PoiMemory memory = event.memory();
         if (memory != null && !memory.detail().isEmpty()) {
-            line.append(' ').append(memory.detail());
+            line.append(' ').append(PoiLabels.detail(memory));
         }
         line.append(" (").append(event.anchor().x()).append(", ").append(event.anchor().y())
                 .append(", ").append(event.anchor().z()).append(")");

@@ -1902,7 +1902,7 @@ public final class AgentCommands {
         String age = PoiLabels.age(memory, now);
         int lifetime = memory.kind().lifetimeTicks();
         String what = memory.kind().key().toUpperCase(java.util.Locale.ROOT)
-                + (memory.detail().isEmpty() ? "" : " " + memory.detail());
+                + (memory.detail().isEmpty() ? "" : " " + PoiLabels.detail(memory));
         Component amount = memory.kind().unit().isEmpty()
                 ? Component.translatable("anima.command.knowledge.cells", memory.units())
                 : Component.literal(memory.units() + memory.kind().unit());
