@@ -36,6 +36,18 @@ public interface BlockProbe {
     BlockKind at(int x, int y, int z);
 
     /**
+     * Exactly what stands at the cell, as the world names it — {@code "minecraft:oak_log"}. Empty
+     * when the cell is out of reach or the probe cannot say.
+     *
+     * <p>Deliberately NOT memoised, and deliberately separate from {@link #at}: the coarse question
+     * is asked hundreds of times per body per tick and is cached for it; this one is asked once per
+     * thing a rule individuates, by the few consumers that care what species something is.
+     */
+    default String idAt(int x, int y, int z) {
+        return "";
+    }
+
+    /**
      * What a ray meets at this cell, answered in one read.
      *
      * <p>Separate from {@link #at} because the vocabularies differ: {@link BlockKind} is a botany

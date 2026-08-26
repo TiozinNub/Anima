@@ -15,12 +15,18 @@ public final class FakeProbe implements BlockProbe {
     public static final int GROUND_Y = 63;
 
     private final Map<Pos, BlockKind> blocks = new HashMap<>();
+    private final Map<Pos, String> ids = new HashMap<>();
     private final Set<Column> unloaded = new HashSet<>();
     private final Set<Pos> hidden = new HashSet<>();
     public int reads;
 
     public void set(int x, int y, int z, BlockKind kind) {
         blocks.put(new Pos(x, y, z), kind);
+    }
+
+    /** Names the exact block at a cell, independent of its {@link BlockKind}. Nothing infers one. */
+    public void setId(int x, int y, int z, String id) {
+        ids.put(new Pos(x, y, z), id);
     }
 
     public void clear(int x, int y, int z) {
@@ -117,6 +123,12 @@ public final class FakeProbe implements BlockProbe {
             return kind;
         }
         return y <= GROUND_Y ? BlockKind.OTHER : BlockKind.AIR;
+    }
+
+    /** Whatever {@link #setId} named at this cell, or {@code ""} — no read counted, no inference. */
+    @Override
+    public String idAt(int x, int y, int z) {
+        return ids.getOrDefault(new Pos(x, y, z), "");
     }
 
     /**

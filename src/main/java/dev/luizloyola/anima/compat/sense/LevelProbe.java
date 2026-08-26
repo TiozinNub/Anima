@@ -5,6 +5,7 @@ import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
@@ -178,6 +179,21 @@ public final class LevelProbe implements BlockProbe {
             return claimed.get();
         }
         return floorKind(state, this.level, this.scratch);
+    }
+
+    /**
+     * The exact block, by registry id — no memo table, no {@link BlockKinds} band: a single lookup
+     * off the state already in hand, asked far too rarely to be worth the table's upkeep.
+     */
+    @Override
+    public String idAt(int x, int y, int z) {
+        ChunkAccess loaded = chunkFor(x, z);
+        if (loaded == null) {
+            return "";
+        }
+        this.scratch.set(x, y, z);
+        BlockState state = loaded.getBlockState(this.scratch);
+        return BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
     }
 
     /** Anima's own ladder, memoised per blockstate — see {@link #sights} for why that is sound. */
