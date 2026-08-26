@@ -388,6 +388,7 @@
   "anima.command.places.dropped": "%s não é mais reivindicação de ninguém.",
   "anima.command.places.not_yours": "%s não é uma reivindicação que você pode ver.",
   "anima.command.store.none": "%s não conhece nenhum depósito para usar.",
+  "anima.command.store.nearest": "O depósito mais próximo que %s lembra fica em %s, a %s blocos.",
   "anima.command.store.put": "%s está colocando %s×%s no depósito em %s.",
   "anima.command.store.take": "%s está pegando %s×%s do depósito em %s.",
   "anima.command.store.too_far": "%s está a %s blocos do depósito em %s — longe demais para alcançar; tente /anima nav goto.",

@@ -221,9 +221,9 @@ mc() {
 # The config readout is load-bearing twice: it is the operator surface Anima offers a world running
 # it alone, and it cannot answer AT ALL unless the jar-in-jar'd night-config linked — so this is
 # also the nesting check.
-mc "anima config show"
+mc "anima config"
 [[ -n "${MC_OUT//[[:space:]]/}" ]] \
-    || die "\`anima config show\` answered with nothing — the config never loaded"
+    || die "\`anima config\` answered with nothing — the config never loaded"
 
 mc "anima config reload"
 grep -qiE 'reload|loaded' <<< "$MC_OUT" \

@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.command;
 
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
 import dev.luizloyola.anima.core.agent.AgentModifiers;
 import dev.luizloyola.anima.core.agent.AgentProfile;
@@ -229,17 +230,17 @@ public final class AgentCommands {
                                 .then(Commands.literal("found")
                                         .then(Commands.argument("kind", StringArgumentType.word())
                                                 .suggests(POI_KIND_SUGGESTIONS)
-                                                .then(Commands.argument("at", BlockPosArgument.blockPos())
+                                                .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                                         .executes(ctx -> placesFound(ctx,
                                                                 StringArgumentType.getString(ctx, "kind"),
-                                                                BlockPosArgument.getLoadedBlockPos(ctx, "at"))))))
+                                                                BlockPosArgument.getLoadedBlockPos(ctx, "pos"))))))
                                 .then(Commands.literal("drop")
                                         .then(Commands.argument("kind", StringArgumentType.word())
                                                 .suggests(POI_KIND_SUGGESTIONS)
-                                                .then(Commands.argument("at", BlockPosArgument.blockPos())
+                                                .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                                         .executes(ctx -> placesDrop(ctx,
                                                                 StringArgumentType.getString(ctx, "kind"),
-                                                                BlockPosArgument.getLoadedBlockPos(ctx, "at"))))));
+                                                                BlockPosArgument.getLoadedBlockPos(ctx, "pos"))))));
     }
 
     /** {@code KIND (x, y, z)} — how a claimed block is described, in a row or a command reply. */
@@ -361,6 +362,7 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> store(CommandBuildContext registryAccess) {
         return Commands.literal("store")
+                                .executes(AgentCommands::storeShow)
                                 .then(Commands.literal("put")
                                         .then(Commands.argument("item", ItemArgument.item(registryAccess))
                                                 .executes(ctx -> storeTransfer(ctx, true,
@@ -385,6 +387,37 @@ public final class AgentCommands {
      * (see {@link #store}). Reach is checked BEFORE anything is installed: the primitive's own OPEN
      * phase would otherwise fail a tick later with nothing to tell the operator why.
      */
+    /**
+     * The nearest store this agent remembers — bare {@code store}'s readout, and the answer to
+     * "where would {@code store put} go?" in the same numbers that verb uses.
+     */
+    private static int storeShow(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        AgentId who = person.agentId();
+        if (who == null) {
+            Replies.fail(source, Component.translatable("anima.command.not_identified"));
+            return 0;
+        }
+        String name = person.entity().getName().getString();
+        AgentKnowledge knowledge = Knowledges.of(source.getServer()).forPerson(who);
+        BlockPos block = person.entity().blockPosition();
+        Pos here = new Pos(block.getX(), block.getY(), block.getZ());
+        Optional<PoiMemory> known = knowledge.nearest(Store.POI, here);
+        if (known.isEmpty()) {
+            Replies.send(source, () -> Component.translatable("anima.command.store.none", name)
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        Pos at = known.orElseThrow().anchor();
+        Replies.send(source, () -> Component.translatable("anima.command.store.nearest", name,
+                        where(at),
+                        String.format(Locale.ROOT, "%.1f", Store.distance(at, here)))
+                .withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
     private static int storeTransfer(CommandContext<CommandSourceStack> ctx, boolean put, ItemInput item, int count)
             throws CommandSyntaxException {
         CommandSourceStack source = ctx.getSource();
@@ -433,14 +466,13 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> nav() {
         return Commands.literal("nav")
+                                .executes(AgentCommands::navStatus)
                                 .then(Commands.literal("goto")
                                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                                 .executes(ctx -> navGoto(ctx,
                                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                                 .then(Commands.literal("stop")
                                         .executes(ctx -> navStop(ctx)))
-                                .then(Commands.literal("status")
-                                        .executes(ctx -> navStatus(ctx)))
                                 .then(NavDump.node());
     }
 
@@ -507,11 +539,11 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> recipes() {
         return Commands.literal("recipes")
-                .then(Commands.argument("what", StringArgumentType.greedyString())
+                .then(Commands.argument("query", StringArgumentType.greedyString())
                         .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(
                                 craftableNames(), builder))
                         .executes(ctx -> listRecipes(ctx.getSource(),
-                                StringArgumentType.getString(ctx, "what"))));
+                                StringArgumentType.getString(ctx, "query"))));
     }
 
     /** Everything worth tab-completing: registered spec names plus every craftable output. */
@@ -618,6 +650,7 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> brain() {
         return Commands.literal("brain")
+                                .executes(AgentCommands::brainStatus)
                                 .then(Commands.literal("goto")
                                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                                 .executes(ctx -> brainGoto(ctx,
@@ -630,26 +663,22 @@ public final class AgentCommands {
                                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                                 .executes(ctx -> brainBreak(ctx,
                                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
-                                .then(Commands.literal("status")
-                                        .executes(ctx -> brainStatus(ctx)))
                                 .then(Commands.literal("cancel")
                                         .executes(ctx -> brainCancel(ctx)))
                                 // The autonomy switch — spawns start ON. Bare, it READS the
                                 // switch rather than flipping it (see the note on toggles below).
                                 .then(Commands.literal("auto")
-                                        .executes(ctx -> brainAutoShow(ctx))
-                                        .then(Commands.literal("true")
-                                                .executes(ctx -> brainAuto(ctx, true)))
-                                        .then(Commands.literal("false")
-                                                .executes(ctx -> brainAuto(ctx, false))))
+                                        .executes(AgentCommands::brainAutoShow)
+                                        .then(Commands.argument("on", BoolArgumentType.bool())
+                                                .executes(ctx -> brainAuto(ctx,
+                                                        BoolArgumentType.getBool(ctx, "on")))))
                                 // The wander mute — one drive off, the brain otherwise whole.
                                 // Bare, it READS the switch, same as `auto`.
                                 .then(Commands.literal("wander")
-                                        .executes(ctx -> brainWanderShow(ctx))
-                                        .then(Commands.literal("true")
-                                                .executes(ctx -> brainWander(ctx, true)))
-                                        .then(Commands.literal("false")
-                                                .executes(ctx -> brainWander(ctx, false))));
+                                        .executes(AgentCommands::brainWanderShow)
+                                        .then(Commands.argument("on", BoolArgumentType.bool())
+                                                .executes(ctx -> brainWander(ctx,
+                                                        BoolArgumentType.getBool(ctx, "on")))));
     }
 
     /**
@@ -660,7 +689,10 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> think() {
         return Commands.literal("think")
-                                .executes(ctx -> thinkToggle(ctx));
+                                .executes(AgentCommands::thinkShow)
+                                .then(Commands.argument("on", BoolArgumentType.bool())
+                                        .executes(ctx -> thinkSet(ctx,
+                                                BoolArgumentType.getBool(ctx, "on"))));
     }
 
     /**
@@ -692,11 +724,10 @@ public final class AgentCommands {
         return Commands.literal("knowledge")
                                 .executes(ctx -> knowledgeList(ctx))
                                 .then(Commands.literal("view")
-                                        .executes(ctx -> knowledgeViewShow(ctx))
-                                        .then(Commands.literal("true")
-                                                .executes(ctx -> knowledgeView(ctx, true)))
-                                        .then(Commands.literal("false")
-                                                .executes(ctx -> knowledgeView(ctx, false))));
+                                        .executes(AgentCommands::knowledgeViewShow)
+                                        .then(Commands.argument("on", BoolArgumentType.bool())
+                                                .executes(ctx -> knowledgeView(ctx,
+                                                        BoolArgumentType.getBool(ctx, "on")))));
     }
 
     /** Who they can currently perceive. */
@@ -850,14 +881,14 @@ public final class AgentCommands {
         return Commands.literal("needs")
                                 .executes(ctx -> needsShow(ctx))
                                 .then(Commands.literal("food")
-                                        .then(Commands.argument("food",
+                                        .then(Commands.argument("level",
                                                         IntegerArgumentType.integer(0, Metabolism.MAX_FOOD))
                                                 .executes(ctx -> setFood(ctx,
-                                                        IntegerArgumentType.getInteger(ctx, "food"), 0.0F))
+                                                        IntegerArgumentType.getInteger(ctx, "level"), 0.0F))
                                                 .then(Commands.argument("saturation",
                                                                 FloatArgumentType.floatArg(0.0F, Metabolism.MAX_FOOD))
                                                         .executes(ctx -> setFood(ctx,
-                                                                IntegerArgumentType.getInteger(ctx, "food"),
+                                                                IntegerArgumentType.getInteger(ctx, "level"),
                                                                 FloatArgumentType.getFloat(ctx, "saturation"))))))
                                 .then(Commands.literal("company")
                                         .then(Commands.argument("level",
@@ -870,11 +901,10 @@ public final class AgentCommands {
         return Commands.literal("peers")
                                 .executes(ctx -> peersList(ctx))
                                 .then(Commands.literal("view")
-                                        .executes(ctx -> peersViewShow(ctx))
-                                        .then(Commands.literal("true")
-                                                .executes(ctx -> peersView(ctx, true)))
-                                        .then(Commands.literal("false")
-                                                .executes(ctx -> peersView(ctx, false))));
+                                        .executes(AgentCommands::peersViewShow)
+                                        .then(Commands.argument("on", BoolArgumentType.bool())
+                                                .executes(ctx -> peersView(ctx,
+                                                        BoolArgumentType.getBool(ctx, "on")))));
     }
 
 
@@ -905,11 +935,11 @@ public final class AgentCommands {
                                                 .executes(ctx -> profileDebugClear(ctx)))
                                         .then(Commands.argument("aspect", StringArgumentType.string())
                                                 .suggests(aspects)
-                                                .then(Commands.argument("amount",
+                                                .then(Commands.argument("delta",
                                                                 DoubleArgumentType.doubleArg())
                                                         .executes(ctx -> profileDebug(ctx,
                                                                 StringArgumentType.getString(ctx, "aspect"),
-                                                                DoubleArgumentType.getDouble(ctx, "amount"))))))
+                                                                DoubleArgumentType.getDouble(ctx, "delta"))))))
                                 .then(Commands.argument("aspect", StringArgumentType.string())
                                         .suggests(aspects)
                                         .executes(ctx -> profileShow(ctx,
@@ -1074,8 +1104,7 @@ public final class AgentCommands {
      */
     public static LiteralArgumentBuilder<CommandSourceStack> inv(CommandBuildContext registryAccess) {
         return Commands.literal("inv")
-                                .then(Commands.literal("list")
-                                        .executes(ctx -> invList(ctx)))
+                                .executes(AgentCommands::invList)
                                 .then(Commands.literal("clear")
                                         .executes(ctx -> invClear(ctx)))
                                 .then(Commands.literal("give")
@@ -1570,11 +1599,28 @@ public final class AgentCommands {
     /** {@code brain auto} with no {@code true|false}: reads the switch instead of flipping it. */
     /** Toggle the thinking-out-loud chat channel for the resolved Person — see
      *  {@link ThoughtBroadcast}. */
-    private static int thinkToggle(CommandContext<CommandSourceStack> ctx) {
+    /**
+     * Bare {@code think} READS whether this agent narrates; {@code think <on>} sets it.
+     *
+     * <p>It used to flip blind, which is the one switch in the tree you could not ask about — and
+     * an operator scripting a scene had no way to know which way they had left it.
+     */
+    private static int thinkShow(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
-        boolean on = ThoughtBroadcast.toggle(person.agentId());
+        boolean on = ThoughtBroadcast.isOn(person.agentId());
+        Replies.send(source, () -> Component.literal(person.entity().getName().getString()
+                        + (on ? " is thinking out loud in chat." : "'s thoughts are quiet."))
+                .withStyle(on ? ChatFormatting.AQUA : ChatFormatting.GRAY));
+        return on ? 1 : 0;
+    }
+
+    private static int thinkSet(CommandContext<CommandSourceStack> ctx, boolean on) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        ThoughtBroadcast.set(person.agentId(), on);
         Replies.send(source, () -> Component.literal(person.entity().getName().getString()
                         + (on ? " is thinking out loud in chat now." : "'s thoughts are quiet again."))
                 .withStyle(ChatFormatting.AQUA));
@@ -2551,7 +2597,15 @@ public final class AgentCommands {
         }
         Vec3 origin = source.getPosition();
         long now = server.overworld().getGameTime();
-        known.forEach((id, identity) -> {
+        Optional<AgentId> selection = AgentSelection.selected(source);
+        // Nearest first: a roster read while standing in a settlement is a question about who is
+        // HERE. The unloaded and the dead have no distance, so they sort to the end.
+        known.entrySet().stream().sorted(java.util.Comparator.comparingDouble(entry -> {
+            AgentBody body = AgentBodies.findLoaded(server, entry.getKey());
+            return body == null ? Double.MAX_VALUE : body.entity().distanceToSqr(origin);
+        })).forEach(entry -> {
+            AgentId id = entry.getKey();
+            PrivateIdentity identity = entry.getValue();
             AgentBody body = AgentBodies.findLoaded(server, id);
             // "dead" before "unloaded" — those two used to be the same word here. The live row
             // borrows the entity type's own name rather than flattening it: getString() would
@@ -2569,8 +2623,14 @@ public final class AgentCommands {
                     : Component.literal(String.format(Locale.ROOT, "  %s  %.1fm",
                             body.entity().level().dimension().identifier().getPath(),
                             Math.sqrt(body.entity().distanceToSqr(origin))));
-            Replies.send(source, () -> indent(Component.translatable("anima.command.list.row",
-                    kind, identity.name(), shortId(id)).append(where)));
+            // The one row this source is commanding, marked — the reason Autarkia had a second
+            // `list` at all.
+            Component marker = Component.literal(
+                    selection.map(id::equals).orElse(false) ? "\u2713 " : "  ");
+            Replies.send(source, () -> indent(marker.copy()
+                    .append(Component.translatable("anima.command.list.row",
+                            kind, identity.name(), shortId(id)))
+                    .append(where)));
         });
         int buried = graves.size();
         Replies.send(source, () -> indent(Component.translatable(includeDead
@@ -2736,20 +2796,16 @@ public final class AgentCommands {
     public static LiteralArgumentBuilder<CommandSourceStack> debug() {
         return Commands.literal("debug")
                                 .executes(ctx -> debugShow(ctx.getSource()))
-                                .then(Commands.literal("show")
-                                        .executes(ctx -> debugShow(ctx.getSource())))
                                 .then(Commands.literal("off")
                                         .executes(ctx -> debugOff(ctx.getSource())))
                                 .then(Commands.argument("layer", StringArgumentType.word())
                                         .suggests(LAYER_SUGGESTIONS)
                                         .executes(ctx -> debugLayerShow(ctx.getSource(),
                                                 StringArgumentType.getString(ctx, "layer")))
-                                        .then(Commands.literal("true")
+                                        .then(Commands.argument("on", BoolArgumentType.bool())
                                                 .executes(ctx -> debugLayer(ctx.getSource(),
-                                                        StringArgumentType.getString(ctx, "layer"), true)))
-                                        .then(Commands.literal("false")
-                                                .executes(ctx -> debugLayer(ctx.getSource(),
-                                                        StringArgumentType.getString(ctx, "layer"), false))));
+                                                        StringArgumentType.getString(ctx, "layer"),
+                                                        BoolArgumentType.getBool(ctx, "on")))));
     }
 
     /**

@@ -42,12 +42,13 @@ public final class ThoughtBroadcast {
         });
     }
 
-    /** Flip narration for this person; returns the new state. */
-    public static boolean toggle(AgentId id) {
-        if (ENABLED.remove(id)) {
-            return false;
-        }
-        ENABLED.add(id);
-        return true;
+    /** Whether this person is narrating — the read behind bare {@code think}. */
+    public static boolean isOn(AgentId id) {
+        return ENABLED.contains(id);
+    }
+
+    /** Sets narration for this person, and answers whether that changed anything. */
+    public static boolean set(AgentId id, boolean on) {
+        return on ? ENABLED.add(id) : ENABLED.remove(id);
     }
 }

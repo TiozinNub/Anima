@@ -48,11 +48,11 @@ public final class ProbeDump {
         return Commands.literal("dump")
                 .then(Commands.argument("from", BlockPosArgument.blockPos())
                         .then(Commands.argument("to", BlockPosArgument.blockPos())
-                                .then(Commands.argument("name", StringArgumentType.word())
+                                .then(Commands.argument("file", StringArgumentType.word())
                                         .executes(ctx -> dump(ctx.getSource(),
                                                 BlockPosArgument.getLoadedBlockPos(ctx, "from"),
                                                 BlockPosArgument.getLoadedBlockPos(ctx, "to"),
-                                                StringArgumentType.getString(ctx, "name"))))));
+                                                StringArgumentType.getString(ctx, "file"))))));
     }
 
     private static int dump(CommandSourceStack source, BlockPos from, BlockPos to, String name) {

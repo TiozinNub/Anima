@@ -40,8 +40,6 @@ public final class ConfigCommands {
                 .orElseGet(builder::buildFuture);
         return Commands.literal("config")
                 .executes(ctx -> show(ctx.getSource(), store, file))
-                .then(Commands.literal("show")
-                        .executes(ctx -> show(ctx.getSource(), store, file)))
                 .then(Commands.literal("reload")
                         .executes(ctx -> reload(ctx.getSource(), store, file)))
                 .then(Commands.literal("get")
