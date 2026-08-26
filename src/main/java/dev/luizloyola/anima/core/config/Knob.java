@@ -148,20 +148,20 @@ public enum Knob implements KnobSpec {
                     + "a body standing near others spends most of its lines noticing them: 24 "
                     + "measured out at twelve seconds, nearly all of it peer chatter."),
 
-    // --- web_debugger: the browser debug UI, off unless asked for -----------------------------
+    // --- webdebug: the browser debug UI, off unless asked for -----------------------------
 
     /** @see dev.luizloyola.anima.mod.webdebug.WebDebugger */
-    WEB_ENABLED("web_debugger.enabled", Kind.BOOL, 0, 0, 1,
+    WEB_ENABLED("webdebug.enabled", Kind.BOOL, 0, 0, 1,
             "Start the web debugger automatically when a world loads. This is the AUTO-START "
-                    + "switch only — /anima web-debugger start runs it for one session whatever "
+                    + "switch only — /anima webdebug start runs it for one session whatever "
                     + "this says, which is what you want for an occasional look. A development "
                     + "tool: it exposes every agent's mind and its commands drive them."),
     /** @see dev.luizloyola.anima.mod.webdebug.WebDebugger#port() */
-    WEB_PORT("web_debugger.port", Kind.INT, 25_599, 1024, 65_535,
+    WEB_PORT("webdebug.port", Kind.INT, 25_599, 1024, 65_535,
             "Port the web debugger listens on. Change it when something else already holds this "
                     + "one; the server logs the address to open either way."),
     /** @see dev.luizloyola.anima.mod.webdebug.WebDebugger#host() */
-    WEB_HOST("web_debugger.host", Kind.STRING, "127.0.0.1", 1, 64,
+    WEB_HOST("webdebug.host", Kind.STRING, "127.0.0.1", 1, 64,
             "Address the web debugger binds to. 127.0.0.1 keeps it on this machine, which is the "
                     + "only setting the security story is written for: it exposes every agent's "
                     + "mind and its commands drive them, and the allowed browser names below are "
@@ -171,16 +171,16 @@ public enum Knob implements KnobSpec {
                     + "when it binds anywhere but loopback. A non-loopback address also stops the "
                     + "page being a secure context, which some browser APIs need."),
     /**
-     * Who may see this world through a browser. Written by {@code /anima web-debugger allow},
+     * Who may see this world through a browser. Written by {@code /anima webdebug allow},
      * not by hand.
      *
      * @see dev.luizloyola.anima.mod.webdebug.WebBrowsers
      */
-    WEB_ALLOWED_NAMES("web_debugger.allowed_names", Kind.LIST, "", 0, 512,
+    WEB_ALLOWED_NAMES("webdebug.allowed_names", Kind.LIST, "", 0, 512,
             "Browsers allowed to see this world. Each browser makes up its own three-word name, "
                     + "keeps it, and asks to be let in; an operator allows it with /anima "
-                    + "web-debugger allow, which writes it here. Nothing is allowed automatically "
-                    + "and the list starts empty. Delete a line — or run /anima web-debugger "
+                    + "webdebug allow, which writes it here. Nothing is allowed automatically "
+                    + "and the list starts empty. Delete a line — or run /anima webdebug "
                     + "remove — to take a browser off the list; it can ask again. A name here "
                     + "works like a password: anything that presents one sees every agent here "
                     + "and can command them."),
@@ -188,7 +188,7 @@ public enum Knob implements KnobSpec {
      * Text rather than a bundled asset: the page served from here is a stub, and the UI itself is
      * fetched from this URL. @see dev.luizloyola.anima.mod.webdebug.WebDebugger
      */
-    WEB_APP_URL("web_debugger.app_url", Kind.STRING, "https://anima-debugger.tioz.in/app.v1.js",
+    WEB_APP_URL("webdebug.app_url", Kind.STRING, "https://anima-debugger.tioz.in/app.v1.js",
             8, 512,
             "Where the web debugger's UI is loaded from. The mod serves only a stub page: the "
                     + "stub's origin is localhost, so its calls to this server are same-origin — "

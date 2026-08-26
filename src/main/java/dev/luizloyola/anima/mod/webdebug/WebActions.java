@@ -44,7 +44,7 @@ final class WebActions {
                     layer(server, player, args.get("key"), !"0".equals(args.get("on"))));
             case "layers-clear" -> asPlayer(server, watch, verb, player ->
                     DebugView.clear(server, player.getUUID()));
-            default -> AnimaMod.LOGGER.warn("web-debugger: unknown verb \"{}\"", verb);
+            default -> AnimaMod.LOGGER.warn("webdebug: unknown verb \"{}\"", verb);
         }
     }
 
@@ -54,7 +54,7 @@ final class WebActions {
         ServerPlayer player = actor(server, watch);
         if (player == null) {
             AnimaMod.LOGGER.warn(
-                    "web-debugger: \"{}\" needs a player to act as, and none is picked", verb);
+                    "webdebug: \"{}\" needs a player to act as, and none is picked", verb);
             return;
         }
         action.accept(player);
@@ -73,7 +73,7 @@ final class WebActions {
         try {
             AgentSelection.select(player, new AgentId(UUID.fromString(id)));
         } catch (IllegalArgumentException e) {
-            AnimaMod.LOGGER.warn("web-debugger: \"{}\" is not an agent id", id);
+            AnimaMod.LOGGER.warn("webdebug: \"{}\" is not an agent id", id);
         }
     }
 
@@ -84,6 +84,6 @@ final class WebActions {
         }
         DebugLayer.byKey(key).ifPresentOrElse(
                 layer -> DebugView.set(server, player.getUUID(), layer, on),
-                () -> AnimaMod.LOGGER.warn("web-debugger: no debug layer called \"{}\"", key));
+                () -> AnimaMod.LOGGER.warn("webdebug: no debug layer called \"{}\"", key));
     }
 }

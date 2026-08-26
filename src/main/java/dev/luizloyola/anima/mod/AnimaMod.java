@@ -79,7 +79,7 @@ public final class AnimaMod implements ModInitializer {
         // on this root, so a bare install must be able to call out. See BeingHails.
         dev.luizloyola.anima.mod.brain.BeingHails.init();
         // The browser debug dashboard. Registers its lifecycle hooks only — it listens on nothing
-        // until web_debugger.enabled says so.
+        // until webdebug.enabled says so.
         dev.luizloyola.anima.mod.webdebug.WebDebugger.install();
         AnimaCommands.register(CONFIG);
         LOGGER.info("Anima loaded — the machinery is ready for whoever wants a mind.");

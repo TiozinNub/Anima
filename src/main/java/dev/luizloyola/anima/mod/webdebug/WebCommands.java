@@ -17,10 +17,10 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * {@code /anima web-debugger} — the discovery path, the switch, and who may look.
+ * {@code /anima webdebug} — the discovery path, the switch, and who may look.
  *
  * <p><b>{@code start} runs it for this session and touches no setting.</b> That is the split worth
- * knowing: {@code web_debugger.enabled} is the AUTO-START switch, consulted once when a world
+ * knowing: {@code webdebug.enabled} is the AUTO-START switch, consulted once when a world
  * loads, and taking a look at a running world is not a decision about every future world.
  *
  * <p>The op gate is {@code /anima}'s own now, not this subtree's — see {@link
@@ -39,7 +39,7 @@ public final class WebCommands {
                                 .map(WebBrowsers.Waiting::key).toList(), builder);
         SuggestionProvider<CommandSourceStack> allowed = (ctx, builder) ->
                 SharedSuggestionProvider.suggest(WebDebugger.browsers().allowed(), builder);
-        return Commands.literal("web-debugger")
+        return Commands.literal("webdebug")
                 .executes(ctx -> show(ctx.getSource()))
                 .then(Commands.literal("start").executes(ctx -> start(ctx.getSource())))
                 .then(Commands.literal("stop").executes(ctx -> stop(ctx.getSource())))
@@ -75,7 +75,7 @@ public final class WebCommands {
         return 1;
     }
 
-    /** Starts it whatever {@code web_debugger.enabled} says, and restarts a running one. */
+    /** Starts it whatever {@code webdebug.enabled} says, and restarts a running one. */
     private static int start(CommandSourceStack source) {
         String problem = WebDebugger.start(source.getServer());
         if (problem != null) {
@@ -154,10 +154,10 @@ public final class WebCommands {
                     .append(Component.translatable("anima.webdebug.asked_from", browser.from(),
                             since(browser.askedAtMillis())).withStyle(ChatFormatting.DARK_GRAY))
                     .append(button(" [allow]",
-                            "/anima web-debugger allow " + browser.key(),
+                            "/anima webdebug allow " + browser.key(),
                             "anima.webdebug.hover.allow"))
                     .append(button(" [dismiss]",
-                            "/anima web-debugger dismiss " + browser.key(),
+                            "/anima webdebug dismiss " + browser.key(),
                             "anima.webdebug.hover.dismiss"))));
         }
         if (allowed.isEmpty()) {
@@ -169,7 +169,7 @@ public final class WebCommands {
                     .withStyle(ChatFormatting.GREEN)
                     .append(Component.translatable("anima.webdebug.is_allowed")
                             .withStyle(ChatFormatting.DARK_GRAY))
-                    .append(button(" [remove]", "/anima web-debugger remove " + key,
+                    .append(button(" [remove]", "/anima webdebug remove " + key,
                             "anima.webdebug.hover.remove"))));
         }
         return waiting.size() + allowed.size();
@@ -234,9 +234,9 @@ public final class WebCommands {
                 .withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal(key).withStyle(ChatFormatting.WHITE))
                 .append(Component.literal(" (" + from + ")").withStyle(ChatFormatting.DARK_GRAY))
-                .append(button(" [allow]", "/anima web-debugger allow " + key,
+                .append(button(" [allow]", "/anima webdebug allow " + key,
                         "anima.webdebug.hover.allow_this"))
-                .append(button(" [dismiss]", "/anima web-debugger dismiss " + key,
+                .append(button(" [dismiss]", "/anima webdebug dismiss " + key,
                         "anima.webdebug.hover.dismiss"));
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             // Through a source stack rather than the player: the permission API moved in 26.1 and

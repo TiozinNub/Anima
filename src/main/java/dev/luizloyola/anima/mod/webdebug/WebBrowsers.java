@@ -19,7 +19,7 @@ import org.jspecify.annotations.Nullable;
  * <p><b>The browser makes its own key and keeps it; an operator decides whether it means
  * anything.</b> There is no secret in the config for a page to be handed and no key in the address
  * — a browser generates three readable words, stores them, and presents them on every call. Until
- * {@code /anima web-debugger allow} writes those words into
+ * {@code /anima webdebug allow} writes those words into
  * {@link Knob#WEB_ALLOWED_NAMES}, they open nothing. That inverts what a key <em>is</em> here: not
  * a secret that proves you were told the address, but a name a person recognised and admitted.
  *
@@ -296,7 +296,7 @@ public final class WebBrowsers {
      * <p>Nothing clears this early any more. The deleted door's {@code open()} used to — an operator
      * asking for it was the only thing that could undo a lockout early. With it gone an operator has
      * no lever either: a lockout just runs its three seconds, and the only reset left is
-     * {@link #clear()}, i.e. {@code /anima web-debugger stop} then {@code start}.
+     * {@link #clear()}, i.e. {@code /anima webdebug stop} then {@code start}.
      */
     private boolean locked(long now) {
         return now < lockedUntilMillis;

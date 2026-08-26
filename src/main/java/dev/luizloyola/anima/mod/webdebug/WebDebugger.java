@@ -85,10 +85,10 @@ public final class WebDebugger {
      * shipped config file: a mod that defaulted to serving its debugger would be a mod that opens a
      * socket on somebody's machine without being asked.
      */
-    public static final String AUTOSTART_PROPERTY = "anima.web_debugger.autostart";
+    public static final String AUTOSTART_PROPERTY = "anima.webdebug.autostart";
 
     /** @see #port() */
-    public static final String PORT_PROPERTY = "anima.web_debugger.port";
+    public static final String PORT_PROPERTY = "anima.webdebug.port";
 
     /** How long an idle stream waits before emitting a keepalive — and noticing a dead socket. */
     private static final long KEEPALIVE_MILLIS = 15_000L;
@@ -191,7 +191,7 @@ public final class WebDebugger {
      * actually set</b>. That order matters: in single-player the client hosts its own integrated
      * server, so a dev client and a dev server both want a port and cannot share one — the
      * launcher hands each a different default, exactly as it already does for the JDWP ports —
-     * while an operator who edits {@code web_debugger.port} still gets what they typed.
+     * while an operator who edits {@code webdebug.port} still gets what they typed.
      *
      * @see Knob#WEB_PORT
      */
@@ -228,7 +228,7 @@ public final class WebDebugger {
         return Config.get().s(Knob.WEB_APP_URL);
     }
 
-    /** Who may read this world and who is asking — {@code /anima web-debugger access}. */
+    /** Who may read this world and who is asking — {@code /anima webdebug access}. */
     public static WebBrowsers browsers() {
         return BROWSERS;
     }
@@ -256,7 +256,7 @@ public final class WebDebugger {
     }
 
     /**
-     * The address to open — what {@code /anima web-debugger} prints. It carries nothing: the
+     * The address to open — what {@code /anima webdebug} prints. It carries nothing: the
      * browser brings its own key and asks to be let in, so this can be pasted anywhere.
      *
      * <p>A wildcard bind has no address to name, so it prints as loopback: every interface includes
@@ -341,7 +341,7 @@ public final class WebDebugger {
             // would keep a crashed server's JVM alive.
             AtomicInteger counter = new AtomicInteger();
             ExecutorService created_pool = Executors.newCachedThreadPool(runnable -> {
-                Thread thread = new Thread(runnable, "anima-web-debugger-" + counter.incrementAndGet());
+                Thread thread = new Thread(runnable, "anima-webdebug-" + counter.incrementAndGet());
                 thread.setDaemon(true);
                 return thread;
             });
@@ -354,15 +354,15 @@ public final class WebDebugger {
             created.start();
             http = created;
             pool = created_pool;
-            AnimaMod.LOGGER.info("web-debugger: listening — open {} ({} browser(s) allowed)",
+            AnimaMod.LOGGER.info("webdebug: listening — open {} ({} browser(s) allowed)",
                     address(), BROWSERS.allowed().size());
             warnIfExposed();
             return null;
         } catch (UnknownHostException e) {
-            AnimaMod.LOGGER.warn("web-debugger: \"{}\" is not an address this machine can bind", host());
-            return "web_debugger.host \"" + host() + "\" is not an address this machine can bind";
+            AnimaMod.LOGGER.warn("webdebug: \"{}\" is not an address this machine can bind", host());
+            return "webdebug.host \"" + host() + "\" is not an address this machine can bind";
         } catch (IOException e) {
-            AnimaMod.LOGGER.warn("web-debugger: could not listen on {}:{} ({})", host(), port(), e.toString());
+            AnimaMod.LOGGER.warn("webdebug: could not listen on {}:{} ({})", host(), port(), e.toString());
             return "could not listen on " + host() + ":" + port() + " — " + e.getMessage();
         }
     }
@@ -392,10 +392,10 @@ public final class WebDebugger {
         if (loopbackOnly()) {
             return;
         }
-        AnimaMod.LOGGER.warn("web-debugger: bound to {} — NOT loopback. Every agent's mind is readable, "
+        AnimaMod.LOGGER.warn("webdebug: bound to {} — NOT loopback. Every agent's mind is readable, "
                 + "and its commands drivable, by anything that can reach {}:{} and holds an "
                 + "accepted browser key — which travels in the clear, there being no TLS. Set "
-                + "web_debugger.host back to 127.0.0.1 unless you meant this.",
+                + "webdebug.host back to 127.0.0.1 unless you meant this.",
                 host(), host(), port());
     }
 
@@ -429,7 +429,7 @@ public final class WebDebugger {
         // state is worth carrying across a restart — only the allowed list, on disk, survives one.
         BROWSERS.clear();
         ANNOUNCED.clear();
-        AnimaMod.LOGGER.info("web-debugger: stopped");
+        AnimaMod.LOGGER.info("webdebug: stopped");
     }
 
     // --- routes ---------------------------------------------------------------------------------
@@ -518,8 +518,8 @@ public final class WebDebugger {
         if (!ANNOUNCED.add(key)) {
             return;
         }
-        AnimaMod.LOGGER.info("web-debugger: a browser is asking to connect — \"{}\" from {}. "
-                + "Let it in with /anima web-debugger allow {}", key, from, key);
+        AnimaMod.LOGGER.info("webdebug: a browser is asking to connect — \"{}\" from {}. "
+                + "Let it in with /anima webdebug allow {}", key, from, key);
         MinecraftServer server = world;
         if (server == null) {
             return;
