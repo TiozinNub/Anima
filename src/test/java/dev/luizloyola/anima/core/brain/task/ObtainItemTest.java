@@ -54,7 +54,7 @@ class ObtainItemTest {
 
     @Test
     void aLiteralIngredientReachesTheConsumersProducerByContent() {
-        Producers.register(LOGS, FellSomething::new);
+        Producers.register(LOGS, wanted -> new FellSomething());
         // The ingredient shape: "any oak log", built from a recipe, never declared by a mod.
         ObtainItem ingredient = new ObtainItem(
                 ItemSpec.anyOf(Set.of("minecraft:oak_log", "minecraft:oak_wood")), 1);
@@ -74,7 +74,7 @@ class ObtainItemTest {
 
     @Test
     void anUnrelatedLiteralGetsNoBridge() {
-        Producers.register(LOGS, FellSomething::new);
+        Producers.register(LOGS, wanted -> new FellSomething());
         ObtainItem stone = new ObtainItem(ItemSpec.anyOf(Set.of("minecraft:cobblestone")), 1);
         assertEquals(3, stone.methods().size(),
                 "pick up + craft + take from store; nobody produces cobble");
@@ -82,11 +82,28 @@ class ObtainItemTest {
 
     @Test
     void aDeclaredSpecKeepsItsIdentityRosterUnchanged() {
-        Producers.register(LOGS, FellSomething::new);
+        Producers.register(LOGS, wanted -> new FellSomething());
         List<Method> roster = new ObtainItem(LOGS, 16).methods();
         assertEquals(4, roster.size(), "identity producer once — the bridge never double-adds");
         assertInstanceOf(FellSomething.class, roster.get(1));
         assertTrue(roster.get(2) instanceof CraftFor);
         assertTrue(roster.get(3) instanceof TakeFromStore);
+    }
+
+    @Test
+    void aProducerIsToldWhatTheGoalActuallyWants() {
+        ItemSpec anyLog = ItemSpec.register(
+                new ItemSpec("producer-test-logs", id -> id.endsWith("_log")));
+        java.util.List<ItemSpec> asked = new java.util.ArrayList<>();
+        Producers.register(anyLog, wanted -> {
+            asked.add(wanted);
+            return new FellSomething();
+        });
+
+        ItemSpec oakOnly = ItemSpec.anyOf(java.util.Set.of("minecraft:oak_log"));
+        new ObtainItem(oakOnly, 4);
+
+        assertEquals(java.util.List.of(oakOnly), asked,
+                "registered for any log, asked for oak — the producer hears the narrow one");
     }
 }
