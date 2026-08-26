@@ -36,11 +36,13 @@ public final class FakeProbe implements BlockProbe {
     /**
      * A little oak with its trunk at column (x, z) on the ground: 4 logs (y 64–67), a ring of
      * 8 leaves around the trunk top (y 67), a full 3×3 leaf cap (y 68). 4 logs, 17 leaves;
-     * every canopy column's surface is a leaf at y 68.
+     * every canopy column's surface is a leaf at y 68. Every log is also named
+     * {@code minecraft:oak_log} — a test after a different species calls {@link #setId} over it.
      */
     public void placeOak(int x, int z) {
         for (int y = 64; y <= 67; y++) {
             set(x, y, z, BlockKind.LOG);
+            setId(x, y, z, "minecraft:oak_log");
         }
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
