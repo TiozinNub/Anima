@@ -194,4 +194,60 @@ class EnsureStoreTest {
         assertTrue(steps.get(0) instanceof EnsureStore);
         assertTrue(steps.get(1) instanceof PutItems);
     }
+
+    @Test
+    void aSecondYardChestGoesBesideTheFirstAndNeverOnTopOfIt() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(0, 64, 0);
+        ctx.percepts.time = 1_000L;
+        Pos yard = new Pos(10, 64, 10);
+        ctx.percepts.blocks.set(yard.x(), yard.y(), yard.z(), Store.BLOCK);
+        remember(ctx, Store.POI, yard);
+        ctx.knowledge.avoid(Store.POI, yard, 2_000L); // found full: a second one IS wanted here
+
+        Pos spot = placedAt(new EnsureStore(yard).methods().get(1).decompose(ctx));
+
+        assertEquals(yard.y(), spot.y(),
+                "the lid of a chest is not ground to stand the next one on — in-world on "
+                        + "2026-08-25 that read as four stores in one x/z, (-690, 72..75, 893), "
+                        + "only the bottom one reachable");
+        assertTrue(spot.x() != yard.x() || spot.z() != yard.z(),
+                "and it still has to go somewhere: beside the full one, on the ground");
+    }
+
+    @Test
+    void aYardThatAlreadyHasAChestIsNotOneToOpenAgain() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(0, 64, 0);
+        Pos yard = new Pos(10, 64, 10);
+        ctx.percepts.blocks.set(yard.x(), yard.y(), yard.z(), Store.BLOCK);
+        remember(ctx, Store.POI, yard);
+
+        EnsureStore goal = new EnsureStore(yard);
+
+        assertTrue(goal.methods().get(0).applicable(ctx), "the yard's chest is what to walk to");
+        assertFalse(goal.methods().get(1).applicable(ctx),
+                "a yard is ONE place. Four settlers each opening their own is what put four "
+                        + "chests in one yard in-world on 2026-08-25; the loser of the race has "
+                        + "to walk to the winner's chest, not build beside it");
+    }
+
+    @Test
+    void aHintedYardAlwaysHasExactlyOneWayOpen() {
+        Pos yard = new Pos(10, 64, 10);
+        for (boolean chestThere : new boolean[]{false, true}) {
+            FakeContext ctx = new FakeContext();
+            ctx.percepts.position = new Pos(0, 64, 0);
+            if (chestThere) {
+                ctx.percepts.blocks.set(yard.x(), yard.y(), yard.z(), Store.BLOCK);
+                remember(ctx, Store.POI, yard);
+            }
+            EnsureStore goal = new EnsureStore(yard);
+
+            assertEquals(1, goal.methods().stream().filter(way -> way.applicable(ctx)).count(),
+                    "walk-to and open-the-yard are complements, which is what lets "
+                            + "GatheringErrand promise the yard leg can never be out of ways "
+                            + "(chest already there: " + chestThere + ")");
+        }
+    }
 }

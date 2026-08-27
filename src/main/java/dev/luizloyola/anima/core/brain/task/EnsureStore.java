@@ -130,6 +130,14 @@ public final class EnsureStore implements AchieveTask {
     final class MakeAndPlace implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
+            if (hint != null) {
+                // A yard is ONE place, and the party's first chest there is everyone's. Four
+                // settlers each opened their own on 2026-08-25 because nothing asked this; the
+                // loser of the race now falls to WalkToKnown instead. A yard chest found FULL is
+                // avoided, so yardNear stops seeing it and a second one is wanted again — which is
+                // the one case where two stores at a yard is the right answer.
+                return yardNear(ctx, hint).isEmpty();
+            }
             return nearestPartyPlace(ctx).isPresent() || spotBeside(ctx) != null;
         }
 
@@ -236,18 +244,34 @@ public final class EnsureStore implements AchieveTask {
         private static final int COLUMN_REACH = 12;
 
         /**
-         * The cell in {@code column}'s vertical line that a chest can stand in: air on solid
-         * ground, nobody in it. Searched from the asked-for height outward, nearest first, so a
-         * hint that is already right costs one read and a hint in the air finds the floor under it.
+         * Whether a store can stand in {@code cell}: empty, on something solid, nobody in it —
+         * and never on another store's <b>lid</b>.
+         *
+         * <p>A chest holds the next one up perfectly well, which is what turned a contested yard
+         * into a COLUMN of four rather than a row (in-world, 2026-08-25, at
+         * {@code (-690, 72..75, 893)}): each settler found the cell taken, looked one higher, and
+         * found a floor. Only the bottom chest was ever reachable.
+         */
+        private static boolean canHoldAStore(BrainContext ctx, Pos cell) {
+            BlockProbe probe = ctx.percepts().blocks();
+            if (probe.at(cell.x(), cell.y(), cell.z()) != BlockKind.AIR) {
+                return false;
+            }
+            BlockKind floor = probe.at(cell.x(), cell.y() - 1, cell.z());
+            return floor != BlockKind.AIR && !Store.isStore(floor)
+                    && !PlaceBlock.occupied(ctx, cell);
+        }
+
+        /**
+         * The cell in {@code column}'s vertical line that a chest can stand in. Searched from the
+         * asked-for height outward, nearest first, so a hint that is already right costs one read
+         * and a hint in the air finds the floor under it.
          */
         private static @Nullable Pos standable(BrainContext ctx, Pos column) {
-            BlockProbe probe = ctx.percepts().blocks();
             for (int step = 0; step <= COLUMN_REACH; step++) {
                 for (int dy : step == 0 ? new int[]{0} : new int[]{-step, step}) {
                     Pos cell = new Pos(column.x(), column.y() + dy, column.z());
-                    if (probe.at(cell.x(), cell.y(), cell.z()) == BlockKind.AIR
-                            && probe.at(cell.x(), cell.y() - 1, cell.z()) != BlockKind.AIR
-                            && !PlaceBlock.occupied(ctx, cell)) {
+                    if (canHoldAStore(ctx, cell)) {
                         return cell;
                     }
                 }
@@ -273,15 +297,12 @@ public final class EnsureStore implements AchieveTask {
          * which sends the caller back to building next to itself.
          */
         private static Pos freeBeside(BrainContext ctx, Pos anchor, Pos stand) {
-            BlockProbe probe = ctx.percepts().blocks();
             for (int[] side : SIDES) {
                 Pos cell = new Pos(anchor.x() + side[0], anchor.y(), anchor.z() + side[1]);
                 if (cell.x() == stand.x() && cell.y() == stand.y() && cell.z() == stand.z()) {
                     continue;
                 }
-                if (probe.at(cell.x(), cell.y(), cell.z()) == BlockKind.AIR
-                        && probe.at(cell.x(), cell.y() - 1, cell.z()) != BlockKind.AIR
-                        && !PlaceBlock.occupied(ctx, cell)) {
+                if (canHoldAStore(ctx, cell)) {
                     return cell;
                 }
             }
@@ -294,16 +315,12 @@ public final class EnsureStore implements AchieveTask {
          * which makes the method inapplicable rather than a doomed decomposition.
          */
         private static Pos spotBeside(BrainContext ctx) {
-            BlockProbe probe = ctx.percepts().blocks();
             Pos feet = ctx.percepts().position();
             for (int ring = 1; ring <= 2; ring++) {
                 for (int[] side : SIDES) {
-                    int x = feet.x() + side[0] * ring;
-                    int z = feet.z() + side[1] * ring;
-                    Pos cell = new Pos(x, feet.y(), z);
-                    if (probe.at(x, feet.y(), z) == BlockKind.AIR
-                            && probe.at(x, feet.y() - 1, z) != BlockKind.AIR
-                            && !PlaceBlock.occupied(ctx, cell)) {
+                    Pos cell = new Pos(feet.x() + side[0] * ring, feet.y(),
+                            feet.z() + side[1] * ring);
+                    if (canHoldAStore(ctx, cell)) {
                         return cell;
                     }
                 }
