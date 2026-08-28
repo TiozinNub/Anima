@@ -154,6 +154,45 @@ class ConverseTest {
         assertEquals(5.5, ctx.gazer.x, 1e-9, "the record's actual counterpart's cell");
     }
 
+    // ── closing the distance: taking over walks into range before a word is said ────────────
+
+    @Test
+    @DisplayName("beyond chat range: no line is said, and the mover is asked to walk toward them")
+    void beyondChatRangeWalksInsteadOfSpeaking() {
+        BeingId counterpartId = BeingId.of(AgentId.random());
+        // TestSpecies' chat radius is 12 — 20 blocks is well outside it.
+        ctx.percepts.beings = List.of(personAt(counterpartId, new Pos(20, 64, 0), 20.0));
+        Converse converse = new Converse(counterpartId, Speech.Opening.QUIET);
+        ctx.speech.chooser = (c, turn) -> Chooser.Line.of(SpeechActs.GREETING); // would speak if it could
+
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx));
+
+        assertTrue(ctx.speech.saidLines.isEmpty(), "too far to speak this tick");
+        assertEquals(1, ctx.mover.moveToCalls, "the mover was asked to move toward them");
+        assertEquals(20, ctx.mover.lastX);
+        assertEquals(64, ctx.mover.lastY);
+        assertEquals(0, ctx.mover.lastZ);
+    }
+
+    @Test
+    @DisplayName("stepping within chat range resumes speech")
+    void steppingWithinChatRangeResumesSpeech() {
+        BeingId counterpartId = BeingId.of(AgentId.random());
+        ctx.percepts.beings = List.of(personAt(counterpartId, new Pos(20, 64, 0), 20.0));
+        Converse converse = new Converse(counterpartId, Speech.Opening.QUIET);
+        ctx.speech.chooser = (c, turn) -> Chooser.Line.of(SpeechActs.GREETING);
+
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx));
+        assertTrue(ctx.speech.saidLines.isEmpty(), "still out of range on the first tick");
+
+        // Shrunk to well within TestSpecies' 12-block chat radius.
+        ctx.percepts.beings = List.of(personAt(counterpartId, new Pos(6, 64, 0), 6.0));
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx));
+
+        assertEquals(1, ctx.speech.saidLines.size(), "within range now — the chosen line is said");
+        assertEquals(SpeechActs.GREETING.key(), ctx.speech.saidLines.get(0).act());
+    }
+
     // ── rule 3: speak on this body's turn; a line that ends the record is SUCCESS ───────────
 
     @Test
@@ -298,6 +337,16 @@ class ConverseTest {
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * A seen, identified person at {@code pos}, {@code distance} blocks off — {@code id} fixed so
+     * a test can move the same counterpart between ticks instead of introducing a new stranger.
+     */
+    private static Being personAt(BeingId id, Pos pos, double distance) {
+        return new Being(id, Being.Kind.AGENT, "person", "Rex", null, pos, distance, 1, 0, false,
+                List.of(), Being.Activity.IDLE, Being.Locomotion.STILL, false, false, false, false,
+                false, false, Being.Gear.NONE, Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
+    }
 
     /** Says each line in order, then falls silent — a deterministic script for one test. */
     private static Chooser scripted(Chooser.Line... lines) {

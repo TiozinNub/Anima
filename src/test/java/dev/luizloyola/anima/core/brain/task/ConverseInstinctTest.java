@@ -138,4 +138,16 @@ class ConverseInstinctTest {
         Converse root = assertInstanceOf(Converse.class, converse.root(ctx));
         assertEquals(otherId, root.other(), "the counterpart read off the port, not a self-id");
     }
+
+    @Test
+    void theResumePullBoundsOnChatRadiusRatherThanHailRadius() {
+        BeingId otherId = BeingId.of(AgentId.random());
+        ctx.speech.join(otherId, Speech.Opening.QUIET);
+        // ctx.percepts.beings is empty — nobody is hailing, so this is the resume branch bidding.
+
+        assertEquals(2.0 * ctx.profile.i(ProfileAspect.SOCIAL_CHAT_RADIUS),
+                converse.costTolerance(ctx), 1e-9,
+                "returning to a chat already under way is near, unlike a hail — bound on the "
+                        + "narrower radius");
+    }
 }

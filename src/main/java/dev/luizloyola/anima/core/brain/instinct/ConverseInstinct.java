@@ -55,11 +55,14 @@ public final class ConverseInstinct implements Instinct {
 
     /**
      * A hail is within earshot by definition, so twice its radius covers a walk around an obstacle
-     * and nothing more. Unbounded here would let a shout license a journey.
+     * and nothing more — unbounded here would let a shout license a journey. The resume branch
+     * bounds on {@code social.chat_radius} instead: a hail is far by definition, but returning to
+     * a chat this body already stepped away from is near.
      */
     @Override
     public double costTolerance(BrainContext ctx) {
-        return 2.0 * ctx.profile().i(ProfileAspect.SOCIAL_HAIL_RADIUS);
+        return 2.0 * ctx.profile().i(nearestCaller(ctx) != null
+                ? ProfileAspect.SOCIAL_HAIL_RADIUS : ProfileAspect.SOCIAL_CHAT_RADIUS);
     }
 
     @Override
