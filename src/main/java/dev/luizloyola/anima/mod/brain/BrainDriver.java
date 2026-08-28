@@ -48,6 +48,7 @@ import dev.luizloyola.anima.mod.brain.AgentPercepts;
 import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.social.EncounterData;
+import dev.luizloyola.anima.mod.social.Speeches;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -486,6 +487,10 @@ public final class BrainDriver {
                 public void said(Encounter e, Utterance u) {
                     EncounterData.get(server).dirty();
                     BeingSpeech.spoke(person.entity());
+                    // This body WROTE the line — position, chat radius, sound. Who is shown is
+                    // u.author(), which is not the same on a hail an answerer prefills for its
+                    // caller.
+                    Speeches.deliver(server, person, e, u);
                     // One call per participant as the line arrives — never by replaying the
                     // transcript, which would double-pay a resumed conversation (see Company#conversed).
                     for (AgentId participant : e.participants()) {

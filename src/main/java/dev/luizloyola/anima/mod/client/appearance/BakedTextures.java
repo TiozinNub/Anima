@@ -5,6 +5,7 @@ import dev.luizloyola.anima.core.appearance.Canonical;
 import dev.luizloyola.anima.core.appearance.Compositor;
 import dev.luizloyola.anima.core.appearance.Recipe;
 import dev.luizloyola.anima.mod.AnimaMod;
+import dev.luizloyola.anima.mod.appearance.BakedIds;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -278,10 +279,10 @@ public final class BakedTextures {
         }
     }
 
-    /** The texture id a hash gets. Hex, because a recipe's own spelling carries colours and slashes
-     *  and an {@code Identifier} path admits neither. */
+    /** The texture id a hash gets — {@link BakedIds}, so the server spells it the same way when it
+     *  puts a head glyph in a chat line. */
     private static Identifier idFor(long hash) {
-        return Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "baked/" + Canonical.hex(hash));
+        return BakedIds.of(hash);
     }
 
     /** True when not one part of the recipe resolved to art — the whole canvas is still empty. */
