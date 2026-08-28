@@ -31,6 +31,8 @@ public final class ConverseInstinct implements Instinct {
 
     @Override
     public double pressure(BrainContext ctx) {
+        // current() is a mutating query — a stale record is closed right here, so this is where
+        // the reaping actually happens for a body that never comes back to look.
         return nearestCaller(ctx) != null || ctx.speech().current().isPresent()
                 ? ctx.profile().d(ProfileAspect.SOCIAL_HAIL_ANSWER_PRESSURE)
                 : 0.0;
@@ -44,6 +46,8 @@ public final class ConverseInstinct implements Instinct {
         }
         // The resume pull: no fresh call, but a conversation is still open. The counterpart comes
         // off the port rather than being kept here, so this instinct never needs a self-id.
+        // orElseThrow is safe only because the arbiter calls pressure() before root() in the same
+        // frozen tick — current() cannot have gone stale between the two calls.
         Encounter current = ctx.speech().current().orElseThrow();
         AgentId otherId = ctx.speech().counterpart(current).orElseThrow();
         return new Converse(BeingId.of(otherId), Speech.Opening.QUIET);

@@ -28,7 +28,7 @@ public final class Answer implements CompoundTask {
     public Answer(BeingId who, Pos where) {
         this.who = who;
         this.where = where;
-        this.methods = List.of(new WalkOverAndFace());
+        this.methods = List.of(new WalkOverAndTalk());
     }
 
     @Override
@@ -53,7 +53,7 @@ public final class Answer implements CompoundTask {
         return where;
     }
 
-    private final class WalkOverAndFace implements Method {
+    private final class WalkOverAndTalk implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
             return true;

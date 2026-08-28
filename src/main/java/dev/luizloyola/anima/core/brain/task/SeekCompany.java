@@ -94,7 +94,8 @@ public final class SeekCompany implements PrimitiveTask {
 
     @Override
     public String describe() {
-        return "seek company";
+        // Once handed off, the executor's own readout should say what the body is actually doing.
+        return converse != null ? converse.describe() : "seek company";
     }
 
     // ── continuity ───────────────────────────────────────────────────────────────────────────

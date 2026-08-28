@@ -135,6 +135,7 @@ class ConverseInstinctTest {
 
         assertEquals(ctx.profile.d(ProfileAspect.SOCIAL_HAIL_ANSWER_PRESSURE), bid, 1e-9,
                 "an open conversation pulls exactly as hard as a fresh call");
-        assertInstanceOf(Converse.class, converse.root(ctx));
+        Converse root = assertInstanceOf(Converse.class, converse.root(ctx));
+        assertEquals(otherId, root.other(), "the counterpart read off the port, not a self-id");
     }
 }

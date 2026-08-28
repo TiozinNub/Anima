@@ -83,9 +83,17 @@ public final class Converse implements PrimitiveTask {
         return opening;
     }
 
+    /**
+     * Faces whoever the held {@link #encounter} actually says is the other party — {@code other}
+     * only stands in before one is resolved. {@code current()} may hand back a record this body
+     * was already in with somebody else, and a body swept into that must look at who it is
+     * actually talking to, not who it was constructed expecting to.
+     */
     private void face(BrainContext ctx) {
+        BeingId counterpart = encounter == null ? other
+                : ctx.speech().counterpart(encounter).map(BeingId::of).orElse(other);
         for (Being being : ctx.percepts().beings()) {
-            if (being.id().equals(other)) {
+            if (being.id().equals(counterpart)) {
                 Pos at = being.pos();
                 ctx.actuators().gazer().lookAt(at.x() + 0.5, at.y() + 1.5, at.z() + 0.5,
                         Gazer.Priority.WORK);

@@ -469,15 +469,19 @@ public final class AnimaTasks {
                     if (target.isEmpty()) {
                         // No target chosen yet — a hand-edited "hailed"/"walk" with no "target" is
                         // read the same way: re-choosing is what this task does whenever its
-                        // target is gone, so that is the safe fallback.
+                        // target is gone, so that is the safe fallback, and also what a save from
+                        // before this field existed looks like: walk-without-target, deliberately
+                        // re-seeked rather than resumed blind.
                         return seek;
                     }
-                    // Anything but a walk in that slot means the walk already succeeded before
-                    // the save — a fresh Converse is the smallest faithful reconstruction.
-                    if (walk.orElse(null) instanceof GoTo leg) {
-                        seek.resume(target.get(), hailed, leg);
-                    } else {
-                        seek.resumeConverse(target.get(), hailed);
+                    // An absent "walk" means it already succeeded before the save — reconstruct
+                    // the conversation it handed off to. Anything present but not a GoTo is a
+                    // hand-edited file; that falls back to a fresh seek too, same as no target.
+                    if (walk.isEmpty()) {
+                        return seek.resumeConverse(target.get(), hailed);
+                    }
+                    if (walk.get() instanceof GoTo leg) {
+                        return seek.resume(target.get(), hailed, leg);
                     }
                     return seek;
                 })));

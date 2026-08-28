@@ -391,4 +391,24 @@ class TaskCodecsTest {
         assertEquals(Speech.Opening.I_HAILED, converse.opening(),
                 "hailed carries forward as the credited opening");
     }
+
+    @Test
+    void aSeekWithSomethingOtherThanAWalkInThatSlotStartsOverRatherThanGuessing() {
+        // Only a hand-edited file puts anything but a GoTo (or nothing) there. Treated the same
+        // as no target at all — re-choose — rather than read it as a stalled conversation.
+        BeingId target = BeingId.of(UUID.randomUUID());
+        SeekCompany before = new SeekCompany()
+                .resume(target, true, new GoTo(20, 64, -4, Gait.WALK).resume(true));
+        var encoded = TaskCodecs.codec().encodeStart(JsonOps.INSTANCE, before).getOrThrow();
+        com.google.gson.JsonObject corrupted = encoded.getAsJsonObject();
+        corrupted.add("walk",
+                TaskCodecs.codec().encodeStart(JsonOps.INSTANCE, new Idle(5)).getOrThrow());
+
+        SeekCompany after = assertInstanceOf(SeekCompany.class,
+                TaskCodecs.codec().parse(JsonOps.INSTANCE, corrupted).getOrThrow());
+
+        assertNull(after.target());
+        assertNull(after.walk());
+        assertNull(after.converse());
+    }
 }

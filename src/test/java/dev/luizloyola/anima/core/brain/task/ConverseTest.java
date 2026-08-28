@@ -137,6 +137,23 @@ class ConverseTest {
         assertFalse(ctx.gazer.asked, "remembered position is the sensor's business, not ours");
     }
 
+    @Test
+    @DisplayName("faces the held record's real counterpart, not who the task was built expecting")
+    void facesTheHeldRecordsCounterpartEvenIfConstructedForSomebodyElse() {
+        // current() can hand back an encounter this body was already in with somebody else — a
+        // body swept into that record must look at who it is actually talking to.
+        Being actual = FakePercepts.personAt(new Pos(5, 64, 0), 5.0, "Actual");
+        ctx.percepts.beings = List.of(actual);
+        ctx.speech.join(actual.id(), Speech.Opening.QUIET);
+        Converse converse = new Converse(otherId, Speech.Opening.QUIET); // built for somebody else
+        ctx.speech.chooser = (c, turn) -> null;
+
+        converse.tick(ctx);
+
+        assertTrue(ctx.gazer.asked);
+        assertEquals(5.5, ctx.gazer.x, 1e-9, "the record's actual counterpart's cell");
+    }
+
     // ── rule 3: speak on this body's turn; a line that ends the record is SUCCESS ───────────
 
     @Test

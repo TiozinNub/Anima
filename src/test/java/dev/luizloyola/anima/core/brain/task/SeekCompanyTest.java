@@ -187,5 +187,30 @@ class SeekCompanyTest {
         assertEquals(1, e.transcript().size(), "just the prefilled hail so far");
         assertEquals(SpeechActs.HAIL.key(), e.transcript().get(0).act(),
                 "the far target was hailed, and the encounter is credited to match");
+        assertEquals(ctx.self, e.transcript().get(0).author(),
+                "I_HAILED credits the hail to this body, not the target");
+    }
+
+    /**
+     * The other half of the credit: a neighbour is never shouted at, so arrival opens QUIET —
+     * nothing prefilled, unlike the far target's I_HAILED above.
+     */
+    @Test
+    void arrivingOnANeighbourOpensWithNoPrefilledLine() {
+        ctx.percepts.company.setValue(0.0);
+        double close = ctx.profile.i(ProfileAspect.SENSES_HEARING_RADIUS) - 1.0;
+        Being neighbour = FakePercepts.personAt(new Pos(0, 64, (int) close), close, "");
+        ctx.percepts.beings = List.of(neighbour);
+        ctx.speech.chooser = (c, turn) -> null;
+
+        SeekCompany seek = new SeekCompany();
+        seek.tick(ctx); // walks over in silence — inside the hearing radius, never hailed
+
+        ctx.mover.setState(MoveState.ARRIVED);
+        TaskStatus status = seek.tick(ctx);
+
+        assertEquals(TaskStatus.RUNNING, status);
+        Encounter e = ctx.speech.current().orElseThrow();
+        assertTrue(e.transcript().isEmpty(), "QUIET opens with nothing prefilled — nobody was hailed");
     }
 }
