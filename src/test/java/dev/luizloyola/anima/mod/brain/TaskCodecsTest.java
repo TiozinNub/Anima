@@ -11,6 +11,7 @@ import dev.luizloyola.anima.arch.SourceTree;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.task.Answer;
+import dev.luizloyola.anima.core.brain.task.Converse;
 import dev.luizloyola.anima.core.brain.task.Face;
 import dev.luizloyola.anima.core.brain.task.GoTo;
 import dev.luizloyola.anima.core.brain.task.Idle;
@@ -18,6 +19,7 @@ import dev.luizloyola.anima.core.brain.task.SeekCompany;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.WanderStep;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.social.speech.Speech;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -337,6 +339,18 @@ class TaskCodecsTest {
         assertEquals(new Pos(2, 64, 2), after.where());
         assertEquals(30, after.ticks());
         assertEquals(11, after.remaining(), "a beat that restarts is one both parties stand through");
+    }
+
+    @Test
+    void aConverseComesBackKnowingWhoAndHowItWouldOpen() {
+        // The live Encounter is deliberately not part of this: it is world state owned by the
+        // shared roster, not the task's own — see Converse's class doc — so only what it was
+        // constructed with has to survive the round trip.
+        BeingId other = BeingId.of(UUID.randomUUID());
+        Converse after = assertInstanceOf(Converse.class,
+                roundTrip(new Converse(other, Speech.Opening.I_HAILED)));
+        assertEquals(other, after.other());
+        assertEquals(Speech.Opening.I_HAILED, after.opening());
     }
 
     @Test

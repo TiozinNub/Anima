@@ -66,6 +66,23 @@ public final class Converse implements PrimitiveTask {
         return "converse";
     }
 
+    // ── continuity ───────────────────────────────────────────────────────────────────────────
+
+    /** Who this body is conversing with. */
+    public BeingId other() {
+        return other;
+    }
+
+    /**
+     * How this body credits the encounter's opening if it has to {@link Speech#join join} one —
+     * moot once {@link #encounter} is resolved, which is why it, not {@code opening}, is the
+     * saved codec's only omission: a restored task re-resolves it through
+     * {@link Speech#current()} on its first tick rather than carrying world state of its own.
+     */
+    public Speech.Opening opening() {
+        return opening;
+    }
+
     private void face(BrainContext ctx) {
         for (Being being : ctx.percepts().beings()) {
             if (being.id().equals(other)) {

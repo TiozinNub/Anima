@@ -25,6 +25,7 @@ import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.WanderStep;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.social.speech.Speech;
 import net.minecraft.core.UUIDUtil;
 
 /**
@@ -62,6 +63,17 @@ public final class AnimaTasks {
                         }
                     },
                     HandlingPhase::name);
+
+    /** Enums round-trip by name; an unknown one is an error rather than a silent default. */
+    private static final Codec<Speech.Opening> OPENING = Codec.STRING.comapFlatMap(
+            name -> {
+                try {
+                    return DataResult.success(Speech.Opening.valueOf(name));
+                } catch (IllegalArgumentException e) {
+                    return DataResult.error(() -> "no conversation opening called \"" + name + "\"");
+                }
+            },
+            Speech.Opening::name);
 
     /**
      * A class of items, in the two shapes a spec can have. A mod-declared spec's matcher is a
@@ -423,6 +435,18 @@ public final class AnimaTasks {
                 ).apply(t, (who, where, ticks, remaining) ->
                         new dev.luizloyola.anima.core.brain.task.Face(who, where, ticks)
                                 .resume(remaining))));
+
+        // The rung 5 root: what this body would say to OPEN the encounter if speech.current()
+        // finds nothing already there. The live Encounter itself is not here — it is world state
+        // owned by the shared roster, not this task's — a restored Converse re-resolves it through
+        // speech.current() on its own first tick instead of carrying a second copy of the record.
+        TaskCodecs.register("anima:converse", dev.luizloyola.anima.core.brain.task.Converse.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        BEING_ID.fieldOf("other")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Converse::other),
+                        OPENING.fieldOf("opening")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Converse::opening)
+                ).apply(t, dev.luizloyola.anima.core.brain.task.Converse::new)));
 
         // The leg rides through the dispatch codec like the two wrappers below: a seek that came
         // back before its walk would choose a target again — with the mark for the first one
