@@ -31,6 +31,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
@@ -76,11 +77,12 @@ public final class JournalFileSink {
     /** Per-line wall clock. Seconds are enough to line a journal up against the server log. */
     private static final DateTimeFormatter LINE_STAMP = DateTimeFormatter.ofPattern("HH:mm:ss");
 
-    private final MinecraftServer server;
     private final Path dir;
     private final String runStamp;
     /** Wall clock, injected so a test can assert a stamp instead of sleeping. */
     private final Supplier<LocalDateTime> clock;
+    /** Looks up a display name for an id. Injected so a test needs no live server or directory. */
+    private final Function<AgentId, String> nameResolver;
     /** id → filesystem-safe name, resolved once on the server thread (a directory read lives there). */
     private final Map<AgentId, String> names = new ConcurrentHashMap<>();
     private final LinkedBlockingQueue<Pending> queue = new LinkedBlockingQueue<>();
@@ -90,11 +92,12 @@ public final class JournalFileSink {
 
     private record Pending(AgentId id, Entry entry, LocalDateTime at) {}
 
-    private JournalFileSink(MinecraftServer server, Path dir, String runStamp, Supplier<LocalDateTime> clock) {
-        this.server = server;
+    private JournalFileSink(Path dir, String runStamp, Supplier<LocalDateTime> clock,
+            Function<AgentId, String> nameResolver) {
         this.dir = dir;
         this.runStamp = runStamp;
         this.clock = clock;
+        this.nameResolver = nameResolver;
         this.handles = new LinkedHashMap<>(16, 0.75f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<AgentId, BufferedWriter> eldest) {
@@ -117,7 +120,8 @@ public final class JournalFileSink {
     static JournalFileSink attach(MinecraftServer server, JournalService journal) {
         Path root = FabricLoader.getInstance().getGameDir().resolve("logs").resolve(AnimaMod.MOD_ID);
         String stamp = LocalDateTime.now().format(STAMP); // real wall-clock — mod code, not a workflow
-        JournalFileSink sink = new JournalFileSink(server, root.resolve(stamp), stamp, LocalDateTime::now);
+        JournalFileSink sink = new JournalFileSink(root.resolve(stamp), stamp, LocalDateTime::now,
+                id -> AgentDirectory.of(server).nameOf(id).orElse("unknown"));
         // Before subscribing, so this run's own folder is never in the set being counted.
         prune(server, root, stamp);
         journal.subscribe(sink::onEntry);
@@ -131,29 +135,18 @@ public final class JournalFileSink {
     }
 
     private String resolveName(AgentId id) {
-        return sanitize(AgentDirectory.of(server).nameOf(id).orElse("unknown"));
+        return sanitize(nameResolver.apply(id));
     }
 
     // --- test seam -------------------------------------------------------------------------------
 
     /**
-     * A sink with an injected clock and no live server. Safe because {@link #resolveName} degrades
-     * to "unknown" with nothing registered in {@link AgentDirectory} rather than dereferencing
-     * {@code server} — the same null the existing {@code AgentDirectoryTest} fixtures rely on.
+     * A sink writing real files under {@code dir} (pass a {@code @TempDir}), with an injected clock
+     * and a fixed name — so a test exercises the real {@link #onEntry}/{@link #flush}/{@link #close}
+     * path with no dependency on {@link AgentDirectory}'s process-wide registry.
      */
-    static JournalFileSink sinkWithClock(Supplier<LocalDateTime> clock) {
-        return new JournalFileSink(null, Path.of("build", "test-journal"), "test", clock);
-    }
-
-    /** Drains and renders whatever is queued right now, without the writer thread or file I/O. */
-    List<String> drainForTest() {
-        List<Pending> batch = new ArrayList<>();
-        queue.drainTo(batch);
-        List<String> lines = new ArrayList<>();
-        for (Pending pending : batch) {
-            lines.add(render(pending.entry(), pending.at()));
-        }
-        return lines;
+    static JournalFileSink sinkFor(Path dir, Supplier<LocalDateTime> clock) {
+        return new JournalFileSink(dir, "test", clock, id -> "agent");
     }
 
     // --- writer thread ---------------------------------------------------------------------------
