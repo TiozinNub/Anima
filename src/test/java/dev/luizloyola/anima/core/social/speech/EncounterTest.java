@@ -35,6 +35,14 @@ class EncounterTest {
     }
 
     @Test
+    @DisplayName("other() returns empty for a stranger to the record")
+    void otherEmpty() {
+        Encounter e = fresh();
+        AgentId stranger = AgentId.random();
+        assertTrue(e.other(stranger).isEmpty(), "a stranger has no counterpart in the encounter");
+    }
+
+    @Test
     @DisplayName("append keeps order and moves the activity clock")
     void appendOrders() {
         Encounter e = fresh();

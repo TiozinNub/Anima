@@ -38,6 +38,9 @@ public final class Encounter {
 
     /** The one other party of a two-body encounter; empty for self or a stranger to it. */
     public Optional<AgentId> other(AgentId self) {
+        if (!includes(self)) {
+            return Optional.empty();
+        }
         for (AgentId each : participants) {
             if (!each.equals(self)) {
                 return Optional.of(each);
