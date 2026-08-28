@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.inv.ItemCall;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.social.speech.Speech;
 import java.util.random.RandomGenerator;
 import dev.luizloyola.anima.core.agent.Pronouns;
 
@@ -72,6 +73,14 @@ public interface BrainContext {
      */
     default AgentClaims claims() {
         return AgentClaims.SOLO;
+    }
+
+    /**
+     * This body's one conversation, if it has the machinery for one — see {@link Speech}.
+     * Defaults to {@link Speech#NONE}: a rig with no port wired up is a body that cannot talk.
+     */
+    default Speech speech() {
+        return Speech.NONE;
     }
 
     /**

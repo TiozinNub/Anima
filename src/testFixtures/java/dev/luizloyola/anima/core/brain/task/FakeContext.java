@@ -19,6 +19,7 @@ import dev.luizloyola.anima.core.log.JournalService;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.agent.Pronouns;
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.social.speech.Speech;
 
 /**
  * The test {@link BrainContext}: everything a task or method can reach, scripted and inspectable.
@@ -43,6 +44,8 @@ public final class FakeContext implements BrainContext {
     public Pronouns pronouns = Pronouns.of("she", "her", "her");
     /** What the fake body is like — {@code TestSpecies.with(aspect, value)} makes a variant. */
     public AgentProfile profile = TestSpecies.PROFILE;
+    /** This fake person's conversation port — {@code caps}/{@code chooser} are settable for tests. */
+    public final FakeSpeech speech = new FakeSpeech(self, () -> profile, () -> percepts.time);
     /** What the fake body is afraid of. Settable, for a test about a body with other fears. */
     public DangerTable danger = TestDanger.TABLE;
     /**
@@ -149,6 +152,11 @@ public final class FakeContext implements BrainContext {
     @Override
     public AgentClaims claims() {
         return siteClaims.forPerson(self);
+    }
+
+    @Override
+    public Speech speech() {
+        return speech;
     }
 
     @Override
