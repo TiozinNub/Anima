@@ -161,7 +161,7 @@ class ConverseTest {
     void beyondChatRangeWalksInsteadOfSpeaking() {
         BeingId counterpartId = BeingId.of(AgentId.random());
         // TestSpecies' chat radius is 12 — 20 blocks is well outside it.
-        ctx.percepts.beings = List.of(personAt(counterpartId, new Pos(20, 64, 0), 20.0));
+        ctx.percepts.beings = List.of(FakePercepts.personAt(counterpartId, new Pos(20, 64, 0), 20.0, "Rex"));
         Converse converse = new Converse(counterpartId, Speech.Opening.QUIET);
         ctx.speech.chooser = (c, turn) -> Chooser.Line.of(SpeechActs.GREETING); // would speak if it could
 
@@ -178,7 +178,7 @@ class ConverseTest {
     @DisplayName("stepping within chat range resumes speech")
     void steppingWithinChatRangeResumesSpeech() {
         BeingId counterpartId = BeingId.of(AgentId.random());
-        ctx.percepts.beings = List.of(personAt(counterpartId, new Pos(20, 64, 0), 20.0));
+        ctx.percepts.beings = List.of(FakePercepts.personAt(counterpartId, new Pos(20, 64, 0), 20.0, "Rex"));
         Converse converse = new Converse(counterpartId, Speech.Opening.QUIET);
         ctx.speech.chooser = (c, turn) -> Chooser.Line.of(SpeechActs.GREETING);
 
@@ -186,11 +186,34 @@ class ConverseTest {
         assertTrue(ctx.speech.saidLines.isEmpty(), "still out of range on the first tick");
 
         // Shrunk to well within TestSpecies' 12-block chat radius.
-        ctx.percepts.beings = List.of(personAt(counterpartId, new Pos(6, 64, 0), 6.0));
+        ctx.percepts.beings = List.of(FakePercepts.personAt(counterpartId, new Pos(6, 64, 0), 6.0, "Rex"));
         assertEquals(TaskStatus.RUNNING, converse.tick(ctx));
 
         assertEquals(1, ctx.speech.saidLines.size(), "within range now — the chosen line is said");
         assertEquals(SpeechActs.GREETING.key(), ctx.speech.saidLines.get(0).act());
+    }
+
+    @Test
+    @DisplayName("cancelling mid-walk stops the mover, and the next tick re-evaluates cleanly")
+    void cancellingWhileClosingDistanceStopsTheWalk() {
+        BeingId counterpartId = BeingId.of(AgentId.random());
+        ctx.percepts.beings = List.of(FakePercepts.personAt(counterpartId, new Pos(20, 64, 0), 20.0, "Rex"));
+        Converse converse = new Converse(counterpartId, Speech.Opening.QUIET);
+        ctx.speech.chooser = (c, turn) -> Chooser.Line.of(SpeechActs.GREETING);
+
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx));
+        assertEquals(1, ctx.mover.moveToCalls);
+        assertEquals(0, ctx.mover.stopCalls);
+
+        converse.cancel(ctx);
+
+        assertEquals(1, ctx.mover.stopCalls, "the walk toward them is stopped, not left running");
+
+        // Still out of range — a later tick (a fresh grant, say) must re-evaluate cleanly rather
+        // than resuming — or crashing on — the walk cancel() already dropped.
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx));
+        assertEquals(2, ctx.mover.moveToCalls, "a fresh walk order, not a stale one");
+        assertTrue(ctx.speech.saidLines.isEmpty(), "still too far to speak");
     }
 
     // ── rule 3: speak on this body's turn; a line that ends the record is SUCCESS ───────────
@@ -337,16 +360,6 @@ class ConverseTest {
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────────────────
-
-    /**
-     * A seen, identified person at {@code pos}, {@code distance} blocks off — {@code id} fixed so
-     * a test can move the same counterpart between ticks instead of introducing a new stranger.
-     */
-    private static Being personAt(BeingId id, Pos pos, double distance) {
-        return new Being(id, Being.Kind.AGENT, "person", "Rex", null, pos, distance, 1, 0, false,
-                List.of(), Being.Activity.IDLE, Being.Locomotion.STILL, false, false, false, false,
-                false, false, Being.Gear.NONE, Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
-    }
 
     /** Says each line in order, then falls silent — a deterministic script for one test. */
     private static Chooser scripted(Chooser.Line... lines) {

@@ -124,9 +124,9 @@ public final class FakePercepts implements Percepts {
      * adds) goes through this instead of copying the constructor call, so growing {@code Being} by
      * a field means one edit here, not one per fixture.
      */
-    private static Being personTrack(String name, Pos pos, double distance, boolean hailing,
-            Being.Identified identified, Being.Awareness awareness) {
-        return new Being(BeingId.of(UUID.randomUUID()), Being.Kind.AGENT, "person", name,
+    private static Being personTrack(BeingId id, String name, Pos pos, double distance,
+            boolean hailing, Being.Identified identified, Being.Awareness awareness) {
+        return new Being(id, Being.Kind.AGENT, "person", name,
                 null, pos, distance, 1, 0, false, List.of(),
                 Being.Activity.IDLE, Being.Locomotion.STILL,
                 false, false, false, hailing, false, false, Being.Gear.NONE,
@@ -135,13 +135,25 @@ public final class FakePercepts implements Percepts {
 
     /** A person-shaped track that is calling out — the hail percept, for instinct tests. */
     public static Being hailingPersonAt(Pos pos, double distance) {
-        return personTrack("", pos, distance, true, Being.Identified.SPECIES, Being.Awareness.HEARD);
+        return personTrack(BeingId.of(UUID.randomUUID()), "", pos, distance, true,
+                Being.Identified.SPECIES, Being.Awareness.HEARD);
     }
 
     /** A person-shaped track, seen and quiet. An empty name is a stranger — somebody whose name
      *  we were never told; a filled one is somebody the contact book already knows. */
     public static Being personAt(Pos pos, double distance, String name) {
-        return personTrack(name, pos, distance, false, Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
+        return personTrack(BeingId.of(UUID.randomUUID()), name, pos, distance, false,
+                Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
+    }
+
+    /**
+     * The same, but at a caller-chosen {@code id} — for a test that needs to move the SAME
+     * counterpart between ticks (a fresh random id each call would read as a new stranger
+     * arriving, not the same one taking a step closer).
+     */
+    public static Being personAt(BeingId id, Pos pos, double distance, String name) {
+        return personTrack(id, name, pos, distance, false, Being.Identified.INDIVIDUAL,
+                Being.Awareness.SEEN);
     }
 
     @Override
