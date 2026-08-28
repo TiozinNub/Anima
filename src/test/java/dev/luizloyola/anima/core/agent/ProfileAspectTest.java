@@ -51,6 +51,12 @@ class ProfileAspectTest {
             // The contract of a registry two agents share — it belongs to the board, not to
             // either of them.
             Knob.CLAIM_TTL_TICKS,
+            // The contract of a shared conversation record, same reasoning as the claim above:
+            // an encounter belongs to the roster both parties meet in, not to either mind.
+            Knob.SOCIAL_ENCOUNTER_TURN_CAP,
+            Knob.SOCIAL_ENCOUNTER_TICK_CAP,
+            Knob.SOCIAL_ENCOUNTER_STALE_TICKS,
+            Knob.SOCIAL_ENCOUNTER_RETENTION_TICKS,
             // A debugging facility and its disk use. No species has an opinion about these.
             Knob.JOURNAL_MAX_ENTRIES,
             Knob.JOURNAL_MAX_AGE_TICKS,

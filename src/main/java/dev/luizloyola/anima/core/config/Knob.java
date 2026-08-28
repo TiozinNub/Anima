@@ -121,6 +121,22 @@ public enum Knob implements KnobSpec {
             "How long a site claim outlives its last heartbeat before another agent may take the "
                     + "spot (20 ticks = 1 second)."),
 
+    // --- social: the contract of a shared conversation record ---------------------------------
+
+    /** @see dev.luizloyola.anima.core.social.speech.SpeechEngine */
+    SOCIAL_ENCOUNTER_TURN_CAP("social.encounter_turn_cap", Kind.INT, 60, 4, 1_000,
+            "How many transcript lines an encounter may reach before only farewells are left "
+                    + "to say. A backstop, not a target — conversations should end themselves."),
+    SOCIAL_ENCOUNTER_TICK_CAP("social.encounter_tick_cap", Kind.INT, 6_000, 100, 72_000,
+            "How long (ticks) an encounter may stay open before only farewells are left to "
+                    + "say. 6000 ticks is five minutes."),
+    SOCIAL_ENCOUNTER_STALE_TICKS("social.encounter_stale_ticks", Kind.INT, 1_200, 100, 72_000,
+            "How long (ticks) an open encounter may sit silent before whoever returns to it "
+                    + "closes it as forgotten instead of resuming it."),
+    SOCIAL_ENCOUNTER_RETENTION_TICKS("social.encounter_retention_ticks", Kind.INT, 72_000, 1_200, 1_728_000,
+            "How long (ticks) a closed encounter is kept — the debugging artifact, and what "
+                    + "overheard lines resolve against. 72000 ticks is three in-game days."),
+
     // --- journal: a debugging facility and its disk use ---------------------------------------
 
     /** @see dev.luizloyola.anima.core.log.JournalService#defaultMaxEntriesPerPerson() */

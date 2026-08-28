@@ -223,6 +223,13 @@ public final class ProfileAspect {
             "How many NEW faces would fill this body's company from empty. Counted once per "
                     + "person, when a name is first learned — meeting somebody is worth something "
                     + "on its own, and standing beside a stranger is not.");
+    public static final ProfileAspect SOCIAL_CHAT_RADIUS = register("social.chat_radius", Kind.INT, 4, 32,
+            "How far (blocks) this body's ordinary conversational voice carries — the radius an "
+                    + "utterance is overheard at, and so the radius a bystander learns at. Well "
+                    + "inside social.hail_radius: chat is for someone already close.");
+    public static final ProfileAspect SOCIAL_PATIENCE_TICKS = register("social.patience_ticks", Kind.INT, 20, 12_000,
+            "How long this body waits on an unanswered question before calling it ignored — the "
+                    + "snub clock, per obligation, in world ticks. 300 ticks is fifteen seconds.");
 
     // --- body: what this one can physically do -------------------------------------------------
 
