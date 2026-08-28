@@ -5,11 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.instinct.Drives;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.log.Entry;
+import dev.luizloyola.anima.core.social.speech.Encounter;
+import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -156,5 +159,33 @@ class SeekCompanyTest {
     void aContentBodyDoesNotSeekAtAll() {
         ctx.percepts.company.setValue(0.6); // inside the band
         assertEquals(0.0, Drives.SEEK_PEOPLE.pressure(ctx));
+    }
+
+    /**
+     * Arrival's hand-off: once the walk this task issued SUCCEEDS, the same tick swaps to
+     * conversing rather than reporting SUCCESS itself — the errand was never "walk over there",
+     * it was "go and be near somebody", and being near is where the talking starts.
+     */
+    @Test
+    void arrivingHandsOffToAConverseCreditedWithTheFarTargetsHail() {
+        ctx.percepts.company.setValue(0.0);
+        Being stranger = FakePercepts.personAt(new Pos(40, 64, 0), 40.0, "");
+        ctx.percepts.beings = List.of(stranger);
+        // Silence — this is about the hand-off happening, not what gets said once it has.
+        ctx.speech.chooser = (c, turn) -> null;
+
+        SeekCompany seek = new SeekCompany();
+        seek.tick(ctx); // picks the far target, hails it, and issues the walk
+
+        ctx.mover.setState(MoveState.ARRIVED);
+        TaskStatus status = seek.tick(ctx);
+
+        assertEquals(TaskStatus.RUNNING, status,
+                "the conversation just opened — nothing has ended it yet");
+        Encounter e = ctx.speech.current().orElseThrow();
+        assertTrue(e.includes(stranger.id().asPerson()));
+        assertEquals(1, e.transcript().size(), "just the prefilled hail so far");
+        assertEquals(SpeechActs.HAIL.key(), e.transcript().get(0).act(),
+                "the far target was hailed, and the encounter is credited to match");
     }
 }

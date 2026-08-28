@@ -3,9 +3,11 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.sense.Being;
+import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.social.speech.Speech;
 
 /**
  * Go and be near somebody — company's lonely end, and the only thing in rung 4 that OPENS a hail.
@@ -30,41 +32,63 @@ import dev.luizloyola.anima.core.nav.Gait;
  * flip, but a hail that nothing was in range to hear would otherwise be indistinguishable from no
  * hail at all. Whoever is named comes through {@code knownAs}, so the record never puts a name to
  * somebody who has not given one.
+ *
+ * <p><b>Arrival flows straight into the conversation the walk was for.</b> Once {@link #walk}
+ * SUCCEEDS this swaps to a {@link Converse} delegate — crediting the opening as {@code I_HAILED}
+ * or {@code QUIET} to match whichever branch above actually ran — and forwards every tick to it
+ * from then on, the same delegate pattern the walk itself already used.
  */
 public final class SeekCompany implements PrimitiveTask {
 
+    private BeingId target;
+    private boolean hailed;
     private GoTo walk;
+    private Converse converse;
 
     @Override
     public TaskStatus tick(BrainContext ctx) {
+        if (converse != null) {
+            return converse.tick(ctx);
+        }
         if (walk == null) {
-            Being target = nearest(ctx);
-            if (target == null) {
+            Being being = nearest(ctx);
+            if (being == null) {
                 return TaskStatus.FAILED;
             }
+            target = being.id();
             // RECORDED, and the two branches read differently on purpose: the arbiter's own
             // "take over" line is identical whether this shouted or walked over in silence, so
             // without this the one decision shouldHail makes leaves no trace — and a hail nobody
             // was in range to hear could not be told from no hail at all.
-            if (shouldHail(ctx, target)) {
-                ctx.actuators().voice().hail(target.id());
+            hailed = shouldHail(ctx, being);
+            if (hailed) {
+                ctx.actuators().voice().hail(being.id());
                 ctx.journal().record(Category.BRAIN, "seek_people",
-                        "called out to " + target.knownAs());
+                        "called out to " + being.knownAs());
             } else {
-                ctx.actuators().voice().reachedOut(target.id());
+                ctx.actuators().voice().reachedOut(being.id());
                 ctx.journal().record(Category.BRAIN, "seek_people",
-                        "went over to " + target.knownAs());
+                        "went over to " + being.knownAs());
             }
-            Pos at = target.pos();
+            Pos at = being.pos();
             walk = new GoTo(at.x(), at.y(), at.z(), Gait.WALK);
         }
-        return walk.tick(ctx);
+        TaskStatus status = walk.tick(ctx);
+        if (status != TaskStatus.SUCCESS) {
+            return status;
+        }
+        walk = null; // spent — the conversation is what this walk was for
+        converse = new Converse(target, hailed ? Speech.Opening.I_HAILED : Speech.Opening.QUIET);
+        return converse.tick(ctx);
     }
 
     @Override
     public void cancel(BrainContext ctx) {
         if (walk != null) {
             walk.cancel(ctx);
+        }
+        if (converse != null) {
+            converse.cancel(ctx);
         }
     }
 
@@ -75,18 +99,49 @@ public final class SeekCompany implements PrimitiveTask {
 
     // ── continuity ───────────────────────────────────────────────────────────────────────────
 
+    /** Who was picked, or null while a target is still to be chosen. */
+    public BeingId target() {
+        return target;
+    }
+
+    /** Whether that target was shouted at rather than walked over to in silence. */
+    public boolean hailed() {
+        return hailed;
+    }
+
     /**
-     * The walk under way, or null while the target is still to be chosen. Real progress, not a
-     * re-derivable one: a reload that lost it would pick a target again, and the mark that was
-     * spent on the first one now points the body at somebody else.
+     * The walk under way, or null before a target is chosen and after it is spent into
+     * {@link #converse}. Real progress, not a re-derivable one: a reload that lost it would pick a
+     * target again, and the mark that was spent on the first one now points the body at somebody
+     * else.
      */
     public GoTo walk() {
         return walk;
     }
 
-    /** Puts the body back on the leg it had already ordered. */
-    public SeekCompany resume(GoTo walk) {
+    /** The conversation this errand handed off to, or null before the walk has succeeded. */
+    public Converse converse() {
+        return converse;
+    }
+
+    /** Puts the body back on the leg it had already ordered, toward the target it already picked. */
+    public SeekCompany resume(BeingId target, boolean hailed, GoTo walk) {
+        this.target = target;
+        this.hailed = hailed;
         this.walk = walk;
+        return this;
+    }
+
+    /**
+     * Puts the body back into the conversation it had already handed off to. The live
+     * {@link dev.luizloyola.anima.core.social.speech.Encounter} is not carried — see
+     * {@link Converse#opening()} — so this reconstructs a fresh delegate exactly as the tick past
+     * the walk's SUCCESS would.
+     */
+    public SeekCompany resumeConverse(BeingId target, boolean hailed) {
+        this.target = target;
+        this.hailed = hailed;
+        this.converse = new Converse(target, hailed ? Speech.Opening.I_HAILED : Speech.Opening.QUIET);
         return this;
     }
 

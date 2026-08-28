@@ -356,15 +356,39 @@ class TaskCodecsTest {
     @Test
     void aSeekAlreadyWalkingComesBackOnTheSameLeg() {
         // The nested walk is the mid-flight half: the mark for this target is already spent, so a
-        // seek that came back before its walk would set off toward somebody else entirely.
-        SeekCompany before = new SeekCompany().resume(new GoTo(20, 64, -4, Gait.WALK).resume(true));
+        // seek that came back before its walk would set off toward somebody else entirely. Target
+        // and hailed ride beside it — arrival needs both to know who and how to converse with.
+        BeingId target = BeingId.of(UUID.randomUUID());
+        SeekCompany before = new SeekCompany()
+                .resume(target, true, new GoTo(20, 64, -4, Gait.WALK).resume(true));
         SeekCompany after = assertInstanceOf(SeekCompany.class, roundTrip(before));
+        assertEquals(target, after.target());
+        assertTrue(after.hailed());
         assertNotNull(after.walk());
         assertEquals(20, after.walk().x());
         assertEquals(-4, after.walk().z());
         assertTrue(after.walk().issued(), "a walk under way does not re-order itself");
+        assertNull(after.converse(), "still walking — nothing to converse with yet");
 
         assertNull(assertInstanceOf(SeekCompany.class, roundTrip(new SeekCompany())).walk(),
                 "and one still to choose a target comes back with nothing to resume");
+    }
+
+    @Test
+    void aSeekPastItsWalkComesBackAsAFreshConverse() {
+        // No "walk" to resume means the walk already succeeded before the save. The live
+        // Encounter is not carried (world state, not this task's — see Converse's own doc), so
+        // this is the smallest faithful reconstruction: a fresh Converse with the same opening.
+        BeingId target = BeingId.of(UUID.randomUUID());
+        SeekCompany before = new SeekCompany().resumeConverse(target, true);
+        SeekCompany after = assertInstanceOf(SeekCompany.class, roundTrip(before));
+        assertEquals(target, after.target());
+        assertTrue(after.hailed());
+        assertNull(after.walk(), "the walk is spent");
+        Converse converse = after.converse();
+        assertNotNull(converse);
+        assertEquals(target, converse.other());
+        assertEquals(Speech.Opening.I_HAILED, converse.opening(),
+                "hailed carries forward as the credited opening");
     }
 }

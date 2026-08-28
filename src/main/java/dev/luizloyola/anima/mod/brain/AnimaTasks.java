@@ -450,19 +450,34 @@ public final class AnimaTasks {
 
         // The leg rides through the dispatch codec like the two wrappers below: a seek that came
         // back before its walk would choose a target again — with the mark for the first one
-        // already spent, that is a body setting off toward somebody else.
+        // already spent, that is a body setting off toward somebody else. "target"/"hailed" ride
+        // beside it because the walk alone cannot say who arrival should converse with, or
+        // whether that conversation opens I_HAILED or QUIET; a seek already past the walk (no
+        // "walk" in the save) carries them into a fresh Converse instead, per Converse's own
+        // doc — the live Encounter is world state, not this task's, either way.
         TaskCodecs.register("anima:seek_company",
                 dev.luizloyola.anima.core.brain.task.SeekCompany.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
+                        BEING_ID.optionalFieldOf("target")
+                                .forGetter(task -> java.util.Optional.ofNullable(task.target())),
+                        Codec.BOOL.optionalFieldOf("hailed", false).forGetter(task -> task.hailed()),
                         TaskCodecs.codec().optionalFieldOf("walk").forGetter(task ->
                                 java.util.Optional.ofNullable((Task) task.walk()))
-                ).apply(t, walk -> {
+                ).apply(t, (target, hailed, walk) -> {
                     dev.luizloyola.anima.core.brain.task.SeekCompany seek =
                             new dev.luizloyola.anima.core.brain.task.SeekCompany();
-                    // Anything but a walk in that slot is a hand-edited file. Re-choosing is what
-                    // this task does on any tick its target has gone from, so it is the safe read.
+                    if (target.isEmpty()) {
+                        // No target chosen yet — a hand-edited "hailed"/"walk" with no "target" is
+                        // read the same way: re-choosing is what this task does whenever its
+                        // target is gone, so that is the safe fallback.
+                        return seek;
+                    }
+                    // Anything but a walk in that slot means the walk already succeeded before
+                    // the save — a fresh Converse is the smallest faithful reconstruction.
                     if (walk.orElse(null) instanceof GoTo leg) {
-                        seek.resume(leg);
+                        seek.resume(target.get(), hailed, leg);
+                    } else {
+                        seek.resumeConverse(target.get(), hailed);
                     }
                     return seek;
                 })));

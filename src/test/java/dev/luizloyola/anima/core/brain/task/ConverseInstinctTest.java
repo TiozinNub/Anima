@@ -5,13 +5,16 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.need.NeedKind;
 import dev.luizloyola.anima.core.agent.need.NeedLevel;
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.instinct.ConverseInstinct;
 import dev.luizloyola.anima.core.brain.instinct.Drives;
+import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.social.speech.Speech;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -118,5 +121,20 @@ class ConverseInstinctTest {
         assertEquals(2.0 * ctx.profile.i(ProfileAspect.SOCIAL_HAIL_RADIUS),
                 converse.costTolerance(ctx), 1e-9,
                 "a hail is within earshot by definition; twice that covers a detour and no more");
+    }
+
+    // ── the resume pull: an open encounter, nobody hailing ──────────────────────────────────
+
+    @Test
+    void anOpenEncounterPullsExactlyAsHardAsACall() {
+        BeingId otherId = BeingId.of(AgentId.random());
+        ctx.speech.join(otherId, Speech.Opening.QUIET);
+        // ctx.percepts.beings is empty — nobody is hailing; the pull is the open chat alone.
+
+        double bid = converse.pressure(ctx);
+
+        assertEquals(ctx.profile.d(ProfileAspect.SOCIAL_HAIL_ANSWER_PRESSURE), bid, 1e-9,
+                "an open conversation pulls exactly as hard as a fresh call");
+        assertInstanceOf(Converse.class, converse.root(ctx));
     }
 }

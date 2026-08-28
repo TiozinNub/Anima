@@ -3,14 +3,17 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.social.speech.Speech;
 import java.util.List;
 
 /**
- * Somebody called — go and stand in front of them.
+ * Somebody called — go and answer them.
  *
- * <p><b>It ends with nothing said, and that is the whole of rung 4.</b> The conversation this walk
- * is for arrives at rung 5; until then two bodies meet, face each other and part, which is an
- * honest picture of a mind that can hear a call and not yet talk.
+ * <p>The walk flows straight into the conversation the hail was for: {@link Converse} faces every
+ * tick on its own, so the stand-and-look beat this used to end on is subsumed rather than run
+ * first. The answerer only exists because it was hailed, so the conversation opens credited
+ * {@link Speech.Opening#THEY_HAILED} — the prefilled line is the caller's, authored back when they
+ * hailed, not asked for again here.
  *
  * <p>Nothing here clears the hail mark: the SENSOR spends it on arrival (within
  * {@code Comfort.PERSONAL_SPACE} and identified), so a task never writes into perception, and a
@@ -37,9 +40,6 @@ public final class Answer implements CompoundTask {
     public String describe() {
         return "answer a call";
     }
-
-    /** How long the pair stand facing before the beat ends — a second and a half. */
-    public static final int FACE_TICKS = 30;
 
     // ── continuity ───────────────────────────────────────────────────────────────────────────
 
@@ -70,11 +70,8 @@ public final class Answer implements CompoundTask {
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
-            // The beat is a Face, not an Idle: the walk's own glance lapses ten ticks in, and a
-            // hail is only spent once the hearer has the caller at INDIVIDUAL — which is a
-            // question about where this head is pointed. See Face.
             return List.of(new GoTo(where.x(), where.y(), where.z()),
-                    new Face(who, where, FACE_TICKS));
+                    new Converse(who, Speech.Opening.THEY_HAILED));
         }
 
         @Override
