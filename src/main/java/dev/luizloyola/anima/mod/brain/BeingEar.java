@@ -84,10 +84,10 @@ public final class BeingEar implements GameEventListener {
             return false;
         }
         // The ear is sized to the loudest social range, so every ordinary sound is narrowed back
-        // to the hearing knob here; the hail branch above opts out with its own radius, and speech
-        // will when rung 5 registers its channel (whisper 4, chat 12). Load-bearing regardless:
-        // the vibration dispatch's broadphase is chunk-section coarse — a sheep was heard from 43
-        // blocks.
+        // to the hearing knob here; the hail branch above opts out with its own radius, and an
+        // overheard line of speech takes this ordinary path too (see BeingSpeech). Load-bearing
+        // regardless: the vibration dispatch's broadphase is chunk-section coarse — a sheep was
+        // heard from 43 blocks.
         if (pos.distanceTo(person.entity().getEyePosition())
                 > person.profile().i(ProfileAspect.SENSES_HEARING_RADIUS)) {
             return false;
@@ -95,7 +95,8 @@ public final class BeingEar implements GameEventListener {
         if (!loud(event) && body.isCrouching()) {
             return false; // sneaking quiets FEET (decision: Luiz) — not a pick against stone
         }
-        boolean voice = event.is(BeingVoices.KEY) || event.is(GameEvent.PROJECTILE_SHOOT);
+        boolean voice = event.is(BeingVoices.KEY) || event.is(GameEvent.PROJECTILE_SHOOT)
+                || event.is(BeingSpeech.KEY);
         boolean personShaped = body instanceof AgentBody
                 || (body instanceof Player);
         Being.Activity heardAs = personShaped ? activityOf(event) : Being.Activity.IDLE;

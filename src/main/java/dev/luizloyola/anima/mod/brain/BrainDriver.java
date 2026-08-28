@@ -27,17 +27,33 @@ import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.log.AgentJournal;
+import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.AgentRandom;
 import dev.luizloyola.anima.core.agent.Pronouns;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.agent.need.Company;
+import dev.luizloyola.anima.core.agent.need.NeedKind;
+import dev.luizloyola.anima.core.config.Config;
+import dev.luizloyola.anima.core.config.Knob;
+import dev.luizloyola.anima.core.social.speech.Choosers;
+import dev.luizloyola.anima.core.social.speech.Encounter;
+import dev.luizloyola.anima.core.social.speech.Speech;
+import dev.luizloyola.anima.core.social.speech.SpeechEngine;
+import dev.luizloyola.anima.core.social.speech.Utterance;
 import dev.luizloyola.anima.mod.brain.AgentBlockPlacer;
 import dev.luizloyola.anima.mod.brain.AgentItemConsumer;
 import dev.luizloyola.anima.mod.brain.AgentMover;
 import dev.luizloyola.anima.mod.brain.AgentPercepts;
+import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.body.AgentBody;
+import dev.luizloyola.anima.mod.social.EncounterData;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 
 /**
@@ -99,6 +115,13 @@ public final class BrainDriver {
      * {@link #knowledge}, and for the same reason.
      */
     private AgentClaims claims;
+
+    /**
+     * This person's conversation port, resolved lazily and cached exactly like {@link #knowledge}
+     * — {@code agentId()} and the running server are the same two things unsettled at
+     * construction.
+     */
+    private Speech speech;
 
     /**
      * Where layer-3 demand comes from, supplied by whoever owns this body: a library cannot know
@@ -216,6 +239,11 @@ public final class BrainDriver {
             @Override
             public AgentClaims claims() {
                 return resolveClaims();
+            }
+
+            @Override
+            public Speech speech() {
+                return resolveSpeech();
             }
 
             @Override
@@ -440,6 +468,47 @@ public final class BrainDriver {
             this.claims = Claims.of(level.getServer()).forPerson(this.person.agentId());
         }
         return this.claims;
+    }
+
+    /** The person's conversation port, resolved once and cached — see {@link #speech}. */
+    private Speech resolveSpeech() {
+        if (this.speech == null) {
+            ServerLevel level = (ServerLevel) this.person.level();
+            MinecraftServer server = level.getServer();
+            LongSupplier now = () -> person.entity().level().getGameTime();
+            Supplier<SpeechEngine.Caps> caps = () -> new SpeechEngine.Caps(
+                    Config.get().i(Knob.SOCIAL_ENCOUNTER_TURN_CAP),
+                    Config.get().i(Knob.SOCIAL_ENCOUNTER_TICK_CAP),
+                    Config.get().i(Knob.SOCIAL_ENCOUNTER_STALE_TICKS),
+                    person.profile().i(ProfileAspect.SOCIAL_PATIENCE_TICKS));
+            SpeechEngine.Listener listener = new SpeechEngine.Listener() {
+                @Override
+                public void said(Encounter e, Utterance u) {
+                    EncounterData.get(server).dirty();
+                    BeingSpeech.spoke(person.entity());
+                    // One call per participant as the line arrives — never by replaying the
+                    // transcript, which would double-pay a resumed conversation (see Company#conversed).
+                    for (AgentId participant : e.participants()) {
+                        AgentBody body = AgentBodies.findLoaded(server, participant);
+                        if (body != null) {
+                            body.needs().gauge(NeedKind.COMPANY, Company.class)
+                                    .ifPresent(Company::conversed);
+                        }
+                    }
+                }
+
+                @Override
+                public void closed(Encounter e) {
+                    EncounterData data = EncounterData.get(server);
+                    data.dirty();
+                    // Pruning rides the close: cheap, and retention only ever trims closed records.
+                    data.prune(now.getAsLong());
+                }
+            };
+            this.speech = new SpeechEngine(this.person.agentId(), this.person::profile, now,
+                    EncounterData.get(server).roster(), Choosers::get, caps, listener);
+        }
+        return this.speech;
     }
 
     /**

@@ -78,6 +78,8 @@ public final class AnimaMod implements ModInitializer {
         // The hail channel. Anima's, not a consumer's: the Voice port and `/anima brain hail` are
         // on this root, so a bare install must be able to call out. See BeingHails.
         dev.luizloyola.anima.mod.brain.BeingHails.init();
+        // The speech channel — BrainDriver's Speech port is on this root too. See BeingSpeech.
+        dev.luizloyola.anima.mod.brain.BeingSpeech.init();
         // The browser debug dashboard. Registers its lifecycle hooks only — it listens on nothing
         // until webdebug.enabled says so.
         dev.luizloyola.anima.mod.webdebug.WebDebugger.install();
