@@ -125,6 +125,8 @@
   "anima.config.option.journal.sense_peer.desc": "Registra cada mudança de estado de um ser percebido. Desligado por padrão: com vinte colonos em um só acampamento isso é três quartos de cada linha escrita. Ligue quando a própria percepção é o que você está depurando.",
   "anima.config.option.journal.sense_overlooked": "Registrar lugares ignorados",
   "anima.config.option.journal.sense_overlooked.desc": "Registra cada lugar descartado por não valer a pena lembrar. Desligado por padrão: repete as mesmas células enquanto um corpo permanecer perto delas.",
+  "anima.config.option.journal.mind": "Registrar mudanças de nível de necessidade",
+  "anima.config.option.journal.mind.desc": "Registra quando uma necessidade cruza um de seus níveis declarados — a companhia ficando solitária, a comida ficando com um pouco de fome. Ligado por padrão: cerca de uma dúzia de linhas por colono por dia.",
   "anima.config.aspect.mind.stickiness": "Bônus de permanência",
   "anima.config.aspect.mind.stickiness.desc": "Bônus somado ao que a Pessoa já está fazendo, para que pequenas variações de pressão não a deixem alternando entre dois impulsos.",
   "anima.config.aspect.mind.preempt": "Limiar de interrupção",

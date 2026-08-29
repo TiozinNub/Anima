@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.Metabolism;
 import dev.luizloyola.anima.core.agent.TestSpecies;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,22 @@ class NeedsTest {
         return new Needs()
                 .add(new FoodNeed(metabolism, () -> TestSpecies.PROFILE))
                 .add(new Company(() -> TestSpecies.PROFILE));
+    }
+
+    /**
+     * A settler already alive, company staged at {@code value} — one tick seeds the crossing
+     * baseline (see {@link Needs#tick()}), so a caller's own tick afterwards can be asserted on
+     * without also asserting the seed itself fired.
+     */
+    private static Needs needsWithCompany(double value) {
+        Needs needs = settler(new Metabolism());
+        setCompany(needs, value);
+        needs.tick();
+        return needs;
+    }
+
+    private static void setCompany(Needs needs, double value) {
+        needs.gauge(NeedKind.COMPANY, Company.class).orElseThrow().setValue(value);
     }
 
     @Test
@@ -118,5 +135,49 @@ class NeedsTest {
         assertSame(NeedKind.byKey("company").orElseThrow(), NeedKind.COMPANY);
         assertTrue(NeedKind.all().contains(NeedKind.HUNGER));
         assertThrows(IllegalArgumentException.class, () -> NeedKind.register(" "));
+    }
+
+    @Test
+    @DisplayName("a body's first tick seeds the baseline rather than announcing its birth level")
+    void firstTickNeverFiresACrossing() {
+        List<Needs.Crossing> seen = new ArrayList<>();
+        Needs needs = settler(new Metabolism());
+        setCompany(needs, 0.30); // "alone" from the moment it exists — nothing has ticked yet
+        needs.onCrossing(seen::add);
+
+        needs.tick(); // this body's very first tick, for every gauge it has
+
+        assertTrue(seen.isEmpty(),
+                "a body must not announce a crossing into the level it was born at");
+    }
+
+    @Test
+    @DisplayName("a gauge crossing a declared level boundary fires once")
+    void crossingALevelBoundaryFiresOnce() {
+        List<Needs.Crossing> seen = new ArrayList<>();
+        Needs needs = needsWithCompany(0.60);   // "content"
+        needs.onCrossing(seen::add);
+
+        setCompany(needs, 0.30);                 // into "alone"
+        needs.tick();
+
+        assertEquals(1, seen.size());
+        assertEquals("content", seen.get(0).from().key());
+        assertEquals("alone", seen.get(0).to().key());
+    }
+
+    @Test
+    @DisplayName("jitter inside one band is silent")
+    void jitterInsideOneBandIsSilent() {
+        List<Needs.Crossing> seen = new ArrayList<>();
+        Needs needs = needsWithCompany(0.50);    // "content"
+        needs.onCrossing(seen::add);
+
+        for (double v : new double[] {0.52, 0.48, 0.55, 0.41, 0.60}) {
+            setCompany(needs, v);
+            needs.tick();
+        }
+
+        assertTrue(seen.isEmpty(), "a gauge wandering inside one band has not crossed anything");
     }
 }

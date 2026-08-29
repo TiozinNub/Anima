@@ -14,6 +14,8 @@ package dev.luizloyola.anima.core.log;
  *   <li>{@link #PROJECT} — the work lifecycle in two voices: the board (posted / closed /
  *       cooldown) and the arbiter's commitments (claimed / started / suspended / resumed /
  *       completed / failed).</li>
+ *   <li>{@link #MIND} — the inner weather: a need crossing one of its declared level boundaries.
+ *       </li>
  * </ul>
  *
  * <p>An entry-free layer 3/4 logs through the same service against its {@code AgentId}, so the
@@ -24,5 +26,6 @@ public enum Category {
     PATHFIND,
     BODY,
     SENSE,
-    PROJECT
+    PROJECT,
+    MIND
 }

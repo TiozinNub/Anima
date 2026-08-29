@@ -91,6 +91,9 @@ public final class Journals {
         if (!Config.get().b(Knob.JOURNAL_SENSE_OVERLOOKED)) {
             muted.add(new JournalService.Muted(Category.SENSE, PoiSensor.EVENT_OVERLOOKED));
         }
+        if (!Config.get().b(Knob.JOURNAL_MIND)) {
+            muted.add(new JournalService.Muted(Category.MIND, null)); // whole category
+        }
         return muted;
     }
 

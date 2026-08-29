@@ -173,6 +173,10 @@ public enum Knob implements KnobSpec {
     JOURNAL_SENSE_OVERLOOKED("journal.sense_overlooked", Kind.BOOL, 0, 0, 1,
             "Log each place passed over as not worth remembering. Off by default: it repeats the "
                     + "same cells for as long as a body stands near them."),
+    /** Read by the mod-side journal wiring at boot and on every config change. */
+    JOURNAL_MIND("journal.mind", Kind.BOOL, 1, 0, 1,
+            "Log a need crossing one of its declared levels — company going lonely, food going "
+                    + "peckish. On by default: about a dozen lines per settler per day."),
 
     // --- webdebug: the browser debug UI, off unless asked for -----------------------------
 

@@ -41,6 +41,8 @@ public final class AnimaMod implements ModInitializer {
             LOGGER.warn("config: {}", problem);
         }
         AgentBodies.install();
+        // Every body's own need-level crossings, off the same load hook AgentBodies indexes on.
+        dev.luizloyola.anima.mod.log.MindJournal.install();
         RayPools.install();
         ReadPools.install();
         RegionCaches.install();

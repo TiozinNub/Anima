@@ -2043,6 +2043,7 @@ public final class AgentCommands {
             case BRAIN -> ChatFormatting.GOLD;
             case SENSE -> ChatFormatting.GREEN;
             case PROJECT -> ChatFormatting.LIGHT_PURPLE;
+            case MIND -> ChatFormatting.BLUE;
         };
     }
 

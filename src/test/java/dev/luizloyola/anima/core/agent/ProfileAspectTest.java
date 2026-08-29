@@ -70,6 +70,7 @@ class ProfileAspectTest {
             // the rest of journal.*.
             Knob.JOURNAL_SENSE_PEER,
             Knob.JOURNAL_SENSE_OVERLOOKED,
+            Knob.JOURNAL_MIND,
             // A socket, a port and a URL. Nothing about a mind at all: the dashboard watches every
             // species at once and there is one of it per server, so a species answering for any of
             // these would be answering for what everybody else's debugging looks like.
