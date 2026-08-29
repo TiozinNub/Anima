@@ -111,6 +111,10 @@ public final class Journals {
         if (!Config.get().b(Knob.JOURNAL_OP)) {
             muted.add(new JournalService.Muted(Category.OP, null)); // whole category
         }
+        if (!Config.get().b(Knob.JOURNAL_PROJECT_OFFER)) {
+            // The pair, not the category: PROJECT's claim and completion lines must keep working.
+            muted.add(new JournalService.Muted(Category.PROJECT, "offer"));
+        }
         return muted;
     }
 

@@ -181,6 +181,11 @@ public enum Knob implements KnobSpec {
     JOURNAL_OP("journal.op", Kind.BOOL, 1, 0, 1,
             "Log operator commands that change something, in the journal of every agent they "
                     + "touch. On by default: read-only commands are never logged."),
+    /** Read by the mod-side journal wiring at boot and on every config change. */
+    JOURNAL_PROJECT_OFFER("journal.project_offer", Kind.BOOL, 1, 0, 1,
+            "Log why a body was offered no work, when the reason changes. On by default: it only "
+                    + "speaks when the answer moves, so a benched settler writes one line, not one "
+                    + "per tick."),
 
     // --- webdebug: the browser debug UI, off unless asked for -----------------------------
 
