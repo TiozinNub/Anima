@@ -121,8 +121,11 @@ public final class Journals {
 
     /** Re-applies the muted set to every live server's journal — what a config reload triggers. */
     private static void remuteAll() {
-        Set<JournalService.Muted> muted = mutedFrom();
         synchronized (SERVICES) {
+            // Read the config INSIDE the lock: two installs racing (the YACL screen and a
+            // /anima config set) can otherwise both compute, then apply in the other order, and
+            // the older set lands last — a stale mute nothing corrects until the next install.
+            Set<JournalService.Muted> muted = mutedFrom();
             for (JournalService service : SERVICES.values()) {
                 service.mute(muted);
             }
