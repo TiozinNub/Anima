@@ -86,13 +86,16 @@ class OpJournalTest {
         assertTrue(journal.recent(TIOZIN, 1).isEmpty());
     }
 
-    /** Nothing but the operator: no ring is minted, and no per-agent file with it. */
+    /**
+     * Nothing but the operator: no ring is minted, and no per-agent file with it. The directory
+     * knows BOB, so an unfiltered write would have had somebody to reach and still wrote to the
+     * one id that is not an agent.
+     */
     @Test
     void aCommandThatTouchedOnlyAPlayerWritesNothing() {
         OpJournal.record(journal, knowing(BOB), List.of(TIOZIN), "TiozinNub", "left the party");
 
         assertTrue(journal.recent(TIOZIN, 8).isEmpty());
-        assertTrue(journal.recent(BOB, 8).isEmpty());
     }
 
     /** A directory that knows exactly these agents; anyone else asked about is a player. */

@@ -2563,6 +2563,23 @@ public final class AgentCommands {
         return 1;
     }
 
+    /**
+     * Everyone in {@code who}'s party as it stands, to record a leave against — the whole party,
+     * the leaver included, because `party join`'s line reaches the joiner too.
+     *
+     * <p><b>A copy, and both halves of that are load-bearing.</b> {@code PartyRoster.members}
+     * hands back an unmodifiable <em>view</em> over its own backing list, and {@code leave}
+     * removes the leaver from that very list — so a captured view reads back POST-leave and the
+     * one agent whose departure this is would lose their own line. And through
+     * {@code currentPartyOf}, not {@code partyOf}: the latter mints a party of one and dirties the
+     * save for a leaver who had none, which is a write to build a log line.
+     */
+    static List<AgentId> partyBeforeLeaving(PartyData parties, AgentId who) {
+        return parties.currentPartyOf(who)
+                .map(party -> List.copyOf(parties.members(party)))
+                .orElse(List.of());
+    }
+
     /** The source strikes out on their own; their next ask mints a fresh party of one. */
     private static int partyLeave(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
@@ -2570,11 +2587,7 @@ public final class AgentCommands {
         if (self == null) return 0;
         MinecraftServer server = source.getServer();
         PartyData parties = PartyData.get(server);
-        // Captured BEFORE the leave, because afterwards the roster no longer says who they were
-        // with — and through currentPartyOf, which unlike partyOf never mints a party of one for
-        // a leaver who had none. The whole party they walked out of hears, for `party join`'s
-        // reason: everybody left behind has a board scope that just changed.
-        List<AgentId> was = parties.currentPartyOf(self).map(parties::members).orElse(List.of());
+        List<AgentId> was = partyBeforeLeaving(parties, self);
         if (!parties.leave(self)) {
             Replies.send(source, () -> Component.translatable("anima.command.party.already_alone")
                     .withStyle(ChatFormatting.GRAY));
