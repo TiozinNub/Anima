@@ -220,12 +220,12 @@ public final class Arbiter {
         // 2c. Whichever loser a granted drive really had to clear — the second drive, or the work
         //     bid where that outranks it. The board's offer is the one that matters and it is no
         //     Instinct, so the journal takes a name and a number rather than a bidder.
-        Bid runnerUp = secondIndex >= 0
+        Bid secondDrive = secondIndex >= 0
                 ? new Bid(instincts.get(secondIndex).describe(), lastPressures[secondIndex])
                 : null;
-        if (candidate != null && workEffective > secondEffective) {
-            runnerUp = new Bid("work", candidate.priority());
-        }
+        Bid runnerUp = candidate != null && workEffective > secondEffective
+                ? new Bid("work", candidate.priority())
+                : secondDrive;
 
         // 3 & 4. Work never preempts mid-flight; a drive cuts a running errand only past the
         // PREEMPT bar, and the claim survives the cut.
@@ -248,7 +248,11 @@ public final class Arbiter {
                     ? lastPressures[activeIndex] + stickiness
                     : Double.NEGATIVE_INFINITY; // a manual task (no active instinct) yields to any real bidder... but only if it preempts
             if (topEffective > activeEffective && lastPressures[topIndex] >= preempt) {
-                grant(topIndex, runnerUp, ctx);
+                // secondDrive, not runnerUp: work is excluded from this branch by the rule above,
+                // so it lost nothing here. Naming it claimed a contest that never ran — and, since
+                // an unconsidered offer may outrank the winner, printed "beat work 0.90" under a
+                // 0.55 grant, contradicting the strict > this whole line exists to make legible.
+                grant(topIndex, secondDrive, ctx);
             }
         }
 

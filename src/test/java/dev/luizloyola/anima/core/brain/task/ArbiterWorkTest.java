@@ -362,6 +362,35 @@ class ArbiterWorkTest {
         assertEquals(0, board.claims, "and the line is not fiction: the errand really did lose");
     }
 
+    /**
+     * Work never preempts mid-flight, so a drive that cuts in on another drive did not beat the
+     * board — it was never weighed against it. Naming it there printed a defeat richer than the
+     * winner ({@code preempt (0.65, beat work 0.90)}), which reads as a straight contradiction of
+     * the strict {@code >} the clause exists to make legible.
+     */
+    @Test
+    void aMidFlightPreemptNamesTheDriveItCutInOnNotTheUnweighedOffer() {
+        List<Entry> lines = new ArrayList<>();
+        ctx.journalService.subscribe((who, entry) -> lines.add(entry));
+        wander.rootTicks = 200; // long enough that the second tick lands mid-flight
+        ticks(1); // wander has the wheel, nothing on the board
+
+        board.offered = new StubItem(0.90, 50); // outbids everyone — and is excluded regardless
+        eat.pressure = 0.65; // past MIND_PREEMPT (0.6), past wander's 0.15 + stickiness
+        ticks(1);
+
+        assertEquals("take over (0.15, beat eat 0.05); preempt (0.65, beat wander 0.15)",
+                grants(lines));
+        assertEquals(0, board.claims, "the offer was never in the running, let alone taken");
+    }
+
+    /** Every BRAIN grant line of a run, joined — a wrong one then fails readably. */
+    private static String grants(List<Entry> lines) {
+        return lines.stream().map(Entry::detail)
+                .filter(d -> d.startsWith("take over") || d.startsWith("preempt"))
+                .collect(Collectors.joining("; "));
+    }
+
     @Test
     void workToleranceIsPolicyNotDesperation() {
         board.offered = new StubItem(0.35, 50);
