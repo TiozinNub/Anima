@@ -717,7 +717,9 @@ public final class AgentCommands {
                                 .then(logCategory("pathfind", Category.PATHFIND))
                                 .then(logCategory("body", Category.BODY))
                                 .then(logCategory("sense", Category.SENSE))
-                                .then(logCategory("project", Category.PROJECT));
+                                .then(logCategory("project", Category.PROJECT))
+                                .then(logCategory("mind", Category.MIND))
+                                .then(logCategory("op", Category.OP));
     }
 
     /**
