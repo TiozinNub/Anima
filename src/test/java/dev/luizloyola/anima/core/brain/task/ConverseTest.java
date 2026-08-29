@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.Pronouns;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.ActuatorAccess;
@@ -216,6 +217,92 @@ class ConverseTest {
         assertEquals(TaskStatus.RUNNING, converse.tick(ctx));
         assertEquals(2, ctx.mover.moveToCalls, "a fresh walk order, not a stale one");
         assertTrue(ctx.speech.saidLines.isEmpty(), "still too far to speak");
+    }
+
+    // ── reached you once is enough: no chasing, no fruitless trailing ───────────────────────
+
+    @Test
+    @DisplayName("once they have been in range, walking off is declining — no chase, then IGNORED")
+    void inRangeOnceThenBeyondItNeverWalksAgainAndCloses() {
+        BeingId counterpartId = BeingId.of(AgentId.random());
+        ctx.percepts.beings = List.of(
+                FakePercepts.personAt(counterpartId, new Pos(6, 64, 0), 6.0, "Rex"));
+        Converse converse = new Converse(counterpartId, Speech.Opening.QUIET);
+        ctx.speech.chooser = (c, turn) -> null; // silence: this is about the legs, not the lines
+
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "within range — contact made");
+        assertEquals(0, ctx.mover.moveToCalls);
+
+        // They walk off across the field. TestSpecies' chat radius is 12.
+        ctx.percepts.beings = List.of(
+                FakePercepts.personAt(counterpartId, new Pos(30, 64, 0), 30.0, "Rex"));
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx));
+        assertEquals(0, ctx.mover.moveToCalls, "reached once is enough — nothing follows them");
+        assertTrue(ctx.speech.saidLines.isEmpty(), "and nothing is shouted after them either");
+
+        ctx.percepts.time += ctx.profile.i(ProfileAspect.SOCIAL_PATIENCE_TICKS) + 1;
+        assertEquals(TaskStatus.SUCCESS, converse.tick(ctx));
+
+        assertEquals(0, ctx.mover.moveToCalls, "still nothing — not one step, ever");
+        Utterance ignored = ctx.speech.saidLines.get(ctx.speech.saidLines.size() - 1);
+        assertTrue(ignored.system());
+        assertEquals(SpeechActs.IGNORED.key(), ignored.act());
+        assertEquals(counterpartId.asPerson().toString(), ignored.payload().get(Utterance.SUBJECT));
+        assertTrue(journaled(ctx, "read the distancing and let them go"));
+        assertTrue(ctx.speech.closedRecords.get(0).closed(), "IGNORED ends() — the engine closes it");
+    }
+
+    @Test
+    @DisplayName("never in range and retreating as fast as the walk: gives up on the second dud leg")
+    void twoLegsThatCloseNoDistanceEndTheErrand() {
+        BeingId counterpartId = BeingId.of(AgentId.random());
+        Converse converse = new Converse(counterpartId, Speech.Opening.QUIET);
+        ctx.speech.chooser = (c, turn) -> null;
+
+        // Each tick they take a step away as this body takes one toward them: the gap never
+        // shrinks, and the cell moving is what re-issues the leg (and so prices the last one).
+        retreatTo(counterpartId, new Pos(20, 64, 0), 20.0);
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "the first leg is free — nothing to price yet");
+        assertEquals(1, ctx.mover.moveToCalls);
+
+        retreatTo(counterpartId, new Pos(21, 64, 0), 21.0);
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "one dud leg is not a verdict");
+        assertEquals(2, ctx.mover.moveToCalls);
+
+        retreatTo(counterpartId, new Pos(22, 64, 0), 22.0);
+        assertEquals(TaskStatus.SUCCESS, converse.tick(ctx));
+
+        assertEquals(2, ctx.mover.moveToCalls, "the second verdict stops the legs, it does not re-order them");
+        Utterance ignored = ctx.speech.saidLines.get(ctx.speech.saidLines.size() - 1);
+        assertEquals(SpeechActs.IGNORED.key(), ignored.act());
+        assertEquals(counterpartId.asPerson().toString(), ignored.payload().get(Utterance.SUBJECT));
+        assertTrue(journaled(ctx, "they were headed somewhere else"));
+    }
+
+    @Test
+    @DisplayName("a leg that gains ground clears the count — following somebody slower never gives up")
+    void groundGainedResetsTheFruitlessCount() {
+        BeingId counterpartId = BeingId.of(AgentId.random());
+        Converse converse = new Converse(counterpartId, Speech.Opening.QUIET);
+        ctx.speech.chooser = (c, turn) -> null;
+
+        retreatTo(counterpartId, new Pos(20, 64, 0), 20.0);
+        converse.tick(ctx);
+        retreatTo(counterpartId, new Pos(21, 64, 0), 21.0);
+        converse.tick(ctx); // one dud
+        retreatTo(counterpartId, new Pos(19, 64, 0), 19.0);
+        converse.tick(ctx); // ground gained — back to zero
+        retreatTo(counterpartId, new Pos(20, 64, 0), 20.0);
+
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx),
+                "one dud since the last gain, not two — this is a slow pursuit, not a lost one");
+        assertEquals(4, ctx.mover.moveToCalls, "still walking, a fresh leg per cell they moved to");
+        assertTrue(ctx.speech.saidLines.isEmpty());
+    }
+
+    /** Moves the same counterpart, so a re-issue reads as one body stepping rather than a new one. */
+    private void retreatTo(BeingId who, Pos at, double distance) {
+        ctx.percepts.beings = List.of(FakePercepts.personAt(who, at, distance, "Rex"));
     }
 
     // ── rule 3: speak on this body's turn; a line that ends the record is SUCCESS ───────────

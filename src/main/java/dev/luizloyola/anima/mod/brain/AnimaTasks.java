@@ -440,6 +440,10 @@ public final class AnimaTasks {
         // finds nothing already there. The live Encounter itself is not here — it is world state
         // owned by the shared roster, not this task's — a restored Converse re-resolves it through
         // speech.current() on its own first tick instead of carrying a second copy of the record.
+        //
+        // Neither is its no-chase latch or its fruitless-leg count: both are readings of what just
+        // happened in front of the body, and a reload is exactly when re-reading is right. See
+        // Converse's own doc.
         TaskCodecs.register("anima:converse", dev.luizloyola.anima.core.brain.task.Converse.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         BEING_ID.fieldOf("other")
