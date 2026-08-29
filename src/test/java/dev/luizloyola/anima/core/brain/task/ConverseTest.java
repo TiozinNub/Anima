@@ -29,6 +29,7 @@ import dev.luizloyola.anima.core.social.speech.Utterance;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
 import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -273,6 +274,9 @@ class ConverseTest {
         assertEquals(TaskStatus.SUCCESS, converse.tick(ctx));
 
         assertEquals(2, ctx.mover.moveToCalls, "the second verdict stops the legs, it does not re-order them");
+        assertEquals(1, ctx.mover.stopCalls,
+                "and it STOPS them: a task that succeeds still owning a move order is the bug "
+                        + "this branch exists to fix, walking after somebody it just let go of");
         Utterance ignored = ctx.speech.saidLines.get(ctx.speech.saidLines.size() - 1);
         assertEquals(SpeechActs.IGNORED.key(), ignored.act());
         assertEquals(counterpartId.asPerson().toString(), ignored.payload().get(Utterance.SUBJECT));
@@ -298,6 +302,49 @@ class ConverseTest {
                 "one dud since the last gain, not two — this is a slow pursuit, not a lost one");
         assertEquals(4, ctx.mover.moveToCalls, "still walking, a fresh leg per cell they moved to");
         assertTrue(ctx.speech.saidLines.isEmpty());
+    }
+
+    @Test
+    @DisplayName("a fresh Converse over a record they already spoke into does not re-arm the chase")
+    void contactSurvivesTheTaskThatMadeIt() {
+        // A preemption (releaseAndClear) or a reload builds a NEW Converse over the SAME record.
+        // A latch held in a field comes back false there, and the body sets off after somebody it
+        // had already reached — so the latch is read off the transcript instead.
+        BeingId counterpartId = BeingId.of(AgentId.random());
+        ctx.percepts.beings = List.of(
+                FakePercepts.personAt(counterpartId, new Pos(6, 64, 0), 6.0, "Rex"));
+        Converse first = new Converse(counterpartId, Speech.Opening.QUIET);
+        ctx.speech.chooser = (c, turn) -> null;
+        first.tick(ctx);
+        // Them answering is what proves contact — written exactly as their own engine's say()
+        // would write it, since on a shared roster only the speaker's engine appends.
+        ctx.speech.current().orElseThrow().append(new Utterance(counterpartId.asPerson(),
+                SpeechActs.GREETING.key(), Map.of(), ctx.percepts.time));
+
+        ctx.percepts.beings = List.of(
+                FakePercepts.personAt(counterpartId, new Pos(30, 64, 0), 30.0, "Rex"));
+        Converse second = new Converse(counterpartId, Speech.Opening.QUIET);
+
+        assertEquals(TaskStatus.RUNNING, second.tick(ctx));
+        assertEquals(0, ctx.mover.moveToCalls,
+                "they were reached once; a new task over the same record must not chase them");
+    }
+
+    @Test
+    @DisplayName("a hail they shouted is not contact — Answer still closes the last steps")
+    void aHailIsNotContact() {
+        // THEY_HAILED prefills a line AUTHORED by the counterpart, and a shout is precisely what a
+        // body does when it is too far off to talk. Reading it as contact would strand the walk
+        // Answer exists to make.
+        BeingId counterpartId = BeingId.of(AgentId.random());
+        ctx.percepts.beings = List.of(
+                FakePercepts.personAt(counterpartId, new Pos(30, 64, 0), 30.0, "Rex"));
+        Converse converse = new Converse(counterpartId, Speech.Opening.THEY_HAILED);
+        ctx.speech.chooser = (c, turn) -> null;
+
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx));
+
+        assertEquals(1, ctx.mover.moveToCalls, "the answerer walks to whoever called");
     }
 
     /** Moves the same counterpart, so a re-issue reads as one body stepping rather than a new one. */
@@ -411,6 +458,15 @@ class ConverseTest {
         FakeSpeech otherSpeech = new FakeSpeech(other.self, () -> other.profile,
                 () -> other.percepts.time, ctx.speech.roster);
         BrainContext otherContext = new SecondSpeaker(other, otherSpeech);
+
+        // Each body perceives the other, standing together. Not decoration: a conversation is a
+        // pair in the same place, and once contact is read off the record (see contactMade) a
+        // counterpart nobody perceives is somebody who has walked off mid-sentence — which is a
+        // different test from this one.
+        ctx.percepts.beings = List.of(
+                FakePercepts.personAt(BeingId.of(other.self), new Pos(2, 64, 0), 2.0, "B"));
+        other.percepts.beings = List.of(
+                FakePercepts.personAt(BeingId.of(ctx.self), new Pos(0, 64, 0), 2.0, "A"));
 
         Converse taskA = new Converse(BeingId.of(other.self), Speech.Opening.I_HAILED);
         Converse taskB = new Converse(BeingId.of(ctx.self), Speech.Opening.THEY_HAILED);

@@ -86,7 +86,7 @@ public final class SenseState {
     private static final com.mojang.serialization.MapCodec<
             com.mojang.datafixers.util.Pair<Double, Boolean>> BODY = Codec.mapPair(
                     Codec.DOUBLE.optionalFieldOf("eyeHeight", Being.HUMANOID_EYE_HEIGHT),
-                    Codec.BOOL.optionalFieldOf("player", false));
+                    Codec.BOOL.optionalFieldOf("playerControlled", false));
 
     private static final Codec<BeingReading> READING = RecordCodecBuilder.create(r -> r.group(
             BEING_ID.fieldOf("id").forGetter(BeingReading::id),

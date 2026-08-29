@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.Gazer;
@@ -12,6 +13,7 @@ import dev.luizloyola.anima.core.social.speech.Chooser;
 import dev.luizloyola.anima.core.social.speech.Encounter;
 import dev.luizloyola.anima.core.social.speech.Speech;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
+import dev.luizloyola.anima.core.social.speech.Utterance;
 
 /**
  * Participating in a conversation is a task like any other — it holds the body in place,
@@ -26,20 +28,27 @@ import dev.luizloyola.anima.core.social.speech.SpeechActs;
  * waiting out the patience clock:
  *
  * <ul>
- *   <li><b>No chase after contact.</b> Once the two have been within chat range together, this
- *       body never orders another step toward them. Somebody who then walks away is DECLINING,
- *       and following them is the one reading of it that is never right.</li>
+ *   <li><b>No chase after contact.</b> Once the two have been within chat range together — or the
+ *       other party has said anything into the record, which is how this survives a preemption;
+ *       see {@link #contactMade} — this body never orders another step toward them. Somebody who
+ *       then walks away is DECLINING, and following them is the one reading of it that is never
+ *       right.</li>
  *   <li><b>Give up before contact.</b> While they have never been in range, each leg is measured:
  *       two in a row that close no distance end the errand. Follow a bit, then accept they are
  *       busy.</li>
  * </ul>
  *
- * <p>Either ending writes the same IGNORED line the snub clock writes, so the record closes as
- * trailed off rather than lingering open for staleness to sweep.
+ * <p>Either ending writes the same IGNORED line the snub clock writes, and stops the legs on its
+ * way out, so the record closes as trailed off rather than lingering open for staleness to sweep
+ * while the body walks on toward a cell nobody is watching.
  *
- * <p><b>None of that state is saved.</b> The codec carries {@code (other, opening)} and nothing
- * else: a restored Converse re-measures distance, re-resolves its encounter and starts its own
- * counters on the first tick, which is the same thing it does whenever the arbiter hands it back.
+ * <p><b>None of that state is saved, and the durable half is not state at all.</b> The codec
+ * carries {@code (other, opening)} and nothing else. Whether contact has HAPPENED is read off the
+ * record ({@link #contactMade}) rather than latched in a field, because a field is per-grant: a
+ * preemption or a reload builds a fresh Converse, and a latch that came back false would re-arm
+ * the very chase this class exists to stop. Everything else — the trailed-off clock, the leg
+ * counter — is a reading of what just happened in front of the body, and starting those over is
+ * exactly right on a fresh grant.
  */
 public final class Converse implements PrimitiveTask {
 
@@ -54,11 +63,14 @@ public final class Converse implements PrimitiveTask {
     private Encounter encounter;
     /** The walk toward the counterpart while out of chat range — see {@link #closeIn}. Never saved. */
     private GoTo walk;
-    /** Whether the two have ever stood within chat range together — the no-chase latch. */
+    /** Whether the two have stood within chat range together on THIS grant — the cheap half of
+     *  {@link #contactMade}, which is what anything else should ask. */
     private boolean everInRange;
     /** When they went out of range after that, or {@link #NEVER} — the trailed-off clock. */
     private long distancedSince = NEVER;
-    /** Their distance when the current leg was ordered, or NaN before any leg. */
+    /** Their distance when {@link #walk} was ordered. Meaningful only while that walk is live —
+     *  {@link #dropWalk} clears the two together, so a leg and its yardstick never outlive one
+     *  another. */
     private double walkedFrom = Double.NaN;
     /** Consecutive legs that ended no nearer to them than they started. */
     private int fruitless;
@@ -83,19 +95,16 @@ public final class Converse implements PrimitiveTask {
         if (inRange) {
             everInRange = true;
             distancedSince = NEVER; // they came back; the trailed-off clock never ran
-        } else if (everInRange) {
+        } else if (contactMade(ctx)) {
             return trailOff(ctx);
         } else if (counterpart != null) {
             return closeIn(ctx, counterpart);
         }
-        // Unperceived and never yet in range: nothing to walk to and nothing to read as leaving.
+        // Unperceived and never yet met: nothing to walk to and nothing to read as leaving.
         // Speaking on anyway is what lets a conversation carry on through a wall.
-        if (walk != null) {
-            // Within range now, or the counterpart dropped out of sight — either way the walk is
-            // spent; a live order left behind would keep the legs moving toward a stale cell.
-            walk.cancel(ctx);
-            walk = null;
-        }
+        // Within range now, or the counterpart dropped out of sight — either way the walk is
+        // spent; a live order left behind would keep the legs moving toward a stale cell.
+        dropWalk(ctx);
         face(ctx, counterpart);
         if (speech.maySpeak(encounter)) {
             Chooser.Line line = speech.chooser().choose(ctx, speech.turn(encounter));
@@ -119,10 +128,7 @@ public final class Converse implements PrimitiveTask {
     public void cancel(BrainContext ctx) {
         // The record survives us — see the class doc. A walk toward it does not: an interrupted
         // task must not leave the legs owning a move order nobody is watching any more.
-        if (walk != null) {
-            walk.cancel(ctx);
-            walk = null;
-        }
+        dropWalk(ctx);
     }
 
     @Override
@@ -157,16 +163,21 @@ public final class Converse implements PrimitiveTask {
      * perception from scratch rather than trusting a plan that may already be stale, so a
      * counterpart who kept moving, or a route that died, is retried rather than given up on.
      *
-     * <p><b>But not forever.</b> Every re-issue is where the following is priced, because that is
-     * the only honest place: a leg that ended, or a target cell that moved, has run its course,
-     * while distance sampled mid-leg is just the body's own stride. Two legs in a row that leave
-     * the gap no smaller and this stops — somebody walking away at walking pace is somebody with
-     * an errand of their own.
+     * <p><b>But not forever.</b> The one place following is priced is a leg the COUNTERPART
+     * outran — they moved to another cell, so a live walk has to be replaced, and the distance
+     * then says whether the last one bought anything. Two of those in a row leaving the gap no
+     * smaller and this stops: somebody walking away at walking pace is somebody with an errand of
+     * their own.
+     *
+     * <p>Deliberately NOT priced: a leg that ended by itself. A route that failed, or legs an
+     * arbiter took, says nothing about whether they are walking away from us, and counting it
+     * would end conversations over terrain. Distance sampled mid-leg is not priced either — that
+     * is just this body's own stride.
      */
     private TaskStatus closeIn(BrainContext ctx, Being counterpart) {
         Pos at = counterpart.pos();
         if (walk == null || walk.x() != at.x() || walk.y() != at.y() || walk.z() != at.z()) {
-            if (!Double.isNaN(walkedFrom)) {
+            if (walk != null) {
                 if (counterpart.distance() < walkedFrom) {
                     fruitless = 0; // ground gained — the following is working
                 } else if (++fruitless >= FRUITLESS_LIMIT) {
@@ -179,7 +190,7 @@ public final class Converse implements PrimitiveTask {
         if (walk.tick(ctx) == TaskStatus.RUNNING) {
             return TaskStatus.RUNNING;
         }
-        walk = null;
+        dropWalk(ctx); // the leg ended on its own; the next tick orders a fresh one, unpriced
         return TaskStatus.RUNNING;
     }
 
@@ -191,10 +202,7 @@ public final class Converse implements PrimitiveTask {
      * with the same IGNORED line, because it is the same fact: nothing came back.
      */
     private TaskStatus trailOff(BrainContext ctx) {
-        if (walk != null) {
-            walk.cancel(ctx);
-            walk = null;
-        }
+        dropWalk(ctx);
         long now = ctx.percepts().time();
         if (distancedSince == NEVER) {
             distancedSince = now;
@@ -206,14 +214,65 @@ public final class Converse implements PrimitiveTask {
         return letGo(ctx, "read the distancing and let them go");
     }
 
-    /** Ends the errand the way a snub ends: the record says IGNORED, the journal says why. */
+    /**
+     * Ends the errand the way a snub ends: the legs stop, the record says IGNORED, the journal
+     * says why.
+     *
+     * <p>The teardown lives HERE rather than in each caller because forgetting it restages the
+     * bug this whole branch fixes — a task that returns SUCCESS still owning a move order leaves
+     * the body walking after somebody it has just decided to let go of.
+     */
     private TaskStatus letGo(BrainContext ctx, String why) {
-        ctx.speech().system(encounter, SpeechActs.IGNORED,
-                // Who the RECORD says the other party is — `other` only stands in until one is
-                // resolved, exactly as findCounterpart reads it.
-                ctx.speech().counterpart(encounter).orElseGet(other::asPerson));
+        dropWalk(ctx);
+        ctx.speech().system(encounter, SpeechActs.IGNORED, subject(ctx));
         ctx.journal().record(Category.BRAIN, "converse", why);
         return TaskStatus.SUCCESS;
+    }
+
+    /** Lets go of a live leg and the yardstick measuring it — never one without the other. */
+    private void dropWalk(BrainContext ctx) {
+        if (walk != null) {
+            walk.cancel(ctx);
+            walk = null;
+        }
+        walkedFrom = Double.NaN;
+    }
+
+    /**
+     * Whether these two have MET: within chat range on this grant, or — the durable half — the
+     * other party having actually said something into this record.
+     *
+     * <p>Read off the transcript instead of held in a field, because a field is per-grant. A
+     * preemption or a reload builds a fresh {@code Converse}, and a latch that came back false
+     * would re-arm a bounded chase after contact was already made. The record outlives both, and
+     * asking it costs nothing new on disk.
+     *
+     * <p>A SYSTEM line is nobody's, so it never counts. Neither does a HAIL, and that is the
+     * subtle one: {@code THEY_HAILED} prefills a hail AUTHORED by the counterpart, but a shout is
+     * what a body does when it is too far away to talk — counting it as contact would stop
+     * {@code Answer} closing the last steps toward whoever called across a field, which is the one
+     * walk that is always right.
+     */
+    private boolean contactMade(BrainContext ctx) {
+        if (everInRange) {
+            return true;
+        }
+        AgentId them = subject(ctx);
+        for (Utterance line : encounter.transcript()) {
+            if (!line.system() && them.equals(line.author())
+                    && !SpeechActs.HAIL.key().equals(line.act())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Who the RECORD says the other party is — {@code other} only stands in until one is
+     * resolved, exactly as {@link #findCounterpart} reads it.
+     */
+    private AgentId subject(BrainContext ctx) {
+        return ctx.speech().counterpart(encounter).orElseGet(other::asPerson);
     }
 
     /**

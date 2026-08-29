@@ -34,8 +34,6 @@ public final class BakedIds {
      * spelled a second time, for the reason this class exists at all.
      */
     public static Identifier texturePathOf(long recipeHash) {
-        Identifier baked = of(recipeHash);
-        return Identifier.fromNamespaceAndPath(baked.getNamespace(),
-                "textures/" + baked.getPath() + ".png");
+        return of(recipeHash).withPath(path -> "textures/" + path + ".png");
     }
 }

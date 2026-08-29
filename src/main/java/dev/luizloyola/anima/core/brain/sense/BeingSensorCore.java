@@ -610,6 +610,8 @@ public final class BeingSensorCore {
         int count = 0;
         double nearest = Double.MAX_VALUE;
         // One species, so any member's face is at the herd's face height — last one read wins.
+        // The initializer is never the answer (a memberless herd returns lastView above), it is
+        // what definite assignment wants; leave it rather than "fixing" it to something clever.
         double eyeHeight = Being.HUMANOID_EYE_HEIGHT;
         Being.Awareness best = Being.Awareness.REMEMBERED;
         for (BeingId id : herd.members) {
