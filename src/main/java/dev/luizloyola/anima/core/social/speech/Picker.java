@@ -11,7 +11,7 @@ import java.util.Optional;
  */
 public final class Picker {
 
-    /** How long a body waits after the other's line before initiating — lets follow-ups land. */
+    /** The beat between any two lines — a conversation that lands one per tick is unreadable. */
     public static final int REPLY_GRACE_TICKS = 20;
 
     /** Two lines in a row is a thought; three is a monologue. */
@@ -38,21 +38,29 @@ public final class Picker {
         return Optional.empty();
     }
 
+    /**
+     * Whether {@code self} may say something into {@code e} right now. EVERY line waits out
+     * {@link #REPLY_GRACE_TICKS} after the previous one — whoever said it, obligation pending or
+     * not; only an empty record speaks at once. An obligation waives the monologue cap (an answer
+     * owed is still owed after two lines of one's own) but never the beat: the grace is the pace
+     * a player reads the conversation at, and letting an owed reply skip it put a whole
+     * conversation on one tick.
+     */
     public static boolean maySpeak(Encounter e, AgentId self, long now) {
         if (e.closed()) {
             return false;
-        }
-        if (pendingOn(e, self).isPresent()) {
-            return true;
         }
         Utterance last = lastSpoken(e);
         if (last == null) {
             return true;
         }
-        if (self.equals(last.author())) {
-            return consecutiveBy(e, self) < MAX_CONSECUTIVE;
+        if (now - last.tick() < REPLY_GRACE_TICKS) {
+            return false;
         }
-        return now - last.tick() >= REPLY_GRACE_TICKS;
+        // An owed answer outranks the monologue cap — stated even though a line of one's own
+        // discharges what was pending, so the two cannot actually co-occur. Patience (300) dwarfs
+        // the beat: waiting one out can never read as the snub expiredObligation names.
+        return pendingOn(e, self).isPresent() || consecutiveBy(e, self) < MAX_CONSECUTIVE;
     }
 
     public static List<SpeechAct> applicable(Encounter e, AgentId self, int turnCap) {

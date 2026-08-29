@@ -34,7 +34,7 @@ public interface Speech {
     /** Ends the record, if it is not ended already. */
     void close(Encounter e);
 
-    /** Whether this body may speak into {@code e} right now — an obligation, grace, or an opening. */
+    /** Whether this body may speak into {@code e} right now — every line waits its beat but the first. */
     boolean maySpeak(Encounter e);
 
     /** The other party, once their unanswered obligation has outrun this body's patience. */

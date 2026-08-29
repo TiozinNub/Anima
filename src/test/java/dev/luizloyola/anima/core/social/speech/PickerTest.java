@@ -72,6 +72,7 @@ class PickerTest {
     void maxConsecutiveCapsSelfFollowUp() {
         Encounter e = fresh();
         e.append(line(alice, SpeechActs.GREETING, 100));
+        assertFalse(Picker.maySpeak(e, alice, 105), "her own follow-up waits the same beat anyone else does");
         assertTrue(Picker.maySpeak(e, alice, 500), "one line in a row still leaves a follow-up");
 
         e.append(line(alice, SpeechActs.DEFLECT, 120));
@@ -80,14 +81,17 @@ class PickerTest {
     }
 
     @Test
-    @DisplayName("a proposal to end obliges bob immediately, no grace, and offers him end_chat")
-    void obligingAskGrantsImmediateReplyAndOffersEndChat() {
+    @DisplayName("a proposal to end obliges bob, who waits out the beat like anyone else, then may say goodbye")
+    void obligingAskStillWaitsOutTheGrace() {
         Encounter e = fresh();
         Utterance ask = line(alice, SpeechActs.REQUEST_END_CHAT, 100);
         e.append(ask);
 
         assertEquals(ask, Picker.pendingOn(e, bob).orElseThrow(), "alice's ask is what's pending on bob");
-        assertTrue(Picker.maySpeak(e, bob, 100), "an obligation waives the reply grace");
+        assertFalse(Picker.maySpeak(e, bob, 100),
+                "being owed an answer is no licence to answer on the very tick it was asked");
+        assertFalse(Picker.maySpeak(e, bob, 119), "one tick short of the beat is still too soon");
+        assertTrue(Picker.maySpeak(e, bob, 120), "the beat elapsed — now the owed answer may come");
         assertTrue(Picker.applicable(e, bob, 10).contains(SpeechActs.END_CHAT));
     }
 

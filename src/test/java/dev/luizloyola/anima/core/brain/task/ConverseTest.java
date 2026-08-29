@@ -20,6 +20,7 @@ import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.social.speech.Chooser;
 import dev.luizloyola.anima.core.social.speech.Encounter;
+import dev.luizloyola.anima.core.social.speech.Picker;
 import dev.luizloyola.anima.core.social.speech.Speech;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import dev.luizloyola.anima.core.social.speech.SpeechEngine;
@@ -267,13 +268,17 @@ class ConverseTest {
                 Chooser.Line.of(SpeechActs.DEFLECT));
 
         assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "proposes ending — the other now owes a reply");
-        assertEquals(TaskStatus.RUNNING, converse.tick(ctx),
-                "a second self line in a row hits the monologue cap");
         assertFalse(ctx.speech.maySpeak(ctx.speech.current().orElseThrow()),
-                "consecutive cap silences self while the obligation is still open");
+                "even her own follow-up waits out the beat");
 
-        ctx.percepts.time += 11; // past the shrunk 10-tick patience
+        ctx.percepts.time += Picker.REPLY_GRACE_TICKS;
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "the beat elapsed — one follow-up is hers");
 
+        ctx.percepts.time += Picker.REPLY_GRACE_TICKS;
+        assertFalse(ctx.speech.maySpeak(ctx.speech.current().orElseThrow()),
+                "two lines in a row is the cap — the beat having passed doesn't undo it");
+
+        // 40 ticks of silence now sit on the other party, well past the shrunk 10-tick patience.
         assertEquals(TaskStatus.SUCCESS, converse.tick(ctx));
 
         Utterance ignored = ctx.speech.saidLines.get(ctx.speech.saidLines.size() - 1);
@@ -326,19 +331,31 @@ class ConverseTest {
         otherSpeech.chooser = scripted(Chooser.Line.of(SpeechActs.GREETING),
                 Chooser.Line.of(SpeechActs.END_CHAT));
 
+        // One line per beat, both ways: every tick pair below is REPLY_GRACE_TICKS apart, which is
+        // what the conversation actually reads like in-game.
         ctx.percepts.time = 0;
         other.percepts.time = 0;
-        assertEquals(TaskStatus.RUNNING, taskA.tick(ctx), "A hails and greets");
-        assertEquals(TaskStatus.RUNNING, taskB.tick(otherContext), "B waits out the reply grace");
+        assertEquals(TaskStatus.RUNNING, taskA.tick(ctx), "A hails — her greeting waits a beat like any line");
+        assertEquals(TaskStatus.RUNNING, taskB.tick(otherContext), "B waits out the same beat");
 
         ctx.percepts.time = 20;
         other.percepts.time = 20;
-        assertEquals(TaskStatus.RUNNING, taskA.tick(ctx), "A already spoke twice running — silent");
-        assertEquals(TaskStatus.RUNNING, taskB.tick(otherContext), "B's grace has elapsed — greets back");
+        assertEquals(TaskStatus.RUNNING, taskA.tick(ctx), "A's beat has elapsed — she greets");
+        assertEquals(TaskStatus.RUNNING, taskB.tick(otherContext), "that line restarted B's beat");
 
         ctx.percepts.time = 40;
         other.percepts.time = 40;
-        assertEquals(TaskStatus.RUNNING, taskA.tick(ctx), "A's grace has elapsed — proposes ending");
+        assertEquals(TaskStatus.RUNNING, taskA.tick(ctx), "A already spoke twice running — silent");
+        assertEquals(TaskStatus.RUNNING, taskB.tick(otherContext), "B's beat has elapsed — greets back");
+
+        ctx.percepts.time = 60;
+        other.percepts.time = 60;
+        assertEquals(TaskStatus.RUNNING, taskA.tick(ctx), "A's beat has elapsed — proposes ending");
+        assertEquals(TaskStatus.RUNNING, taskB.tick(otherContext),
+                "B owes an answer, but an obligation buys no head start on the beat");
+
+        ctx.percepts.time = 80;
+        other.percepts.time = 80;
         assertEquals(TaskStatus.SUCCESS, taskB.tick(otherContext), "B accepts — END_CHAT closes the record");
         assertEquals(TaskStatus.SUCCESS, taskA.tick(ctx),
                 "the SHARED record now reads closed, though A's own engine never closed it");
@@ -349,7 +366,7 @@ class ConverseTest {
                 SpeechActs.REQUEST_END_CHAT.key(), SpeechActs.END_CHAT.key()), acts,
                 "the hail out front, then GREETING through END_CHAT");
         assertTrue(e.closed());
-        assertEquals(40L, e.closedAt());
+        assertEquals(80L, e.closedAt());
 
         // Task 5's review finding: closing on a SHARED roster notifies only the closer's own
         // engine. B's say() is what actually closed the record, so only B's listener saw it —
