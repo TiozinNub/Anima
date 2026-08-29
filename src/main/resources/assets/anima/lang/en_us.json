@@ -57,6 +57,8 @@
   "anima.config.option.journal.sense_overlooked.desc": "Log each place passed over as not worth remembering. Off by default: it repeats the same cells for as long as a body stands near them.",
   "anima.config.option.journal.mind": "Log need level crossings",
   "anima.config.option.journal.mind.desc": "Log a need crossing one of its declared levels — company going lonely, food going peckish. On by default: about a dozen lines per settler per day.",
+  "anima.config.option.journal.op": "Log operator commands",
+  "anima.config.option.journal.op.desc": "Log commands you run that change something, in the journal of every agent they touch — a party-wide order lands in every member's. On by default: read-only commands are never logged, so this stays rare.",
   "anima.config.category.webdebug": "Web debugger",
   "anima.config.option.webdebug.enabled": "Start with the world",
   "anima.config.option.webdebug.enabled.desc": "Start the web debugger automatically whenever a world loads. This is the auto-start switch only — /anima webdebug start runs it for one session whatever this says. A development tool: it shows every agent's mind and its buttons command them.",

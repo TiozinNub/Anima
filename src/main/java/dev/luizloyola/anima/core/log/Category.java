@@ -16,6 +16,9 @@ package dev.luizloyola.anima.core.log;
  *       completed / failed).</li>
  *   <li>{@link #MIND} — the inner weather: a need crossing one of its declared level boundaries.
  *       </li>
+ *   <li>{@link #OP} — an operator command that CHANGED something, filed under every agent it
+ *       touched. Read-only commands are never here: a debugging session fires dozens of those and
+ *       would drown the channel that explains the few that matter.</li>
  * </ul>
  *
  * <p>An entry-free layer 3/4 logs through the same service against its {@code AgentId}, so the
@@ -27,5 +30,6 @@ public enum Category {
     BODY,
     SENSE,
     PROJECT,
-    MIND
+    MIND,
+    OP
 }

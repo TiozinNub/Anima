@@ -308,7 +308,9 @@ public final class AgentCommands {
         long now = server.overworld().getGameTime();
         PlaceRow row = PlacesData.get(server).places().viewFor(who).foundCommunal(kind.get(), pos, now);
         String where = whereClaim(row.kind(), row.at());
-        // LOGGED: a claim is durable state nothing else narrates — same as party join/leave.
+        OpJournal.record(source, who, "claimed " + where);
+        // LOGGED: a claim is durable state — same as party join/leave. Broadcast as well as
+        // journalled: journal.op is a per-agent file, and an operator watches one console.
         Replies.send(source, () -> Component.translatable("anima.command.places.founded",
                 where, shortId(row.party())).withStyle(ChatFormatting.AQUA), true);
         return 1;
@@ -339,7 +341,8 @@ public final class AgentCommands {
             Replies.fail(source, Component.translatable("anima.command.places.not_yours", where));
             return 0;
         }
-        // LOGGED: same as found — a dropped claim is durable state nothing else narrates.
+        OpJournal.record(source, who, "dropped the claim on " + where);
+        // LOGGED: same as found.
         Replies.send(source, () -> Component.translatable("anima.command.places.dropped", where)
                 .withStyle(ChatFormatting.AQUA), true);
         return 1;
@@ -451,6 +454,8 @@ public final class AgentCommands {
                 ? PutItems.of(at, spec, count)
                 : new TakeItems(at, spec, count));
         Component suffix = autoDisabledNote(autoDisabled);
+        OpJournal.record(source, who, (put ? "told to store " : "told to fetch ") + count + " "
+                + template.id() + " " + (put ? "in " : "from ") + where(at));
         Replies.send(source, () -> Component.translatable(
                         put ? "anima.command.store.put" : "anima.command.store.take",
                         name, count, template.id(), where(at))
@@ -804,6 +809,8 @@ public final class AgentCommands {
         int finalReads = reads;
         int finalKept = kept;
         boolean finished = survey.done();
+        // A readout in shape only: every GLIMPSED event above went into the knowledge store.
+        OpJournal.record(source, person.agentId(), "made to survey — " + kept + " remembered");
         Replies.send(source, () -> (finished
                         ? Component.translatable("anima.command.survey.done", name,
                                 feet.x(), feet.y(), feet.z(), finalKept, finalReads)
@@ -966,6 +973,8 @@ public final class AgentCommands {
             return 0;
         }
         person.modifiers().apply(AspectModifier.add(DEBUG_MODIFIER, aspect, amount));
+        OpJournal.record(source, person.agentId(), String.format(Locale.ROOT,
+                "shifted %s by %+.2f", aspect.key(), amount));
         for (Component line : explain(person.profile(), aspect, true)) {
             Replies.send(source, () -> indent(line.copy().withStyle(ChatFormatting.YELLOW)), true);
         }
@@ -979,6 +988,9 @@ public final class AgentCommands {
         if (person == null) return 0;
         boolean removed = person.modifiers() != AgentModifiers.NONE
                 && person.modifiers().remove(DEBUG_MODIFIER);
+        if (removed) {
+            OpJournal.record(source, person.agentId(), "dropped every debug aspect shift");
+        }
         Replies.send(source, () -> (removed
                         ? Component.translatable("anima.command.profile.cleared",
                                 person.entity().getName(), person.profile().species())
@@ -1134,6 +1146,7 @@ public final class AgentCommands {
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         person.navigateTo(Vec3.atBottomCenterOf(pos));
+        OpJournal.record(source, person.agentId(), "walked to " + pos.toShortString() + " by hand");
         Replies.send(source, () -> Component.translatable("anima.command.nav.goto",
                 person.entity().getName(), pos.toShortString()).withStyle(ChatFormatting.AQUA));
         return 1;
@@ -1144,6 +1157,7 @@ public final class AgentCommands {
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         person.navigator().stop();
+        OpJournal.record(source, person.agentId(), "stopped the legs by hand");
         Replies.send(source, () -> Component.translatable("anima.command.nav.stopped",
                 person.entity().getName()).withStyle(ChatFormatting.AQUA));
         return 1;
@@ -1250,6 +1264,11 @@ public final class AgentCommands {
         ServerPlayer asked = source.getPlayer();
         Escorts.follow(source.getServer(), id, target, near, far,
                 asked == null ? null : asked.getUUID());
+        // Says the autonomy switch went too: a body under a follow order that ends looks stuck,
+        // and this is the line that explains why it never went back to thinking.
+        OpJournal.record(source, id, "set to follow " + target.getName().getString()
+                + String.format(Locale.ROOT, " (%.1f-%.1f)", near, far)
+                + (autoDisabled ? ", autonomy off" : ""));
         Replies.send(source, () -> Component.translatable("anima.command.follow.started",
                         name, target.getName(),
                         String.format(Locale.ROOT, "%.1f", near),
@@ -1279,6 +1298,8 @@ public final class AgentCommands {
         // so, because a body standing perfectly still is what a stuck brain looks like.
         Component manual = person.brain().isAuto() ? Component.empty()
                 : Component.translatable("anima.command.follow.still_manual");
+        OpJournal.record(source, id, "called the follow order off"
+                + (person.brain().isAuto() ? "" : ", autonomy still off"));
         Replies.send(source, () -> Component.translatable("anima.command.follow.stopped", name)
                 .append(manual).withStyle(ChatFormatting.AQUA));
         return 1;
@@ -1319,6 +1340,8 @@ public final class AgentCommands {
         if (person == null) return 0;
         boolean autoDisabled = person.brain().run(new GoTo(pos.getX(), pos.getY(), pos.getZ()));
         Component suffix = autoDisabledNote(autoDisabled);
+        OpJournal.record(source, person.agentId(), "given a walk to " + pos.toShortString()
+                + (autoDisabled ? ", autonomy off" : ""));
         Replies.send(source, () -> Component.translatable("anima.command.state",
                 person.entity().getName(), person.brain().describe())
                 .append(suffix).withStyle(ChatFormatting.AQUA));
@@ -1333,6 +1356,8 @@ public final class AgentCommands {
         if (person == null) return 0;
         boolean autoDisabled = person.brain().run(new BreakBlock(pos.getX(), pos.getY(), pos.getZ()));
         Component suffix = autoDisabledNote(autoDisabled);
+        OpJournal.record(source, person.agentId(), "given a block to break at " + pos.toShortString()
+                + (autoDisabled ? ", autonomy off" : ""));
         Replies.send(source, () -> Component.translatable("anima.command.state",
                 person.entity().getName(), person.brain().describe())
                 .append(suffix).withStyle(ChatFormatting.AQUA));
@@ -1470,6 +1495,8 @@ public final class AgentCommands {
         metabolism.setFoodLevel(food);
         metabolism.setSaturation(saturation);
         metabolism.setExhaustion(0.0F);
+        OpJournal.record(source, body.agentId(), String.format(Locale.ROOT,
+                "set food to %d (saturation %.1f)", food, saturation));
         // LOGGED: needs persist on the body and drive the arbiter — a hand-set hunger explains an
         // eat that would otherwise read as the brain deciding something inexplicable.
         Replies.send(source, () -> Component.translatable("anima.command.state",
@@ -1494,6 +1521,8 @@ public final class AgentCommands {
         }
         Company company = gauge.get();
         company.setValue(level);
+        OpJournal.record(source, body.agentId(),
+                String.format(Locale.ROOT, "set company to %.2f", level));
         Replies.send(source, () -> Component.translatable("anima.command.state",
                 body.entity().getName(), company.describe())
                 .withStyle(ChatFormatting.AQUA), true);
@@ -1538,6 +1567,8 @@ public final class AgentCommands {
         if (person == null) return 0;
         boolean autoDisabled = person.brain().run(new SatisfyHunger());
         Component suffix = autoDisabledNote(autoDisabled);
+        OpJournal.record(source, person.agentId(), "told to eat"
+                + (autoDisabled ? ", autonomy off" : ""));
         Replies.send(source, () -> Component.translatable("anima.command.state",
                 person.entity().getName(), person.brain().describe())
                 .append(suffix).withStyle(ChatFormatting.AQUA));
@@ -1557,6 +1588,7 @@ public final class AgentCommands {
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         BeingHails.hailed(person.entity());
+        OpJournal.record(source, person.agentId(), "made to call out");
         Replies.send(source, () -> Component.translatable("anima.command.brain.hailed",
                 person.entity().getName()).withStyle(ChatFormatting.AQUA));
         return 1;
@@ -1577,6 +1609,7 @@ public final class AgentCommands {
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         person.brain().cancel();
+        OpJournal.record(source, person.agentId(), "task cancelled by hand");
         Replies.send(source, () -> Component.translatable("anima.command.brain.cancelled",
                 person.entity().getName(), person.brain().describe())
                 .withStyle(ChatFormatting.AQUA));
@@ -1590,6 +1623,7 @@ public final class AgentCommands {
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         person.brain().setAuto(auto);
+        OpJournal.record(source, person.agentId(), "autonomy " + (auto ? "on" : "off"));
         Replies.send(source, () -> Component.translatable("anima.command.state",
                 person.entity().getName(), person.brain().describe())
                 .withStyle(ChatFormatting.AQUA));
@@ -1646,6 +1680,7 @@ public final class AgentCommands {
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         person.brain().setWander(wander);
+        OpJournal.record(source, person.agentId(), "wander " + (wander ? "unmuted" : "muted"));
         Replies.send(source, () -> Component.translatable("anima.command.state",
                 person.entity().getName(), person.brain().describe())
                 .withStyle(ChatFormatting.AQUA));
@@ -2044,6 +2079,9 @@ public final class AgentCommands {
             case SENSE -> ChatFormatting.GREEN;
             case PROJECT -> ChatFormatting.LIGHT_PURPLE;
             case MIND -> ChatFormatting.BLUE;
+            // The one line an agent did not write. White rather than another hue because YELLOW
+            // already means "look at this" everywhere else in the tree, and GOLD is BRAIN's.
+            case OP -> ChatFormatting.WHITE;
         };
     }
 
@@ -2082,8 +2120,10 @@ public final class AgentCommands {
                 ItemStacks.templateOf(input, source.registryAccess());
         dev.luizloyola.anima.core.inv.ItemStack remainder = person.inventory().add(template.withCount(count));
         int placed = count - remainder.count();
-        // LOGGED: the pack is persisted, nothing journals a change to it, and layer 3 reads it to
-        // decide whether a want is satisfied — a quiet hand-out silently completes an errand.
+        OpJournal.record(source, person.agentId(), "given " + placed + " " + template.id());
+        // LOGGED: the pack is persisted and layer 3 reads it to decide whether a want is
+        // satisfied — a quiet hand-out silently completes an errand. The op line above is the
+        // agent's own copy; this is the one an operator watching a console sees.
         Replies.send(source, () -> (remainder.isEmpty()
                         ? Component.translatable("anima.command.inv.gave",
                                 person.entity().getName(), placed, template.id())
@@ -2127,9 +2167,11 @@ public final class AgentCommands {
         }
         dev.luizloyola.anima.core.inv.ItemStack displaced = placeEquipment(inv, slot, piece);
         if (!displaced.isEmpty()) inv.add(displaced); // whatever was worn there goes back to storage
+        OpJournal.record(source, person.agentId(),
+                "made to wear " + want.id() + " (" + slot.getName() + ")");
         Replies.send(source, () -> Component.translatable("anima.command.inv.equipped",
                 person.entity().getName(), want.id(), slot.getName())
-                .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted, unjournalled
+                .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted; see contacts meet
         return 1;
     }
 
@@ -2138,6 +2180,7 @@ public final class AgentCommands {
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         person.inventory().clear();
+        OpJournal.record(source, person.agentId(), "pack emptied");
         Replies.send(source, () -> Component.translatable("anima.command.inv.cleared",
                 person.entity().getName())
                 .withStyle(ChatFormatting.AQUA), true); // LOGGED: destroys persisted state
@@ -2396,8 +2439,12 @@ public final class AgentCommands {
         }
         ContactsSync.learned(server, self, other);
         ContactsSync.learned(server, other, self);
-        // LOGGED: the contact book is persisted SavedData and nothing journals a change to it —
-        // the journal is the agent's own, and an agent does not narrate what was done TO it.
+        // Both, because being told a name and telling yours are two facts (see the javadoc), and
+        // each of the two files has to stand on its own.
+        OpJournal.record(source, List.of(self, other), "introduced "
+                + label(server, self) + " to " + label(server, other));
+        // LOGGED: the contact book is persisted SavedData, and the op line above lands in a
+        // per-agent file — this is the copy an operator watching one console sees.
         Replies.send(source, () -> Component.translatable("anima.command.contacts.introduced",
                 label(server, self), label(server, other))
                 .withStyle(ChatFormatting.AQUA), true);
@@ -2418,9 +2465,10 @@ public final class AgentCommands {
             return 0;
         }
         resyncIfOnline(server, self);
+        OpJournal.record(source, self, "made to forget " + label(server, other));
         Replies.send(source, () -> Component.translatable("anima.command.contacts.forgotten",
                 label(server, other))
-                .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted, unjournalled
+                .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted; see contacts meet
         return 1;
     }
 
@@ -2435,8 +2483,9 @@ public final class AgentCommands {
             return 0;
         }
         resyncIfOnline(server, self);
+        OpJournal.record(source, self, "contact book wiped");
         Replies.send(source, () -> Component.translatable("anima.command.contacts.cleared")
-                .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted, unjournalled
+                .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted; see contacts meet
         return 1;
     }
 
@@ -2501,6 +2550,10 @@ public final class AgentCommands {
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
+        // The whole party they walked into, not just the joiner: everybody's board scope just
+        // changed, and each of those files has to explain the work that appears on its own.
+        OpJournal.record(source, parties.members(theirs),
+                "moved " + label(server, self) + " into " + label(server, other) + "'s party");
         // LOGGED: membership is persisted and it is what layer 3 scopes a board to — a party
         // moved out from under someone silently is a board's worth of work changing hands.
         Replies.send(source, () -> Component.translatable("anima.command.party.joined",
@@ -2520,6 +2573,7 @@ public final class AgentCommands {
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
+        OpJournal.record(source, self, "made to strike out alone");
         Replies.send(source, () -> Component.translatable("anima.command.party.left")
                 .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted, scopes a board
         return 1;

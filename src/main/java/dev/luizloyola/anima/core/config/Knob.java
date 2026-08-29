@@ -177,6 +177,10 @@ public enum Knob implements KnobSpec {
     JOURNAL_MIND("journal.mind", Kind.BOOL, 1, 0, 1,
             "Log a need crossing one of its declared levels — company going lonely, food going "
                     + "peckish. On by default: about a dozen lines per settler per day."),
+    /** Read by the mod-side journal wiring at boot and on every config change. */
+    JOURNAL_OP("journal.op", Kind.BOOL, 1, 0, 1,
+            "Log operator commands that change something, in the journal of every agent they "
+                    + "touch. On by default: read-only commands are never logged."),
 
     // --- webdebug: the browser debug UI, off unless asked for -----------------------------
 

@@ -45,9 +45,23 @@ public final class Journals {
     /** The file sink attached to each server's service, so {@code SERVER_STOPPING} can flush + close it. */
     private static final Map<MinecraftServer, JournalFileSink> SINKS = new HashMap<>();
 
-    /** Call once from mod init: ties the per-server services, their file sinks, and the age sweep to
-     *  the lifecycle. */
+    /** Whether {@link #init} has already run — see the idempotence note there. */
+    private static boolean installed;
+
+    /**
+     * Ties the per-server services, their file sinks and the age sweep to the lifecycle. Called
+     * from Anima's own init, so a bare library install (or a consumer that never thought about it)
+     * still closes its files and drops its services.
+     *
+     * <p><b>Idempotent on purpose.</b> Autarkia has called this from its own init since the journal
+     * was written, and Fabric runs a dependency's initializer first — so the second call must be a
+     * no-op rather than a second set of lifecycle handlers and a second {@code onInstall} listener.
+     */
     public static void init() {
+        if (installed) {
+            return;
+        }
+        installed = true;
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             JournalFileSink sink = SINKS.remove(server);
             if (sink != null) {
@@ -93,6 +107,9 @@ public final class Journals {
         }
         if (!Config.get().b(Knob.JOURNAL_MIND)) {
             muted.add(new JournalService.Muted(Category.MIND, null)); // whole category
+        }
+        if (!Config.get().b(Knob.JOURNAL_OP)) {
+            muted.add(new JournalService.Muted(Category.OP, null)); // whole category
         }
         return muted;
     }

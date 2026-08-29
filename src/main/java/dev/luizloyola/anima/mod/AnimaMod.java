@@ -41,6 +41,10 @@ public final class AnimaMod implements ModInitializer {
             LOGGER.warn("config: {}", problem);
         }
         AgentBodies.install();
+        // The journal's own lifecycle: closing its files at STOPPING, dropping its services at
+        // STOPPED, sweeping aged lines, and re-muting channels when the config changes under a
+        // running world. Here rather than only in a consumer, so a bare library install has it.
+        dev.luizloyola.anima.mod.log.Journals.init();
         // Every body's own need-level crossings, off the same load hook AgentBodies indexes on.
         dev.luizloyola.anima.mod.log.MindJournal.install();
         RayPools.install();
