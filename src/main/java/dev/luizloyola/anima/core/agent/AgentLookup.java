@@ -3,6 +3,7 @@ package dev.luizloyola.anima.core.agent;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * Turning a typed token into one agent.
@@ -42,6 +43,18 @@ public final class AgentLookup {
      * and picking the closer of a settler and a wolf is a worse answer than asking.
      */
     public static Result match(Map<AgentId, String> candidates, String token) {
+        return match(candidates, token, id -> true);
+    }
+
+    /**
+     * {@link #match}, with the graveyard tiebreak (decision: Luiz, 2026-08-29): when a token
+     * matches several agents, the ones {@code living} rejects step aside — a name shared with
+     * the dead resolves to its living bearer. The tiebreak only ever breaks a tie: a single
+     * match is found even dead (a grave must stay addressable), several living bearers still
+     * refuse, and an all-dead ambiguity refuses too, listing only what survived the filter.
+     */
+    public static Result match(Map<AgentId, String> candidates, String token,
+            Predicate<AgentId> living) {
         String trimmed = token.trim();
         // Every id starts with the empty string, so an empty token would prefix-match the whole
         // roster and come back as "which of these did you mean" rather than as nothing typed.
@@ -59,7 +72,11 @@ public final class AgentLookup {
                 : byId;
 
         if (matches.isEmpty()) return new None();
-        if (matches.size() > 1) return new Ambiguous(matches);
+        if (matches.size() > 1) {
+            List<AgentId> alive = matches.stream().filter(living).toList();
+            if (alive.size() == 1) return new Found(alive.get(0));
+            return new Ambiguous(alive.isEmpty() ? matches : alive);
+        }
         return new Found(matches.get(0));
     }
 }

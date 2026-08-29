@@ -81,6 +81,56 @@ class AgentLookupTest {
         assertInstanceOf(AgentLookup.None.class, AgentLookup.match(Map.of(), "Ada"));
     }
 
+    // The graveyard tiebreak (decision: Luiz, 2026-08-29): a name shared with the dead resolves
+    // to the living one — you address the dead by choosing to, not by colliding with them.
+    @Test
+    void aNameSharedWithTheDeadResolvesToTheLivingOne() {
+        Map<AgentId, String> all = two();
+        all.put(THIRD, "Ada");
+        assertEquals(new AgentLookup.Found(ADA),
+                AgentLookup.match(all, "Ada", id -> !id.equals(THIRD)));
+    }
+
+    @Test
+    void twoLivingBearersOfANameStillRefuse() {
+        Map<AgentId, String> all = two();
+        all.put(THIRD, "Ada");
+        AgentLookup.Result result = AgentLookup.match(all, "Ada", id -> true);
+        assertInstanceOf(AgentLookup.Ambiguous.class, result);
+        assertEquals(2, ((AgentLookup.Ambiguous) result).candidates().size(),
+                "both bearers are alive — the tiebreak has nothing to break");
+    }
+
+    // The report should only name candidates the tiebreak kept: listing a dead body beside two
+    // living ones would invite the reader to pick it.
+    @Test
+    void anAmbiguityAmongTheLivingListsOnlyTheLiving() {
+        Map<AgentId, String> all = two();
+        all.put(THIRD, "Ada");
+        Map<AgentId, String> plusDead = new LinkedHashMap<>(all);
+        plusDead.put(new AgentId(UUID.fromString("dddddddd-0000-0000-0000-000000000004")), "Ada");
+        AgentLookup.Result result = AgentLookup.match(plusDead, "Ada",
+                id -> !id.toString().startsWith("dddddddd"));
+        assertInstanceOf(AgentLookup.Ambiguous.class, result);
+        assertEquals(2, ((AgentLookup.Ambiguous) result).candidates().size());
+    }
+
+    @Test
+    void aWhollyDeadAmbiguityStaysAmbiguous() {
+        Map<AgentId, String> all = two();
+        all.put(THIRD, "Ada");
+        AgentLookup.Result result = AgentLookup.match(all, "Ada", id -> false);
+        assertInstanceOf(AgentLookup.Ambiguous.class, result);
+        assertEquals(2, ((AgentLookup.Ambiguous) result).candidates().size(),
+                "with nobody alive there is nothing to prefer — ask, as before");
+    }
+
+    @Test
+    void aSingleDeadMatchIsStillFound() {
+        assertEquals(new AgentLookup.Found(ADA),
+                AgentLookup.match(two(), "Ada", id -> false));
+    }
+
     // An empty token must not prefix-match the whole roster into an ambiguity report: every id
     // starts with "". Two names would otherwise read as "which of these did you mean".
     @Test

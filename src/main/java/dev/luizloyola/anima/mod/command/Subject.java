@@ -9,6 +9,7 @@ import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.AgentLookup;
 import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.body.AgentBody;
+import dev.luizloyola.anima.mod.identity.Graves;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
@@ -151,7 +152,11 @@ public final class Subject {
 
     /** A token against the whole directory, reporting the reason it did not land. */
     public static @Nullable AgentId directoryId(CommandSourceStack source, String token) {
-        return switch (AgentLookup.match(AgentCommands.nameable(source.getServer()), token)) {
+        // The buried step aside when a living body shares their name — see AgentLookup's
+        // graveyard tiebreak. A dead subject stays reachable whenever it is the only match.
+        Graves graves = Graves.get(source.getServer());
+        return switch (AgentLookup.match(AgentCommands.nameable(source.getServer()), token,
+                id -> !graves.isDead(id))) {
             case AgentLookup.Found found -> found.id();
             case AgentLookup.None ignored -> {
                 Replies.fail(source, Component.translatable("anima.command.no_match", token));
