@@ -44,6 +44,11 @@ public final class AnimaMod implements ModInitializer {
         // The journal's own lifecycle: closing its files at STOPPING, dropping its services at
         // STOPPED, sweeping aged lines, and re-muting channels when the config changes under a
         // running world. Here rather than only in a consumer, so a bare library install has it.
+        //
+        // FIRST among the STOPPING handlers, deliberately: Fabric fires them in registration
+        // order, so anything registered below this one runs AFTER the per-agent files are closed
+        // and would lose a journal line it wrote there. Nothing does today. A future shutdown
+        // handler that wants a last word in the journal has to be registered above this call.
         dev.luizloyola.anima.mod.log.Journals.init();
         // Every body's own need-level crossings, off the same load hook AgentBodies indexes on.
         dev.luizloyola.anima.mod.log.MindJournal.install();

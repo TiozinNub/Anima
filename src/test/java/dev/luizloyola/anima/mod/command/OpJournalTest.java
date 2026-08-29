@@ -7,7 +7,12 @@ import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.log.Entry;
 import dev.luizloyola.anima.core.log.JournalService;
+import dev.luizloyola.anima.core.agent.PrivateIdentity;
+import dev.luizloyola.anima.mod.identity.AgentDirectory;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +22,8 @@ class OpJournalTest {
     private static final AgentId ALICE = AgentId.random();
     private static final AgentId BOB = AgentId.random();
     private static final AgentId CAROL = AgentId.random();
+    /** The operator's own id. A player is not an agent and has no journal. */
+    private static final AgentId TIOZIN = AgentId.random();
 
     private final JournalService journal = new JournalService(() -> 5008033L, 64, 12_000L);
 
@@ -59,5 +66,51 @@ class OpJournalTest {
         List<Entry> written = journal.recent(ALICE, 8);
         assertEquals(1, written.size());
         assertEquals("gave 1 stone_axe", written.get(0).detail());
+    }
+
+    /**
+     * {@code party leave} recorded only to the LEAVER, and an operator running it as themselves
+     * is a player — dropped by the filter below, so a settlement-changing command went down
+     * nowhere at all. It now records to the party as it stood before the leave, which is also the
+     * only way the members left behind learn why their board scope moved.
+     */
+    @Test
+    void aLeaveReachesTheMembersLeftBehindAndNotThePlayerWhoRanIt() {
+        List<AgentId> partyBeforeTheLeave = List.of(TIOZIN, BOB, CAROL);
+
+        OpJournal.record(journal, knowing(BOB, CAROL), partyBeforeTheLeave, "TiozinNub",
+                "moved TiozinNub out of the party");
+
+        assertEquals("moved TiozinNub out of the party", journal.recent(BOB, 1).get(0).detail());
+        assertEquals("moved TiozinNub out of the party", journal.recent(CAROL, 1).get(0).detail());
+        assertTrue(journal.recent(TIOZIN, 1).isEmpty());
+    }
+
+    /** Nothing but the operator: no ring is minted, and no per-agent file with it. */
+    @Test
+    void aCommandThatTouchedOnlyAPlayerWritesNothing() {
+        OpJournal.record(journal, knowing(BOB), List.of(TIOZIN), "TiozinNub", "left the party");
+
+        assertTrue(journal.recent(TIOZIN, 8).isEmpty());
+        assertTrue(journal.recent(BOB, 8).isEmpty());
+    }
+
+    /** A directory that knows exactly these agents; anyone else asked about is a player. */
+    private static AgentDirectory knowing(AgentId... agents) {
+        Map<AgentId, PrivateIdentity> known = new LinkedHashMap<>();
+        for (AgentId id : agents) {
+            known.put(id, () -> "settler");
+        }
+        return new AgentDirectory() {
+            @Override
+            public Optional<PrivateIdentity> identity(AgentId id) {
+                return Optional.ofNullable(known.get(id));
+            }
+
+            @Override
+            public Map<AgentId, PrivateIdentity> known() {
+                return known;
+            }
+        };
     }
 }

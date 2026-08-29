@@ -455,7 +455,8 @@ public final class AgentCommands {
                 : new TakeItems(at, spec, count));
         Component suffix = autoDisabledNote(autoDisabled);
         OpJournal.record(source, who, (put ? "told to store " : "told to fetch ") + count + " "
-                + template.id() + " " + (put ? "in " : "from ") + where(at));
+                + template.id() + " " + (put ? "in " : "from ") + where(at)
+                + (autoDisabled ? ", autonomy off" : ""));
         Replies.send(source, () -> Component.translatable(
                         put ? "anima.command.store.put" : "anima.command.store.take",
                         name, count, template.id(), where(at))
@@ -2568,12 +2569,18 @@ public final class AgentCommands {
         AgentId self = actingIdentity(ctx);
         if (self == null) return 0;
         MinecraftServer server = source.getServer();
-        if (!PartyData.get(server).leave(self)) {
+        PartyData parties = PartyData.get(server);
+        // Captured BEFORE the leave, because afterwards the roster no longer says who they were
+        // with — and through currentPartyOf, which unlike partyOf never mints a party of one for
+        // a leaver who had none. The whole party they walked out of hears, for `party join`'s
+        // reason: everybody left behind has a board scope that just changed.
+        List<AgentId> was = parties.currentPartyOf(self).map(parties::members).orElse(List.of());
+        if (!parties.leave(self)) {
             Replies.send(source, () -> Component.translatable("anima.command.party.already_alone")
                     .withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        OpJournal.record(source, self, "made to strike out alone");
+        OpJournal.record(source, was, "moved " + label(server, self) + " out of the party");
         Replies.send(source, () -> Component.translatable("anima.command.party.left")
                 .withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted, scopes a board
         return 1;

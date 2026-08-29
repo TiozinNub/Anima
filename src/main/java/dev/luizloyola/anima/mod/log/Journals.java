@@ -90,8 +90,8 @@ public final class Journals {
                 }
             }
         });
-        // The muted set is derived from two knobs, not equal to either one — same shape as
-        // ReadPools' ceiling projection. Without this a running world only picks up a sense.*
+        // The muted set is derived from the knobs, not equal to any one of them — same shape as
+        // ReadPools' ceiling projection. Without this a running world only picks up a journal.*
         // toggle on its next restart, not on the /anima config set that just changed it.
         Config.store().onInstall(Journals::remuteAll);
     }

@@ -55,17 +55,25 @@ public final class OpJournal {
     /** A command about a party, or about a pair: every agent it reached hears about it. */
     public static void record(CommandSourceStack source, Collection<AgentId> touched, String detail) {
         MinecraftServer server = source.getServer();
-        AgentDirectory directory = AgentDirectory.of(server);
-        // A PLAYER's own id arrives here through `contacts meet` and `party join`, where an
-        // operator acting as themselves is one of the two parties. Filtering here rather than at
-        // those five call sites: a player has no journal, and minting one would leave a file in
-        // logs/anima/ for somebody who never thinks.
+        record(Journals.of(server), AgentDirectory.of(server), touched, source.getTextName(), detail);
+    }
+
+    /**
+     * The same fan-out, minus only the server lookup — the seam a test drives.
+     *
+     * <p>A PLAYER's own id arrives here through {@code contacts meet}, {@code party join} and
+     * {@code party leave}, where an operator acting as themselves is one of the parties. Filtered
+     * here rather than at those call sites: a player has no journal, and minting one would leave a
+     * ring and a {@code logs/anima/} file for somebody who never thinks.
+     */
+    static void record(JournalService journal, AgentDirectory directory, Collection<AgentId> touched,
+                       String operator, String detail) {
         List<AgentId> agents = touched.stream()
                 .filter(id -> directory.identity(id).isPresent())
                 .toList();
         if (agents.isEmpty()) {
             return;
         }
-        record(Journals.of(server), agents, source.getTextName(), detail);
+        record(journal, agents, operator, detail);
     }
 }
