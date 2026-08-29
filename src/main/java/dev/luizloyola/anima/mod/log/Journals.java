@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.log;
 
+import dev.luizloyola.anima.core.brain.board.WorkSource;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
 import dev.luizloyola.anima.core.log.Category;
@@ -113,7 +114,7 @@ public final class Journals {
         }
         if (!Config.get().b(Knob.JOURNAL_PROJECT_OFFER)) {
             // The pair, not the category: PROJECT's claim and completion lines must keep working.
-            muted.add(new JournalService.Muted(Category.PROJECT, "offer"));
+            muted.add(new JournalService.Muted(Category.PROJECT, WorkSource.EVENT_OFFER));
         }
         return muted;
     }

@@ -13,6 +13,18 @@ import java.util.Optional;
  * observe transitions.
  */
 public interface WorkSource {
+    /**
+     * The journal event a source's decline line carries — {@code project - offer - …}, muted as a
+     * {@code (Category.PROJECT, event)} pair rather than by category, so the claim and completion
+     * lines keep working.
+     *
+     * <p>Declared at the seam and not at the emitter, which the other constants of this filter
+     * follow ({@code BeingSense.EVENT_PEER}, {@code PoiSensor.EVENT_OVERLOOKED}): the emitter is a
+     * <em>consumer's</em> board, which Anima's mute table cannot see. Both sides naming one
+     * constant is what stops a rename silently unmuting the channel.
+     */
+    String EVENT_OFFER = "offer";
+
     /** A source with nothing to offer, ever — the no-board arbiter for tests and manual rigs. */
     WorkSource NONE = new WorkSource() {
         @Override
