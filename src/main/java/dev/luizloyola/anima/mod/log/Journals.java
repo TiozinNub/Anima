@@ -1,8 +1,15 @@
 package dev.luizloyola.anima.mod.log;
 
+import dev.luizloyola.anima.core.config.Config;
+import dev.luizloyola.anima.core.config.Knob;
+import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.log.JournalService;
+import dev.luizloyola.anima.mod.brain.BeingSense;
+import dev.luizloyola.anima.mod.brain.PoiSensor;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
@@ -58,6 +65,30 @@ public final class Journals {
                 }
             }
         });
+        // The muted set is derived from two knobs, not equal to either one — same shape as
+        // ReadPools' ceiling projection. Without this a running world only picks up a sense.*
+        // toggle on its next restart, not on the /anima config set that just changed it.
+        Config.store().onInstall(Journals::remuteAll);
+    }
+
+    /** What {@link #of} installs at boot, and what a config change re-installs into every live server. */
+    private static Set<JournalService.Muted> mutedFrom() {
+        Set<JournalService.Muted> muted = new HashSet<>();
+        if (!Config.get().b(Knob.JOURNAL_SENSE_PEER)) {
+            muted.add(new JournalService.Muted(Category.SENSE, BeingSense.EVENT_PEER));
+        }
+        if (!Config.get().b(Knob.JOURNAL_SENSE_OVERLOOKED)) {
+            muted.add(new JournalService.Muted(Category.SENSE, PoiSensor.EVENT_OVERLOOKED));
+        }
+        return muted;
+    }
+
+    /** Re-applies the muted set to every live server's journal — what a config reload triggers. */
+    private static void remuteAll() {
+        Set<JournalService.Muted> muted = mutedFrom();
+        for (JournalService service : SERVICES.values()) {
+            service.mute(muted);
+        }
     }
 
     /**
@@ -70,6 +101,7 @@ public final class Journals {
             return existing;
         }
         JournalService service = new JournalService(server.overworld()::getGameTime);
+        service.mute(mutedFrom());
         SERVICES.put(server, service);
         SINKS.put(server, JournalFileSink.attach(server, service));
         ThoughtBroadcast.attach(server, service); // the thinking-out-loud chat channel

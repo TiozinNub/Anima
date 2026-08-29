@@ -164,6 +164,16 @@ public enum Knob implements KnobSpec {
                     + "a body standing near others spends most of its lines noticing them: 24 "
                     + "measured out at twelve seconds, nearly all of it peer chatter."),
 
+    /** Read by the mod-side journal wiring at boot and on every config change. */
+    JOURNAL_SENSE_PEER("journal.sense_peer", Kind.BOOL, 0, 0, 1,
+            "Log every flip of a perceived being's state. Off by default: with twenty settlers "
+                    + "in one camp this is three quarters of every line written. Turn it on when "
+                    + "perception itself is what you are debugging."),
+    /** Read by the mod-side journal wiring at boot and on every config change. */
+    JOURNAL_SENSE_OVERLOOKED("journal.sense_overlooked", Kind.BOOL, 0, 0, 1,
+            "Log each place passed over as not worth remembering. Off by default: it repeats the "
+                    + "same cells for as long as a body stands near them."),
+
     // --- webdebug: the browser debug UI, off unless asked for -----------------------------
 
     /** @see dev.luizloyola.anima.mod.webdebug.WebDebugger */

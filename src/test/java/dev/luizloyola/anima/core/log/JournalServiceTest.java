@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.luizloyola.anima.core.agent.AgentId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.LongSupplier;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,8 @@ class JournalServiceTest {
     private static AgentId person() {
         return AgentId.of(UUID.randomUUID());
     }
+
+    private static final AgentId WHO = person();
 
     @Test
     void recentReturnsChronologicalNewestLastStampedWithTheClock() {
@@ -141,6 +144,56 @@ class JournalServiceTest {
     void unknownPersonReadsEmpty() {
         JournalService journal = new JournalService(new FakeClock());
         assertTrue(journal.recent(person(), 10).isEmpty());
+    }
+
+    @Test
+    void aMutedPairIsDroppedAndAnEnabledOneSurvives() {
+        JournalService journal = new JournalService(() -> 7L);
+        journal.mute(Set.of(new JournalService.Muted(Category.SENSE, "peer")));
+
+        journal.record(WHO, Category.SENSE, "peer", "a stranger now idle");
+        journal.record(WHO, Category.SENSE, "noticed", "TREE (1, 2, 3)");
+
+        List<Entry> kept = journal.recent(WHO, 10);
+        assertEquals(1, kept.size(), "the muted pair must not reach the ring");
+        assertEquals("noticed", kept.get(0).event());
+    }
+
+    @Test
+    void anUndeclaredPairIsAlwaysOn() {
+        JournalService journal = new JournalService(() -> 7L);
+        journal.mute(Set.of(new JournalService.Muted(Category.SENSE, "peer")));
+
+        journal.record(WHO, Category.SENSE, "brand_new_event", "");
+
+        assertEquals(1, journal.recent(WHO, 10).size(),
+                "muting one pair must never mute a channel nobody declared");
+    }
+
+    @Test
+    void aNullEventMutesTheWholeCategory() {
+        JournalService journal = new JournalService(() -> 7L);
+        journal.mute(Set.of(new JournalService.Muted(Category.SENSE, null)));
+
+        journal.record(WHO, Category.SENSE, "peer", "");
+        journal.record(WHO, Category.SENSE, "noticed", "");
+        journal.record(WHO, Category.BRAIN, "wander", "");
+
+        List<Entry> kept = journal.recent(WHO, 10);
+        assertEquals(1, kept.size());
+        assertEquals(Category.BRAIN, kept.get(0).category());
+    }
+
+    @Test
+    void aMutedEntryReachesNoSinkEither() {
+        JournalService journal = new JournalService(() -> 7L);
+        List<Entry> seen = new ArrayList<>();
+        journal.subscribe((who, entry) -> seen.add(entry));
+        journal.mute(Set.of(new JournalService.Muted(Category.SENSE, "peer")));
+
+        journal.record(WHO, Category.SENSE, "peer", "");
+
+        assertTrue(seen.isEmpty(), "muting must drop before the sink, or the file still grows");
     }
 
     private static List<String> details(List<Entry> entries) {

@@ -11,6 +11,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
@@ -61,6 +62,8 @@ public final class JournalService {
     private final Map<AgentId, Ring> byPerson = new HashMap<>();
     /** Sinks notified as each entry lands — the file writer hangs here (see the class doc). */
     private final List<BiConsumer<AgentId, Entry>> sinks = new ArrayList<>();
+    /** Channels currently silenced. Replaced wholesale, so a config reload cannot leave a stale one. */
+    private volatile Set<Muted> muted = Set.of();
 
     /**
      * A service that follows the configured retention bounds live, so a {@code /anima config
@@ -96,17 +99,48 @@ public final class JournalService {
     }
 
     /**
+     * One muted channel. A {@code null} event mutes the whole {@link Category}; otherwise it is the
+     * exact {@link Entry#event()} constant an emitter declares.
+     *
+     * <p>Matching a declared constant, never parsing one: {@code Entry.event} stays free-form, and
+     * a channel becomes silenceable only when somebody names it here and gives it a knob.
+     */
+    public record Muted(Category category, String event) {
+    }
+
+    /**
+     * Installs the muted set — the mod layer calls this at boot and on every config change.
+     *
+     * <p><b>A whole-category mute is a blunt instrument.</b> {@code ThoughtBroadcast} forwards
+     * every entry whose event is {@code "think"} to chat, on no other condition; muting a category
+     * that {@code think} rides on would silence that narration too, with nothing in this class to
+     * say why — the drop happens before every sink, including that one.
+     */
+    public void mute(Set<Muted> muted) {
+        this.muted = Set.copyOf(muted);
+    }
+
+    /**
      * File one line under {@code who}: stamp it with the current tick, append it to that person's
      * ring (evicting the oldest if the cap is now exceeded), then notify every sink. Cheap and
      * non-blocking — safe to call from the tick.
      */
     public void record(AgentId who, Category category, String event, String detail) {
         Objects.requireNonNull(who, "who");
+        if (isMuted(category, event)) {
+            return;
+        }
         Entry entry = new Entry(clock.getAsLong(), category, event, detail);
         byPerson.computeIfAbsent(who, id -> new Ring()).add(entry, maxEntriesPerPerson());
         for (BiConsumer<AgentId, Entry> sink : sinks) {
             sink.accept(who, entry);
         }
+    }
+
+    private boolean isMuted(Category category, String event) {
+        Set<Muted> current = muted;
+        return current.contains(new Muted(category, null))
+                || current.contains(new Muted(category, event));
     }
 
     /**

@@ -15,6 +15,9 @@ import java.util.Objects;
  * @param event    the short what/where — {@code "wander (10,10,10)"}, {@code "stray"}. Free-form;
  *                 each emitter writes in its own vocabulary, since the body knows a
  *                 {@code DamageSource} the core never will.
+ *                 A handful of values are also declared as constants and named by
+ *                 {@code journal.*} config knobs so a noisy channel can be silenced; the filter
+ *                 matches those constants and never parses this string.
  * @param detail   the outcome/how — {@code "success 10 nodes"}, {@code "took 4 damage (lava) now
  *                 15/20"}. Free-form and optional; a {@code null} is normalised to {@code ""}.
  */

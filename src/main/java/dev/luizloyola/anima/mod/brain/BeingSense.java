@@ -705,6 +705,9 @@ public final class BeingSense {
 
     // --- journal -----------------------------------------------------------------------------
 
+    /** The journal channel this narration writes to — see {@code Knob.JOURNAL_SENSE_PEER}. */
+    public static final String EVENT_PEER = "peer";
+
     /**
      * The kind gate: persons (and the not-yet-made-out somethings) narrate every axis flip;
      * identified creatures narrate only spotted / recognized / lost, or a chase's approaching-flips
@@ -727,7 +730,7 @@ public final class BeingSense {
                             ? "someone" : event.was().knownAs())
                     + " " + person.pronouns().subject() + "'d heard";
         };
-        person.journal().record(Category.SENSE, "peer", what);
+        person.journal().record(Category.SENSE, EVENT_PEER, what);
     }
 
     private String describe(Being being) {

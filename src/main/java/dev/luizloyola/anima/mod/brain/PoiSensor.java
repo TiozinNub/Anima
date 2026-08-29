@@ -27,6 +27,9 @@ import org.jspecify.annotations.Nullable;
  * viewer's discovery chat.
  */
 public final class PoiSensor {
+    /** The journal channel a passed-over place writes to — see {@code Knob.JOURNAL_SENSE_OVERLOOKED}. */
+    public static final String EVENT_OVERLOOKED = "overlooked";
+
     private final AgentBody person;
     private @Nullable KnowledgeData data;
     private @Nullable PoiSensorCore core;
@@ -70,7 +73,7 @@ public final class PoiSensor {
         return switch (type) {
             case NOTED -> "noticed";
             case FORGOT -> "forgot";
-            case OVERLOOKED -> "overlooked";
+            case OVERLOOKED -> EVENT_OVERLOOKED;
             case DISMISSED -> "dismissed";
             case GLIMPSED -> "glimpsed";
         };
