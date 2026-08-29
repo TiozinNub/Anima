@@ -2554,8 +2554,11 @@ public final class AgentCommands {
             return 0;
         }
         // The whole party they walked into, not just the joiner: everybody's board scope just
-        // changed, and each of those files has to explain the work that appears on its own.
-        OpJournal.record(source, parties.members(theirs),
+        // changed, and each of those files has to explain the work that appears on its own. Copied
+        // for the reason spelled out on partyBeforeLeaving — members() is a live view over the
+        // roster's own list, and nothing but the callee's own eager materialisation keeps a
+        // captured one honest today.
+        OpJournal.record(source, List.copyOf(parties.members(theirs)),
                 "moved " + label(server, self) + " into " + label(server, other) + "'s party");
         // LOGGED: membership is persisted and it is what layer 3 scopes a board to — a party
         // moved out from under someone silently is a board's worth of work changing hands.
