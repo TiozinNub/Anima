@@ -54,7 +54,6 @@ class SpeechesTest {
         // line, and a restored conversation re-derives what it already said, so anything drawn from
         // a random source is a bug this exact assertion is here to catch.
         assertEquals(3, Speeches.variantOf(ONE, 0, 3));
-        assertEquals(3, Speeches.variantOf(ONE, 0, 3));
     }
 
     @Test

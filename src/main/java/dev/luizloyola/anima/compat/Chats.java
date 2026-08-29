@@ -37,6 +37,9 @@ public final class Chats {
         // 26.1 gave ObjectContents a second component — the fallback shown when the object cannot
         // render at all. 1.21.11 has the record with one. The docs note claiming the construction is
         // byte-identical across nodes was wrong on exactly this.
+        //
+        // Optional is spelled out rather than imported: an import survives into every node, and on
+        // 1.21.11 the only line naming it is the one commented out below.
         //? if >=26.1 {
         return MutableComponent.create(new ObjectContents(sprite, java.util.Optional.empty()));
         //?} else {

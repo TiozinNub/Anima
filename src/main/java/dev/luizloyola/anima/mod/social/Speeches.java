@@ -158,8 +158,11 @@ public final class Speeches {
                 continue; // a participant, already served above
             }
             if (player.hasLineOfSight(writer)) {
-                learn(server, id, author, name);
-                player.sendSystemMessage(aside("anima.social.overheard.seen", name));
+                // Narrated only on a name that was actually news: somebody who has known Alma for a
+                // week does not need telling every time she introduces herself across the square.
+                if (learn(server, id, null, author, name)) {
+                    player.sendSystemMessage(aside("anima.social.overheard.seen", name));
+                }
                 continue;
             }
             // Heard through a wall: a voice with no face teaches nothing. The narration is worth
@@ -173,26 +176,31 @@ public final class Speeches {
     }
 
     /** {@code learner} now knows {@code whom}, its body resolved from the index. */
-    private static void learn(MinecraftServer server, AgentId learner, AgentId whom, String name) {
-        learn(server, learner, AgentBodies.findLoaded(server, learner), whom, name);
+    private static boolean learn(MinecraftServer server, AgentId learner, AgentId whom, String name) {
+        return learn(server, learner, AgentBodies.findLoaded(server, learner), whom, name);
     }
 
     /**
-     * {@code learner} now knows {@code whom}. {@link ContactData#learn} is the write path — it pays
-     * the company gauge — and the two calls after it are the two things that must agree with the
-     * book: a player's client shadow, so a nameplate appears at the introduction, and a loaded
-     * agent's journal. Both no-op for the other kind of learner.
+     * {@code learner} now knows {@code whom}, and whether that was NEWS. {@link ContactData#learn}
+     * is the write path — it pays the company gauge — and everything after it hangs off its answer:
+     * a name already in the book means the client shadow already carries it and the journal already
+     * says so, so re-introduction would push a redundant entry and write "learned their name — Alma"
+     * again every time Alma says it near somebody who has known her for a week.
      *
      * <p>The body is handed in rather than looked up, so a caller sweeping the loaded index does not
-     * sweep it again per learner.
+     * sweep it again per learner, and a player learner passes {@code null} rather than paying for a
+     * scan that can only miss.
      */
-    private static void learn(MinecraftServer server, AgentId learner, @Nullable AgentBody body,
+    private static boolean learn(MinecraftServer server, AgentId learner, @Nullable AgentBody body,
             AgentId whom, String name) {
-        ContactData.get(server).learn(server, learner, whom);
+        if (!ContactData.get(server).learn(server, learner, whom)) {
+            return false;
+        }
         ContactsSync.learned(server, learner, whom);
         if (body != null) {
             body.journal().record(Category.BRAIN, "converse", "learned their name — " + name);
         }
+        return true;
     }
 
     /** Whether this body has made {@code who} out as an individual — not merely heard something. */
