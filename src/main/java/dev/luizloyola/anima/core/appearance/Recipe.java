@@ -22,8 +22,11 @@ import java.util.Objects;
  *       base, so a change restores a rectangle.</li>
  * </ul>
  *
- * <p>The static base is also the agent with no mood and no grime — the <b>neutral texture</b> a
- * portrait wants, at no extra cost.
+ * <p>The static base is also the agent with no mood and no grime — the <b>pose-independent</b> half
+ * of the recipe. ⚠️ That is not the same as a portrait texture: nothing ever bakes or registers a
+ * texture under {@link #staticHash()} today. {@code BakedTextures} keys every bake by {@link #hash()}
+ * alone, so a portrait spelled from the static hash would name nothing a client could resolve and
+ * render as the missing texture; see {@code PersonPortraits} for the consumer that learned this.
  *
  * <p>⚠️ The canvas size is deliberately <b>not</b> part of either hash (decision: Luiz), which is
  * safe only because part lists are species-specific: two recipes cannot share one part list across
@@ -52,8 +55,10 @@ public record Recipe(int width, int height, List<Part> statics, List<Part> dynam
     }
 
     /**
-     * Names the <em>static base</em> — the shared pixels the dynamic parts are drawn over, and the
-     * neutral texture a portrait uses. Equal to {@link #hash()} when nothing is dynamic.
+     * Names the <em>static base</em> — the shared pixels the dynamic parts are drawn over, and
+     * nothing else. No bake is ever cached or registered under this hash (see the class javadoc);
+     * it is the pose-independent half of the recipe, not a resolvable portrait texture. Equal to
+     * {@link #hash()} when nothing is dynamic.
      */
     public long staticHash() {
         return Canonical.hash(Canonical.stream(statics));

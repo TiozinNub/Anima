@@ -486,20 +486,26 @@ public final class BrainDriver {
                 @Override
                 public void said(Encounter e, Utterance u) {
                     EncounterData.get(server).dirty();
-                    BeingSpeech.spoke(person.entity());
+                    // A SYSTEM line (IGNORED, STALE, ...) is the world reporting ON the
+                    // conversation, not a party speaking IN it — "a conversation is worth what was
+                    // SAID" (Company#conversed's own doc), and nobody said this. No grunt, no pay;
+                    // Speeches.deliver still runs below so players read the gray line.
+                    if (!u.system()) {
+                        BeingSpeech.spoke(person.entity());
+                        // One call per participant as the line arrives — never by replaying the
+                        // transcript, which would double-pay a resumed conversation (see Company#conversed).
+                        for (AgentId participant : e.participants()) {
+                            AgentBody body = AgentBodies.findLoaded(server, participant);
+                            if (body != null) {
+                                body.needs().gauge(NeedKind.COMPANY, Company.class)
+                                        .ifPresent(Company::conversed);
+                            }
+                        }
+                    }
                     // This body WROTE the line — position, chat radius, sound. Who is shown is
                     // u.author(), which is not the same on a hail an answerer prefills for its
                     // caller.
                     Speeches.deliver(server, person, e, u);
-                    // One call per participant as the line arrives — never by replaying the
-                    // transcript, which would double-pay a resumed conversation (see Company#conversed).
-                    for (AgentId participant : e.participants()) {
-                        AgentBody body = AgentBodies.findLoaded(server, participant);
-                        if (body != null) {
-                            body.needs().gauge(NeedKind.COMPANY, Company.class)
-                                    .ifPresent(Company::conversed);
-                        }
-                    }
                 }
 
                 @Override
