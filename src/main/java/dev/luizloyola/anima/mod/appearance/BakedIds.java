@@ -23,4 +23,19 @@ public final class BakedIds {
     public static Identifier of(long recipeHash) {
         return Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "baked/" + Canonical.hex(recipeHash));
     }
+
+    /**
+     * The SECOND name the same texture answers to: what a chat glyph resolves it by.
+     *
+     * <p>A head glyph names its skin as a {@code ResolvableProfile} texture ASSET, and the client
+     * expands one into {@code <namespace>:textures/<path>.png} before it asks the texture manager.
+     * So a bake registered only under {@link #of} is a missing texture in every line the agent
+     * speaks — which is exactly how it looked on screen. Derived from {@link #of} rather than
+     * spelled a second time, for the reason this class exists at all.
+     */
+    public static Identifier texturePathOf(long recipeHash) {
+        Identifier baked = of(recipeHash);
+        return Identifier.fromNamespaceAndPath(baked.getNamespace(),
+                "textures/" + baked.getPath() + ".png");
+    }
 }

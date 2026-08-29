@@ -39,6 +39,12 @@ import org.jspecify.annotations.Nullable;
  * blunt instrument where holders cannot be trusted to report (a resource reload, a disconnect), and
  * {@link #generation} is how the handles find out.
  *
+ * <h2>Two names, one texture</h2>
+ * Every bake is registered twice: under {@link BakedIds#of} for whoever hands the id to a renderer,
+ * and under {@link BakedIds#texturePathOf} for the chat glyph, which resolves a skin asset into a
+ * {@code textures/….png} path before it asks. Both names go up in {@link #bake} and come down in
+ * {@link #unregister}, so nothing can outlive the image behind it.
+ *
  * <h2>Hot swap</h2>
  * State is reached through lazy accessors ({@link #live()}, {@link #sprites()}) because a static
  * field <em>added</em> by a class redefinition arrives null on a class with live instances; a swap
@@ -63,15 +69,39 @@ public final class BakedTextures {
     /** One registered texture and the number of handles keeping it alive. */
     private static final class Entry {
         final Identifier id;
+        /**
+         * The SAME texture's second name — {@link BakedIds#texturePathOf}, what a chat glyph
+         * resolves it by. Null when nothing of ours is registered. Both names are put up together
+         * and taken down together; see {@link #unregister}.
+         */
+        final @Nullable Identifier alias;
         /** False when the bake drew nothing and {@link #id} is the missing texture: there is a name
          *  to hand out but nothing of ours to release. Cached all the same, so a recipe naming art
          *  nobody ships is not re-baked on every frame of every agent wearing it. */
         final boolean registered;
         int holders;
 
-        Entry(Identifier id, boolean registered) {
+        Entry(Identifier id, @Nullable Identifier alias, boolean registered) {
             this.id = id;
+            this.alias = alias;
             this.registered = registered;
+        }
+    }
+
+    /**
+     * Takes both of an entry's names down. Releasing the second closes an already-closed texture,
+     * which is safe by construction: {@code NativeImage.close} and {@code AbstractTexture.close}
+     * are both guarded on their own handles, and {@code TextureManager} catches anything a close
+     * throws. Leaving the alias mapped instead is the actual hazard — a dangling name pointing at
+     * freed native memory.
+     */
+    private static void unregister(Entry entry) {
+        if (!entry.registered) {
+            return;
+        }
+        Minecraft.getInstance().getTextureManager().release(entry.id);
+        if (entry.alias != null) {
+            Minecraft.getInstance().getTextureManager().release(entry.alias);
         }
     }
 
@@ -158,9 +188,7 @@ public final class BakedTextures {
     public static void clear() {
         Map<Long, Entry> registered = live();
         for (Entry entry : registered.values()) {
-            if (entry.registered) {
-                Minecraft.getInstance().getTextureManager().release(entry.id);
-            }
+            unregister(entry);
         }
         // Logged even when it releases nothing: zero means every handle had already given its
         // texture back through the ordinary per-agent path, where silence would mean the sweep
@@ -230,10 +258,10 @@ public final class BakedTextures {
         while (idle().size() > IDLE_CAPACITY && oldest.hasNext()) {
             Entry evicted = live().remove(oldest.next());
             oldest.remove();
-            if (evicted != null && evicted.registered) {
+            if (evicted != null) {
                 // release() removes the texture from the manager and closes it. That is what frees
                 // the NativeImage the DynamicTexture took ownership of.
-                Minecraft.getInstance().getTextureManager().release(evicted.id);
+                unregister(evicted);
             }
         }
     }
@@ -245,15 +273,21 @@ public final class BakedTextures {
             // invisible in a screenshot — so hand out vanilla's missing texture instead.
             AnimaMod.LOGGER.warn("appearance: nothing drew for recipe {} — {}",
                     Canonical.hex(hash), Canonical.stream(recipe.all()));
-            return new Entry(MissingTextureAtlasSprite.getLocation(), false);
+            return new Entry(MissingTextureAtlasSprite.getLocation(), null, false);
         }
         Identifier id = idFor(hash);
         // The DynamicTexture takes ownership of the image and closes it when the manager releases
         // the texture.
         DynamicTexture texture = new DynamicTexture(() -> id.toString(), NativeImages.imageOf(baked.image()));
         Minecraft.getInstance().getTextureManager().register(id, texture);
+        // ONE texture under TWO names. An entity renderer asks for the raw id; a chat glyph names
+        // the same face as a skin asset and the client expands that into a textures/….png path
+        // before it looks anything up. Baking a second copy for the second name would double the
+        // native memory this class is careful about, so the map gets two keys instead.
+        Identifier alias = BakedIds.texturePathOf(hash);
+        Minecraft.getInstance().getTextureManager().register(alias, texture);
         dumpIfAsked(id, texture);
-        return new Entry(id, true);
+        return new Entry(id, alias, true);
     }
 
     /**
