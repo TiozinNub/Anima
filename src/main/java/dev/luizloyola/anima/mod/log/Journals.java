@@ -35,7 +35,11 @@ public final class Journals {
     /** How often the age sweep runs — ~30s at 20 ticks/second. The line cap needs no cadence. */
     private static final int SWEEP_INTERVAL_TICKS = 600;
 
-    /** One service per live server; removed on stop. Server-thread only, like the map it mirrors. */
+    /**
+     * One service per live server; removed on stop. Guarded by its own monitor on every access —
+     * {@link #remuteAll} reads it from wherever a config install happens, which is not
+     * server-thread-bound (the client-side GUI can install from off it).
+     */
     private static final Map<MinecraftServer, JournalService> SERVICES = new HashMap<>();
 
     /** The file sink attached to each server's service, so {@code SERVER_STOPPING} can flush + close it. */
@@ -54,12 +58,19 @@ public final class Journals {
         // written to their chunks between the two, and a body saves its own journal as it goes.
         // Removing the service at STOPPING truncated every Person's saved ring — nineteen lines
         // became five.
-        ServerLifecycleEvents.SERVER_STOPPED.register(SERVICES::remove);
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            synchronized (SERVICES) {
+                SERVICES.remove(server);
+            }
+        });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             if (// Game time, not the server's tick count: that counter restarts at zero every boot, so a
             // cadence keyed on it re-phases on every reload. The world's clock is saved with the world.
             server.overworld().getGameTime() % SWEEP_INTERVAL_TICKS == 0) {
-                JournalService service = SERVICES.get(server);
+                JournalService service;
+                synchronized (SERVICES) {
+                    service = SERVICES.get(server);
+                }
                 if (service != null) {
                     service.sweep();
                 }
@@ -86,26 +97,33 @@ public final class Journals {
     /** Re-applies the muted set to every live server's journal — what a config reload triggers. */
     private static void remuteAll() {
         Set<JournalService.Muted> muted = mutedFrom();
-        for (JournalService service : SERVICES.values()) {
-            service.mute(muted);
+        synchronized (SERVICES) {
+            for (JournalService service : SERVICES.values()) {
+                service.mute(muted);
+            }
         }
     }
 
     /**
      * This server's journal service, created on first use with the overworld game-time clock and its
-     * per-person file sink. Server-thread only, so the plain get-then-put needs no locking.
+     * per-person file sink. Called from the server thread, but {@link #SERVICES} is also read
+     * off it by {@link #remuteAll} (a config install is not server-thread-bound — the YACL
+     * screen can install from the client thread), so the get-then-put is guarded, same shape as
+     * {@code ReadPools.of}.
      */
     public static JournalService of(MinecraftServer server) {
-        JournalService existing = SERVICES.get(server);
-        if (existing != null) {
-            return existing;
+        synchronized (SERVICES) {
+            JournalService existing = SERVICES.get(server);
+            if (existing != null) {
+                return existing;
+            }
+            JournalService service = new JournalService(server.overworld()::getGameTime);
+            service.mute(mutedFrom());
+            SERVICES.put(server, service);
+            SINKS.put(server, JournalFileSink.attach(server, service));
+            ThoughtBroadcast.attach(server, service); // the thinking-out-loud chat channel
+            return service;
         }
-        JournalService service = new JournalService(server.overworld()::getGameTime);
-        service.mute(mutedFrom());
-        SERVICES.put(server, service);
-        SINKS.put(server, JournalFileSink.attach(server, service));
-        ThoughtBroadcast.attach(server, service); // the thinking-out-loud chat channel
-        return service;
     }
 
     /** @see dev.luizloyola.anima.core.log.JournalService#snapshot */
