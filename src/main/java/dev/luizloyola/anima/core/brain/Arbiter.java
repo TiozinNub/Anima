@@ -172,17 +172,26 @@ public final class Arbiter {
         }
 
         // 2. Top eligible bidder by effective pressure (incumbent gets STICKINESS; ties -> earlier).
+        //    The runner-up rides along for the BRAIN line: scoring it a second time afterwards
+        //    could name a loser this pass never actually compared against the winner.
         int activeIndex = indexOf(active);
         int topIndex = -1;
+        int secondIndex = -1;
         double topEffective = Double.NEGATIVE_INFINITY;
+        double secondEffective = Double.NEGATIVE_INFINITY;
         for (int i = 0; i < n; i++) {
             if (!eligible[i] || lastPressures[i] <= 0.0) {
                 continue; // cooling down, or wanting nothing — zero pressure is not a bid
             }
             double effective = lastPressures[i] + (i == activeIndex ? stickiness : 0.0);
             if (effective > topEffective) { // strict > keeps the earlier entry on a tie
+                secondIndex = topIndex;
+                secondEffective = topEffective;
                 topEffective = effective;
                 topIndex = i;
+            } else if (effective > secondEffective) {
+                secondEffective = effective;
+                secondIndex = i;
             }
         }
 
@@ -208,13 +217,23 @@ public final class Arbiter {
                 ? Double.NEGATIVE_INFINITY
                 : candidate.priority() + (workRunning ? stickiness : 0.0);
 
+        // 2c. Whichever loser a granted drive really had to clear — the second drive, or the work
+        //     bid where that outranks it. The board's offer is the one that matters and it is no
+        //     Instinct, so the journal takes a name and a number rather than a bidder.
+        Bid runnerUp = secondIndex >= 0
+                ? new Bid(instincts.get(secondIndex).describe(), lastPressures[secondIndex])
+                : null;
+        if (candidate != null && workEffective > secondEffective) {
+            runnerUp = new Bid("work", candidate.priority());
+        }
+
         // 3 & 4. Work never preempts mid-flight; a drive cuts a running errand only past the
         // PREEMPT bar, and the claim survives the cut.
         if (!executor.isBusy()) {
             if (candidate != null && workEffective > topEffective) {
                 grantWork(candidate, ctx);
             } else if (topIndex >= 0) {
-                grant(topIndex, ctx);
+                grant(topIndex, runnerUp, ctx);
             }
         } else if (workRunning) {
             if (topIndex >= 0 && lastPressures[topIndex] >= preempt && topEffective > workEffective) {
@@ -222,14 +241,14 @@ public final class Arbiter {
                         "suspended (by %s %.2f)",
                         instincts.get(topIndex).describe(), lastPressures[topIndex]));
                 workRunning = false;
-                grant(topIndex, ctx); // run() cancels the errand's tree; the claim is KEPT
+                grant(topIndex, runnerUp, ctx); // run() cancels the errand's tree; the claim is KEPT
             }
         } else if (topIndex >= 0 && topIndex != activeIndex) {
             double activeEffective = activeIndex >= 0
                     ? lastPressures[activeIndex] + stickiness
                     : Double.NEGATIVE_INFINITY; // a manual task (no active instinct) yields to any real bidder... but only if it preempts
             if (topEffective > activeEffective && lastPressures[topIndex] >= preempt) {
-                grant(topIndex, ctx);
+                grant(topIndex, runnerUp, ctx);
             }
         }
 
@@ -395,15 +414,35 @@ public final class Arbiter {
         executor.run(dev.luizloyola.anima.core.brain.task.KittedErrand.around(item), ctx);
     }
 
+    /** A losing bid as the journal names it — a drive, or the board's offer, which is no Instinct. */
+    private record Bid(String who, double pressure) {
+    }
+
+    /**
+     * What the grant beat, or nothing at all when it was the only bidder. Two numbers that PRINT
+     * the same have to say why one of them won: a gather bidding its fixed 0.50 against
+     * {@code seek_people} pinned at 0.50 is a tie the strict {@code >} above hands to the drive,
+     * and it stalled a settlement while the line named only the winner (2026-08-28).
+     */
+    private static String beaten(Bid runnerUp, double pressure) {
+        if (runnerUp == null) {
+            return "";
+        }
+        boolean tie = Math.round(runnerUp.pressure() * 100) == Math.round(pressure * 100);
+        return String.format(Locale.ROOT, ", beat %s %.2f%s",
+                runnerUp.who(), runnerUp.pressure(), tie ? " on tie" : "");
+    }
+
     /** Install instinct {@code i}'s fresh root as the running task, recording it as active. */
-    private void grant(int i, BrainContext ctx) {
+    private void grant(int i, Bid runnerUp, BrainContext ctx) {
         Instinct instinct = instincts.get(i);
         // BRAIN log: only a genuine change of drive, not the incumbent re-granting itself after
         // each SUCCESS — an idle Person's wander re-rolls would swamp the ring.
         if (instinct != lastGranted) {
             boolean preempt = executor.isBusy() && active != null && active != instinct;
             ctx.journal().record(Category.BRAIN, instinct.describe(), String.format(Locale.ROOT,
-                    "%s (pressure %.2f)", preempt ? "preempt" : "take over", lastPressures[i]));
+                    "%s (%.2f%s)", preempt ? "preempt" : "take over", lastPressures[i],
+                    beaten(runnerUp, lastPressures[i])));
             lastGranted = instinct;
         }
         active = instinct;

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Supplier;
 import java.util.random.RandomGenerator;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -228,6 +229,43 @@ class ArbiterTest {
         }
         assertTrue(flee.grantedRoots.isEmpty(),
                 "flee at 0.00 never inherits the wheel — they stand out the cooldown");
+    }
+
+    // --- what the take-over beat -----------------------------------------------------------------
+
+    /**
+     * The winner alone never explained itself; the line carries the bid it had to clear — the
+     * best of the losers, which the list order deliberately does not agree with here.
+     */
+    @Test
+    void aTakeOverNamesTheDriveItBeat() {
+        List<Entry> lines = new ArrayList<>();
+        ctx.journalService.subscribe((who, entry) -> lines.add(entry));
+        FakeInstinct eat = new FakeInstinct("eat", 0.9, forever("sat"));
+        FakeInstinct sleep = new FakeInstinct("sleep", 0.05, forever("doze"));
+        FakeInstinct wander = new FakeInstinct("wander", 0.15, forever("roam"));
+        new Arbiter(List.of(eat, sleep, wander)).tick(ctx);
+
+        assertEquals("take over (0.90, beat wander 0.15)", takeOvers(lines));
+    }
+
+    /** Nobody else bid, so the clause is dropped rather than printed hollow. */
+    @Test
+    void aSoleBidderIsNotSaidToHaveBeatenAnything() {
+        List<Entry> lines = new ArrayList<>();
+        ctx.journalService.subscribe((who, entry) -> lines.add(entry));
+        FakeInstinct wander = new FakeInstinct("wander", 0.15, forever("roam"));
+        FakeInstinct flee = new FakeInstinct("flee", 0.0, forever("scatter"));
+        new Arbiter(List.of(wander, flee)).tick(ctx);
+
+        assertEquals("take over (0.15)", takeOvers(lines),
+                "a silent drive lost nothing — zero pressure was never a bid");
+    }
+
+    /** Every BRAIN take-over line of a run, joined: a missing one then fails readably. */
+    private static String takeOvers(List<Entry> lines) {
+        return lines.stream().map(Entry::detail).filter(d -> d.startsWith("take over"))
+                .collect(Collectors.joining("; "));
     }
 
     // --- stickiness ------------------------------------------------------------------------------

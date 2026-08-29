@@ -13,8 +13,11 @@ import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.inv.ItemCall;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.inv.Kit;
+import dev.luizloyola.anima.core.log.Entry;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -335,6 +338,28 @@ class ArbiterWorkTest {
 
         assertEquals(0, board.claims, "the body outranks the day job on a tie");
         assertTrue(wander.rootsBuilt > 0);
+    }
+
+    /**
+     * The stall of 2026-08-28: a party gather bids its fixed 0.50 while {@code seek_people} sits
+     * at company's capped 0.50, the drive takes the tie on the arbiter's strict {@code >}, and a
+     * settlement of twenty never starts working. The tie had to be derived by reading
+     * {@link WorkToleranceCurve} and the arbiter side by side, because the line named only the
+     * winner — so the losing bid, and the fact that it tied, are now on it.
+     */
+    @Test
+    void aTakeOverNamesTheWorkBidItTiedWith() {
+        List<Entry> lines = new ArrayList<>();
+        ctx.journalService.subscribe((who, entry) -> lines.add(entry));
+        wander.pressure = 0.50;
+        board.offered = new StubItem(0.50, 50);
+
+        ticks(1);
+
+        assertEquals("take over (0.50, beat work 0.50 on tie)",
+                lines.stream().map(Entry::detail).filter(d -> d.startsWith("take over"))
+                        .collect(Collectors.joining("; ")));
+        assertEquals(0, board.claims, "and the line is not fiction: the errand really did lose");
     }
 
     @Test
