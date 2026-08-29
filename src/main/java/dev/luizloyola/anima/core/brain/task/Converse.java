@@ -138,8 +138,10 @@ public final class Converse implements PrimitiveTask {
     private void face(BrainContext ctx, Being counterpart) {
         if (counterpart != null) {
             Pos at = counterpart.pos();
-            ctx.actuators().gazer().lookAt(at.x() + 0.5, at.y() + 1.5, at.z() + 0.5,
-                    Gazer.Priority.WORK);
+            // Their own eye height, not a constant: a conversation with anything shorter or taller
+            // than a person otherwise reads as talking over its head.
+            ctx.actuators().gazer().lookAt(at.x() + 0.5, at.y() + counterpart.eyeHeight(),
+                    at.z() + 0.5, Gazer.Priority.WORK);
         }
     }
 

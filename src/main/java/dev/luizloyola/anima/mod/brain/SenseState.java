@@ -74,6 +74,20 @@ public final class SenseState {
             Codec.BOOL.fieldOf("baby").forGetter(Being.Gear::baby)
     ).apply(g, Being.Gear::new));
 
+    /**
+     * The two BODY axes, paired into one group slot — {@code RecordCodecBuilder} tops out at
+     * sixteen fields and the reading now has seventeen. {@code mapPair} keeps both keys at the
+     * reading's own level, so nothing about the saved shape nests.
+     *
+     * <p>Both DEFAULT rather than being required, so a world written before these axes existed
+     * still loads: an eye height standing in at {@link Being#HUMANOID_EYE_HEIGHT} aims a gaze at a
+     * face instead of a boot, and nothing remembered is assumed to be a player.
+     */
+    private static final com.mojang.serialization.MapCodec<
+            com.mojang.datafixers.util.Pair<Double, Boolean>> BODY = Codec.mapPair(
+                    Codec.DOUBLE.optionalFieldOf("eyeHeight", Being.HUMANOID_EYE_HEIGHT),
+                    Codec.BOOL.optionalFieldOf("player", false));
+
     private static final Codec<BeingReading> READING = RecordCodecBuilder.create(r -> r.group(
             BEING_ID.fieldOf("id").forGetter(BeingReading::id),
             KIND.fieldOf("kind").forGetter(BeingReading::kind),
@@ -84,6 +98,8 @@ public final class SenseState {
             Codec.BOOL.fieldOf("herdAnimal").forGetter(BeingReading::herdAnimal),
             POS.fieldOf("pos").forGetter(BeingReading::pos),
             Codec.DOUBLE.fieldOf("distance").forGetter(BeingReading::distance),
+            BODY.forGetter(reading -> com.mojang.datafixers.util.Pair.of(
+                    reading.eyeHeight(), reading.playerControlled())),
             LOCOMOTION.fieldOf("locomotion").forGetter(BeingReading::locomotion),
             Codec.BOOL.fieldOf("sneaking").forGetter(BeingReading::sneaking),
             Codec.BOOL.fieldOf("watching").forGetter(BeingReading::watching),
@@ -91,11 +107,11 @@ public final class SenseState {
             Codec.BOOL.fieldOf("aggressive").forGetter(BeingReading::aggressive),
             GEAR.fieldOf("gear").forGetter(BeingReading::gear),
             ACTIVITY.fieldOf("activity").forGetter(BeingReading::activity)
-    ).apply(r, (id, kind, species, name, profession, herdAnimal, pos, distance, locomotion,
+    ).apply(r, (id, kind, species, name, profession, herdAnimal, pos, distance, body, locomotion,
                 sneaking, watching, aimedAt, aggressive, gear, activity) ->
             new BeingReading(id, kind, species, name, profession.orElse(null), herdAnimal, pos,
-                    distance, locomotion, sneaking, watching, aimedAt, aggressive, gear,
-                    activity)));
+                    distance, body.getFirst(), body.getSecond(), locomotion, sneaking, watching,
+                    aimedAt, aggressive, gear, activity)));
 
     private static final Codec<BeingSensorCore.TrackState> TRACK =
             RecordCodecBuilder.create(t -> t.group(

@@ -5,6 +5,7 @@ import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Stand and look at somebody for a beat — the pause {@link Answer} ends on.
@@ -17,14 +18,15 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
  *
  * <p>So the claim is re-asked every tick, at the target's LIVE cell while it is still perceived
  * and at its last known one otherwise: the same thing a person does when someone steps out of
- * sight mid-conversation.
+ * sight mid-conversation. The live percept also carries how high that body's face is, so only the
+ * remembered case falls back to {@link #FACE_HEIGHT}.
  */
 public final class Face implements PrimitiveTask {
 
     /**
-     * How far above the cell a body stands in its face is. One number rather than an aspect: the
-     * looking body cannot know another species' eye height, and the gaze organ eases the head
-     * anyway — this only has to beat staring at their boots.
+     * The aim when the target is NOT perceived, and only then — a remembered cell carries no body
+     * to measure. A perceived one is aimed at through its own {@link Being#eyeHeight()}, which is
+     * what puts the look on a wolf's eyes rather than over its head.
      */
     public static final double FACE_HEIGHT = 1.5;
 
@@ -51,11 +53,13 @@ public final class Face implements PrimitiveTask {
             return TaskStatus.SUCCESS;
         }
         remaining--;
-        Pos at = seen(ctx);
+        Being seen = seen(ctx);
+        Pos at = seen == null ? where : seen.pos();
+        double face = seen == null ? FACE_HEIGHT : seen.eyeHeight();
         // WORK, the rank a deliberate act looks at what it is doing with — standing in front of
         // somebody IS the act here, so the walk's own NAV glance must not outrank it. Held one
         // tick and re-asked, since the aim moves with them.
-        ctx.actuators().gazer().lookAt(at.x() + 0.5, at.y() + FACE_HEIGHT, at.z() + 0.5,
+        ctx.actuators().gazer().lookAt(at.x() + 0.5, at.y() + face, at.z() + 0.5,
                 Gazer.Priority.WORK);
         return TaskStatus.RUNNING;
     }
@@ -70,14 +74,14 @@ public final class Face implements PrimitiveTask {
         return "face " + who;
     }
 
-    /** Where they are now if they are still perceived, else where they were. */
-    private Pos seen(BrainContext ctx) {
+    /** Them as perceived right now, or null — the caller falls back to {@link #where}. */
+    private @Nullable Being seen(BrainContext ctx) {
         for (Being being : ctx.percepts().beings()) {
             if (being.id().equals(who)) {
-                return being.pos();
+                return being;
             }
         }
-        return where;
+        return null;
     }
 
     // ── continuity ───────────────────────────────────────────────────────────────────────────

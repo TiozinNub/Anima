@@ -257,7 +257,8 @@ public final class BeingSense {
             bodies.put(reading.id(), source);
             sensor.heard(new BeingReading(reading.id(), reading.kind(), reading.species(),
                     reading.name(), reading.profession(), reading.herdAnimal(), reading.pos(),
-                    reading.distance(), heardMoving, reading.sneaking(), reading.watching(),
+                    reading.distance(), reading.eyeHeight(), reading.playerControlled(),
+                    heardMoving, reading.sneaking(), reading.watching(),
                     reading.aimedAt(), reading.aggressive(), reading.gear(), heardAs),
                     person.level().getGameTime(), voice);
         }
@@ -288,8 +289,11 @@ public final class BeingSense {
         BeingId anonymous = BeingId.of(new java.util.UUID(ANONYMOUS_HIGH_BITS,
                 (long) at.x() * 73_856_093L ^ (long) at.y() * 19_349_663L ^ (long) at.z() * 83_492_791L));
         double distance = person.entity().getEyePosition().distanceTo(from);
+        // No body to measure, so the humanoid default: a gaze at where the shot came from should
+        // still land head-high rather than in the dirt.
         sensor.attacked(new BeingReading(anonymous, Being.Kind.UNKNOWN, "", "", null, false,
-                at, distance, Being.Locomotion.STILL, false, false, false, true,
+                at, distance, Being.HUMANOID_EYE_HEIGHT, false,
+                Being.Locomotion.STILL, false, false, false, true,
                 Being.Gear.NONE, Being.Activity.IDLE), now, false);
     }
 
@@ -469,6 +473,7 @@ public final class BeingSense {
         return new BeingReading(id, kind, speciesOf(body), name, professionOf(body),
                 body instanceof Animal || body instanceof AbstractSchoolingFish,
                 new Pos(cell.getX(), cell.getY(), cell.getZ()), body.distanceTo(person.entity()),
+                body.getEyeHeight(), false,
                 Being.Locomotion.STILL, false, false, false, aggressive, gearOf(body),
                 Being.Activity.IDLE);
     }
@@ -560,7 +565,12 @@ public final class BeingSense {
         return new BeingReading(id, Being.Kind.AGENT, speciesOf(body),
                 knownName(body, personId), null, false,
                 new Pos(cell.getX(), cell.getY(), cell.getZ()),
-                body.distanceTo(person.entity()), locomotion, body.isCrouching(), watching, aimedAt,
+                body.distanceTo(person.entity()),
+                // Measured off the live body, and the ONE place a live player is told from an
+                // AgentBody: Kind.AGENT covers both on purpose, so the discriminator has to be
+                // read here or nowhere.
+                body.getEyeHeight(), body instanceof Player,
+                locomotion, body.isCrouching(), watching, aimedAt,
                 false, Being.Gear.NONE, activity);
     }
 

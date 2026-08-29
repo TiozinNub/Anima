@@ -168,11 +168,17 @@ public final class SeekCompany implements PrimitiveTask {
      * <p>Somebody already called is skipped — the same mark that stops a second shout stops a
      * second walk, so a body does not trudge back to whoever it just gave up on. The walk already
      * under way is unaffected: the target is chosen once, on the first tick, and cached.
+     *
+     * <p>So is a body a PLAYER is driving, until rung 7 lets one answer: the first live test had
+     * settlers crossing a field to stand in front of a player and wait out the patience clock.
      */
     private static Being nearest(BrainContext ctx) {
         Being best = null;
         for (Being being : ctx.percepts().beings()) {
-            if (!being.kind().minded() || ctx.percepts().calledLately(being.id())) {
+            // A player is minded and cannot yet answer a spoken line, so walking over to one buys a
+            // body nothing but a wait. Delete this clause at rung 7, which gives players a reply.
+            if (!being.kind().minded() || being.playerControlled()
+                    || ctx.percepts().calledLately(being.id())) {
                 continue;
             }
             if (best == null || being.distance() < best.distance()) {

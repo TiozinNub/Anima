@@ -38,7 +38,8 @@ class FaceTest {
         assertEquals(TaskStatus.RUNNING, face.tick(ctx));
         assertTrue(ctx.gazer.asked, "the beat is what points the head; an Idle asked for nothing");
         assertEquals(6.5, ctx.gazer.x, 1e-9, "the centre of their cell, not its corner");
-        assertEquals(64 + Face.FACE_HEIGHT, ctx.gazer.y, 1e-9, "their face, not their boots");
+        assertEquals(64 + Being.HUMANOID_EYE_HEIGHT, ctx.gazer.y, 1e-9,
+                "their OWN eye height, read off the percept — not their boots, not a constant");
         assertEquals(0.5, ctx.gazer.z, 1e-9);
         assertEquals(Gazer.Priority.WORK, ctx.gazer.priority,
                 "standing in front of somebody IS the act — a walk's own NAV glance must not win");
@@ -54,7 +55,7 @@ class FaceTest {
 
         face.tick(ctx);
         assertEquals(33.5, ctx.gazer.x, 1e-9, "their cell now, not the one the beat was ordered at");
-        assertEquals(65 + Face.FACE_HEIGHT, ctx.gazer.y, 1e-9);
+        assertEquals(65 + Being.HUMANOID_EYE_HEIGHT, ctx.gazer.y, 1e-9);
         assertEquals(4.5, ctx.gazer.z, 1e-9);
     }
 
@@ -68,6 +69,8 @@ class FaceTest {
         face.tick(ctx);
         assertEquals(12.5, ctx.gazer.x, 1e-9, "the last cell they were known to be in");
         assertEquals(-7.5, ctx.gazer.z, 1e-9);
+        assertEquals(64 + Face.FACE_HEIGHT, ctx.gazer.y, 1e-9,
+                "a remembered cell carries no body to measure — the fallback, and only here");
     }
 
     @Test

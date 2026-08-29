@@ -12,10 +12,14 @@ import org.jspecify.annotations.Nullable;
  * @param name the custom/display name a SIGHTING could read — empty for an unnamed creature
  * @param herdAnimal whether this species herds ({@code Animal} ∪ schooling fish — the mod's
  *                   class check); only these collapse into herd beings
+ * @param eyeHeight how far above its feet this body's face is, measured off the live entity —
+ *                  what a gaze aims for, so it lands on a wolf's eyes and not its shoulders
+ * @param playerControlled whether a live player is driving this body; see {@link Being}
  */
 public record BeingReading(BeingId id, Being.Kind kind, String species, String name,
                            @Nullable String profession, boolean herdAnimal, Pos pos,
-                           double distance, Being.Locomotion locomotion, boolean sneaking,
+                           double distance, double eyeHeight, boolean playerControlled,
+                           Being.Locomotion locomotion, boolean sneaking,
                            boolean watching, boolean aimedAt, boolean aggressive,
                            Being.Gear gear, Being.Activity activity) {
 }

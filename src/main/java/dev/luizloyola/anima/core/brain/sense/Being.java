@@ -29,17 +29,32 @@ import org.jspecify.annotations.Nullable;
  * {@link #aggressive} reads the game's SYNCED anger on a neutral mob, and {@link #approaching} is
  * a measured distance trend rather than the old {@code getTarget()} peek.
  *
+ * <p><b>Two axes describe the BODY rather than what it is doing.</b> {@link #eyeHeight} is how far
+ * above its feet that body's face is, so a gaze lands on the eyes of a wolf as readily as a
+ * person's — and {@link #playerControlled} says a live player is driving it. {@link Kind#AGENT}
+ * deliberately cannot tell the two apart, which is right for everything except "can this body
+ * answer a spoken line at all"; that question has no other discriminator until a player can reply.
+ * Neither is masked by {@link #identified}: they are facts about the body, not reads off it.
+ *
  * <p><b>Herds are one perception:</b> 3+ same-species herd animals collapse into one being with
  * {@link #count} > 1, 1–2 stay individuals; {@link #awareness} then carries the best member
  * channel and {@link #pos} the centroid.
  */
 public record Being(BeingId id, Kind kind, String species, String name,
-                    @Nullable String profession, Pos pos, double distance, int count,
+                    @Nullable String profession, Pos pos, double distance, double eyeHeight,
+                    boolean playerControlled, int count,
                     int spread, boolean herdAnimal, java.util.List<BeingId> members,
                     Activity activity, Locomotion locomotion,
                     boolean sneaking, boolean watching, boolean aimedAt, boolean hailing,
                     boolean approaching,
                     boolean aggressive, Gear gear, Identified identified, Awareness awareness) {
+
+    /**
+     * The eye height of an ordinary standing humanoid. A DEFAULT only: a live reading measures the
+     * body it is looking at ({@link #eyeHeight}), and this stands in where there is nothing to
+     * measure — a track saved before that axis existed, or a fixture that does not care.
+     */
+    public static final double HUMANOID_EYE_HEIGHT = 1.62;
 
     public Being {
         members = java.util.List.copyOf(members);

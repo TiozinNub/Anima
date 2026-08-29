@@ -23,6 +23,7 @@ class HailedTest {
 
     private BeingReading at(Pos pos, double distance) {
         return new BeingReading(caller, Being.Kind.AGENT, "person", "", null, false, pos, distance,
+                Being.HUMANOID_EYE_HEIGHT, false,
                 Being.Locomotion.STILL, false, false, false, false, Being.Gear.NONE,
                 Being.Activity.IDLE);
     }

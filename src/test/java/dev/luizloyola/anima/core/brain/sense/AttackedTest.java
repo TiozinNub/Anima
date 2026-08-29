@@ -25,6 +25,7 @@ class AttackedTest {
 
     private BeingReading at(Pos pos, double distance) {
         return new BeingReading(shooter, Being.Kind.UNKNOWN, "", "", null, false, pos, distance,
+                Being.HUMANOID_EYE_HEIGHT, false,
                 Being.Locomotion.STILL, false, false, false, true, Being.Gear.NONE,
                 Being.Activity.IDLE);
     }
@@ -68,7 +69,8 @@ class AttackedTest {
     @DisplayName("a hit on something already tracked marks THAT, rather than inventing a stranger")
     void ahitOnAKnownTrackResolvesTheThingWeHeard() {
         BeingReading heard = new BeingReading(shooter, Being.Kind.MONSTER, "skeleton", "", null,
-                false, new Pos(10, 64, 0), 10.0, Being.Locomotion.STILL, false, false, false,
+                false, new Pos(10, 64, 0), 10.0, Being.HUMANOID_EYE_HEIGHT, false,
+                Being.Locomotion.STILL, false, false, false,
                 true, Being.Gear.NONE, Being.Activity.IDLE);
         sensor.heard(heard, 100L, true); // a voice named the species through a wall
 

@@ -48,7 +48,8 @@ class SalienceTest {
     /** Somebody standing {@code z} blocks away, in view. */
     private static Being person(BeingId id, int z, Being.Awareness awareness,
             Being.Locomotion legs) {
-        return new Being(id, Being.Kind.AGENT, "person", "Alice", null, new Pos(0, 64, z), z, 1, 0,
+        return new Being(id, Being.Kind.AGENT, "person", "Alice", null, new Pos(0, 64, z), z,
+                Being.HUMANOID_EYE_HEIGHT, false, 1, 0,
                 false, List.of(), Being.Activity.IDLE, legs, false, false, false, false, false,
                 false, Being.Gear.NONE, Being.Identified.INDIVIDUAL, awareness);
     }
@@ -164,7 +165,8 @@ class SalienceTest {
         now = look.until();
         assertEquals(Attention.SCAN_KEY, tick(now).key(), "and the look wears off");
 
-        Being cow = new Being(moo, Being.Kind.PASSIVE, "cow", "", null, new Pos(0, 64, 9), 9.0, 1,
+        Being cow = new Being(moo, Being.Kind.PASSIVE, "cow", "", null, new Pos(0, 64, 9), 9.0,
+                Being.HUMANOID_EYE_HEIGHT, false, 1,
                 0, false, List.of(), Being.Activity.IDLE, Being.Locomotion.STILL, false, false,
                 false, false, false, false, Being.Gear.NONE, Being.Identified.SPECIES,
                 Being.Awareness.HEARD);

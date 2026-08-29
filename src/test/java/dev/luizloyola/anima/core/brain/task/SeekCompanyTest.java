@@ -155,6 +155,33 @@ class SeekCompanyTest {
                 "so the next grant has nobody left worth walking to, and wander gets the wheel");
     }
 
+    /**
+     * The first live client test, in one line: a settler crossed a field to stand in front of the
+     * player and wait out the patience clock, because nothing a player does is a reply yet.
+     * Rung 7 gives them one, and this expectation goes with it.
+     */
+    @Test
+    void aPlayerIsNoCompanyUntilAPlayerCanAnswer() {
+        ctx.percepts.company.setValue(0.0);
+        ctx.percepts.beings = List.of(FakePercepts.playerAt(new Pos(40, 64, 0), 40.0));
+
+        assertEquals(TaskStatus.FAILED, new SeekCompany().tick(ctx),
+                "a player is minded, and still cannot say a word back");
+        assertFalse(ctx.voice.hailed, "so there is nobody to call out to");
+    }
+
+    @Test
+    void aFartherPersonBeatsANearerPlayer() {
+        ctx.percepts.company.setValue(0.0);
+        Being person = FakePercepts.personAt(new Pos(40, 64, 0), 40.0, "");
+        ctx.percepts.beings = List.of(FakePercepts.playerAt(new Pos(3, 64, 0), 3.0), person);
+
+        new SeekCompany().tick(ctx);
+
+        assertTrue(ctx.percepts.calledLately(person.id()),
+                "the player is skipped outright, not merely outranked by distance");
+    }
+
     @Test
     void aContentBodyDoesNotSeekAtAll() {
         ctx.percepts.company.setValue(0.6); // inside the band

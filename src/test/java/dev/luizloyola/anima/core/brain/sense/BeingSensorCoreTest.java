@@ -536,8 +536,8 @@ class BeingSensorCoreTest {
                                    Being.Locomotion legs, boolean sneaking, boolean watching,
                                    boolean aimedAt, Being.Activity activity) {
             return new BeingReading(id, Being.Kind.AGENT, "person", name, null, false, pos,
-                    distance, legs, sneaking, watching, aimedAt, false, Being.Gear.NONE,
-                    activity);
+                    distance, Being.HUMANOID_EYE_HEIGHT, false, legs, sneaking, watching, aimedAt,
+                    false, Being.Gear.NONE, activity);
         }
 
         BeingId addPerson(String name, Pos pos, double distance, Being.Activity activity) {
@@ -551,7 +551,8 @@ class BeingSensorCoreTest {
                             boolean aggressive, Pos pos, double distance) {
             BeingId id = BeingId.of(UUID.randomUUID());
             bodies.put(id, new BeingReading(id, kind, species, "", null, herdAnimal, pos,
-                    distance, Being.Locomotion.STILL, false, false, false, aggressive,
+                    distance, Being.HUMANOID_EYE_HEIGHT, false,
+                    Being.Locomotion.STILL, false, false, false, aggressive,
                     Being.Gear.NONE, Being.Activity.IDLE));
             return id;
         }
@@ -559,14 +560,16 @@ class BeingSensorCoreTest {
         void set(BeingId id, Pos pos, double distance, Being.Activity activity) {
             BeingReading r = bodies.get(id);
             bodies.put(id, new BeingReading(id, r.kind(), r.species(), r.name(), r.profession(),
-                    r.herdAnimal(), pos, distance, Being.Locomotion.STILL, false, false, false,
+                    r.herdAnimal(), pos, distance, r.eyeHeight(), r.playerControlled(),
+                    Being.Locomotion.STILL, false, false, false,
                     r.aggressive(), r.gear(), activity));
         }
 
         void move(BeingId id, Pos pos, double distance) {
             BeingReading r = bodies.get(id);
             bodies.put(id, new BeingReading(id, r.kind(), r.species(), r.name(), r.profession(),
-                    r.herdAnimal(), pos, distance, r.locomotion(), r.sneaking(), r.watching(),
+                    r.herdAnimal(), pos, distance, r.eyeHeight(), r.playerControlled(),
+                    r.locomotion(), r.sneaking(), r.watching(),
                     r.aimedAt(), r.aggressive(), r.gear(), r.activity()));
         }
 

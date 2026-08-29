@@ -119,7 +119,8 @@ class ConverseTest {
 
         assertTrue(ctx.gazer.asked);
         assertEquals(6.5, ctx.gazer.x, 1e-9, "the centre of their cell");
-        assertEquals(65.5, ctx.gazer.y, 1e-9, "their face height, not their boots");
+        assertEquals(64 + Being.HUMANOID_EYE_HEIGHT, ctx.gazer.y, 1e-9,
+                "their OWN eye height, so a talk with anything but a person still lands on a face");
         assertEquals(0.5, ctx.gazer.z, 1e-9);
         assertEquals(Gazer.Priority.WORK, ctx.gazer.priority,
                 "standing in this conversation IS the act, same rank Face uses");

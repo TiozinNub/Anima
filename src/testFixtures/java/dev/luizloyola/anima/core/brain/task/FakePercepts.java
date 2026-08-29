@@ -113,36 +113,37 @@ public final class FakePercepts implements Percepts {
      *  the standard test threat; {@code approaching} maps to the old targeting bonus. */
     public static Being monsterAt(Pos pos, double distance, boolean approaching) {
         return new Being(BeingId.of(UUID.randomUUID()), Being.Kind.MONSTER, "zombie", "",
-                null, pos, distance, 1, 0, false, List.of(), Being.Activity.IDLE,
+                null, pos, distance, Being.HUMANOID_EYE_HEIGHT, false, 1, 0, false, List.of(),
+                Being.Activity.IDLE,
                 Being.Locomotion.STILL, false, false, false, false, approaching, true,
                 Being.Gear.NONE, Being.Identified.SPECIES, Being.Awareness.SEEN);
     }
 
     /**
-     * The 22-argument {@link Being} literal for a person-kind track, held once — every
-     * person-shaped fixture (this class's {@link #hailingPersonAt} and any sibling a later test
-     * adds) goes through this instead of copying the constructor call, so growing {@code Being} by
-     * a field means one edit here, not one per fixture.
+     * The one {@link Being} literal for a person-kind track — every person-shaped fixture goes
+     * through this instead of copying the constructor call, so growing {@code Being} by a field
+     * means one edit here rather than one per fixture.
      */
     private static Being personTrack(BeingId id, String name, Pos pos, double distance,
-            boolean hailing, Being.Identified identified, Being.Awareness awareness) {
+            boolean hailing, boolean playerControlled, Being.Identified identified,
+            Being.Awareness awareness) {
         return new Being(id, Being.Kind.AGENT, "person", name,
-                null, pos, distance, 1, 0, false, List.of(),
-                Being.Activity.IDLE, Being.Locomotion.STILL,
+                null, pos, distance, Being.HUMANOID_EYE_HEIGHT, playerControlled, 1, 0, false,
+                List.of(), Being.Activity.IDLE, Being.Locomotion.STILL,
                 false, false, false, hailing, false, false, Being.Gear.NONE,
                 identified, awareness);
     }
 
     /** A person-shaped track that is calling out — the hail percept, for instinct tests. */
     public static Being hailingPersonAt(Pos pos, double distance) {
-        return personTrack(BeingId.of(UUID.randomUUID()), "", pos, distance, true,
+        return personTrack(BeingId.of(UUID.randomUUID()), "", pos, distance, true, false,
                 Being.Identified.SPECIES, Being.Awareness.HEARD);
     }
 
     /** A person-shaped track, seen and quiet. An empty name is a stranger — somebody whose name
      *  we were never told; a filled one is somebody the contact book already knows. */
     public static Being personAt(Pos pos, double distance, String name) {
-        return personTrack(BeingId.of(UUID.randomUUID()), name, pos, distance, false,
+        return personTrack(BeingId.of(UUID.randomUUID()), name, pos, distance, false, false,
                 Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
     }
 
@@ -152,8 +153,18 @@ public final class FakePercepts implements Percepts {
      * arriving, not the same one taking a step closer).
      */
     public static Being personAt(BeingId id, Pos pos, double distance, String name) {
-        return personTrack(id, name, pos, distance, false, Being.Identified.INDIVIDUAL,
+        return personTrack(id, name, pos, distance, false, false, Being.Identified.INDIVIDUAL,
                 Being.Awareness.SEEN);
+    }
+
+    /**
+     * A live PLAYER's body: {@code Kind.AGENT} exactly as a Person's is, and told apart only by
+     * {@link Being#playerControlled()} — which is the whole point of the axis, so a fixture that
+     * differed in any other way would test the wrong thing.
+     */
+    public static Being playerAt(Pos pos, double distance) {
+        return personTrack(BeingId.of(UUID.randomUUID()), "", pos, distance, false, true,
+                Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
     }
 
     @Override

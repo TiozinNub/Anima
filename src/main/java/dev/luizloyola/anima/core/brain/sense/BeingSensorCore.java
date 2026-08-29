@@ -609,6 +609,8 @@ public final class BeingSensorCore {
         long z = 0;
         int count = 0;
         double nearest = Double.MAX_VALUE;
+        // One species, so any member's face is at the herd's face height — last one read wins.
+        double eyeHeight = Being.HUMANOID_EYE_HEIGHT;
         Being.Awareness best = Being.Awareness.REMEMBERED;
         for (BeingId id : herd.members) {
             Track track = tracks.get(id);
@@ -616,6 +618,7 @@ public final class BeingSensorCore {
                 continue;
             }
             count++;
+            eyeHeight = track.last.eyeHeight();
             x += track.last.pos().x();
             y += track.last.pos().y();
             z += track.last.pos().z();
@@ -647,7 +650,7 @@ public final class BeingSensorCore {
             }
         }
         return new Being(herd.id, Being.Kind.PASSIVE, herd.species, "", null, centroid,
-                nearest, count, spread, true, live, Being.Activity.IDLE,
+                nearest, eyeHeight, false, count, spread, true, live, Being.Activity.IDLE,
                 Being.Locomotion.STILL, false, false, false, false, false, false, Being.Gear.NONE,
                 Being.Identified.INDIVIDUAL, best);
     }
@@ -807,6 +810,11 @@ public final class BeingSensorCore {
      * A track rendered as one {@link Being}, MASKED to its achieved tier: below SPECIES even the
      * kind is unknown, below INDIVIDUAL the name, profession and gear stay hidden. Approach shows
      * only on an identified aggressive body.
+     *
+     * <p>Eye height and player-control pass through the mask untouched: they are facts about the
+     * BODY rather than reads off it, and hiding them buys nothing. Masking player-control would
+     * cost, in fact — a half-made-out player would pull a body into a conversation nobody can
+     * finish, which is the case the axis exists for.
      */
     private Being being(Track track) {
         BeingReading r = track.last;
@@ -823,7 +831,7 @@ public final class BeingSensorCore {
                 speciesKnown ? r.species() : "",
                 seen ? r.name() : "",
                 seen ? r.profession() : null,
-                r.pos(), distanceTo(track), 1, 0,
+                r.pos(), distanceTo(track), r.eyeHeight(), r.playerControlled(), 1, 0,
                 speciesKnown && r.herdAnimal(), List.of(),
                 r.activity(), r.locomotion(), r.sneaking(), r.watching(), r.aimedAt(),
                 track.hailedAt != NEVER,
@@ -859,6 +867,7 @@ public final class BeingSensorCore {
     private static BeingReading heardFacts(BeingReading placed, BeingReading told) {
         return new BeingReading(placed.id(), placed.kind(), placed.species(), placed.name(),
                 placed.profession(), placed.herdAnimal(), placed.pos(), placed.distance(),
+                placed.eyeHeight(), placed.playerControlled(),
                 told.locomotion(), false, false, false, placed.aggressive(), placed.gear(),
                 told.activity());
     }
@@ -867,6 +876,7 @@ public final class BeingSensorCore {
     private static BeingReading faded(BeingReading last) {
         return new BeingReading(last.id(), last.kind(), last.species(), last.name(),
                 last.profession(), last.herdAnimal(), last.pos(), last.distance(),
+                last.eyeHeight(), last.playerControlled(),
                 Being.Locomotion.STILL, false, false, false, last.aggressive(), last.gear(),
                 Being.Activity.IDLE);
     }
@@ -877,6 +887,9 @@ public final class BeingSensorCore {
     //
     // A herd's last rendered view is not (`herdBeing` re-renders it from the herd and its member
     // tracks, which are), nor are the within-tick discovery queues, which drain every tick.
+    //
+    // Eye height and player-control ride inside the saved BeingReading and need nothing here: they
+    // are what the reading said, and a remembered body is exactly its last reading.
 
     /** One remembered body, as data. */
     public record TrackState(BeingReading last, Being.Awareness awareness, Being.Identified tier,
