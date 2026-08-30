@@ -11,9 +11,11 @@ import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.social.speech.Chooser;
 import dev.luizloyola.anima.core.social.speech.Encounter;
+import dev.luizloyola.anima.core.social.speech.Picker;
 import dev.luizloyola.anima.core.social.speech.Speech;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import dev.luizloyola.anima.core.social.speech.Utterance;
+import java.util.List;
 
 /**
  * Participating in a conversation is a task like any other — it holds the body in place,
@@ -52,6 +54,20 @@ import dev.luizloyola.anima.core.social.speech.Utterance;
  */
 public final class Converse implements PrimitiveTask {
 
+    /**
+     * The widest a body may sit on a line beyond {@link Picker#REPLY_GRACE_TICKS}, rolled fresh
+     * for every line that lands.
+     *
+     * <p><b>Because a metronome does not read as alive.</b> The grace is a uniform floor, so two
+     * bodies answering each other land every line on exactly the same beat — a conversation that
+     * ticks. Irregularity is what a watching player reads as somebody thinking about it.
+     *
+     * <p>And each side rolls its OWN number from its own stream, which is the second half: on a
+     * beat where both parties are eligible the tie used to be settled by nothing more than the
+     * world's entity order, so whoever ticked first always spoke. Independent rolls dissolve that.
+     */
+    public static final int JITTER_TICKS = 20;
+
     /** Legs that closed no distance before this body accepts they are walking somewhere else. */
     private static final int FRUITLESS_LIMIT = 2;
 
@@ -74,6 +90,10 @@ public final class Converse implements PrimitiveTask {
     private double walkedFrom = Double.NaN;
     /** Consecutive legs that ended no nearer to them than they started. */
     private int fruitless;
+    /** Transcript length {@link #jitter} was last rolled against, so one line buys one roll. */
+    private int lineCount = -1;
+    /** Ticks this body waits on top of the grace floor before its next line — see {@link #JITTER_TICKS}. */
+    private int jitter;
 
     public Converse(BeingId other, Speech.Opening opening) {
         this.other = other;
@@ -106,7 +126,10 @@ public final class Converse implements PrimitiveTask {
         // spent; a live order left behind would keep the legs moving toward a stale cell.
         dropWalk(ctx);
         face(ctx, counterpart);
-        if (speech.maySpeak(encounter)) {
+        // The floor first, then this body's own roll on top of it. A blocked roll falls THROUGH to
+        // the snub check below rather than returning: waiting on somebody is a different clock, and
+        // making it wait on a jitter of ours would let a snubber buy time by our own hesitation.
+        if (speech.maySpeak(encounter) && beatElapsed(ctx)) {
             Chooser.Line line = speech.chooser().choose(ctx, speech.turn(encounter));
             if (line != null) {
                 speech.say(encounter, line);
@@ -236,6 +259,33 @@ public final class Converse implements PrimitiveTask {
             walk = null;
         }
         walkedFrom = Double.NaN;
+    }
+
+    /**
+     * Whether this body's own beat has elapsed: {@link Picker#REPLY_GRACE_TICKS}, which
+     * {@link Speech#maySpeak} has already insisted on, plus a fresh roll of up to
+     * {@link #JITTER_TICKS} for every line that lands.
+     *
+     * <p>Only SPEAKING waits on this. Facing, walking, trailing off and the snub clock all read the
+     * world rather than this body's hesitation, and are untouched.
+     *
+     * <p>Measured off the last line somebody SAID, exactly as the floor it extends is — a SYSTEM
+     * line is the world reporting on the conversation, not a turn in it. An empty record has no
+     * beat to wait out: the opening line is immediate.
+     */
+    private boolean beatElapsed(BrainContext ctx) {
+        List<Utterance> lines = encounter.transcript();
+        if (lines.size() != lineCount) {
+            lineCount = lines.size();
+            jitter = ctx.random().nextInt(JITTER_TICKS + 1);
+        }
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            Utterance line = lines.get(i);
+            if (!line.system()) {
+                return ctx.percepts().time() >= line.tick() + Picker.REPLY_GRACE_TICKS + jitter;
+            }
+        }
+        return true;
     }
 
     /**

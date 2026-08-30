@@ -392,6 +392,48 @@ class ConverseTest {
         assertTrue(ctx.speech.saidLines.isEmpty());
     }
 
+    // ── the beat: the grace floor, plus a jitter rolled per line ────────────────────────────
+
+    @Test
+    @DisplayName("a rolled jitter holds the next line past the grace floor, and lets it go after")
+    void jitterHoldsTheLinePastTheGraceFloor() {
+        ctx.seed(rolling(7)); // this body sits 7 ticks on top of every floor
+        Converse converse = new Converse(otherId, Speech.Opening.QUIET);
+        ctx.speech.chooser = (c, turn) -> Chooser.Line.of(SpeechActs.GREETING);
+
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx));
+        assertEquals(1, ctx.speech.saidLines.size(), "an empty record still opens at once");
+
+        ctx.percepts.time = Picker.REPLY_GRACE_TICKS;
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx));
+        assertEquals(1, ctx.speech.saidLines.size(),
+                "the floor is met and the roll is not — the metronome is what this exists to break");
+
+        ctx.percepts.time = Picker.REPLY_GRACE_TICKS + 7;
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx));
+        assertEquals(2, ctx.speech.saidLines.size(), "floor plus the roll — now she speaks");
+    }
+
+    @Test
+    @DisplayName("a jitter-held tick still notices a snub — waiting on somebody is a different clock")
+    void jitterNeverDelaysTheSnubCheck() {
+        ctx.speech.caps = new SpeechEngine.Caps(60, 6_000, 1_200, 10); // patience shrunk to 10 ticks
+        ctx.seed(rolling(Converse.JITTER_TICKS)); // the widest roll there is — the floor plus 20
+        Converse converse = new Converse(otherId, Speech.Opening.QUIET);
+        ctx.speech.chooser = scripted(Chooser.Line.of(SpeechActs.REQUEST_END_CHAT));
+
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "proposes ending — the other now owes a reply");
+
+        // Past the floor and the patience, short of the roll: she has nothing to say yet, and that
+        // must not buy the other party time on the clock they are already out of.
+        ctx.percepts.time = Picker.REPLY_GRACE_TICKS + 5;
+        assertEquals(TaskStatus.SUCCESS, converse.tick(ctx));
+
+        Utterance ignored = ctx.speech.saidLines.get(ctx.speech.saidLines.size() - 1);
+        assertEquals(SpeechActs.IGNORED.key(), ignored.act());
+        assertTrue(journaled(ctx, "gave up waiting"));
+    }
+
     // ── rule 4: give up on an expired obligation — IGNORED, journaled, SUCCESS ──────────────
 
     @Test
@@ -406,14 +448,16 @@ class ConverseTest {
         assertFalse(ctx.speech.maySpeak(ctx.speech.current().orElseThrow()),
                 "even her own follow-up waits out the beat");
 
-        ctx.percepts.time += Picker.REPLY_GRACE_TICKS;
+        // A whole beat — the grace floor plus the widest jitter roll — so the follow-up lands
+        // whatever this body rolled. See Converse.JITTER_TICKS.
+        ctx.percepts.time += Picker.REPLY_GRACE_TICKS + Converse.JITTER_TICKS;
         assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "the beat elapsed — one follow-up is hers");
 
-        ctx.percepts.time += Picker.REPLY_GRACE_TICKS;
+        ctx.percepts.time += Picker.REPLY_GRACE_TICKS + Converse.JITTER_TICKS;
         assertFalse(ctx.speech.maySpeak(ctx.speech.current().orElseThrow()),
                 "two lines in a row is the cap — the beat having passed doesn't undo it");
 
-        // 40 ticks of silence now sit on the other party, well past the shrunk 10-tick patience.
+        // 80 ticks of silence now sit on the other party, well past the shrunk 10-tick patience.
         assertEquals(TaskStatus.SUCCESS, converse.tick(ctx));
 
         Utterance ignored = ctx.speech.saidLines.get(ctx.speech.saidLines.size() - 1);
@@ -475,31 +519,33 @@ class ConverseTest {
         otherSpeech.chooser = scripted(Chooser.Line.of(SpeechActs.GREETING),
                 Chooser.Line.of(SpeechActs.END_CHAT));
 
-        // One line per beat, both ways: every tick pair below is REPLY_GRACE_TICKS apart, which is
-        // what the conversation actually reads like in-game.
+        // One line per beat, both ways. A beat is REPLY_GRACE_TICKS + JITTER_TICKS: each side rolls
+        // its own jitter per line, so only the widest beat is eligible for BOTH of them whatever
+        // they rolled — which is what keeps the order of this script deterministic.
+        long beat = Picker.REPLY_GRACE_TICKS + Converse.JITTER_TICKS;
         ctx.percepts.time = 0;
         other.percepts.time = 0;
         assertEquals(TaskStatus.RUNNING, taskA.tick(ctx), "A hails — her greeting waits a beat like any line");
         assertEquals(TaskStatus.RUNNING, taskB.tick(otherContext), "B waits out the same beat");
 
-        ctx.percepts.time = 20;
-        other.percepts.time = 20;
+        ctx.percepts.time = beat;
+        other.percepts.time = beat;
         assertEquals(TaskStatus.RUNNING, taskA.tick(ctx), "A's beat has elapsed — she greets");
         assertEquals(TaskStatus.RUNNING, taskB.tick(otherContext), "that line restarted B's beat");
 
-        ctx.percepts.time = 40;
-        other.percepts.time = 40;
+        ctx.percepts.time = 2 * beat;
+        other.percepts.time = 2 * beat;
         assertEquals(TaskStatus.RUNNING, taskA.tick(ctx), "A already spoke twice running — silent");
         assertEquals(TaskStatus.RUNNING, taskB.tick(otherContext), "B's beat has elapsed — greets back");
 
-        ctx.percepts.time = 60;
-        other.percepts.time = 60;
+        ctx.percepts.time = 3 * beat;
+        other.percepts.time = 3 * beat;
         assertEquals(TaskStatus.RUNNING, taskA.tick(ctx), "A's beat has elapsed — proposes ending");
         assertEquals(TaskStatus.RUNNING, taskB.tick(otherContext),
                 "B owes an answer, but an obligation buys no head start on the beat");
 
-        ctx.percepts.time = 80;
-        other.percepts.time = 80;
+        ctx.percepts.time = 4 * beat;
+        other.percepts.time = 4 * beat;
         assertEquals(TaskStatus.SUCCESS, taskB.tick(otherContext), "B accepts — END_CHAT closes the record");
         assertEquals(TaskStatus.SUCCESS, taskA.tick(ctx),
                 "the SHARED record now reads closed, though A's own engine never closed it");
@@ -510,7 +556,7 @@ class ConverseTest {
                 SpeechActs.REQUEST_END_CHAT.key(), SpeechActs.END_CHAT.key()), acts,
                 "the hail out front, then GREETING through END_CHAT");
         assertTrue(e.closed());
-        assertEquals(80L, e.closedAt());
+        assertEquals(4 * beat, e.closedAt());
 
         // Task 5's review finding: closing on a SHARED roster notifies only the closer's own
         // engine. B's say() is what actually closed the record, so only B's listener saw it —
@@ -521,6 +567,24 @@ class ConverseTest {
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * A generator whose {@code nextInt} always answers {@code roll} — deterministic control over
+     * the beat's jitter without hand-deriving a seed.
+     */
+    private static RandomGenerator rolling(int roll) {
+        return new RandomGenerator() {
+            @Override
+            public long nextLong() {
+                throw new UnsupportedOperationException("unused by these tests");
+            }
+
+            @Override
+            public int nextInt(int bound) {
+                return roll;
+            }
+        };
+    }
 
     /** Says each line in order, then falls silent — a deterministic script for one test. */
     private static Chooser scripted(Chooser.Line... lines) {
