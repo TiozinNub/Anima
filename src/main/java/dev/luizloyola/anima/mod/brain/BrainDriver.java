@@ -554,6 +554,19 @@ public final class BrainDriver {
         return this.context.knowledge();
     }
 
+    /**
+     * The whole context a task ticks against — {@link #percepts()} and {@link #knowledge()} widened
+     * to everything, for the one debug surface that has to ask the machinery a question no slice of
+     * it answers: {@code /anima chat} runs the live {@code Chooser} over exactly the context and
+     * turn the body would have chosen from, and a rebuilt stand-in would be a different body.
+     *
+     * <p>Read-only by convention, not by type: a readout that ORDERS something through these
+     * actuators is a command pretending to be a dump.
+     */
+    public BrainContext context() {
+        return this.context;
+    }
+
     /** The brain's one-line status, for the debug commands: which side is driving, then its report. */
     public String describe() {
         return this.auto

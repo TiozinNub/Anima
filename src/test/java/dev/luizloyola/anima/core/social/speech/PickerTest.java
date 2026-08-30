@@ -149,4 +149,47 @@ class PickerTest {
         assertFalse(applicable.contains(SpeechActs.GREETING), "past the cap only an ending is on offer");
         assertFalse(applicable.contains(SpeechActs.DEFLECT));
     }
+
+    @Test
+    @DisplayName("explain covers every registered act, agrees with applicable, and always says why")
+    void explainIsTheWholeVocabularyWithReasons() {
+        Encounter e = fresh();
+        e.append(line(alice, Q_CONSTRAINED, 100));
+
+        List<Picker.Verdict> verdicts = Picker.explain(e, bob, 10);
+
+        assertEquals(SpeechActs.all().size(), verdicts.size(), "every word in the registry gets a verdict");
+        assertEquals(Picker.applicable(e, bob, 10),
+                verdicts.stream().filter(Picker.Verdict::applicable).map(Picker.Verdict::act).toList(),
+                "the readout cannot drift from the filter — applicable() is a filter over explain()");
+        for (Picker.Verdict verdict : verdicts) {
+            assertFalse(verdict.reason().isBlank(),
+                    verdict.act().key() + " was decided without saying why");
+        }
+        // The reasons name the branch that actually excluded the act, not a generic "no".
+        assertEquals("the hail opens a record; it is not said", reasonFor(verdicts, SpeechActs.HAIL));
+        assertTrue(reasonFor(verdicts, SpeechActs.STALE).startsWith("a system verdict"));
+        assertEquals("constrained by the pending q_constrained → greeting",
+                reasonFor(verdicts, SpeechActs.DEFLECT));
+        assertEquals("applicable", reasonFor(verdicts, SpeechActs.GREETING));
+    }
+
+    @Test
+    @DisplayName("at the cap, explain says which of the two cap rules turned each act away")
+    void explainNamesBothCapRules() {
+        Encounter e = fresh();
+        e.append(line(alice, SpeechActs.GREETING, 100));
+
+        List<Picker.Verdict> capped = Picker.explain(e, bob, 1); // one line is already the cap
+        assertEquals("the cap leaves only farewells", reasonFor(capped, SpeechActs.GREETING));
+        assertEquals("applicable", reasonFor(capped, SpeechActs.END_CHAT));
+
+        // The same goodbye, off the table for the other reason while the record still has room.
+        assertEquals("a goodbye answers a request_end_chat, or a record at its cap",
+                reasonFor(Picker.explain(e, bob, 10), SpeechActs.END_CHAT));
+    }
+
+    private static String reasonFor(List<Picker.Verdict> verdicts, SpeechAct act) {
+        return verdicts.stream().filter(v -> v.act() == act).findFirst().orElseThrow().reason();
+    }
 }

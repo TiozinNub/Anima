@@ -39,7 +39,7 @@ public final class AnimaCommands {
                                 AgentCommands::log, AgentCommands::knowledge,
                                 AgentCommands::horizon, AgentCommands::survey,
                                 AgentCommands::claims, AgentCommands::peers, AgentCommands::needs,
-                                AgentCommands::profile, AgentCommands::grave,
+                                AgentCommands::profile, AgentCommands::grave, AgentCommands::chat,
                                 () -> AgentCommands.inv(registry),
                                 () -> AgentCommands.store(registry)),
                         // noSubject — the root alone. `debug` is here on purpose: its layers are a

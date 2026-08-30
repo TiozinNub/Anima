@@ -76,8 +76,16 @@ import dev.luizloyola.anima.mod.net.ContactsSync;
 import dev.luizloyola.anima.core.social.PartyId;
 import dev.luizloyola.anima.core.social.PlaceRow;
 import dev.luizloyola.anima.core.social.Places;
+import dev.luizloyola.anima.core.social.speech.Chooser;
+import dev.luizloyola.anima.core.social.speech.Choosers;
+import dev.luizloyola.anima.core.social.speech.Encounter;
+import dev.luizloyola.anima.core.social.speech.Picker;
+import dev.luizloyola.anima.core.social.speech.SpeechEngine;
+import dev.luizloyola.anima.core.social.speech.Utterance;
+import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.store.Store;
 import dev.luizloyola.anima.mod.social.ContactData;
+import dev.luizloyola.anima.mod.social.EncounterData;
 import dev.luizloyola.anima.mod.social.PartyData;
 import dev.luizloyola.anima.mod.social.PlacesData;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -2866,6 +2874,142 @@ public final class AgentCommands {
             return Component.translatable("anima.time.hours_ago", hours, minutes % 60);
         }
         return Component.translatable("anima.time.days_ago", hours / 24, hours % 24);
+    }
+
+    // ── chat: the conversation, one step at a time ───────────────────────────────────────────
+
+    /** Transcript lines the dump shows — enough to read the shape of the exchange, not the record. */
+    private static final int CHAT_TAIL = 6;
+
+    /**
+     * The resolved agent's open conversation, opened up: who is in it, what has been said, whose
+     * turn it is, every word of the vocabulary with the reason it is or is not on offer, and — for
+     * a loaded body — the chooser's own account of which of its priorities fired.
+     *
+     * <p><b>Why it exists</b>: writing a new kind of conversation means knowing what a person's
+     * options were at each step and why the rest were refused. That is two answers from two
+     * places — {@link Picker} filters, a {@link Chooser} wants — and reading either from the
+     * transcript alone is guesswork.
+     *
+     * <p>Only the frame is translated. The table below it is dev data (act keys, tick counts, the
+     * branch names of a filter), which is the lang rule's debug carve-out: translating
+     * {@code request_end_chat} would make the readout harder to match against the code it explains.
+     *
+     * <p>A factory, not a cached node: Brigadier parents a builder when it is registered.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> chat() {
+        return Commands.literal("chat").executes(AgentCommands::chatShow);
+    }
+
+    private static int chatShow(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        // The ID rung, not the body one: an unloaded agent still HAS an open record, and half this
+        // readout is about the record rather than about the mind holding it.
+        AgentId who = Subject.id(ctx);
+        if (who == null) return 0; // already reported
+        MinecraftServer server = source.getServer();
+        Encounter e = EncounterData.get(server).roster().openFor(who).orElse(null);
+        if (e == null) {
+            Replies.send(source, () -> Component.translatable("anima.command.chat.none",
+                    label(server, who)).withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        long now = server.overworld().getGameTime();
+        chatHeader(source, server, e, now);
+        chatTranscript(source, server, e);
+        AgentBody body = AgentBodies.findLoaded(server, who);
+        chatTurnState(source, server, e, who, now, body);
+        chatVerdicts(source, e, who, now);
+        chatChooser(source, e, body);
+        return 1;
+    }
+
+    private static void chatHeader(CommandSourceStack source, MinecraftServer server, Encounter e,
+            long now) {
+        String names = e.participants().stream().map(id -> label(server, id))
+                .collect(Collectors.joining(", "));
+        Replies.send(source, () -> Component.translatable("anima.command.chat.header",
+                e.id().toString().substring(0, 8), names, now - e.openedAt(),
+                e.transcript().size()).withStyle(ChatFormatting.AQUA));
+    }
+
+    /** The tail of the record: {@code [tick] name: act (payload)}, oldest of the shown lines first. */
+    private static void chatTranscript(CommandSourceStack source, MinecraftServer server,
+            Encounter e) {
+        List<Utterance> lines = e.transcript();
+        for (int i = Math.max(0, lines.size() - CHAT_TAIL); i < lines.size(); i++) {
+            Utterance line = lines.get(i);
+            AgentId author = line.author();
+            // An op is omniscient here on purpose: this is the machinery's own dump, not what a
+            // player standing in earshot would have made out.
+            String speaker = author == null ? "(system)" : label(server, author);
+            String payload = line.payload().isEmpty() ? ""
+                    : line.payload().entrySet().stream()
+                            .map(entry -> entry.getKey() + "=" + entry.getValue())
+                            .collect(Collectors.joining(", ", " (", ")"));
+            Replies.send(source, () -> indent(Component.literal(
+                    "[" + line.tick() + "] " + speaker + ": " + line.act() + payload)
+                    .withStyle(line.system() ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE)));
+        }
+    }
+
+    /**
+     * Whose turn it is, in the terms {@link Picker} decides it in: the beat since the last line
+     * against its floor, the monologue run, and whatever this agent owes.
+     *
+     * <p>Patience needs a species, so an unloaded agent's obligation prints its age and no
+     * deadline — the number that is missing is the body's, not the record's.
+     */
+    private static void chatTurnState(CommandSourceStack source, MinecraftServer server, Encounter e,
+            AgentId who, long now, @Nullable AgentBody body) {
+        String beat = Picker.lastSpoken(e)
+                .map(line -> (now - line.tick()) + " ticks since the last line")
+                .orElse("nothing said yet");
+        Replies.send(source, () -> indent(Component.literal("turn: " + beat + ", floor "
+                + Picker.REPLY_GRACE_TICKS + ", run " + Picker.consecutiveBy(e, who) + "/"
+                + Picker.MAX_CONSECUTIVE).withStyle(ChatFormatting.GRAY)));
+        Picker.pendingOn(e, who).ifPresent(owed -> {
+            String patience = body == null ? "unloaded — no species to ask for patience"
+                    : "of " + body.profile().i(ProfileAspect.SOCIAL_PATIENCE_TICKS) + " patience";
+            Replies.send(source, () -> indent(Component.literal("owes: " + owed.act() + " from "
+                    + label(server, owed.author()) + ", " + (now - owed.tick()) + " ticks " + patience)
+                    .withStyle(ChatFormatting.YELLOW)));
+        });
+    }
+
+    /** Every word of the vocabulary, with the branch of {@link Picker} that decided it. */
+    private static void chatVerdicts(CommandSourceStack source, Encounter e, AgentId who, long now) {
+        int cap = SpeechEngine.turnCap(e, now, Config.get().i(Knob.SOCIAL_ENCOUNTER_TURN_CAP),
+                Config.get().i(Knob.SOCIAL_ENCOUNTER_TICK_CAP));
+        for (Picker.Verdict verdict : Picker.explain(e, who, cap)) {
+            Replies.send(source, () -> indent(Component.literal(
+                    (verdict.applicable() ? "✔ " : "✘ ") + verdict.act().key() + " — "
+                            + verdict.reason())
+                    .withStyle(verdict.applicable() ? ChatFormatting.GREEN : ChatFormatting.DARK_GRAY)));
+        }
+    }
+
+    /**
+     * The chooser's own account of its priorities, run over the body's REAL context and turn —
+     * {@code ctx.speech().turn(e)}, the same call {@code Converse} makes, so the readout can never
+     * describe a turn the body would not have been handed.
+     *
+     * <p>Which is also why an unloaded agent gets the table above and nothing here: a chooser reads
+     * needs, percepts and a random stream, and none of those survive the body going away.
+     */
+    private static void chatChooser(CommandSourceStack source, Encounter e, @Nullable AgentBody body) {
+        if (body == null) {
+            Replies.send(source, () -> indent(Component.literal(
+                    "chooser: needs a loaded body — it reads needs and percepts, not the record")
+                    .withStyle(ChatFormatting.GRAY)));
+            return;
+        }
+        BrainContext brain = body.brain().context();
+        for (String line : Choosers.get().explain(brain, brain.speech().turn(e))) {
+            Replies.send(source, () -> indent(Component.literal(line)
+                    .withStyle(line.startsWith("fired") ? ChatFormatting.GOLD
+                            : ChatFormatting.DARK_GRAY)));
+        }
     }
 
     /**

@@ -140,12 +140,22 @@ public final class SpeechEngine implements Speech {
         return Picker.expiredObligation(e, self, now.getAsLong(), caps.get().patienceTicks());
     }
 
+    /**
+     * The cap {@link Picker#applicable} filters {@code e} by right now: the configured turn cap,
+     * or 0 once the record has outrun {@code tickCap} — the duration cap reuses the turn-cap
+     * filter, narrowing to the same "only an ending is on offer" set a line count already produces.
+     *
+     * <p>Static because the {@code /anima chat} readout has to reproduce exactly this filter for an
+     * agent whose body is not loaded, and so has no engine to ask.
+     */
+    public static int turnCap(Encounter e, long now, int turnCap, long tickCap) {
+        return now - e.openedAt() > tickCap ? 0 : turnCap;
+    }
+
     @Override
     public Chooser.Turn turn(Encounter e) {
         Caps c = caps.get();
-        // The duration cap reuses the turn-cap filter: past it, applicable() sees turnCap 0 and
-        // narrows to the same "only an ending is on offer" set a line-count cap already produces.
-        int turnCap = now.getAsLong() - e.openedAt() > c.tickCap() ? 0 : c.turnCap();
+        int turnCap = turnCap(e, now.getAsLong(), c.turnCap(), c.tickCap());
         List<SpeechAct> applicable = Picker.applicable(e, self, turnCap);
         Optional<Utterance> pending = Picker.pendingOn(e, self);
         return new Chooser.Turn(e, applicable, pending, greeted(e), counterpart(e));

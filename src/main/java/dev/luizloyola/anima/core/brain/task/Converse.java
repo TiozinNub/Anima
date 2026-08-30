@@ -15,7 +15,6 @@ import dev.luizloyola.anima.core.social.speech.Picker;
 import dev.luizloyola.anima.core.social.speech.Speech;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import dev.luizloyola.anima.core.social.speech.Utterance;
-import java.util.List;
 
 /**
  * Participating in a conversation is a task like any other — it holds the body in place,
@@ -274,18 +273,15 @@ public final class Converse implements PrimitiveTask {
      * beat to wait out: the opening line is immediate.
      */
     private boolean beatElapsed(BrainContext ctx) {
-        List<Utterance> lines = encounter.transcript();
-        if (lines.size() != lineCount) {
-            lineCount = lines.size();
+        int lines = encounter.transcript().size();
+        if (lines != lineCount) {
+            lineCount = lines;
             jitter = ctx.random().nextInt(JITTER_TICKS + 1);
         }
-        for (int i = lines.size() - 1; i >= 0; i--) {
-            Utterance line = lines.get(i);
-            if (!line.system()) {
-                return ctx.percepts().time() >= line.tick() + Picker.REPLY_GRACE_TICKS + jitter;
-            }
-        }
-        return true;
+        return Picker.lastSpoken(encounter)
+                .map(line -> ctx.percepts().time()
+                        >= line.tick() + Picker.REPLY_GRACE_TICKS + jitter)
+                .orElse(true);
     }
 
     /**

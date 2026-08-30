@@ -40,4 +40,15 @@ public interface Chooser {
 
     /** The next line, or {@code null} for silence — proximity alone is still company. */
     @Nullable Line choose(BrainContext ctx, Turn turn);
+
+    /**
+     * How this chooser would narrate its own priorities on {@code turn} — one line per rule, for
+     * the {@code /anima chat} readout an author writes new conversations against.
+     *
+     * <p>Empty means mute, and that is the honest default: a chooser owes nobody an account of
+     * itself, and {@link Choosers#BASIC} has three lines of logic to read instead.
+     */
+    default List<String> explain(BrainContext ctx, Turn turn) {
+        return List.of();
+    }
 }

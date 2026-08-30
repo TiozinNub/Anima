@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.agent.AgentId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Whose turn it is and what may be said — the interface into the chat. The chooser (the part
@@ -16,6 +17,16 @@ public final class Picker {
 
     /** Two lines in a row is a thought; three is a monologue. */
     public static final int MAX_CONSECUTIVE = 2;
+
+    /**
+     * One act's standing on a turn: whether it is on offer, and the branch that decided it.
+     *
+     * <p>{@code reason} is dev-facing English, not a lang key — this is the readout an operator
+     * reads while WRITING new kinds of conversation, and it names branches of this class rather
+     * than anything a player ever sees.
+     */
+    public record Verdict(SpeechAct act, boolean applicable, String reason) {
+    }
 
     private Picker() {
     }
@@ -50,7 +61,7 @@ public final class Picker {
         if (e.closed()) {
             return false;
         }
-        Utterance last = lastSpoken(e);
+        Utterance last = lastSpokenOrNull(e);
         if (last == null) {
             return true;
         }
@@ -63,32 +74,49 @@ public final class Picker {
         return pendingOn(e, self).isPresent() || consecutiveBy(e, self) < MAX_CONSECUTIVE;
     }
 
+    /** What {@code self} may say into {@code e} — the applicable half of {@link #explain}. */
     public static List<SpeechAct> applicable(Encounter e, AgentId self, int turnCap) {
+        List<SpeechAct> out = new ArrayList<>();
+        for (Verdict verdict : explain(e, self, turnCap)) {
+            if (verdict.applicable()) {
+                out.add(verdict.act());
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Every registered act with the reason it is or is not on offer — what {@code /anima chat}
+     * prints, and the one place the rules live: {@link #applicable} is a filter over this, so a
+     * readout that disagrees with the filter is not expressible.
+     */
+    public static List<Verdict> explain(Encounter e, AgentId self, int turnCap) {
         boolean capped = e.transcript().size() >= turnCap;
         Optional<Utterance> pending = pendingOn(e, self);
-        List<String> constrained = pending
-                .flatMap(u -> SpeechActs.byKey(u.act()))
-                .map(SpeechAct::responses)
-                .filter(r -> !r.isEmpty())
-                .orElse(null);
+        SpeechAct pendingAct = pending.flatMap(u -> SpeechActs.byKey(u.act())).orElse(null);
+        List<String> constrained = pendingAct == null || pendingAct.responses().isEmpty()
+                ? null : pendingAct.responses();
         boolean endAsked = pending
                 .map(u -> u.act().equals(SpeechActs.REQUEST_END_CHAT.key()))
                 .orElse(false);
-        List<SpeechAct> out = new ArrayList<>();
+        List<Verdict> out = new ArrayList<>();
         for (SpeechAct act : SpeechActs.all()) {
-            if (!act.negotiable() || act == SpeechActs.HAIL) {
-                continue;   // system verdicts are written, not chosen; the hail opens, it is not said
+            if (!act.negotiable()) {
+                out.add(new Verdict(act, false,
+                        "a system verdict — written by whoever notices, never chosen"));
+            } else if (act == SpeechActs.HAIL) {
+                out.add(new Verdict(act, false, "the hail opens a record; it is not said"));
+            } else if (constrained != null && !constrained.contains(act.key())) {
+                out.add(new Verdict(act, false, "constrained by the pending " + pendingAct.key()
+                        + " → " + String.join(", ", constrained)));
+            } else if (act.ends() && !endAsked && !capped) {
+                out.add(new Verdict(act, false,
+                        "a goodbye answers a request_end_chat, or a record at its cap"));
+            } else if (capped && !act.ends() && act != SpeechActs.REQUEST_END_CHAT) {
+                out.add(new Verdict(act, false, "the cap leaves only farewells"));
+            } else {
+                out.add(new Verdict(act, true, "applicable"));
             }
-            if (constrained != null && !constrained.contains(act.key())) {
-                continue;
-            }
-            if (act.ends() && !endAsked && !capped) {
-                continue;   // goodbye answers a proposal — or a record that has run its cap
-            }
-            if (capped && !act.ends() && act != SpeechActs.REQUEST_END_CHAT) {
-                continue;
-            }
-            out.add(act);
         }
         return out;
     }
@@ -107,7 +135,18 @@ public final class Picker {
         return Optional.empty();
     }
 
-    private static Utterance lastSpoken(Encounter e) {
+    /**
+     * The last line somebody SAID — the one the beat is measured from. A SYSTEM line is the world
+     * reporting on the conversation rather than a turn in it, so it never restarts the clock.
+     *
+     * <p>Public because the {@code /anima chat} readout has to print the very tick this class
+     * counts from; a second scan of the transcript would be a second opinion.
+     */
+    public static Optional<Utterance> lastSpoken(Encounter e) {
+        return Optional.ofNullable(lastSpokenOrNull(e));
+    }
+
+    private static @Nullable Utterance lastSpokenOrNull(Encounter e) {
         List<Utterance> lines = e.transcript();
         for (int i = lines.size() - 1; i >= 0; i--) {
             if (!lines.get(i).system()) {
@@ -117,7 +156,8 @@ public final class Picker {
         return null;
     }
 
-    private static int consecutiveBy(Encounter e, AgentId self) {
+    /** How many lines in a row {@code self} has just said — what {@link #MAX_CONSECUTIVE} caps. */
+    public static int consecutiveBy(Encounter e, AgentId self) {
         int run = 0;
         List<Utterance> lines = e.transcript();
         for (int i = lines.size() - 1; i >= 0; i--) {

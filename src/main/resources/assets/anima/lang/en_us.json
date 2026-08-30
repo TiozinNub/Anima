@@ -436,6 +436,8 @@
   "anima.command.grave.last_lines": "last %s lines",
   "anima.command.grave.summary": "%s  %s",
   "anima.command.grave.summary_cause": " — %s",
+  "anima.command.chat.none": "%s has no open conversation.",
+  "anima.command.chat.header": "conversation %s — %s, %s ticks old, %s lines",
   "anima.follow.ended": "%s stopped following — %s.",
   "anima.follow.ended.died": "died",
   "anima.follow.ended.lost": "lost them",
