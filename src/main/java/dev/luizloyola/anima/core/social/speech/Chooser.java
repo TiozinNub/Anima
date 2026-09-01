@@ -30,9 +30,15 @@ public interface Chooser {
      * (BrainContext deliberately lacks one): what may be said, the ask pending on me,
      * whether a non-system GREETING of mine is already in the transcript, and who the
      * other party is.
+     *
+     * <p>{@code awaiting} is the mirror of {@code pending}: the obligation SELF has placed on the
+     * counterpart that no line of theirs has discharged yet. A chooser that initiates (greets,
+     * proposes) while {@code awaiting} is present is talking over its own question — dated
+     * decision: Luiz, 2026-08-30, observed in-world as a body proposing the same goodbye every
+     * beat.
      */
     record Turn(Encounter encounter, List<SpeechAct> applicable, Optional<Utterance> pending,
-            boolean greeted, Optional<AgentId> counterpart) {
+            Optional<Utterance> awaiting, boolean greeted, Optional<AgentId> counterpart) {
         public Turn {
             applicable = List.copyOf(applicable);
         }

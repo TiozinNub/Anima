@@ -14,12 +14,16 @@ public final class Choosers {
     /**
      * Greets once, answers a constrained pending ask with its first declared response, and
      * proposes (then confirms) leaving once company pressure reads {@code 0.0} — otherwise
-     * silence, because proximity alone is still company.
+     * silence, because proximity alone is still company. Never initiates while {@link
+     * Chooser.Turn#awaiting()} is present: an ask already on the table doesn't get asked twice.
      */
     public static final Chooser BASIC = (ctx, turn) -> {
         Optional<Chooser.Line> reply = respondToPending(turn);
         if (reply.isPresent()) {
             return reply.get();
+        }
+        if (turn.awaiting().isPresent()) {
+            return null;   // already asked something of the other party — wait for their answer
         }
         if (!turn.greeted() && turn.applicable().contains(SpeechActs.GREETING)) {
             return Chooser.Line.of(SpeechActs.GREETING);

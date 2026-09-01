@@ -93,7 +93,8 @@ public interface Speech {
 
         @Override
         public Chooser.Turn turn(Encounter e) {
-            return new Chooser.Turn(e, List.of(), Optional.empty(), false, Optional.empty());
+            return new Chooser.Turn(e, List.of(), Optional.empty(), Optional.empty(), false,
+                    Optional.empty());
         }
 
         @Override

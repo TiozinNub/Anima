@@ -294,4 +294,27 @@ class SpeechEngineTest {
         assertEquals(Optional.of(bob), aliceEngine.counterpart(e));
         assertEquals(Optional.of(alice), bobEngine.counterpart(e));
     }
+
+    @Test
+    @DisplayName("turn's awaiting carries self's own undischarged ask, and empties once the other replies")
+    void turnAwaitingCarriesSelfsUndischargedAskUntilTheOtherReplies() {
+        Encounters roster = new Encounters();
+        long[] clock = {0L};
+        Recorder recorder = new Recorder();
+        SpeechEngine engine = engineFor(alice, roster, clock, CAPS, recorder);
+        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET);
+
+        engine.say(e, Chooser.Line.of(SpeechActs.REQUEST_END_CHAT));
+
+        Chooser.Turn afterAsk = engine.turn(e);
+        assertTrue(afterAsk.pending().isEmpty(), "nothing is pending ON alice — her own line is last");
+        assertTrue(afterAsk.awaiting().isPresent(), "alice asked bob to end and nothing of his has answered it");
+        assertEquals(SpeechActs.REQUEST_END_CHAT.key(), afterAsk.awaiting().orElseThrow().act());
+
+        clock[0] += Picker.REPLY_GRACE_TICKS;
+        e.append(new Utterance(bob, SpeechActs.DEFLECT.key(), Map.of(), clock[0]));
+
+        assertTrue(engine.turn(e).awaiting().isEmpty(),
+                "any line of bob's discharges what alice was owed an answer to, same as pending's own rule");
+    }
 }

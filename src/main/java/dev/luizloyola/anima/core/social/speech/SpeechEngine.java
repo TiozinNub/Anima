@@ -158,7 +158,14 @@ public final class SpeechEngine implements Speech {
         int turnCap = turnCap(e, now.getAsLong(), c.turnCap(), c.tickCap());
         List<SpeechAct> applicable = Picker.applicable(e, self, turnCap);
         Optional<Utterance> pending = Picker.pendingOn(e, self);
-        return new Chooser.Turn(e, applicable, pending, greeted(e), counterpart(e));
+        Optional<AgentId> counterpart = counterpart(e);
+        // In two-party, pendingOn(e, other) returns a line NOT authored by other — which here
+        // means authored by self: exactly what self asked of the counterpart and nobody of
+        // theirs has answered since. For 3+ parties this conflates askers (it names whichever
+        // outside party spoke last, not necessarily self); acceptable today, nothing reads it
+        // as an identity claim.
+        Optional<Utterance> awaiting = counterpart.flatMap(other -> Picker.pendingOn(e, other));
+        return new Chooser.Turn(e, applicable, pending, awaiting, greeted(e), counterpart);
     }
 
     @Override

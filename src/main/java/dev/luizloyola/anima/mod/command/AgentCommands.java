@@ -2975,6 +2975,16 @@ public final class AgentCommands {
                     + label(server, owed.author()) + ", " + (now - owed.tick()) + " ticks " + patience)
                     .withStyle(ChatFormatting.YELLOW)));
         });
+        // The mirror of owes: what this agent has asked of the counterpart that no line of
+        // theirs has discharged yet — the same obligation a chooser gates its own initiative on.
+        Optional<AgentId> counterpart = e.other(who);
+        counterpart.flatMap(other -> Picker.pendingOn(e, other)).ifPresent(asked -> {
+            String patience = body == null ? "unloaded — no species to ask for patience"
+                    : "of " + body.profile().i(ProfileAspect.SOCIAL_PATIENCE_TICKS) + " patience";
+            Replies.send(source, () -> indent(Component.literal("awaits: " + asked.act() + " from "
+                    + label(server, counterpart.orElseThrow()) + ", " + (now - asked.tick())
+                    + " ticks " + patience).withStyle(ChatFormatting.YELLOW)));
+        });
     }
 
     /** Every word of the vocabulary, with the branch of {@link Picker} that decided it. */
