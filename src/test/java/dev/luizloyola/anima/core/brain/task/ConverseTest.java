@@ -75,7 +75,7 @@ class ConverseTest {
     @Test
     @DisplayName("first tick resumes the already-open encounter rather than joining a duplicate")
     void firstTickResumesTheOpenEncounter() {
-        Encounter existing = ctx.speech.join(otherId, Speech.Opening.THEY_HAILED);
+        Encounter existing = ctx.speech.join(otherId, Speech.Opening.THEY_HAILED).orElseThrow();
         // A different opening than the pre-existing record's — proof current() wins, not join().
         Converse converse = new Converse(otherId, Speech.Opening.I_HAILED);
         ctx.speech.chooser = (c, turn) -> null;
@@ -85,6 +85,26 @@ class ConverseTest {
         assertSame(existing, ctx.speech.current().orElseThrow(), "the same record, not a second one");
         assertEquals(1, existing.transcript().size(), "still just the one THEY_HAILED hail — no re-prefill");
         assertEquals(otherId.asPerson(), existing.transcript().get(0).author());
+    }
+
+    @Test
+    @DisplayName("a counterpart already talking to somebody else fails the task on its first tick")
+    void aBusyCounterpartFailsBeforeAnythingIsSaidOrWalked() {
+        Being counterpart = FakePercepts.personAt(new Pos(20, 64, 0), 20.0, "Rex");
+        ctx.percepts.beings = List.of(counterpart);
+        // Their conversation with a third party, seated straight on the shared roster.
+        Encounter theirs =
+                ctx.speech.roster.join(AgentId.random(), counterpart.id().asPerson(), 0L).orElseThrow();
+        Converse converse = new Converse(counterpart.id(), Speech.Opening.I_HAILED);
+        ctx.speech.chooser = (c, turn) -> Chooser.Line.of(SpeechActs.GREETING); // would speak if it could
+
+        assertEquals(TaskStatus.FAILED, converse.tick(ctx));
+
+        assertTrue(journaled(ctx, "they were already talking"));
+        assertTrue(ctx.speech.current().isEmpty(), "no record was opened for this body");
+        assertEquals(List.of(theirs), ctx.speech.roster.open(), "theirs is the only conversation there is");
+        assertTrue(ctx.speech.saidLines.isEmpty(), "not a word, not even a hail prefill");
+        assertEquals(0, ctx.mover.moveToCalls, "and no leg ordered toward somebody it will not talk to");
     }
 
     @Test

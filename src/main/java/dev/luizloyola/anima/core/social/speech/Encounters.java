@@ -26,15 +26,28 @@ public final class Encounters {
         return Optional.empty();
     }
 
-    public Encounter join(AgentId a, AgentId b, long now) {
+    /**
+     * The pair's open record: rejoined if they already have one, freshly opened if neither is
+     * busy, and REFUSED — empty — if either of them is mid-conversation with somebody else.
+     *
+     * <p><b>One open conversation per body.</b> Without the refusal a crowd churns: four bodies
+     * standing together each open a record against every other, so the moment one closes its
+     * parties are pulled straight into the next, and a name learned in one record is unknown to
+     * the one that opens a tick later. A bystander must wait its turn rather than queue a claim on
+     * a busy body.
+     */
+    public Optional<Encounter> join(AgentId a, AgentId b, long now) {
         for (Encounter e : open) {
             if (e.includes(a) && e.includes(b)) {
-                return e;
+                return Optional.of(e);
             }
+        }
+        if (openFor(a).isPresent() || openFor(b).isPresent()) {
+            return Optional.empty();
         }
         Encounter fresh = new Encounter(UUID.randomUUID(), List.of(a, b), now);
         open.add(fresh);
-        return fresh;
+        return Optional.of(fresh);
     }
 
     public void close(Encounter e, long now) {

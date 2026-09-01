@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * The roster: pins join's find-or-create behavior, close's list move, staleness, retention
+ * The roster: pins join's find-refuse-or-create behavior, close's list move, staleness, retention
  * pruning, and the restore load path against the task brief's semantics.
  */
 class EncountersTest {
@@ -25,7 +25,7 @@ class EncountersTest {
     void joinCreates() {
         Encounters roster = new Encounters();
 
-        Encounter e = roster.join(alice, bob, 100L);
+        Encounter e = roster.join(alice, bob, 100L).orElseThrow();
 
         assertTrue(roster.open().contains(e), "the fresh encounter is seated on the open list");
         assertFalse(roster.closed().contains(e));
@@ -39,19 +39,46 @@ class EncountersTest {
     void joinIsIdempotent() {
         Encounters roster = new Encounters();
 
-        Encounter first = roster.join(alice, bob, 100L);
-        Encounter second = roster.join(alice, bob, 150L);
+        Encounter first = roster.join(alice, bob, 100L).orElseThrow();
+        Encounter second = roster.join(alice, bob, 150L).orElseThrow();
 
         assertSame(first, second, "an open encounter for the pair already exists — join must not duplicate it");
         assertEquals(1, roster.open().size());
     }
 
     @Test
+    @DisplayName("a third party's join against a body already talking is refused, from either side")
+    void joinRefusesWhileEitherPartyIsAlreadyTalking() {
+        Encounters roster = new Encounters();
+        Encounter aliceBob = roster.join(alice, bob, 100L).orElseThrow();
+
+        assertTrue(roster.join(carol, bob, 110L).isEmpty(), "bob is spoken for");
+        assertTrue(roster.join(alice, carol, 110L).isEmpty(), "and so is alice — the rule is symmetric");
+        assertEquals(1, roster.open().size(), "a refusal creates nothing");
+        assertSame(aliceBob, roster.openFor(bob).orElseThrow(), "the conversation under way is untouched");
+    }
+
+    @Test
+    @DisplayName("a body freed by its record closing is joinable again")
+    void aFreedBodyAcceptsANewJoin() {
+        Encounters roster = new Encounters();
+        Encounter aliceBob = roster.join(alice, bob, 100L).orElseThrow();
+        assertTrue(roster.join(carol, bob, 110L).isEmpty());
+
+        roster.close(aliceBob, 200L);
+
+        Encounter carolBob = roster.join(carol, bob, 210L).orElseThrow();
+        assertTrue(carolBob.includes(carol));
+        assertTrue(carolBob.includes(bob));
+        assertEquals(1, roster.open().size(), "the closed record left the open list on its way out");
+    }
+
+    @Test
     @DisplayName("openFor finds the one open encounter a body is party to, and none other")
     void openForFindsOwnEncounterOnly() {
         Encounters roster = new Encounters();
-        Encounter aliceBob = roster.join(alice, bob, 100L);
-        Encounter carolDave = roster.join(carol, dave, 100L);
+        Encounter aliceBob = roster.join(alice, bob, 100L).orElseThrow();
+        Encounter carolDave = roster.join(carol, dave, 100L).orElseThrow();
 
         assertEquals(Optional.of(aliceBob), roster.openFor(alice));
         assertEquals(Optional.of(aliceBob), roster.openFor(bob));
@@ -63,7 +90,7 @@ class EncountersTest {
     @DisplayName("close moves the record to closed, and a further join for the pair opens a new one")
     void closeMovesListsAndFurtherJoinCreatesNew() {
         Encounters roster = new Encounters();
-        Encounter first = roster.join(alice, bob, 100L);
+        Encounter first = roster.join(alice, bob, 100L).orElseThrow();
 
         roster.close(first, 200L);
 
@@ -72,7 +99,7 @@ class EncountersTest {
         assertTrue(first.closed());
         assertEquals(200L, first.closedAt());
 
-        Encounter second = roster.join(alice, bob, 250L);
+        Encounter second = roster.join(alice, bob, 250L).orElseThrow();
 
         assertNotSame(first, second, "the pair's prior encounter is closed — join must start a new one");
         assertTrue(roster.open().contains(second));
@@ -83,7 +110,7 @@ class EncountersTest {
     @DisplayName("stale is false exactly at the gap, true past it, and false once the encounter is closed")
     void staleTracksTheGapAndClosedState() {
         Encounters roster = new Encounters();
-        Encounter e = roster.join(alice, bob, 100L);
+        Encounter e = roster.join(alice, bob, 100L).orElseThrow();
 
         assertFalse(roster.stale(e, 150L, 50L), "50 ticks of silence is exactly the gap — not yet stale");
         assertTrue(roster.stale(e, 151L, 50L), "51 ticks past opening exceeds a 50-tick gap");
@@ -97,9 +124,9 @@ class EncountersTest {
     @DisplayName("prune drops a closed record past retention and keeps a fresher one")
     void pruneDropsOldClosedRecordsAndKeepsFreshOnes() {
         Encounters roster = new Encounters();
-        Encounter old = roster.join(alice, bob, 0L);
+        Encounter old = roster.join(alice, bob, 0L).orElseThrow();
         roster.close(old, 100L);
-        Encounter fresh = roster.join(carol, dave, 0L);
+        Encounter fresh = roster.join(carol, dave, 0L).orElseThrow();
         roster.close(fresh, 190L);
 
         roster.prune(200L, 50L);

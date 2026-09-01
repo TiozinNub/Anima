@@ -24,18 +24,20 @@ class EncounterDataTest {
     private final AgentId alice = AgentId.random();
     private final AgentId bob = AgentId.random();
     private final AgentId carol = AgentId.random();
+    private final AgentId dave = AgentId.random();
 
     @Test
     void openAndClosedEncountersRoundTripThroughRows() {
         EncounterData data = new EncounterData();
         Encounters roster = data.roster();
 
-        Encounter open = roster.join(alice, bob, 10L);
+        Encounter open = roster.join(alice, bob, 10L).orElseThrow();
         open.append(new Utterance(alice, SpeechActs.HAIL.key(), Map.of(), 10L));
         open.append(new Utterance(bob, SpeechActs.GREETING.key(), Map.of("tone", "warm"), 11L));
 
-        Encounter closed = roster.join(bob, carol, 20L);
-        closed.append(new Utterance(bob, SpeechActs.HAIL.key(), Map.of(), 20L));
+        // A second pair, not bob again: one open conversation per body, so he cannot be in two.
+        Encounter closed = roster.join(carol, dave, 20L).orElseThrow();
+        closed.append(new Utterance(carol, SpeechActs.HAIL.key(), Map.of(), 20L));
         roster.close(closed, 30L);
 
         List<EncounterData.Row> raw = data.rows();
@@ -62,8 +64,8 @@ class EncounterDataTest {
         assertEquals(Map.of("tone", "warm"), transcript.get(1).payload());
 
         Encounter restoredClosed = restoredRoster.closed().get(0);
-        assertTrue(restoredClosed.includes(bob));
         assertTrue(restoredClosed.includes(carol));
+        assertTrue(restoredClosed.includes(dave));
         assertTrue(restoredClosed.closed());
         assertEquals(30L, restoredClosed.closedAt());
     }
@@ -71,7 +73,7 @@ class EncounterDataTest {
     @Test
     void aSystemLineRoundTripsToANullAuthorUtterance() {
         EncounterData data = new EncounterData();
-        Encounter e = data.roster().join(alice, bob, 5L);
+        Encounter e = data.roster().join(alice, bob, 5L).orElseThrow();
         e.append(Utterance.system(SpeechActs.STALE.key(), bob, 6L));
 
         EncounterData restored = EncounterData.fromRows(1, 1, data.rows());

@@ -22,8 +22,12 @@ public interface Speech {
      */
     Optional<Encounter> current();
 
-    /** Opens or rejoins the encounter with {@code other}, crediting the hail as {@code opening} says. */
-    Encounter join(BeingId other, Opening opening);
+    /**
+     * Opens or rejoins the encounter with {@code other}, crediting the hail as {@code opening}
+     * says — empty when either body is already talking to somebody else, which is a refusal to
+     * retry later rather than a failure; see {@link Encounters#join}.
+     */
+    Optional<Encounter> join(BeingId other, Opening opening);
 
     /** Says {@code line}, authored by this body; closes the record when the act ends it. */
     void say(Encounter e, Chooser.Line line);
@@ -62,7 +66,9 @@ public interface Speech {
         }
 
         @Override
-        public Encounter join(BeingId other, Opening opening) {
+        public Optional<Encounter> join(BeingId other, Opening opening) {
+            // Still a throw, not an empty: a mute body has no conversation to refuse, it has no
+            // machinery at all — the difference between "busy" and "miswired".
             throw mute();
         }
 

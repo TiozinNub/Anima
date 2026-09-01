@@ -73,7 +73,7 @@ class SpeechEngineTest {
         Recorder recorder = new Recorder();
         SpeechEngine engine = engineFor(alice, roster, clock, CAPS, recorder);
 
-        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.I_HAILED);
+        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.I_HAILED).orElseThrow();
 
         assertEquals(1, e.transcript().size(), "the hail is the only line prefilled on open");
         Utterance hail = e.transcript().get(0);
@@ -81,7 +81,7 @@ class SpeechEngineTest {
         assertEquals(SpeechActs.HAIL.key(), hail.act());
         assertEquals(1, recorder.said.size(), "the prefill notifies the listener exactly once");
 
-        Encounter rejoined = engine.join(BeingId.of(bob), Speech.Opening.THEY_HAILED);
+        Encounter rejoined = engine.join(BeingId.of(bob), Speech.Opening.THEY_HAILED).orElseThrow();
         assertSame(e, rejoined, "the pair already has an open record — join must not duplicate it");
         assertEquals(1, e.transcript().size(),
                 "a non-empty transcript means the record wasn't just created — no second prefill");
@@ -98,7 +98,7 @@ class SpeechEngineTest {
         // same regardless of whose engine happened to make the call.
         SpeechEngine engine = engineFor(alice, roster, clock, CAPS, recorder);
 
-        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.THEY_HAILED);
+        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.THEY_HAILED).orElseThrow();
 
         Utterance hail = e.transcript().get(0);
         assertEquals(bob, hail.author(), "THEY_HAILED credits the other party as the hailer");
@@ -113,10 +113,27 @@ class SpeechEngineTest {
         Recorder recorder = new Recorder();
         SpeechEngine engine = engineFor(alice, roster, clock, CAPS, recorder);
 
-        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET);
+        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
 
         assertTrue(e.transcript().isEmpty(), "a quiet meeting starts no record of anyone hailing");
         assertTrue(recorder.said.isEmpty());
+    }
+
+    @Test
+    @DisplayName("join against a body already talking is refused, and prefills no hail")
+    void joinAgainstABusyBodyIsRefused() {
+        Encounters roster = new Encounters();
+        long[] clock = {0L};
+        Recorder recorder = new Recorder();
+        SpeechEngine engine = engineFor(alice, roster, clock, CAPS, recorder);
+        AgentId carol = AgentId.random();
+        Encounter theirs = roster.join(bob, carol, 0L).orElseThrow(); // bob is spoken for
+
+        Optional<Encounter> refused = engine.join(BeingId.of(bob), Speech.Opening.I_HAILED);
+
+        assertTrue(refused.isEmpty(), "a bystander may not open a second record against a busy body");
+        assertEquals(List.of(theirs), roster.open(), "and no record was created for the attempt");
+        assertTrue(recorder.said.isEmpty(), "a refused join credits no hail to anybody");
     }
 
     @Test
@@ -126,7 +143,7 @@ class SpeechEngineTest {
         long[] clock = {0L};
         Recorder recorder = new Recorder();
         SpeechEngine engine = engineFor(alice, roster, clock, CAPS, recorder);
-        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET);
+        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
 
         engine.say(e, Chooser.Line.of(SpeechActs.GREETING));
 
@@ -152,7 +169,7 @@ class SpeechEngineTest {
         long[] clock = {0L};
         Recorder recorder = new Recorder();
         SpeechEngine engine = engineFor(alice, roster, clock, CAPS, recorder);
-        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET);
+        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
 
         engine.system(e, SpeechActs.IGNORED, bob);
         assertEquals(1, e.transcript().size());
@@ -175,7 +192,7 @@ class SpeechEngineTest {
         Recorder recorder = new Recorder();
         SpeechEngine.Caps tightGap = new SpeechEngine.Caps(60, 6_000, 100, 300);
         SpeechEngine engine = engineFor(alice, roster, clock, tightGap, recorder);
-        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET);
+        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
 
         clock[0] = 101L; // 101 ticks of silence past a 100-tick gap
 
@@ -201,7 +218,7 @@ class SpeechEngineTest {
         Recorder recorder = new Recorder();
         SpeechEngine.Caps tightGap = new SpeechEngine.Caps(60, 6_000, 100, 300);
         SpeechEngine engine = engineFor(alice, roster, clock, tightGap, recorder);
-        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET);
+        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
 
         clock[0] = 99L; // exactly at the gap — Encounters.stale is strictly-greater-than
 
@@ -220,7 +237,7 @@ class SpeechEngineTest {
         Recorder recorder = new Recorder();
         SpeechEngine.Caps shortDuration = new SpeechEngine.Caps(60, 50, 6_000, 300);
         SpeechEngine engine = engineFor(alice, roster, clock, shortDuration, recorder);
-        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET);
+        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
 
         List<SpeechAct> beforeCap = engine.turn(e).applicable();
         assertTrue(beforeCap.contains(SpeechActs.GREETING), "well within the duration cap, greeting is on offer");
@@ -242,7 +259,7 @@ class SpeechEngineTest {
         Recorder recorder = new Recorder();
         SpeechEngine.Caps shortPatience = new SpeechEngine.Caps(60, 6_000, 6_000, 300);
         SpeechEngine engine = engineFor(alice, roster, clock, shortPatience, recorder);
-        Encounter e = roster.join(alice, bob, 1_000L);
+        Encounter e = roster.join(alice, bob, 1_000L).orElseThrow();
         // Alice is the one who asked — the obligation to answer now sits on bob, not on her.
         Utterance ask = new Utterance(alice, SpeechActs.REQUEST_END_CHAT.key(), Map.of(), 1_000L);
         e.append(ask);
@@ -264,7 +281,7 @@ class SpeechEngineTest {
     @DisplayName("BASIC answers a pending constrained ask with its first declared response, via a real Turn")
     void basicChooserAnswersPendingConstrainedAskWithFirstResponse() {
         Encounters roster = new Encounters();
-        Encounter e = roster.join(alice, bob, 0L);
+        Encounter e = roster.join(alice, bob, 0L).orElseThrow();
         e.append(new Utterance(bob, ASK_WITH_ONLY_GREETING_AS_RESPONSE.key(), Map.of(), 0L));
         long[] clock = {0L};
         Recorder recorder = new Recorder();
@@ -289,7 +306,7 @@ class SpeechEngineTest {
         Recorder recorder = new Recorder();
         SpeechEngine aliceEngine = engineFor(alice, roster, clock, CAPS, recorder);
         SpeechEngine bobEngine = engineFor(bob, roster, clock, CAPS, new Recorder());
-        Encounter e = roster.join(alice, bob, 0L);
+        Encounter e = roster.join(alice, bob, 0L).orElseThrow();
 
         assertEquals(Optional.of(bob), aliceEngine.counterpart(e));
         assertEquals(Optional.of(alice), bobEngine.counterpart(e));
@@ -302,7 +319,7 @@ class SpeechEngineTest {
         long[] clock = {0L};
         Recorder recorder = new Recorder();
         SpeechEngine engine = engineFor(alice, roster, clock, CAPS, recorder);
-        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET);
+        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
 
         engine.say(e, Chooser.Line.of(SpeechActs.REQUEST_END_CHAT));
 

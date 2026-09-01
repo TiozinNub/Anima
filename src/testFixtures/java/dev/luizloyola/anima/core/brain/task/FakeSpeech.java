@@ -65,7 +65,7 @@ public final class FakeSpeech implements Speech {
     }
 
     @Override
-    public Encounter join(BeingId other, Opening opening) {
+    public Optional<Encounter> join(BeingId other, Opening opening) {
         return engine.join(other, opening);
     }
 

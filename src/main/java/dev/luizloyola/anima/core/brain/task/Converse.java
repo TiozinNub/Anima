@@ -15,12 +15,17 @@ import dev.luizloyola.anima.core.social.speech.Picker;
 import dev.luizloyola.anima.core.social.speech.Speech;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import dev.luizloyola.anima.core.social.speech.Utterance;
+import java.util.Optional;
 
 /**
  * Participating in a conversation is a task like any other — it holds the body in place,
  * turns the head, and takes turns on this brain's own ticks. Cancel leaves the record OPEN
  * on purpose: interruption is not rudeness, and the other side's patience or the staleness
  * gap ends what we walked away from.
+ *
+ * <p><b>A busy body is not joined.</b> Where the counterpart is already in somebody else's record
+ * this FAILS on its first tick, before a word or a step — one open conversation per body, see
+ * {@link Speech#join}.
  *
  * <p><b>Taking over means walking into range first — once.</b> A body handed this from beyond
  * {@code social.chat_radius} — the resume pull can grant it across an open field — closes the
@@ -103,7 +108,20 @@ public final class Converse implements PrimitiveTask {
     public TaskStatus tick(BrainContext ctx) {
         Speech speech = ctx.speech();
         if (encounter == null) {
-            encounter = speech.current().orElseGet(() -> speech.join(other, opening));
+            Optional<Encounter> mine = speech.current();
+            if (mine.isEmpty()) {
+                mine = speech.join(other, opening);
+            }
+            if (mine.isEmpty()) {
+                // They are mid-conversation with somebody else, and a second record against a busy
+                // body is exactly the churn one-conversation-per-body exists to stop. FAILED rather
+                // than SUCCESS so the arbiter's fail cooldown paces the retry; the spent hail mark
+                // already stops this body shouting again in the meantime.
+                dropWalk(ctx); // nothing can be running this early, and nothing may be after
+                ctx.journal().record(Category.BRAIN, "converse", "they were already talking");
+                return TaskStatus.FAILED;
+            }
+            encounter = mine.get();
         }
         if (encounter.closed()) {
             return TaskStatus.SUCCESS;

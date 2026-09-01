@@ -84,9 +84,13 @@ public final class SpeechEngine implements Speech {
     }
 
     @Override
-    public Encounter join(BeingId other, Opening opening) {
+    public Optional<Encounter> join(BeingId other, Opening opening) {
         long tick = now.getAsLong();
-        Encounter e = roster.join(self, other.asPerson(), tick);
+        Optional<Encounter> joined = roster.join(self, other.asPerson(), tick);
+        if (joined.isEmpty()) {
+            return joined; // one of the two is already talking — the roster's rule, not ours
+        }
+        Encounter e = joined.get();
         if (e.transcript().isEmpty() && opening != Opening.QUIET) {
             // Either party may open first; the record reads the same both ways — credited to
             // whoever actually hailed, never to whichever body's engine happened to call join().
@@ -95,7 +99,7 @@ public final class SpeechEngine implements Speech {
             e.append(hail);
             listener.said(e, hail);
         }
-        return e;
+        return joined;
     }
 
     @Override
