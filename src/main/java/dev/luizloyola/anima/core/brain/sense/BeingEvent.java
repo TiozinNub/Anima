@@ -8,8 +8,8 @@ import org.jspecify.annotations.Nullable;
  * narration is kind-gated: persons narrate every axis flip, creatures only spotted / recognized /
  * lost, or a chase's approaching-flip-storm would drown the journal.
  *
- * <p>{@link Type#READING_CHANGED} fires when ANY rendered axis flips — occupation, legs, posture,
- * gaze, approach, or the awareness tag; {@link #was} carries the full previous reading.
+ * <p>{@link Type#READING_CHANGED} fires when ANY rendered axis flips — the name, occupation, legs,
+ * posture, gaze, approach, or the awareness tag; {@link #was} carries the full previous reading.
  */
 public record BeingEvent(Type type, Being being, @Nullable Being was) {
 

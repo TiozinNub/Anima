@@ -199,6 +199,10 @@ public final class Speeches {
         ContactsSync.learned(server, learner, whom);
         if (body != null) {
             body.journal().record(Category.BRAIN, "converse", "learned their name — " + name);
+            // The percept's name is read out of this same book on the sensor's own attention
+            // cadence, so a learner left to wait for it re-asks a name it was told seconds ago —
+            // the per-record "already given here" guard cannot see across into a fresh record.
+            body.beingSense().renamed(whom, name);
         }
         return true;
     }

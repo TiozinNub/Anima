@@ -320,6 +320,34 @@ public final class BeingSensorCore {
         }
     }
 
+    /**
+     * That one has a name to us now — the learn, landed on the track the moment it happens.
+     *
+     * <p><b>Because the eyes read the name out of a contact book on their own cadence.</b> A name
+     * learned between two attention beats is invisible to everything downstream until the next
+     * one, and a body that asks "who are you?" reads the percept, not the book: inside that lag it
+     * re-asks a name it was told seconds ago. Pushed here rather than waited for, so no guard has
+     * to know the reading can be behind the truth.
+     *
+     * <p>Nothing is minted: an unperceived body has no track to correct, and the sighting that
+     * eventually finds it reads the book anyway.
+     */
+    public void renamed(BeingId who, String name) {
+        Track track = tracks.get(who);
+        if (track == null) {
+            return;
+        }
+        Being before = being(track);
+        BeingReading r = track.last;
+        track.last = new BeingReading(r.id(), r.kind(), r.species(), name, r.profession(),
+                r.herdAnimal(), r.pos(), r.distance(), r.eyeHeight(), r.playerControlled(),
+                r.locomotion(), r.sneaking(), r.watching(), r.aimedAt(), r.aggressive(), r.gear(),
+                r.activity());
+        if (track.herd == null) {
+            announceIfChanged(track, before); // masked below INDIVIDUAL, so this can be a no-op
+        }
+    }
+
     /** Whether calling that one again would just be shouting twice. */
     public boolean calledLately(BeingId whom, long now) {
         Track track = tracks.get(whom);
@@ -762,7 +790,8 @@ public final class BeingSensorCore {
     /** The narrator's rule: if any rendered axis of the MASKED reading flipped, say so — once. */
     private void announceIfChanged(Track track, Being before) {
         Being after = being(track);
-        if (before.activity() != after.activity()
+        if (!before.name().equals(after.name())
+                || before.activity() != after.activity()
                 || before.locomotion() != after.locomotion()
                 || before.sneaking() != after.sneaking()
                 || before.watching() != after.watching()

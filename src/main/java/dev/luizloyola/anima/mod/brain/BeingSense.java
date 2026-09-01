@@ -216,6 +216,11 @@ public final class BeingSense {
         sensor.calledOut(whom, person.level().getGameTime());
     }
 
+    /** This body has just learned what to call {@code whom} — see {@link BeingSensorCore#renamed}. */
+    public void renamed(AgentId whom, String name) {
+        sensor.renamed(BeingId.of(whom), name);
+    }
+
     /** A deliberate shout arrived — see {@link BeingSensorCore#hailedBy}. */
     public void hailedBy(LivingEntity source) {
         BeingReading reading = read(source);

@@ -144,6 +144,34 @@ class BeingSensorCoreTest {
     }
 
     @Test
+    void aLearnedNameLandsOnTheTrackWithoutWaitingForTheNextLook() {
+        BeingId stranger = world.addPerson("", new Pos(0, 64, 3), 3.0, Being.Activity.IDLE);
+        tickN(2);
+        assertEquals("", only().name(), "seen, but nobody has been introduced");
+
+        sensor.renamed(stranger, "Alma");
+
+        assertEquals("Alma", only().name(),
+                "the learn is on the track the same tick, not on the next attention beat");
+        world.rename(stranger, "Alma"); // the book the eyes read now agrees, as it does in world
+        List<BeingEvent> events = tickN(10);
+        assertEquals(1, events.stream()
+                        .filter(e -> e.type() == BeingEvent.Type.READING_CHANGED).count(),
+                "a stranger becoming somebody is a reading change, narrated exactly once");
+        BeingEvent change = events.stream()
+                .filter(e -> e.type() == BeingEvent.Type.READING_CHANGED).findFirst().orElseThrow();
+        assertEquals("", change.was().name());
+        assertEquals("Alma", change.being().name());
+    }
+
+    @Test
+    void renamingSomebodyUnperceivedMintsNothing() {
+        sensor.renamed(BeingId.of(UUID.randomUUID()), "Nobody");
+
+        assertTrue(sensor.beings().isEmpty(), "a name is not a sighting");
+    }
+
+    @Test
     void rememberedReadingsStayFrozen() {
         BeingId walled = world.addPerson("Frozen", new Pos(0, 64, 5), 5.0, Being.Activity.MINING);
         tickN(2);
@@ -563,6 +591,15 @@ class BeingSensorCoreTest {
                     r.herdAnimal(), pos, distance, r.eyeHeight(), r.playerControlled(),
                     Being.Locomotion.STILL, false, false, false,
                     r.aggressive(), r.gear(), activity));
+        }
+
+        /** The book catching up — what the eyes would read on their next beat, once introduced. */
+        void rename(BeingId id, String name) {
+            BeingReading r = bodies.get(id);
+            bodies.put(id, new BeingReading(id, r.kind(), r.species(), name, r.profession(),
+                    r.herdAnimal(), r.pos(), r.distance(), r.eyeHeight(), r.playerControlled(),
+                    r.locomotion(), r.sneaking(), r.watching(),
+                    r.aimedAt(), r.aggressive(), r.gear(), r.activity()));
         }
 
         void move(BeingId id, Pos pos, double distance) {
