@@ -12,6 +12,7 @@ import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.mod.nav.PathfinderService;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
@@ -249,5 +250,17 @@ public final class AgentPercepts implements Percepts {
                     this.person.agentId().value().getLeastSignificantBits());
         }
         return this.cadence;
+    }
+
+    @Override
+    public double eyeHeight() {
+        return this.person.entity().getEyeHeight();
+    }
+
+    /** The same attribute the breaker measures reach by, with the same player default. */
+    @Override
+    public double reach() {
+        return AgentBlockBreaker.attribute(this.person.entity(),
+                Attributes.BLOCK_INTERACTION_RANGE, AgentBlockBreaker.DEFAULT_REACH);
     }
 }

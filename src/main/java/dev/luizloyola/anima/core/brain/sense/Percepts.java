@@ -119,4 +119,22 @@ public interface Percepts {
     default Confinement confinement() {
         return Confinement.NONE;
     }
+
+    /**
+     * How far above its feet this body's eyes are, in blocks — where every reach and every line of
+     * sight starts. Read off the live entity, never a species constant: the entity is the one
+     * that knows. The default is a humanoid's, for a rig with no body behind it.
+     */
+    default double eyeHeight() {
+        return Being.HUMANOID_EYE_HEIGHT;
+    }
+
+    /**
+     * How far from its eyes this body's arm reaches a block, in blocks — the same number the
+     * breaking arm refuses by, so a plan that says "reachable from here" is one the arm agrees
+     * with. The default is the survival player's.
+     */
+    default double reach() {
+        return 4.5;
+    }
 }

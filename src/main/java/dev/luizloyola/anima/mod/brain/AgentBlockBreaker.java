@@ -48,7 +48,7 @@ public final class AgentBlockBreaker implements BlockBreaker {
      * {@code block_interaction_range} — the survival player's own default, for a body that skipped
      * {@link AgentAttributes#mining}.
      */
-    private static final double DEFAULT_REACH = 4.5;
+    static final double DEFAULT_REACH = 4.5;
     /** Vanilla's per-block exhaustion for breaking (verified against the player mining path). */
     private static final float EXHAUSTION_PER_BLOCK = 0.005F;
 
@@ -237,7 +237,7 @@ public final class AgentBlockBreaker implements BlockBreaker {
      * {@code AttributeSupplier.getValue} mid-swing. The fallback is the vanilla player's default, so
      * an undeclared body mines like an unmodified one.
      */
-    private static double attribute(LivingEntity self, Holder<Attribute> attribute, double whenAbsent) {
+    static double attribute(LivingEntity self, Holder<Attribute> attribute, double whenAbsent) {
         return self.getAttributes().hasAttribute(attribute)
                 ? self.getAttributeValue(attribute) : whenAbsent;
     }

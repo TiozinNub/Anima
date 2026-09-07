@@ -64,6 +64,9 @@ public final class FakePercepts implements Percepts {
     public long time;
     /** What the legs last found out about being shut in — settable; defaults to nothing known. */
     public Confinement confinement = Confinement.NONE;
+    /** A settler's eyes and arm, unless a test says otherwise. */
+    public double eyeHeight = 1.62;
+    public double reach = 4.5;
     /** Who this fake body has called lately — seeded by guardrail tests. */
     public final java.util.Set<BeingId> called = new java.util.HashSet<>();
     private final Map<String, FoodValue> foodById = new HashMap<>();
@@ -207,5 +210,15 @@ public final class FakePercepts implements Percepts {
     @Override
     public Confinement confinement() {
         return confinement;
+    }
+
+    @Override
+    public double eyeHeight() {
+        return eyeHeight;
+    }
+
+    @Override
+    public double reach() {
+        return reach;
     }
 }
