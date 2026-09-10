@@ -13,6 +13,7 @@ import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.mod.brain.AgentBlockBreaker;
+import dev.luizloyola.anima.mod.brain.AgentLeaner;
 import dev.luizloyola.anima.mod.brain.AgentRiser;
 import dev.luizloyola.anima.mod.brain.BrainDriver;
 import dev.luizloyola.anima.mod.brain.PoiSensor;
@@ -134,6 +135,12 @@ public interface AgentBody {
 
     /** The body's rise-one actuator, which it owns and ticks (centring, jump, place). */
     AgentRiser riser();
+
+    /**
+     * The body's lean actuator, which it owns and ticks (the creep out and back), and whose
+     * {@link AgentLeaner#crouching()} its pose follows.
+     */
+    AgentLeaner leaner();
 
     /**
      * What this body does about being in water — buoyancy, wading, and getting out again. Ticked

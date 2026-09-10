@@ -12,6 +12,7 @@ import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.mod.nav.PathfinderService;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Being;
@@ -255,6 +256,11 @@ public final class AgentPercepts implements Percepts {
     @Override
     public double eyeHeight() {
         return this.person.entity().getEyeHeight();
+    }
+
+    @Override
+    public double crouchedEyeHeight() {
+        return this.person.entity().getDimensions(Pose.CROUCHING).eyeHeight();
     }
 
     /** The same attribute the breaker measures reach by, with the same player default. */

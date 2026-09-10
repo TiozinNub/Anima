@@ -66,6 +66,7 @@ public final class FakePercepts implements Percepts {
     public Confinement confinement = Confinement.NONE;
     /** A settler's eyes and arm, unless a test says otherwise. */
     public double eyeHeight = 1.62;
+    public double crouchedEyeHeight = 1.27;
     public double reach = 4.5;
     /** Who this fake body has called lately — seeded by guardrail tests. */
     public final java.util.Set<BeingId> called = new java.util.HashSet<>();
@@ -215,6 +216,11 @@ public final class FakePercepts implements Percepts {
     @Override
     public double eyeHeight() {
         return eyeHeight;
+    }
+
+    @Override
+    public double crouchedEyeHeight() {
+        return crouchedEyeHeight;
     }
 
     @Override

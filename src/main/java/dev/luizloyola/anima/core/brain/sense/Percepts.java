@@ -130,6 +130,14 @@ public interface Percepts {
     }
 
     /**
+     * The same with the body crouched — what a {@link dev.luizloyola.anima.core.brain.act.Leaner}
+     * lowers the eyes to. A body that cannot crouch answers with its standing height.
+     */
+    default double crouchedEyeHeight() {
+        return eyeHeight();
+    }
+
+    /**
      * How far from its eyes this body's arm reaches a block, in blocks — the same number the
      * breaking arm refuses by, so a plan that says "reachable from here" is one the arm agrees
      * with. The default is the survival player's.

@@ -11,6 +11,7 @@ import dev.luizloyola.anima.core.brain.act.ContainerAccess;
 import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.act.ItemConsumer;
 import dev.luizloyola.anima.core.brain.act.Mover;
+import dev.luizloyola.anima.core.brain.act.Leaner;
 import dev.luizloyola.anima.core.brain.act.Riser;
 import dev.luizloyola.anima.core.brain.board.AgentClaims;
 import dev.luizloyola.anima.core.brain.instinct.ConverseInstinct;
@@ -171,6 +172,11 @@ public final class BrainDriver {
             @Override
             public Riser riser() {
                 return person.riser(); // body-owned and body-ticked, like the breaker
+            }
+
+            @Override
+            public Leaner leaner() {
+                return person.leaner(); // the same
             }
 
             @Override

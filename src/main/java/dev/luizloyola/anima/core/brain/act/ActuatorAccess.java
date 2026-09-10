@@ -25,6 +25,11 @@ public interface ActuatorAccess {
     /** The legs, gaining one block of height — see {@link Riser}. */
     Riser riser();
 
+    /** The crouch-to-the-edge for the last part of a cell of reach; a body that cannot is {@link Leaner#NONE}. */
+    default Leaner leaner() {
+        return Leaner.NONE;
+    }
+
     /** Reaching into containers — see {@link ContainerAccess}. */
     ContainerAccess containers();
 
