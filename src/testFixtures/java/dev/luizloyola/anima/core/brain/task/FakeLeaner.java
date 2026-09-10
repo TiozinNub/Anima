@@ -7,6 +7,8 @@ import dev.luizloyola.anima.core.brain.act.Leaner;
 public final class FakeLeaner implements Leaner {
     public LeanState state = LeanState.IDLE;
     public boolean refuse;
+    /** Refuse this many asks first — a body still landing does. */
+    public int refuseFor;
     public int leans;
     public double lastX;
     public double lastZ;
@@ -14,6 +16,10 @@ public final class FakeLeaner implements Leaner {
     @Override
     public boolean toward(double x, double z) {
         if (refuse || state == LeanState.LEANING || state == LeanState.RELEASING) {
+            return false;
+        }
+        if (refuseFor > 0) {
+            refuseFor--;
             return false;
         }
         leans++;
