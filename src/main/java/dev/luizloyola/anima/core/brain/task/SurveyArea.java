@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
+import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.knowledge.Coverage;
 import dev.luizloyola.anima.core.brain.knowledge.CoverageGrid;
@@ -394,10 +395,27 @@ public final class SurveyArea implements PrimitiveTask {
     /** Heads for the least-known cell, nearest first among equals. */
     private TaskStatus startNext(BrainContext ctx) {
         Pos here = ctx.percepts().position();
+        BlockProbe probe = ctx.percepts().blocks();
         int worst = -1;
         double worstScore = Double.MAX_VALUE;
         for (int cell = 0; cell < looked.length; cell++) {
             if (known(cell)) {
+                continue;
+            }
+            // Open water is known as open water, not walked to: what a boot lands on there is the
+            // bed, and a walk to the bed is a walk into the sea — a body sent to a corner
+            // twenty-six under the waves strayed at the shore and fell, and was sent again, for
+            // as long as it lived (2026-09-10). Nothing the sweep is after stands in it.
+            // The live probe's surface is what blocks motion, so it is the bed and the water is
+            // over it; a fixture's may be the water itself. Either reading says open water.
+            Pos centre = centreOf(cell);
+            int bed = probe.surfaceY(centre.x(), centre.z());
+            if (bed != Integer.MIN_VALUE
+                    && (probe.at(centre.x(), bed + 1, centre.z()) == BlockKind.WATER
+                    || probe.at(centre.x(), bed, centre.z()) == BlockKind.WATER)) {
+                settle(cell);
+                ctx.journal().record(Category.BRAIN, "survey",
+                        "open water at " + at(centre) + " — nothing to walk to there");
                 continue;
             }
             // Confidence first, distance only to break ties: a body should not cross the box for a
@@ -413,7 +431,7 @@ public final class SurveyArea implements PrimitiveTask {
         }
         this.target = worst;
         Pos centre = centreOf(worst);
-        int y = ctx.percepts().blocks().surfaceY(centre.x(), centre.z());
+        int y = probe.surfaceY(centre.x(), centre.z());
         this.walk = new GoTo(centre.x(), y, centre.z());
         return TaskStatus.RUNNING;
     }

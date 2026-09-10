@@ -17,6 +17,8 @@ import dev.luizloyola.anima.core.brain.knowledge.CoverageGrid;
 import dev.luizloyola.anima.core.brain.knowledge.CrescentSampler;
 import dev.luizloyola.anima.core.brain.knowledge.FakeGrowthRule;
 import dev.luizloyola.anima.core.brain.knowledge.GrowthRules;
+import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
+import dev.luizloyola.anima.core.brain.knowledge.FakeProbe;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
@@ -226,6 +228,26 @@ class SurveyAreaTest {
         ctx.percepts.position = new Pos(3, 63, 3);
         sweep.tick(ctx);
         assertTrue(sweep.cellsKnown() >= 1, "the near field knows the ground it is standing on");
+    }
+
+    @Test
+    void aCellUnderOpenWaterIsKnownAsWaterAndNeverWalkedTo() {
+        FakeContext ctx = standing(new Pos(0, 63, 0));
+        // The far corner's ground is the bed of a lake, water over it: a body that cannot look
+        // would have to walk every cell, and the walk to that one is a walk into the lake.
+        for (int x = 8; x < 16; x++) {
+            for (int z = 8; z < 16; z++) {
+                ctx.percepts.blocks.set(x, FakeProbe.GROUND_Y + 1, z, BlockKind.WATER);
+            }
+        }
+        SurveyArea sweep = new SurveyArea(smallBox(), SOUGHT);
+        List<Pos> trail = new ArrayList<>();
+
+        assertEquals(TaskStatus.SUCCESS, run(sweep, ctx, 4_000, trail));
+        assertEquals(sweep.cells(), sweep.cellsKnown());
+        for (Pos stood : trail) {
+            assertFalse(stood.x() >= 8 && stood.z() >= 8, "walked into the lake at " + stood);
+        }
     }
 
     @Test
