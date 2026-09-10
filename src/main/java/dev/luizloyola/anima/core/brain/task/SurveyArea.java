@@ -406,13 +406,15 @@ public final class SurveyArea implements PrimitiveTask {
             // bed, and a walk to the bed is a walk into the sea — a body sent to a corner
             // twenty-six under the waves strayed at the shore and fell, and was sent again, for
             // as long as it lived (2026-09-10). Nothing the sweep is after stands in it.
-            // The live probe's surface is what blocks motion, so it is the bed and the water is
-            // over it; a fixture's may be the water itself. Either reading says open water.
+            // Read at the top of the column, where the water is, not just over the bed: kelp or
+            // seagrass on the bed is neither water nor air, and a corner read that way sent a
+            // body back to the sea floor after the first fix (2026-09-10).
             Pos centre = centreOf(cell);
+            int top = probe.topY(centre.x(), centre.z());
             int bed = probe.surfaceY(centre.x(), centre.z());
-            if (bed != Integer.MIN_VALUE
-                    && (probe.at(centre.x(), bed + 1, centre.z()) == BlockKind.WATER
-                    || probe.at(centre.x(), bed, centre.z()) == BlockKind.WATER)) {
+            if ((top != Integer.MIN_VALUE && probe.at(centre.x(), top, centre.z()) == BlockKind.WATER)
+                    || (bed != Integer.MIN_VALUE
+                    && probe.at(centre.x(), bed + 1, centre.z()) == BlockKind.WATER)) {
                 settle(cell);
                 ctx.journal().record(Category.BRAIN, "survey",
                         "open water at " + at(centre) + " — nothing to walk to there");
