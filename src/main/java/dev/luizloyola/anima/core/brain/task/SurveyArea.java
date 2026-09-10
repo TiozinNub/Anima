@@ -71,6 +71,14 @@ public final class SurveyArea implements PrimitiveTask {
     /** Walks at a cell before it is written off as unreachable and stops holding the box open. */
     public static final int WALK_TRIES = 2;
 
+    /**
+     * Ticks one walk to a cell may take before it counts as a try that failed. The legs can stray
+     * and re-path around a drop for as long as the body lives — a corner on the floor of a chasm
+     * forty deep held one at the rim, falling, until it was lifted out (2026-09-10) — and only
+     * time ends that. Two minutes of game is a walk across any box the sweep is given.
+     */
+    public static final int WALK_BUDGET = 2400;
+
     /** Centre to corner of one cell — how much of a cell can lie nearer than its centre does. */
     private static final double CELL_REACH = CELL * Math.sqrt(2) / 2;
 
@@ -102,6 +110,8 @@ public final class SurveyArea implements PrimitiveTask {
     /** The cell being visited, or -1 between errands. */
     private int target = -1;
     private @Nullable GoTo walk;
+    /** Ticks the current walk has taken, against {@link #WALK_BUDGET}. */
+    private int walkTicks;
     private @Nullable Survey survey;
     /** Where the in-flight survey is anchored — its occlusion is only coherent from one spot. */
     private @Nullable Pos standing;
@@ -266,7 +276,12 @@ public final class SurveyArea implements PrimitiveTask {
         TaskStatus status = leg.tick(ctx);
         switch (status) {
             case RUNNING -> {
-                return TaskStatus.RUNNING;
+                if (++walkTicks < WALK_BUDGET) {
+                    return TaskStatus.RUNNING;
+                }
+                leg.cancel(ctx);
+                return walkGaveUp(ctx, "cannot reach " + at(centreOf(target)) + " in "
+                        + WALK_BUDGET + " ticks");
             }
             case SUCCESS -> {
                 // Arrived does not mean known: a near field too small, or a target clamped short
@@ -286,20 +301,25 @@ public final class SurveyArea implements PrimitiveTask {
                 return TaskStatus.RUNNING;
             }
             default -> {
-                // Unreachable from here, this time. Written off after a couple of tries: a cell
-                // behind a cliff would otherwise hold the box open forever.
-                this.walk = null;
-                if (target >= 0 && ++tries[target] >= WALK_TRIES) {
-                    // Through settle(), not a direct write: a write-off the sink never hears about
-                    // stays on the frontier forever and its slice is re-offered without end.
-                    settle(target);
-                    ctx.journal().record(Category.BRAIN, describe(),
-                            "cannot reach " + at(centreOf(target)) + " — writing that corner off");
-                }
-                this.target = -1;
-                return TaskStatus.RUNNING;
+                return walkGaveUp(ctx, "cannot reach " + at(centreOf(target)));
             }
         }
+    }
+
+    /**
+     * Unreachable from here, this time — the legs gave up, or the budget ran out. Written off
+     * after a couple of tries: a cell behind a cliff would otherwise hold the box open forever.
+     */
+    private TaskStatus walkGaveUp(BrainContext ctx, String why) {
+        this.walk = null;
+        if (target >= 0 && ++tries[target] >= WALK_TRIES) {
+            // Through settle(), not a direct write: a write-off the sink never hears about stays
+            // on the frontier forever and its slice is re-offered without end.
+            settle(target);
+            ctx.journal().record(Category.BRAIN, describe(), why + " — writing that corner off");
+        }
+        this.target = -1;
+        return TaskStatus.RUNNING;
     }
 
     /**
@@ -435,6 +455,7 @@ public final class SurveyArea implements PrimitiveTask {
         Pos centre = centreOf(worst);
         int y = probe.surfaceY(centre.x(), centre.z());
         this.walk = new GoTo(centre.x(), y, centre.z());
+        this.walkTicks = 0;
         return TaskStatus.RUNNING;
     }
 

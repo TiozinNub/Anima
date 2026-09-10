@@ -251,6 +251,26 @@ class SurveyAreaTest {
     }
 
     @Test
+    void aWalkThatNeverEndsIsATryThatFailed() {
+        FakeContext ctx = standing(new Pos(0, 63, 0));
+        ctx.percepts.blocks.placeOak(12, 12); // something to insist on going to
+        SurveyArea sweep = new SurveyArea(smallBox(), SOUGHT);
+
+        TaskStatus status = TaskStatus.RUNNING;
+        int ticks = 0;
+        for (; ticks < 40_000 && status == TaskStatus.RUNNING; ticks++) {
+            status = sweep.tick(ctx);
+            // The legs never arrive and never give up: straying and re-pathing around a drop.
+            if (ctx.mover.moveToCalls > 0) {
+                ctx.mover.setState(MoveState.MOVING);
+            }
+        }
+        assertEquals(TaskStatus.SUCCESS, status);
+        assertTrue(ticks <= SurveyArea.WALK_BUDGET * SurveyArea.WALK_TRIES * sweep.cells() + 100,
+                "two budgets a cell and no more, took " + ticks);
+    }
+
+    @Test
     void aCellThatCannotBeReachedIsWrittenOffRatherThanRetriedForever() {
         FakeContext ctx = looking(new Pos(0, 63, 0));
         ctx.percepts.blocks.placeOak(44, 44); // something to insist on going to
