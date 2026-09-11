@@ -156,30 +156,37 @@ class SeekCompanyTest {
     }
 
     /**
-     * The first live client test, in one line: a settler crossed a field to stand in front of the
-     * player and wait out the patience clock, because nothing a player does is a reply yet.
-     * Rung 7 gives them one, and this expectation goes with it.
+     * The clause rung 7 deleted, now pinned the other way round. A player used to be skipped
+     * outright: minded, but unable to say a word back, so the first live client test had a settler
+     * cross a field to stand in front of one and wait out the patience clock. The menu is that
+     * reply, so a player is company like anybody else — and if the menu ever goes away, this is
+     * the test that should fail first.
      */
     @Test
-    void aPlayerIsNoCompanyUntilAPlayerCanAnswer() {
+    void aPlayerIsCompanyNowThatOneCanAnswer() {
         ctx.percepts.company.setValue(0.0);
-        ctx.percepts.beings = List.of(FakePercepts.playerAt(new Pos(40, 64, 0), 40.0));
+        Being player = FakePercepts.playerAt(new Pos(40, 64, 0), 40.0);
+        ctx.percepts.beings = List.of(player);
 
-        assertEquals(TaskStatus.FAILED, new SeekCompany().tick(ctx),
-                "a player is minded, and still cannot say a word back");
-        assertFalse(ctx.voice.hailed, "so there is nobody to call out to");
+        assertEquals(TaskStatus.RUNNING, new SeekCompany().tick(ctx),
+                "a player is minded and can answer — that is somebody worth walking to");
+        assertTrue(ctx.voice.hailed, "and past hearing range, worth calling out to");
+        assertTrue(ctx.percepts.calledLately(player.id()));
     }
 
     @Test
-    void aFartherPersonBeatsANearerPlayer() {
+    void theNearerBodyWinsWhoeverIsDrivingIt() {
         ctx.percepts.company.setValue(0.0);
         Being person = FakePercepts.personAt(new Pos(40, 64, 0), 40.0, "");
-        ctx.percepts.beings = List.of(FakePercepts.playerAt(new Pos(3, 64, 0), 3.0), person);
+        Being player = FakePercepts.playerAt(new Pos(3, 64, 0), 3.0);
+        ctx.percepts.beings = List.of(player, person);
 
         new SeekCompany().tick(ctx);
 
-        assertTrue(ctx.percepts.calledLately(person.id()),
-                "the player is skipped outright, not merely outranked by distance");
+        assertTrue(ctx.percepts.calledLately(player.id()),
+                "nearest wins: a player is no longer skipped in favour of a distant settler");
+        assertFalse(ctx.percepts.calledLately(person.id()));
+        assertFalse(ctx.voice.hailed, "inside hearing range, walking over says it — no shout");
     }
 
     @Test
