@@ -1,16 +1,19 @@
 package dev.luizloyola.anima.mod.social;
 
 import dev.luizloyola.anima.core.agent.AgentId;
-import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.agent.need.Company;
+import dev.luizloyola.anima.core.agent.need.NeedKind;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.social.speech.Encounter;
 import dev.luizloyola.anima.core.social.speech.SpeechAct;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
+import dev.luizloyola.anima.core.social.speech.SpeechEngine;
 import dev.luizloyola.anima.core.social.speech.Utterance;
 import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.body.AgentBody;
+import dev.luizloyola.anima.mod.brain.BeingSpeech;
 import dev.luizloyola.anima.mod.identity.AgentDirectory;
 import dev.luizloyola.anima.mod.net.ContactsSync;
 import java.util.ArrayList;
@@ -19,6 +22,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -36,11 +41,11 @@ import org.jetbrains.annotations.Nullable;
  * stranger. So there is no single rendered line to broadcast: each nearby player gets their own,
  * built from their own contact book.
  *
- * <p><b>The writer is not the speaker.</b> {@code speaker} is the body whose engine wrote the line
- * — it supplies the position, the chat radius and so the audience. WHO is shown comes from
- * {@link Utterance#author()}, and the two differ on the answerer's prefill of a hail it did not
- * make (see {@code SpeechEngine.join}). Resolve a name or a portrait from the author, never from
- * the writer.
+ * <p><b>The writer is not the speaker.</b> {@code writer} is the body whose engine wrote the line
+ * — a settler's, or a player's since rung 7 — and it supplies the position, the chat radius and so
+ * the audience. WHO is shown comes from {@link Utterance#author()}, and the two differ on the
+ * answerer's prefill of a hail it did not make (see {@code SpeechEngine.join}). Resolve a name or
+ * a portrait from the author, never from the writer.
  *
  * <p><b>Rendering happens before the learn cascade, on purpose.</b> An introduction reads
  * "Someone: I'm Alma" — the prefix is what the listener knew a moment ago and the name in the line
@@ -58,15 +63,14 @@ public final class Speeches {
      * away. Called once as the line lands — never by replaying a transcript, which would re-teach
      * a name to a room that has since forgotten it on purpose.
      */
-    public static void deliver(MinecraftServer server, AgentBody speaker, Encounter e, Utterance u) {
+    public static void deliver(MinecraftServer server, LivingEntity writer, int radius, Encounter e,
+            Utterance u) {
         SpeechAct act = SpeechActs.byKey(u.act()).orElse(null);
         if (act == null) {
             // A word this install does not carry: silence beats a raw lang key in chat. System
             // lines are NOT skipped — "(the conversation trailed off)" is the fiction, not debug.
             return;
         }
-        LivingEntity writer = speaker.entity();
-        int radius = speaker.profile().i(ProfileAspect.SOCIAL_CHAT_RADIUS);
         List<ServerPlayer> audience = within(server, writer, radius);
         AgentId author = u.author();
 
@@ -88,6 +92,52 @@ public final class Speeches {
         }
     }
 
+    /**
+     * What every engine does as a line lands — a settler's and a player's alike, which is why it
+     * lives here and not in {@code BrainDriver}: mark the store, sound the voice, pay company, and
+     * put the line in front of whoever can hear it.
+     *
+     * <p>A SYSTEM line (IGNORED, STALE, …) is the world reporting ON the conversation, not a party
+     * speaking IN it — "a conversation is worth what was SAID" ({@code Company#conversed}'s own
+     * doc), and nobody said this. No sound, no pay; {@link #deliver} still runs so players read the
+     * gray line. Company is paid once per participant as the line arrives and never by replaying a
+     * transcript, which would double-pay a resumed conversation; a participant with no loaded
+     * body — a player, a settler in an unloaded chunk — is simply not paid.
+     *
+     * @param writer the body whose engine this is, resolved per call because an entity can be
+     *     replaced under a live engine (a respawn, a dimension change)
+     * @param radius that body's chat radius, read per call for the same reason
+     */
+    public static SpeechEngine.Listener listener(MinecraftServer server,
+            Supplier<LivingEntity> writer, IntSupplier radius) {
+        return new SpeechEngine.Listener() {
+            @Override
+            public void said(Encounter e, Utterance u) {
+                EncounterData.get(server).dirty();
+                LivingEntity body = writer.get();
+                if (!u.system()) {
+                    BeingSpeech.spoke(body);
+                    for (AgentId participant : e.participants()) {
+                        AgentBody paid = AgentBodies.findLoaded(server, participant);
+                        if (paid != null) {
+                            paid.needs().gauge(NeedKind.COMPANY, Company.class)
+                                    .ifPresent(Company::conversed);
+                        }
+                    }
+                }
+                deliver(server, body, radius.getAsInt(), e, u);
+            }
+
+            @Override
+            public void closed(Encounter e) {
+                EncounterData data = EncounterData.get(server);
+                data.dirty();
+                // Pruning rides the close: cheap, and retention only ever trims closed records.
+                data.prune(server.overworld().getGameTime());
+            }
+        };
+    }
+
     // ── the line ─────────────────────────────────────────────────────────────────────────────
 
     /** One recipient's copy: {@code [portrait] Name: line}, with the name they have earned. */
@@ -96,9 +146,7 @@ public final class Speeches {
             SpeechAct act, String rendered) {
         MutableComponent line = Component.empty();
         portrait.ifPresent(face -> line.append(face).append(" "));
-        line.append(knows(server, player, author)
-                ? Component.literal(spoken)
-                : Component.translatable(STRANGER));
+        line.append(nameFor(server, player, author));
         line.append(": ");
         // An introducing act says the name out loud, so the line itself carries it as an argument
         // even for a listener whose prefix still reads "Someone" — that IS the introduction.
@@ -236,18 +284,42 @@ public final class Speeches {
                 && who.distanceToSqr(writer) <= (double) radius * radius;
     }
 
-    /** What the directory calls this agent, or {@code ?} where nothing can name it. */
-    private static String nameOf(MinecraftServer server, AgentId id) {
-        return AgentDirectory.of(server).nameOf(id).orElse("?");
+    /**
+     * What this player may call {@code whom}: their name once earned, the stranger word until
+     * then. The one place that decision is made — a second site composing it by hand is how a
+     * name leaks (social foundations §4).
+     */
+    public static Component nameFor(MinecraftServer server, ServerPlayer player,
+            @Nullable AgentId whom) {
+        return knows(server, player, whom)
+                ? Component.literal(nameOf(server, whom))
+                : Component.translatable(STRANGER);
+    }
+
+    /**
+     * What the directory calls this agent — or, for a player, what their account does: a player's
+     * uuid is their agent id, and no directory ever holds one. {@code ?} where nothing can name it.
+     */
+    static String nameOf(MinecraftServer server, AgentId id) {
+        return AgentDirectory.of(server).nameOf(id)
+                .or(() -> Optional.ofNullable(server.getPlayerList().getPlayer(id.value()))
+                        .map(online -> online.getName().getString()))
+                .orElse("?");
     }
 
     /**
      * Whether this player may read {@code whom}'s name — their own book, or the whole directory if
      * they are watching from outside the fiction. One rule with the nameplates, or a creative
      * player reads a name over a head that chat denies them.
+     *
+     * <p>Another player's name is always readable: the vanilla nameplate has already told them, and
+     * a "Someone" prefix on a line their friend just typed would be the UI contradicting itself.
+     * That a PERSON must still ask (social foundations §8) is unaffected — this is what players
+     * read, not what a settler knows.
      */
     private static boolean knows(MinecraftServer server, ServerPlayer player, @Nullable AgentId whom) {
         return whom != null && (ContactsSync.seesEveryone(player)
+                || server.getPlayerList().getPlayer(whom.value()) != null
                 || ContactData.get(server).knows(ContactsSync.idOf(player), whom));
     }
 

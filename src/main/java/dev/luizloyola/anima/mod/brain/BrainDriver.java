@@ -488,41 +488,9 @@ public final class BrainDriver {
                     Config.get().i(Knob.SOCIAL_ENCOUNTER_TICK_CAP),
                     Config.get().i(Knob.SOCIAL_ENCOUNTER_STALE_TICKS),
                     person.profile().i(ProfileAspect.SOCIAL_PATIENCE_TICKS));
-            SpeechEngine.Listener listener = new SpeechEngine.Listener() {
-                @Override
-                public void said(Encounter e, Utterance u) {
-                    EncounterData.get(server).dirty();
-                    // A SYSTEM line (IGNORED, STALE, ...) is the world reporting ON the
-                    // conversation, not a party speaking IN it — "a conversation is worth what was
-                    // SAID" (Company#conversed's own doc), and nobody said this. No grunt, no pay;
-                    // Speeches.deliver still runs below so players read the gray line.
-                    if (!u.system()) {
-                        BeingSpeech.spoke(person.entity());
-                        // One call per participant as the line arrives — never by replaying the
-                        // transcript, which would double-pay a resumed conversation (see Company#conversed).
-                        for (AgentId participant : e.participants()) {
-                            AgentBody body = AgentBodies.findLoaded(server, participant);
-                            if (body != null) {
-                                body.needs().gauge(NeedKind.COMPANY, Company.class)
-                                        .ifPresent(Company::conversed);
-                            }
-                        }
-                    }
-                    // This body WROTE the line — position, chat radius, sound. Who is shown is
-                    // u.author(), which is not the same on a hail an answerer prefills for its
-                    // caller.
-                    Speeches.deliver(server, person, e, u);
-                }
-
-                @Override
-                public void closed(Encounter e) {
-                    EncounterData data = EncounterData.get(server);
-                    data.dirty();
-                    // Pruning rides the close: cheap, and retention only ever trims closed records.
-                    data.prune(now.getAsLong());
-                }
-            };
-            this.speech = new SpeechEngine(this.person.agentId(), this.person::profile, now,
+            SpeechEngine.Listener listener = Speeches.listener(server, person::entity,
+                    () -> person.profile().i(ProfileAspect.SOCIAL_CHAT_RADIUS));
+            this.speech = new SpeechEngine(this.person.agentId(), now,
                     EncounterData.get(server).roster(), Choosers::get, caps, listener);
         }
         return this.speech;

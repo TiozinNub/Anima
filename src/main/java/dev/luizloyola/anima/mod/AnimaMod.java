@@ -94,7 +94,13 @@ public final class AnimaMod implements ModInitializer {
         // The browser debug dashboard. Registers its lifecycle hooks only — it listens on nothing
         // until webdebug.enabled says so.
         dev.luizloyola.anima.mod.webdebug.WebDebugger.install();
+        // A player's half of a conversation: the seat that ticks for them, and the right-click
+        // that opens one. Anima's, not a consumer's — a wolf can be hailed by a player too.
+        dev.luizloyola.anima.mod.social.Talkers.init();
+        dev.luizloyola.anima.mod.social.PlayerHails.init();
         AnimaCommands.register(CONFIG);
+        // Its own root because /anima is op-gated whole — see TalkCommands.
+        dev.luizloyola.anima.mod.command.TalkCommands.register();
         LOGGER.info("Anima loaded — the machinery is ready for whoever wants a mind.");
     }
 }

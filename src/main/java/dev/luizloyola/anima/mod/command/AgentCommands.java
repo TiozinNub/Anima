@@ -1128,6 +1128,8 @@ public final class AgentCommands {
     public static LiteralArgumentBuilder<CommandSourceStack> inv(CommandBuildContext registryAccess) {
         return Commands.literal("inv")
                                 .executes(AgentCommands::invList)
+                                .then(Commands.literal("see")
+                                        .executes(AgentCommands::invSee))
                                 .then(Commands.literal("clear")
                                         .executes(ctx -> invClear(ctx)))
                                 .then(Commands.literal("give")
@@ -1142,6 +1144,31 @@ public final class AgentCommands {
                                         .then(Commands.argument("item", ItemArgument.item(registryAccess))
                                                 .executes(ctx -> invEquip(ctx,
                                                         ItemArgument.getItem(ctx, "item")))));
+    }
+
+    /**
+     * Opens the subject's inventory screen in front of the running player — where right-clicking a
+     * Person used to land (decision: Luiz, 2026-08-04). The click became the targeted hail at
+     * rung 7, and a dev tool is better off behind the op-gated tree anyway.
+     *
+     * <p>The screen itself is the consuming mod's ({@link AgentBody#showInventory}); a body with
+     * none says so rather than silently doing nothing.
+     */
+    private static int invSee(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            Replies.fail(source, Component.translatable("anima.command.inv.see.not_a_player"));
+            return 0;
+        }
+        if (!person.showInventory(player)) {
+            Replies.fail(source, Component.translatable("anima.command.inv.see.no_screen",
+                    person.entity().getName()));
+            return 0;
+        }
+        return 1;
     }
 
     /** Default number of journal lines {@code /anima log} prints when no count is given. */

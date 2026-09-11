@@ -21,6 +21,7 @@ import dev.luizloyola.anima.mod.brain.BeingSense;
 import dev.luizloyola.anima.mod.nav.Navigator;
 import dev.luizloyola.anima.mod.nav.Swimmer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
@@ -62,6 +63,19 @@ public interface AgentBody {
     AgentJournal journal();
 
     Inventory inventory();
+
+    /**
+     * Shows this body's carried goods to {@code player}, answering whether there was a screen to
+     * show. What {@code /anima inv see} drives.
+     *
+     * <p><b>False by default, because Anima draws nothing.</b> The inventory is the library's; a
+     * MENU over it is the consuming mod's, built from its own screen handler and its own
+     * translated title. A bare install answers no and the command says so, rather than a library
+     * growing a GUI it has no business owning.
+     */
+    default boolean showInventory(ServerPlayer player) {
+        return false;
+    }
 
     Metabolism metabolism();
 
