@@ -116,8 +116,6 @@ public final class TalkCommands {
             return 0;
         }
         speech.say(e, pick.line());
-        // The menu is not re-offered under a line of the player's own: the ball is theirs now.
-        Talkers.spoke(server, player, e);
         return 1;
     }
 

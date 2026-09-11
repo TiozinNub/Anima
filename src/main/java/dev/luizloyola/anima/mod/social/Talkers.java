@@ -117,13 +117,13 @@ public final class Talkers {
             return false;
         }
         talker.renderedLines = -1;
-        render(server, player, talker, current.get());
+        if (!render(server, player, talker, current.get())) {
+            // Asked for the menu inside the beat. The sweep stays silent here and draws it a moment
+            // later; somebody who typed the command is owed an answer instead of nothing at all.
+            player.sendSystemMessage(Component.translatable("anima.talk.too_soon")
+                    .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
+        }
         return true;
-    }
-
-    /** What this player has just said — the menu is not re-offered on their own line. */
-    public static void spoke(MinecraftServer server, ServerPlayer player, Encounter e) {
-        seat(server, player).shown(e);
     }
 
     // ── the sweep ────────────────────────────────────────────────────────────────────────────
@@ -179,7 +179,7 @@ public final class Talkers {
      * {@code » [Greet] [Ask their name] … [Walk away]} — one button per offered act, labelled by
      * its {@code <langKey>.button} and hovering the line it would say, plus the leave verb.
      */
-    private static void render(MinecraftServer server, ServerPlayer player, Talker talker,
+    private static boolean render(MinecraftServer server, ServerPlayer player, Talker talker,
             Encounter e) {
         AgentId self = ContactsSync.idOf(player);
         long now = server.overworld().getGameTime();
@@ -188,7 +188,7 @@ public final class Talkers {
         List<SpeechAct> offered = Menu.offered(e, self, now, cap);
         talker.shown(e);
         if (offered.isEmpty()) {
-            return;
+            return false;
         }
         MutableComponent line = Component.translatable("anima.talk.prompt")
                 .withStyle(ChatFormatting.DARK_GRAY);
@@ -199,6 +199,7 @@ public final class Talkers {
         line.append(" ").append(button(Component.translatable("anima.talk.leave"), "/anima-say leave",
                 Component.translatable("anima.talk.leave.hover"), ChatFormatting.GRAY));
         player.sendSystemMessage(line);
+        return true;
     }
 
     /** The line this act would come out as — its first variant, about its first topic. */
