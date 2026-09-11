@@ -219,10 +219,18 @@ public final class Talkers {
                 .withHoverEvent(new HoverEvent.ShowText(hover)));
     }
 
-    /** A small on-screen line (social foundations §8) — the action bar, not the transcript. */
+    /**
+     * The player's own read of what just happened (social foundations §8's "small on-screen
+     * line"), beside the record's gray closing line rather than instead of it: the record says a
+     * conversation trailed off, this says who it was and that they never answered.
+     *
+     * <p>Chat rather than the action bar — the whole conversation is already there, and the
+     * {@code displayClientMessage} convenience is gone in 26.1, so the alternative would be a
+     * packet in a Stonecutter block to say something quieter than it deserves.
+     */
     private static void notice(MinecraftServer server, ServerPlayer player, String key, AgentId whom) {
-        player.displayClientMessage(Component.translatable(key, Speeches.nameFor(server, player, whom))
-                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC), true);
+        player.sendSystemMessage(Component.translatable(key, Speeches.nameFor(server, player, whom))
+                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
     }
 
     // ── the seat ─────────────────────────────────────────────────────────────────────────────

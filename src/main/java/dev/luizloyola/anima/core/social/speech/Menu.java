@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.social.speech;
 
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.social.speech.Chooser.Line;
 import java.util.List;
 import java.util.Map;
 import java.util.random.RandomGenerator;
@@ -21,7 +22,7 @@ public final class Menu {
     public enum Reason { OK, UNKNOWN, NOT_OFFERED, TOO_SOON, BAD_TOPIC }
 
     /** A checked proposal: the line to say when {@link #ok}, the refusal otherwise. */
-    public record Pick(Reason reason, @Nullable Chooser.Line line) {
+    public record Pick(Reason reason, @Nullable Line line) {
         public boolean ok() {
             return reason == Reason.OK;
         }

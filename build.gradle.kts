@@ -122,7 +122,10 @@ dependencies {
     fapi(
         "fabric-lifecycle-events-v1", "fabric-resource-loader-v0",
         "fabric-command-api-v2", "fabric-networking-api-v1", "fabric-entity-events-v1",
-        "fabric-rendering-v1", "fabric-object-builder-api-v1"
+        "fabric-rendering-v1", "fabric-object-builder-api-v1",
+        // UseEntityCallback, for the right-click that hails somebody (social rung 7). The library's
+        // rather than a consumer's by the wolf rule: a player may hail anything with a mind.
+        "fabric-events-interaction-v0"
     )
 
     // The TOML reader/writer behind `config/<mod>.toml`. A plain Java library that never sees

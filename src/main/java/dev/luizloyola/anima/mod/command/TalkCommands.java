@@ -14,6 +14,7 @@ import dev.luizloyola.anima.core.social.speech.SpeechEngine;
 import dev.luizloyola.anima.mod.net.ContactsSync;
 import dev.luizloyola.anima.mod.social.Talkers;
 import java.util.List;
+import java.util.random.RandomGenerator;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -105,8 +106,11 @@ public final class TalkCommands {
             return 0;
         }
         long now = server.overworld().getGameTime();
+        // The JDK's shared generator rather than the player's: a RandomSource is not a
+        // RandomGenerator (BrainDriver seeds its own AgentRandom across that same gap), and the
+        // only thing drawn here is which flavour a topicless small talk lands on.
         Menu.Pick pick = Menu.pick(e, ContactsSync.idOf(player), now, cap(e, now),
-                StringArgumentType.getString(ctx, "act"), topic, player.getRandom());
+                StringArgumentType.getString(ctx, "act"), topic, RandomGenerator.getDefault());
         if (!pick.ok()) {
             Replies.fail(source, Component.translatable(refusal(pick.reason())));
             return 0;

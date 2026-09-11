@@ -10,7 +10,6 @@ import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -63,7 +62,7 @@ public final class PlayerHails {
      * opposite things.
      */
     private static InteractionResult hail(ServerPlayer player, AgentBody body) {
-        MinecraftServer server = ((ServerLevel) player.level()).getServer();
+        MinecraftServer server = player.level().getServer();
         Speech speech = Talkers.of(server, player);
         Optional<Encounter> mine = speech.current();
         if (mine.isPresent()) {
@@ -87,9 +86,9 @@ public final class PlayerHails {
         return InteractionResult.SUCCESS;
     }
 
-    /** A small on-screen line, social foundations §8 — the action bar, not the transcript. */
+    /** Why the click did nothing — see {@code Talkers.notice} for why this is chat. */
     private static void aside(ServerPlayer player, String key, Component whom) {
-        player.displayClientMessage(Component.translatable(key, whom)
-                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC), true);
+        player.sendSystemMessage(Component.translatable(key, whom)
+                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
     }
 }
