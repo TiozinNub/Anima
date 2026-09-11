@@ -177,7 +177,8 @@ public final class Talkers {
 
     /**
      * {@code » [Greet] [Ask their name] … [Walk away]} — one button per offered act, labelled by
-     * its {@code <langKey>.button} and hovering the line it would say, plus the leave verb.
+     * its {@code <langKey>.button} and hovering a sample of how it might come out, plus the leave
+     * verb. Returns whether anything was drawn: the beat may have left nothing to offer.
      */
     private static boolean render(MinecraftServer server, ServerPlayer player, Talker talker,
             Encounter e) {
@@ -202,7 +203,16 @@ public final class Talkers {
         return true;
     }
 
-    /** The line this act would come out as — its first variant, about its first topic. */
+    /**
+     * A SAMPLE of how this act comes out — its first variant, about its first topic. Not a
+     * promise: the real variant is derived from the record and the line's position
+     * ({@code Speeches.variantOf}), and a topic left unsaid is drawn when the line is picked. So a
+     * hover reading "Fine day for it." may be spoken as "Sky's been kind lately."
+     *
+     * <p>Deliberately not resolved exactly. Doing so would mean deciding the variant and the topic
+     * here, at render time, and carrying both through the command into the utterance — turning a
+     * tooltip into state the conversation has to keep. What the button promises is the ACT.
+     */
     private static Component hover(MinecraftServer server, ServerPlayer player, SpeechAct act) {
         Map<String, String> payload = act.topics().isEmpty() ? Map.of()
                 : Map.of(Utterance.TOPIC, act.topics().get(0));
