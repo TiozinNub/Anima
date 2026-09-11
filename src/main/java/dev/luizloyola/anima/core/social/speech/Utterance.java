@@ -13,6 +13,8 @@ import org.jspecify.annotations.Nullable;
 public record Utterance(@Nullable AgentId author, String act, Map<String, String> payload, long tick) {
 
     public static final String SUBJECT = "subject";
+    /** The payload key a topic-bearing act carries what it is about under. */
+    public static final String TOPIC = "topic";
 
     public Utterance {
         Objects.requireNonNull(act, "act");

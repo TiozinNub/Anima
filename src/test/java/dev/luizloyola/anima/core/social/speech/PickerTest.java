@@ -192,4 +192,46 @@ class PickerTest {
     private static String reasonFor(List<Picker.Verdict> verdicts, SpeechAct act) {
         return verdicts.stream().filter(v -> v.act() == act).findFirst().orElseThrow().reason();
     }
+
+    // ── unanswered: a body that never came ───────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("unanswered: nothing from the other party and the record older than patience")
+    void unansweredPastPatience() {
+        Encounter e = fresh();
+        e.append(line(alice, SpeechActs.HAIL, 0L));
+
+        assertFalse(Picker.unanswered(e, bob, 300L, 300), "patience is inclusive");
+        assertTrue(Picker.unanswered(e, bob, 301L, 300));
+    }
+
+    @Test
+    @DisplayName("unanswered: one spoken line from the other party clears it for good")
+    void unansweredClearedByAnyLine() {
+        Encounter e = fresh();
+        e.append(line(alice, SpeechActs.HAIL, 0L));
+        e.append(line(bob, SpeechActs.GREETING, 10L));
+
+        assertFalse(Picker.unanswered(e, bob, 10_000L, 300));
+    }
+
+    @Test
+    @DisplayName("unanswered: the other party's own hail is an opener, not an answer")
+    void unansweredIgnoresTheirHail() {
+        Encounter e = fresh();
+        e.append(line(bob, SpeechActs.HAIL, 0L));
+
+        assertTrue(Picker.unanswered(e, bob, 301L, 300));
+    }
+
+    @Test
+    @DisplayName("unanswered: a system line moves the clock but is nobody's answer")
+    void unansweredSystemLineIsNotAnAnswer() {
+        Encounter e = fresh();
+        e.append(line(alice, SpeechActs.HAIL, 0L));
+        e.append(Utterance.system(SpeechActs.IGNORED.key(), alice, 200L));
+
+        assertFalse(Picker.unanswered(e, bob, 400L, 300), "measured from the last activity");
+        assertTrue(Picker.unanswered(e, bob, 501L, 300));
+    }
 }

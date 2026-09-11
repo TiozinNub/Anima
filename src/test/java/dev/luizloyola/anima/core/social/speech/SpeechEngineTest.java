@@ -1,7 +1,6 @@
 package dev.luizloyola.anima.core.social.speech;
 
 import dev.luizloyola.anima.core.agent.AgentId;
-import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.task.FakeContext;
 import java.util.ArrayList;
@@ -61,7 +60,7 @@ class SpeechEngineTest {
 
     private SpeechEngine engineFor(AgentId self, Encounters roster, long[] clock,
             SpeechEngine.Caps caps, Recorder recorder) {
-        return new SpeechEngine(self, () -> TestSpecies.PROFILE, () -> clock[0], roster,
+        return new SpeechEngine(self, () -> clock[0], roster,
                 () -> Choosers.BASIC, () -> caps, recorder);
     }
 

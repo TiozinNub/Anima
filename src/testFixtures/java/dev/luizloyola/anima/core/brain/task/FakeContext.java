@@ -46,7 +46,7 @@ public final class FakeContext implements BrainContext {
     /** What the fake body is like — {@code TestSpecies.with(aspect, value)} makes a variant. */
     public AgentProfile profile = TestSpecies.PROFILE;
     /** This fake person's conversation port — {@code caps}/{@code chooser} are settable for tests. */
-    public final FakeSpeech speech = new FakeSpeech(self, () -> profile, () -> percepts.time);
+    public final FakeSpeech speech = new FakeSpeech(self, () -> percepts.time);
     /** What the fake body is afraid of. Settable, for a test about a body with other fears. */
     public DangerTable danger = TestDanger.TABLE;
     /**

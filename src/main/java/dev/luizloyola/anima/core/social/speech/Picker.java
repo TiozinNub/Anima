@@ -136,6 +136,24 @@ public final class Picker {
     }
 
     /**
+     * Whether {@code other} has yet to say one line into {@code e}, and the wait has outrun
+     * patience — how a body that never came is noticed. Only an obligation runs the snub clock,
+     * and a HAIL obliges nobody: it is an opener, so a record holding nothing but the caller's
+     * hail would otherwise sit open until staleness swept it, with the caller none the wiser.
+     * A hail of {@code other}'s own does not count as an answer either — {@code Converse}'s
+     * contact rule reads it the same way: a shout is what a body does before it arrives.
+     */
+    public static boolean unanswered(Encounter e, AgentId other, long now, int patienceTicks) {
+        for (Utterance u : e.transcript()) {
+            if (!u.system() && other.equals(u.author())
+                    && !SpeechActs.HAIL.key().equals(u.act())) {
+                return false;
+            }
+        }
+        return now - e.lastActivityTick() > patienceTicks;
+    }
+
+    /**
      * The last line somebody SAID — the one the beat is measured from. A SYSTEM line is the world
      * reporting on the conversation rather than a turn in it, so it never restarts the clock.
      *

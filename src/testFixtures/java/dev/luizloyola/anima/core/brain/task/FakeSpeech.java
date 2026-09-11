@@ -1,7 +1,6 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.agent.AgentId;
-import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.social.speech.Chooser;
 import dev.luizloyola.anima.core.social.speech.Choosers;
@@ -15,7 +14,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 /**
  * Test double for the {@link Speech} port. A real {@link SpeechEngine} underneath (pure and
@@ -38,14 +36,14 @@ public final class FakeSpeech implements Speech {
     private final SpeechEngine engine;
 
     /** A fresh, private roster — the common case: one body, its own conversations. */
-    public FakeSpeech(AgentId self, Supplier<AgentProfile> profile, LongSupplier now) {
-        this(self, profile, now, new Encounters());
+    public FakeSpeech(AgentId self, LongSupplier now) {
+        this(self, now, new Encounters());
     }
 
     /** Over {@code shared}, so two {@code FakeContext}s can meet in the same encounter. */
-    public FakeSpeech(AgentId self, Supplier<AgentProfile> profile, LongSupplier now, Encounters shared) {
+    public FakeSpeech(AgentId self, LongSupplier now, Encounters shared) {
         this.roster = shared;
-        this.engine = new SpeechEngine(self, profile, now, roster, () -> chooser, () -> caps,
+        this.engine = new SpeechEngine(self, now, roster, () -> chooser, () -> caps,
                 new SpeechEngine.Listener() {
                     @Override
                     public void said(Encounter e, Utterance u) {

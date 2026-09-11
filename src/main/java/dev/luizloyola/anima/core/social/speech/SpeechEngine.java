@@ -1,7 +1,6 @@
 package dev.luizloyola.anima.core.social.speech;
 
 import dev.luizloyola.anima.core.agent.AgentId;
-import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import java.util.List;
 import java.util.Map;
@@ -18,22 +17,20 @@ import java.util.function.Supplier;
 public final class SpeechEngine implements Speech {
 
     private final AgentId self;
-    /**
-     * Unread until Task 8 wires {@code ProfileAspect.SOCIAL_PATIENCE_TICKS} — until then patience
-     * travels through {@link Caps#patienceTicks()} instead. Kept as a constructor parameter now
-     * so wiring it in later touches no call site.
-     */
-    private final Supplier<AgentProfile> profile;
     private final LongSupplier now;
     private final Encounters roster;
     private final Supplier<Chooser> chooser;
     private final Supplier<Caps> caps;
     private final Listener listener;
 
-    public SpeechEngine(AgentId self, Supplier<AgentProfile> profile, LongSupplier now,
+    /**
+     * No profile parameter, deliberately: every number a conversation runs on arrives through
+     * {@link Caps}, whoever assembled it. That is what lets a PLAYER hold one of these — a player
+     * has no species to read aspects off, and borrows its counterpart's (rung 7, 2026-09-11).
+     */
+    public SpeechEngine(AgentId self, LongSupplier now,
             Encounters roster, Supplier<Chooser> chooser, Supplier<Caps> caps, Listener listener) {
         this.self = Objects.requireNonNull(self, "self");
-        this.profile = Objects.requireNonNull(profile, "profile");
         this.now = Objects.requireNonNull(now, "now");
         this.roster = Objects.requireNonNull(roster, "roster");
         this.chooser = Objects.requireNonNull(chooser, "chooser");
