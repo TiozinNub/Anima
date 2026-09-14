@@ -35,8 +35,9 @@ import java.util.Optional;
  *   <li>Idle → grant the top bidder, {@code root()} called anew: re-granting the incumbent after
  *       SUCCESS is the continuous-behavior loop.</li>
  *   <li>Busy → switch only if the challenger beats the incumbent on effective pressure and its RAW
- *       pressure reaches {@link #preempt(AgentProfile)}; below that it waits for the task boundary,
- *       and switching cancels the incumbent's task.</li>
+ *       pressure reaches {@link #preempt(AgentProfile)} — or the incumbent {@link Instinct#yields
+ *       yields}, as idling does; below that it waits for the task boundary, and switching cancels
+ *       the incumbent's task.</li>
  *   <li>The executor ticks once; across a boundary a FAILED root goes on cooldown and
  *       {@code active} clears either way, re-arbitrating next tick.</li>
  * </ol>
@@ -247,7 +248,11 @@ public final class Arbiter {
             double activeEffective = activeIndex >= 0
                     ? lastPressures[activeIndex] + stickiness
                     : Double.NEGATIVE_INFINITY; // a manual task (no active instinct) yields to any real bidder... but only if it preempts
-            if (topEffective > activeEffective && lastPressures[topIndex] >= preempt) {
+            // An incumbent that yields (idling) is cut into by any real drive that outbids it;
+            // everything else holds the wheel until the challenger reaches the preempt bar.
+            boolean incumbentYields = activeIndex >= 0 && instincts.get(activeIndex).yields(ctx);
+            if (topEffective > activeEffective
+                    && (lastPressures[topIndex] >= preempt || incumbentYields)) {
                 // secondDrive, not runnerUp: work is excluded from this branch by the rule above,
                 // so it lost nothing here. Naming it claimed a contest that never ran — and, since
                 // an unconsidered offer may outrank the winner, printed "beat work 0.90" under a

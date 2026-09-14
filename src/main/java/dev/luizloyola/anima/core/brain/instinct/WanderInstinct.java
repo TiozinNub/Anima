@@ -67,6 +67,16 @@ public final class WanderInstinct implements Instinct {
         return 0.0;
     }
 
+    /**
+     * Any real drive may cut in — a stroll and a pause are nothing to finish. Without this a hail
+     * answered at 0.55, under the preempt bar, waited out the pause: nine seconds between a
+     * player's right-click and the body turning round, on the first client run (2026-09-13).
+     */
+    @Override
+    public boolean yields(BrainContext ctx) {
+        return true;
+    }
+
     @Override
     public String describe() {
         return "wander";

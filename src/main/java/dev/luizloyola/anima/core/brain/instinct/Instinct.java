@@ -48,6 +48,18 @@ public interface Instinct {
         return Double.POSITIVE_INFINITY;
     }
 
+    /**
+     * Whether a challenger below {@link dev.luizloyola.anima.core.brain.Arbiter#preempt} may cut
+     * into this drive mid-task instead of waiting for its boundary. False for anything that is
+     * actually doing something — work never yields below the bar, and neither does an errand.
+     * True for an ambient default like wander, whose "task" is a stroll and a pause: a body hailed
+     * at arm's length that finishes a fifteen-second idle before turning round reads as ignoring
+     * whoever called (client-caught 2026-09-13, decision: Luiz).
+     */
+    default boolean yields(BrainContext ctx) {
+        return false;
+    }
+
     /** One-word drive name for the debug readout — {@code "eat"}, {@code "wander"}. */
     String describe();
 

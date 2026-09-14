@@ -94,6 +94,7 @@ class ArbiterTest {
         final List<Task> grantedRoots = new ArrayList<>();
         int failCooldownOverride = Instinct.DEFAULT_FAIL_COOLDOWN;
         double budget = Double.POSITIVE_INFINITY;
+        boolean yields;
 
         FakeInstinct(String name, double pressure, Supplier<Task> factory) {
             this.name = name;
@@ -121,6 +122,11 @@ class ArbiterTest {
         @Override
         public double costTolerance(BrainContext ctx) {
             return budget;
+        }
+
+        @Override
+        public boolean yields(BrainContext ctx) {
+            return yields;
         }
 
         @Override
@@ -331,6 +337,23 @@ class ArbiterTest {
         assertEquals(1, ctx.mover.stopCalls, "the preempted GoTo released the legs");
         assertEquals(1, b.grantedRoots.size());
         assertEquals(List.of("moveTo(1, 2, 3)", "stop"), ctx.mover.events, "released, then the newcomer takes over");
+    }
+
+    @Test
+    void aYieldingIncumbentIsCutIntoBelowThePreemptBar() {
+        // Idling is a stroll and a pause, nothing to finish: a real drive under PREEMPT takes the
+        // wheel at once instead of waiting out the pause. A hailed body that turned round nine
+        // seconds later read as ignoring the player who clicked it.
+        FakeInstinct idle = new FakeInstinct("idle", 0.15, forever("idleRoot"));
+        idle.yields = true;
+        FakeInstinct b = new FakeInstinct("b", 0.0, forever("bRoot"));
+        Arbiter arbiter = new Arbiter(List.of(idle, b));
+
+        arbiter.tick(ctx); // t1: grant idle
+        b.pressure = 0.45; // beats idle's effective bid, still under PREEMPT 0.6
+        arbiter.tick(ctx); // t2: cuts in anyway
+        assertEquals(1, b.grantedRoots.size(), "a yielding incumbent makes nobody wait");
+        assertEquals(1, step(idle.grantedRoots.get(0)).cancels, "the idle root was cancelled on the way out");
     }
 
     // --- boundary re-grant -----------------------------------------------------------------------
