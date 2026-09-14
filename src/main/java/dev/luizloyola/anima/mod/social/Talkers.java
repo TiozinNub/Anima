@@ -147,7 +147,7 @@ public final class Talkers {
         if (!render(server, player, talker, current.get())) {
             // Asked for the menu inside the beat. The sweep stays silent here and draws it a moment
             // later; somebody who typed the command is owed an answer instead of nothing at all.
-            player.sendSystemMessage(Component.translatable("anima.talk.too_soon")
+            Speeches.aside(player, Component.translatable("anima.talk.too_soon")
                     .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
         }
         return true;
@@ -315,16 +315,11 @@ public final class Talkers {
     }
 
     /**
-     * The player's own read of what just happened (social foundations §8's "small on-screen
-     * line"), beside the record's gray closing line rather than instead of it: the record says a
-     * conversation trailed off, this says who it was and that they never answered.
-     *
-     * <p>Chat rather than the action bar — the whole conversation is already there, and the
-     * {@code displayClientMessage} convenience is gone in 26.1, so the alternative would be a
-     * packet in a Stonecutter block to say something quieter than it deserves.
+     * The player's own read of what just happened — social foundations §8's "small on-screen
+     * line", on the action bar at last: who it was, and that they never answered.
      */
     private static void notice(MinecraftServer server, ServerPlayer player, String key, AgentId whom) {
-        player.sendSystemMessage(Component.translatable(key, Speeches.nameFor(server, player, whom))
+        Speeches.aside(player, Component.translatable(key, Speeches.nameFor(server, player, whom))
                 .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
     }
 

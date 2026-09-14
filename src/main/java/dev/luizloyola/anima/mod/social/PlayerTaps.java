@@ -89,9 +89,9 @@ public final class PlayerTaps {
         return InteractionResult.SUCCESS;
     }
 
-    /** Why the click did nothing — see {@code Talkers.notice} for why this is chat. */
+    /** Why the click did nothing, on the action bar. */
     private static void aside(ServerPlayer player, String key, Component whom) {
-        player.sendSystemMessage(Component.translatable(key, whom)
+        Speeches.aside(player, Component.translatable(key, whom)
                 .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
     }
 }

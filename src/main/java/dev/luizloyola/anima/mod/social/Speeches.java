@@ -16,6 +16,7 @@ import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.brain.BeingSpeech;
 import dev.luizloyola.anima.mod.identity.AgentDirectory;
 import dev.luizloyola.anima.mod.net.ContactsSync;
+import dev.luizloyola.anima.mod.net.TalkSync;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,7 @@ import java.util.function.Supplier;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -34,8 +36,10 @@ import net.minecraft.world.entity.LivingEntity;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Where a spoken line becomes something a player reads — the one choke point between the speech
- * machinery and chat.
+ * Where a spoken line becomes something a player sees — the one choke point between the speech
+ * machinery and the screen: a bubble over the speaker's head for everyone in earshot, and, until
+ * the panel replaces the chat buttons too (spec of 2026-09-14), chat for a player's own
+ * conversation. Overheard talk left chat on 2026-09-14 (decision: Luiz).
  *
  * <p><b>Composed per recipient.</b> Whoever knows that agent reads a name; everybody else reads a
  * stranger. So there is no single rendered line to broadcast: each nearby player gets their own,
@@ -79,12 +83,24 @@ public final class Speeches {
                 variantOf(e.id(), e.transcript().size() - 1, act.variants()));
         Optional<Component> portrait =
                 author == null ? Optional.empty() : Portraits.of(server, author);
+        // The bubble is the same for every listener: no name on it (the nameplate under it does
+        // that, with its gating) and the only argument a line carries is the name being said.
+        Entity speaker = author == null ? null : bodyOf(server, author);
+        Component line = u.system() ? null
+                : act.introduces() ? Component.translatable(rendered, spoken)
+                : Component.translatable(rendered);
+        boolean direct = includesPlayer(server, e);
 
         for (ServerPlayer player : audience) {
-            player.sendSystemMessage(u.system()
-                    ? Component.translatable(rendered)
-                            .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC)
-                    : said(server, player, author, spoken, portrait, act, rendered));
+            if (speaker != null && line != null) {
+                TalkSync.bubble(player, speaker, line);
+            }
+            if (direct) {
+                player.sendSystemMessage(u.system()
+                        ? Component.translatable(rendered)
+                                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC)
+                        : said(server, player, author, spoken, portrait, act, rendered));
+            }
         }
 
         if (author != null && act.introduces()) {
@@ -136,6 +152,21 @@ public final class Speeches {
                 data.prune(server.overworld().getGameTime());
             }
         };
+    }
+
+    /** The author as a client can find it — a loaded agent body, or the player themself; null when neither is around to draw over. */
+    private static @Nullable Entity bodyOf(MinecraftServer server, AgentId author) {
+        AgentBody body = AgentBodies.findLoaded(server, author);
+        return body != null ? body.entity() : server.getPlayerList().getPlayer(author.value());
+    }
+
+    private static boolean includesPlayer(MinecraftServer server, Encounter e) {
+        for (AgentId id : e.participants()) {
+            if (server.getPlayerList().getPlayer(id.value()) != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ── the line ─────────────────────────────────────────────────────────────────────────────
@@ -211,7 +242,7 @@ public final class Speeches {
                 // Narrated only on a name that was actually news: somebody who has known Alma for a
                 // week does not need telling every time she introduces herself across the square.
                 if (learn(server, id, null, author, name)) {
-                    player.sendSystemMessage(aside("anima.social.overheard.seen", name));
+                    aside(player, narration("anima.social.overheard.seen", name));
                 }
                 continue;
             }
@@ -220,8 +251,8 @@ public final class Speeches {
             // "someone gave their name to someone".
             e.other(author)
                     .filter(addressee -> knows(server, player, addressee))
-                    .ifPresent(addressee -> player.sendSystemMessage(
-                            aside("anima.social.overheard.heard", nameOf(server, addressee))));
+                    .ifPresent(addressee -> aside(player,
+                            narration("anima.social.overheard.heard", nameOf(server, addressee))));
         }
     }
 
@@ -325,8 +356,16 @@ public final class Speeches {
                 || ContactData.get(server).knows(ContactsSync.idOf(player), whom));
     }
 
-    /** A narration line: what the player noticed, not what anybody said. */
-    private static Component aside(String key, String arg) {
+    /**
+     * Tells this player something they noticed rather than something anybody said — on the
+     * action bar, since chat carries nothing of Anima's any more (decision: Luiz, 2026-09-14).
+     * The packet has the same shape on every live target, so no Stonecutter block.
+     */
+    public static void aside(ServerPlayer player, Component text) {
+        player.connection.send(new ClientboundSetActionBarTextPacket(text));
+    }
+
+    private static Component narration(String key, String arg) {
         return Component.translatable(key, arg)
                 .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC);
     }
