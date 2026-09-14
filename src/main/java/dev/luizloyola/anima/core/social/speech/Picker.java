@@ -182,6 +182,16 @@ public final class Picker {
     }
 
     /**
+     * How long nobody has SAID anything — ticks since the last spoken line, or since the record
+     * opened while nothing has been said. What a chooser reads before saying goodbye: leaving the
+     * moment nothing is pressing reads as bolting, and on the first client run it gave a player who
+     * had just answered "who are you?" two seconds to ask anything back (2026-09-13).
+     */
+    public static long silence(Encounter e, long now) {
+        return now - lastSpoken(e).map(Utterance::tick).orElse(e.openedAt());
+    }
+
+    /**
      * The last line somebody SAID — the one the beat is measured from. A SYSTEM line is the world
      * reporting on the conversation rather than a turn in it, so it never restarts the clock.
      *

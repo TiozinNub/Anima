@@ -56,6 +56,26 @@ class ChoosersTest {
     }
 
     @Test
+    @DisplayName("BASIC says goodbye only once nobody has spoken for its patience")
+    void basicSaysGoodbyeOnlyAfterSilence() {
+        AgentId alice = AgentId.random();
+        AgentId bob = AgentId.random();
+        Encounter e = new Encounter(UUID.randomUUID(), List.of(alice, bob), 0L);
+        e.append(new Utterance(bob, SpeechActs.GREETING.key(), Map.of(), 0L));
+        // greeted, END_CHAT applicable, nothing awaited, company pressure at the fresh 0.0.
+        Chooser.Turn turn = new Chooser.Turn(e, List.of(SpeechActs.END_CHAT),
+                Optional.empty(), Optional.empty(), true, Optional.of(bob));
+        FakeContext ctx = new FakeContext();
+
+        ctx.percepts.time = 300L;
+        assertNull(Choosers.BASIC.choose(ctx, turn), "patience is inclusive — still their floor");
+
+        ctx.percepts.time = 301L;
+        assertEquals(Chooser.Line.of(SpeechActs.END_CHAT), Choosers.BASIC.choose(ctx, turn),
+                "the silence has run — leaving is no longer bolting");
+    }
+
+    @Test
     @DisplayName("BASIC holds its tongue while awaiting an answer, even when it would otherwise propose")
     void basicReturnsNullWhileAwaitingEvenWhenItWouldOtherwisePropose() {
         AgentId alice = AgentId.random();
