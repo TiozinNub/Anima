@@ -27,7 +27,6 @@ import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -37,13 +36,13 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Where a spoken line becomes something a player sees — the one choke point between the speech
- * machinery and the screen: a bubble over the speaker's head for everyone in earshot, and, until
- * the panel replaces the chat buttons too (spec of 2026-09-14), chat for a player's own
- * conversation. Overheard talk left chat on 2026-09-14 (decision: Luiz).
+ * machinery and the screen: a bubble over the speaker's head for everyone in earshot, and the
+ * panel for a player it is said to. Chat carries nothing of Anima's since 2026-09-14 (decision:
+ * Luiz).
  *
- * <p><b>Composed per recipient.</b> Whoever knows that agent reads a name; everybody else reads a
- * stranger. So there is no single rendered line to broadcast: each nearby player gets their own,
- * built from their own contact book.
+ * <p><b>Names are composed per recipient.</b> Whoever knows that agent reads a name; everybody
+ * else reads a stranger — on the panel and over the head, never in the bubble, which carries no
+ * name at all. So {@link #nameFor} is asked per player, from their own contact book.
  *
  * <p><b>The writer is not the speaker.</b> {@code writer} is the body whose engine wrote the line
  * — a settler's, or a player's since rung 7 — and it supplies the position, the chat radius and so
@@ -63,9 +62,10 @@ public final class Speeches {
     private Speeches() {}
 
     /**
-     * Puts {@code u} in front of everyone near enough to hear it, and hands out the name it gave
-     * away. Called once as the line lands — never by replaying a transcript, which would re-teach
-     * a name to a room that has since forgotten it on purpose.
+     * Puts {@code u} over its speaker's head for everyone near enough to hear it, refreshes the
+     * panel of whoever it was said to, and hands out the name it gave away. Called once as the
+     * line lands — never by replaying a transcript, which would re-teach a name to a room that has
+     * since forgotten it on purpose.
      */
     public static void deliver(MinecraftServer server, LivingEntity writer, int radius, Encounter e,
             Utterance u) {
@@ -77,35 +77,36 @@ public final class Speeches {
         }
         List<ServerPlayer> audience = within(server, writer, radius);
         AgentId author = u.author();
-
-        String spoken = author == null ? "" : nameOf(server, author);
-        String rendered = renderKey(act, u.payload(),
-                variantOf(e.id(), e.transcript().size() - 1, act.variants()));
-        Optional<Component> portrait =
-                author == null ? Optional.empty() : Portraits.of(server, author);
-        // The bubble is the same for every listener: no name on it (the nameplate under it does
-        // that, with its gating) and the only argument a line carries is the name being said.
+        Component line = spoken(server, e, e.transcript().size() - 1);
         Entity speaker = author == null ? null : bodyOf(server, author);
-        Component line = u.system() ? null
-                : act.introduces() ? Component.translatable(rendered, spoken)
-                : Component.translatable(rendered);
-        boolean direct = includesPlayer(server, e);
-
-        for (ServerPlayer player : audience) {
-            if (speaker != null && line != null) {
+        if (line != null && speaker != null) {
+            for (ServerPlayer player : audience) {
                 TalkSync.bubble(player, speaker, line);
             }
-            if (direct) {
-                player.sendSystemMessage(u.system()
-                        ? Component.translatable(rendered)
-                                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC)
-                        : said(server, player, author, spoken, portrait, act, rendered));
-            }
         }
+        Talkers.refresh(server, e, u);
 
         if (author != null && act.introduces()) {
-            spread(server, e, writer, radius, audience, author, spoken);
+            spread(server, e, writer, radius, audience, author, nameOf(server, author));
         }
+    }
+
+    /**
+     * Line {@code index} of {@code e} as it is said — variant and topic resolved, the name an
+     * introduction gives away spelled out — or null for a system line or a word this install
+     * lacks. The same text for every listener: the only argument a line ever carries is the name
+     * being said, and a name in the line IS the introduction.
+     */
+    public static @Nullable Component spoken(MinecraftServer server, Encounter e, int index) {
+        Utterance u = e.transcript().get(index);
+        SpeechAct act = SpeechActs.byKey(u.act()).orElse(null);
+        if (u.system() || act == null) {
+            return null;
+        }
+        String key = renderKey(act, u.payload(), variantOf(e.id(), index, act.variants()));
+        return act.introduces()
+                ? Component.translatable(key, nameOf(server, u.author()))
+                : Component.translatable(key);
     }
 
     /**
@@ -160,33 +161,7 @@ public final class Speeches {
         return body != null ? body.entity() : server.getPlayerList().getPlayer(author.value());
     }
 
-    private static boolean includesPlayer(MinecraftServer server, Encounter e) {
-        for (AgentId id : e.participants()) {
-            if (server.getPlayerList().getPlayer(id.value()) != null) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     // ── the line ─────────────────────────────────────────────────────────────────────────────
-
-    /** One recipient's copy: {@code [portrait] Name: line}, with the name they have earned. */
-    private static Component said(MinecraftServer server, ServerPlayer player,
-            AgentId author, String spoken, Optional<Component> portrait,
-            SpeechAct act, String rendered) {
-        MutableComponent line = Component.empty();
-        // Flush against the name: the glyph carries its own advance, and a space after it read
-        // as a gap once it was finally seen on a screen (decision: Luiz, 2026-09-14).
-        portrait.ifPresent(line::append);
-        line.append(nameFor(server, player, author));
-        line.append(": ");
-        // An introducing act says the name out loud, so the line itself carries it as an argument
-        // even for a listener whose prefix still reads "Someone" — that IS the introduction.
-        return line.append(act.introduces()
-                ? Component.translatable(rendered, spoken)
-                : Component.translatable(rendered));
-    }
 
     /**
      * The lang key one line renders through. A {@code topic} in the payload picks a sub-vocabulary

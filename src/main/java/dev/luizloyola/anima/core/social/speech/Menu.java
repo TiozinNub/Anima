@@ -62,7 +62,7 @@ public final class Menu {
      */
     public static List<SpeechAct> offered(Encounter e, AgentId self, long now, int turnCap,
             BiPredicate<AgentId, AgentId> knows) {
-        return Picker.maySpeak(e, self, now) ? narrowed(e, self, turnCap, knows) : List.of();
+        return Picker.maySpeak(e, self, now) ? offerable(e, self, turnCap, knows) : List.of();
     }
 
     /**
@@ -81,7 +81,7 @@ public final class Menu {
         if (act == null) {
             return Pick.refused(Reason.UNKNOWN);
         }
-        if (!narrowed(e, self, turnCap, knows).contains(act)) {
+        if (!offerable(e, self, turnCap, knows).contains(act)) {
             return Pick.refused(Reason.NOT_OFFERED);
         }
         if (!Picker.maySpeak(e, self, now)) {
@@ -99,8 +99,13 @@ public final class Menu {
         return new Pick(Reason.OK, new Chooser.Line(act, Map.of(Utterance.TOPIC, topic)));
     }
 
-    /** The picker's set less what this speaker has already done or already knows. */
-    private static List<SpeechAct> narrowed(Encounter e, AgentId self, int turnCap,
+    /**
+     * The picker's set less what this speaker has already done or already knows — what
+     * {@link #offered} will hold once the beat is spent. Public so a panel can draw the buttons
+     * greyed the moment a line lands and light them on the beat, instead of the row appearing a
+     * second late (decision: Luiz, 2026-09-14).
+     */
+    public static List<SpeechAct> offerable(Encounter e, AgentId self, int turnCap,
             BiPredicate<AgentId, AgentId> knows) {
         boolean owes = Picker.pendingOn(e, self).isPresent();
         Optional<AgentId> them = e.other(self);

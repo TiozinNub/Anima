@@ -29,6 +29,7 @@ stonecutter parameters {
             // pre-26.1 nodes ship v5, where the S2C play channel is still `playS2C()`. Only the factory
             // name changed — send/canSend/registerGlobalReceiver are identical. Source is 26.1 form.
             replace("PayloadTypeRegistry.clientboundPlay()", "PayloadTypeRegistry.playS2C()")
+            replace("PayloadTypeRegistry.serverboundPlay()", "PayloadTypeRegistry.playC2S()")
 
             // `DimensionDataStorage` was renamed `SavedDataStorage` at 26.1. Ordinary code never
             // names it — `level.getDataStorage().computeIfAbsent(...)` compiles either way — but the

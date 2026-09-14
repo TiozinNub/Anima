@@ -28,8 +28,8 @@ import net.minecraft.world.InteractionResult;
  *
  * <p><b>Willing opens the record quiet.</b> No hail line — nobody shouted. The body hears the tap
  * (its sensor gets a heard track at the player's position, nothing more), the resume pull bids on
- * the open record, and the body turns and greets on its next tick. The player's menu follows that
- * greeting on the beat, and they lead from there.
+ * the open record, and the body turns and greets on its next tick. The panel opens on the click,
+ * its acts go live under that greeting on the beat, and the player leads from there.
  *
  * <p>Nothing here writes into the clicked mind, still: the question is read off the arbiter, and
  * the answer is the arbiter's.
@@ -54,8 +54,9 @@ public final class PlayerTaps {
     }
 
     /**
-     * The four things a click can mean, told apart in order: already talking to this body (show
-     * the buttons again — the menu has scrolled out of chat), already talking to somebody else,
+     * The four things a click can mean, told apart in order: already talking to this body (open
+     * the panel again — into a record a settler may have opened by walking up), already talking
+     * to somebody else,
      * this body busy — with somebody else, or with what it is doing — and a fresh tap.
      */
     private static InteractionResult tap(ServerPlayer player, AgentBody body) {
@@ -65,7 +66,7 @@ public final class PlayerTaps {
         Optional<Encounter> mine = speech.current();
         if (mine.isPresent()) {
             if (mine.get().includes(id)) {
-                Talkers.offer(server, player);
+                Talkers.open(server, player);
             } else {
                 aside(player, "anima.talk.busy.you",
                         Speeches.nameFor(server, player, mine.get().other(
@@ -86,6 +87,7 @@ public final class PlayerTaps {
             return InteractionResult.SUCCESS;
         }
         body.beingSense().tappedBy(player);
+        Talkers.open(server, player);
         return InteractionResult.SUCCESS;
     }
 
