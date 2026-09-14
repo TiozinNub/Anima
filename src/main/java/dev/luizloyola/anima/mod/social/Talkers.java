@@ -2,6 +2,7 @@ package dev.luizloyola.anima.mod.social;
 
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.brain.task.Converse;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
 import dev.luizloyola.anima.core.social.speech.Chooser;
@@ -49,9 +50,10 @@ import net.minecraft.world.entity.LivingEntity;
  *
  * <p><b>The menu renders on the beat, not on the line.</b> Buttons under a line the tick it lands
  * would offer what the picker refuses for the next twenty ticks. So the sweep renders once
- * {@code maySpeak} holds and the record has grown since the last render — and never straight
- * after a line of the player's own, or a second line would be offered before anybody answered the
- * first. The buttons are a hint; {@code /anima-say} re-derives the menu from the live record.
+ * {@code maySpeak} holds and the record has grown since the last render — and not straight after
+ * a line of the player's own, or a second line would be offered before anybody answered the
+ * first; only once {@link #OWN_LINE_GRACE} has passed with no answer. The buttons are a hint;
+ * {@code /anima-say} re-derives the menu from the live record.
  *
  * <p><b>A player borrows the counterpart's numbers.</b> No species, so the chat radius a line
  * carries and the patience a wait is measured by are the counterpart's aspects while it is loaded,
@@ -62,6 +64,14 @@ public final class Talkers {
     /** The settler's values, for a counterpart with no loaded body to read them off. */
     static final int FALLBACK_CHAT_RADIUS = 12;
     static final int FALLBACK_PATIENCE_TICKS = 300;
+
+    /**
+     * How long a line of the player's own keeps the menu away: the floor plus the widest jitter a
+     * settler rolls, so an answer that is coming lands before the buttons do — and a settler that
+     * is holding its tongue on purpose (nothing owed, the goodbye waiting out its silence) leaves
+     * the player buttons to click rather than a dead row scrolled off the top (2026-09-14).
+     */
+    static final int OWN_LINE_GRACE = Picker.REPLY_GRACE_TICKS + Converse.JITTER_TICKS;
 
     private static final Map<MinecraftServer, Map<UUID, Talker>> BY_SERVER = new HashMap<>();
 
@@ -167,9 +177,9 @@ public final class Talkers {
                 continue;
             }
             Optional<Utterance> last = Picker.lastSpoken(e);
-            if (last.isPresent() && self.equals(last.get().author())) {
-                talker.shown(e); // their own line: wait for an answer rather than offer a second
-                continue;
+            if (last.isPresent() && self.equals(last.get().author())
+                    && now - last.get().tick() <= OWN_LINE_GRACE) {
+                continue; // their own line: give the answer its whole beat before offering a second
             }
             if (talker.engine.maySpeak(e)) {
                 render(server, player, talker, e);
