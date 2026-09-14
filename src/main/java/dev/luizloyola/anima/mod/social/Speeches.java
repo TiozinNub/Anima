@@ -145,7 +145,9 @@ public final class Speeches {
             AgentId author, String spoken, Optional<Component> portrait,
             SpeechAct act, String rendered) {
         MutableComponent line = Component.empty();
-        portrait.ifPresent(face -> line.append(face).append(" "));
+        // Flush against the name: the glyph carries its own advance, and a space after it read
+        // as a gap once it was finally seen on a screen (decision: Luiz, 2026-09-14).
+        portrait.ifPresent(line::append);
         line.append(nameFor(server, player, author));
         line.append(": ");
         // An introducing act says the name out loud, so the line itself carries it as an argument
