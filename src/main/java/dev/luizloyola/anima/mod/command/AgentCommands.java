@@ -2920,7 +2920,7 @@ public final class AgentCommands {
      *
      * <p>Only the frame is translated. The table below it is dev data (act keys, tick counts, the
      * branch names of a filter), which is the lang rule's debug carve-out: translating
-     * {@code request_end_chat} would make the readout harder to match against the code it explains.
+     * {@code ask_identity} would make the readout harder to match against the code it explains.
      *
      * <p>A factory, not a cached node: Brigadier parents a builder when it is registered.
      */

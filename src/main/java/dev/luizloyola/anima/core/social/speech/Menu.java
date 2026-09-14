@@ -2,8 +2,11 @@ package dev.luizloyola.anima.core.social.speech;
 
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.social.speech.Chooser.Line;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.BiPredicate;
 import java.util.random.RandomGenerator;
 import org.jspecify.annotations.Nullable;
 
@@ -11,10 +14,27 @@ import org.jspecify.annotations.Nullable;
  * What a participant with no chooser may say right now, and whether a line it proposes is one of
  * those — the pure half of a player's buttons and of the command a button runs.
  *
- * <p>The picker is the law; the menu is the picker read by somebody who cannot want. {@link
- * #offered} is exactly {@link Picker#applicable} gated on {@link Picker#maySpeak}, and {@link
- * #pick} checks a proposal against the same two before anything is said, because the buttons a
+ * <p>The picker is the law; the menu is the picker read by somebody who cannot want — and then
+ * narrowed by what they already did and already know, the facts a chooser reads for a settler and
+ * nobody read for a player until 2026-09-13 (decision: Luiz): seven buttons a beat, Greet after
+ * greeting and Introduce yourself after introducing, was a menu that meant nothing. {@link
+ * #offered} is {@link Picker#applicable} gated on {@link Picker#maySpeak} less those, and {@link
+ * #pick} checks a proposal against the same set before anything is said, because the buttons a
  * player clicks are a HINT rendered a beat ago — the record may have moved since.
+ *
+ * <p><b>Narrowed by flags and the book, never by a consumer's act key.</b> Anima does not know
+ * what {@code ask_identity} is; it knows that an act whose declared responses include an
+ * introducing act is asking for a name, and that a name already in the book makes the ask
+ * pointless. The four trims:
+ * <ul>
+ *   <li>never the greeting — the hail that opened the record was the greeting, and the other
+ *       side greets back on its own;</li>
+ *   <li>a line that says nothing (non-obliging, non-introducing, non-ending, no topics: Anima's
+ *       {@code deflect}, and any word a consumer shapes the same way) only while an obligation
+ *       is pending on self — it is the way to not answer, never an opener;</li>
+ *   <li>a request for a name only while self does not know the counterpart;</li>
+ *   <li>an introduction only while the counterpart does not know self, and once per record.</li>
+ * </ul>
  */
 public final class Menu {
 
@@ -35,9 +55,14 @@ public final class Menu {
     private Menu() {
     }
 
-    /** The acts {@code self} may say into {@code e} this tick — empty while the beat is unspent. */
-    public static List<SpeechAct> offered(Encounter e, AgentId self, long now, int turnCap) {
-        return Picker.maySpeak(e, self, now) ? Picker.applicable(e, self, turnCap) : List.of();
+    /**
+     * The acts {@code self} may say into {@code e} this tick — empty while the beat is unspent.
+     *
+     * @param knows the contact book as a question, {@code (knower, whom)}
+     */
+    public static List<SpeechAct> offered(Encounter e, AgentId self, long now, int turnCap,
+            BiPredicate<AgentId, AgentId> knows) {
+        return Picker.maySpeak(e, self, now) ? narrowed(e, self, turnCap, knows) : List.of();
     }
 
     /**
@@ -46,16 +71,17 @@ public final class Menu {
      * a line is chosen for a speaker rather than by one, and it is only ever the flavour.
      *
      * <p>Refusals are ordered from "you cannot mean that" to "not quite yet": an act the registry
-     * does not hold, then one the picker would not offer whatever the tick, then the beat, then
+     * does not hold, then one this menu would not offer whatever the tick, then the beat, then
      * the topic — so the reason reported is the one the player can act on.
      */
-    public static Pick pick(Encounter e, AgentId self, long now, int turnCap, String key,
-            @Nullable String topic, RandomGenerator random) {
+    public static Pick pick(Encounter e, AgentId self, long now, int turnCap,
+            BiPredicate<AgentId, AgentId> knows, String key, @Nullable String topic,
+            RandomGenerator random) {
         SpeechAct act = SpeechActs.byKey(key).orElse(null);
         if (act == null) {
             return Pick.refused(Reason.UNKNOWN);
         }
-        if (!Picker.applicable(e, self, turnCap).contains(act)) {
+        if (!narrowed(e, self, turnCap, knows).contains(act)) {
             return Pick.refused(Reason.NOT_OFFERED);
         }
         if (!Picker.maySpeak(e, self, now)) {
@@ -71,5 +97,49 @@ public final class Menu {
             return Pick.refused(Reason.BAD_TOPIC);
         }
         return new Pick(Reason.OK, new Chooser.Line(act, Map.of(Utterance.TOPIC, topic)));
+    }
+
+    /** The picker's set less what this speaker has already done or already knows. */
+    private static List<SpeechAct> narrowed(Encounter e, AgentId self, int turnCap,
+            BiPredicate<AgentId, AgentId> knows) {
+        boolean owes = Picker.pendingOn(e, self).isPresent();
+        Optional<AgentId> them = e.other(self);
+        boolean knowsThem = them.map(other -> knows.test(self, other)).orElse(false);
+        boolean knownByThem = them.map(other -> knows.test(other, self)).orElse(false);
+        List<SpeechAct> out = new ArrayList<>();
+        for (SpeechAct act : Picker.applicable(e, self, turnCap)) {
+            if (act == SpeechActs.GREETING
+                    || (saysNothing(act) && !owes)
+                    || (asksForAName(act) && knowsThem)
+                    || (act.introduces() && (knownByThem || alreadySaid(e, self, act)))) {
+                continue;
+            }
+            out.add(act);
+        }
+        return out;
+    }
+
+    /** A word with no effect and no subject — the shape of a line that says nothing. */
+    private static boolean saysNothing(SpeechAct act) {
+        return !act.obliges() && !act.introduces() && !act.ends() && act.topics().isEmpty();
+    }
+
+    /** An ask whose declared answers include an introduction is an ask for a name. */
+    private static boolean asksForAName(SpeechAct act) {
+        for (String response : act.responses()) {
+            if (SpeechActs.byKey(response).map(SpeechAct::introduces).orElse(false)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean alreadySaid(Encounter e, AgentId self, SpeechAct act) {
+        for (Utterance u : e.transcript()) {
+            if (!u.system() && self.equals(u.author()) && u.act().equals(act.key())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -153,6 +153,10 @@ public final class Talkers {
                 notice(server, player, "anima.talk.unanswered", snubbed.get());
                 continue;
             }
+            if (talker.engine.lapsedFarewell(e)) {
+                talker.engine.close(e); // their goodbye went unanswered: the door closes, no verdict
+                continue;
+            }
             long now = server.overworld().getGameTime();
             if (Picker.unanswered(e, other, now, patienceOf(server, Optional.of(other)))) {
                 talker.engine.system(e, SpeechActs.IGNORED, other);
@@ -186,7 +190,7 @@ public final class Talkers {
         long now = server.overworld().getGameTime();
         int cap = SpeechEngine.turnCap(e, now, Config.get().i(Knob.SOCIAL_ENCOUNTER_TURN_CAP),
                 Config.get().i(Knob.SOCIAL_ENCOUNTER_TICK_CAP));
-        List<SpeechAct> offered = Menu.offered(e, self, now, cap);
+        List<SpeechAct> offered = Menu.offered(e, self, now, cap, ContactData.get(server)::knows);
         talker.shown(e);
         if (offered.isEmpty()) {
             return false;

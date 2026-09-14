@@ -44,6 +44,12 @@ public interface Speech {
     /** The other party, once their unanswered obligation has outrun this body's patience. */
     Optional<AgentId> expiredObligation(Encounter e);
 
+    /**
+     * Whether this body's own goodbye has gone unacknowledged past its patience — the wait that
+     * ends without a verdict: the waiter closes the record, and the goodbye stays its last line.
+     */
+    boolean lapsedFarewell(Encounter e);
+
     /** This body's view of {@code e} — what a {@link Chooser} picks from. */
     Chooser.Turn turn(Encounter e);
 
@@ -95,6 +101,11 @@ public interface Speech {
         @Override
         public Optional<AgentId> expiredObligation(Encounter e) {
             return Optional.empty();
+        }
+
+        @Override
+        public boolean lapsedFarewell(Encounter e) {
+            return false;
         }
 
         @Override

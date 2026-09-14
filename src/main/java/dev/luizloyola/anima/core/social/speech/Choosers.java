@@ -12,10 +12,11 @@ import java.util.Optional;
 public final class Choosers {
 
     /**
-     * Greets once, answers a constrained pending ask with its first declared response, and
-     * proposes (then confirms) leaving once company pressure reads {@code 0.0} — otherwise
-     * silence, because proximity alone is still company. Never initiates while {@link
-     * Chooser.Turn#awaiting()} is present: an ask already on the table doesn't get asked twice.
+     * Greets once, answers a constrained pending ask with its first declared response — which is
+     * how it acknowledges a goodbye — and says goodbye itself once company pressure reads
+     * {@code 0.0}; otherwise silence, because proximity alone is still company. Never initiates
+     * while {@link Chooser.Turn#awaiting()} is present: an ask already on the table doesn't get
+     * asked twice.
      */
     public static final Chooser BASIC = (ctx, turn) -> {
         Optional<Chooser.Line> reply = respondToPending(turn);
@@ -28,13 +29,9 @@ public final class Choosers {
         if (!turn.greeted() && turn.applicable().contains(SpeechActs.GREETING)) {
             return Chooser.Line.of(SpeechActs.GREETING);
         }
-        if (ctx.percepts().needs().pressure(NeedKind.COMPANY) == 0.0) {
-            if (turn.applicable().contains(SpeechActs.REQUEST_END_CHAT)) {
-                return Chooser.Line.of(SpeechActs.REQUEST_END_CHAT);
-            }
-            if (turn.applicable().contains(SpeechActs.END_CHAT)) {
-                return Chooser.Line.of(SpeechActs.END_CHAT);
-            }
+        if (ctx.percepts().needs().pressure(NeedKind.COMPANY) == 0.0
+                && turn.applicable().contains(SpeechActs.END_CHAT)) {
+            return Chooser.Line.of(SpeechActs.END_CHAT);
         }
         return null;
     };

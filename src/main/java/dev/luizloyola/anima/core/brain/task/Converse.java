@@ -151,11 +151,18 @@ public final class Converse implements PrimitiveTask {
             if (line != null) {
                 speech.say(encounter, line);
                 ctx.journal().record(Category.BRAIN, "converse", "said " + line.act().key());
-                if (encounter.closed()) {
-                    return TaskStatus.SUCCESS;
-                }
+                return encounter.closed() ? TaskStatus.SUCCESS : TaskStatus.RUNNING;
             }
-            return TaskStatus.RUNNING;
+        }
+        // A silent tick — by the beat, or by a chooser holding its tongue — falls through to the
+        // clocks that run on THEM. Returning early on the chooser's silence stalled them: a body
+        // that had asked once and was rightly waiting (Turn#awaiting) never called the snub, and
+        // the record sat open until staleness swept it (found 2026-09-13).
+        if (speech.lapsedFarewell(encounter)) {
+            // Nobody answered the goodbye. Not a snub: the last line already says why it ended.
+            speech.close(encounter);
+            ctx.journal().record(Category.BRAIN, "converse", "left without an answer");
+            return TaskStatus.SUCCESS;
         }
         return speech.expiredObligation(encounter).map(snubbed -> {
             speech.system(encounter, SpeechActs.IGNORED, snubbed);

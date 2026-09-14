@@ -23,6 +23,7 @@ import dev.luizloyola.anima.core.social.speech.Chooser;
 import dev.luizloyola.anima.core.social.speech.Encounter;
 import dev.luizloyola.anima.core.social.speech.Picker;
 import dev.luizloyola.anima.core.social.speech.Speech;
+import dev.luizloyola.anima.core.social.speech.SpeechAct;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import dev.luizloyola.anima.core.social.speech.SpeechEngine;
 import dev.luizloyola.anima.core.social.speech.Utterance;
@@ -53,6 +54,23 @@ class ConverseTest {
     private final FakeContext ctx = new FakeContext();
     /** A stranger nobody perceives — good enough whenever a test doesn't care about facing. */
     private final BeingId otherId = BeingId.of(AgentId.random());
+
+    /**
+     * An ordinary obliging ask with no constrained responses, registered once per JVM (the
+     * registry is shared across suites). The snub tests need one now that Anima's only obliging
+     * word of its own, the goodbye, ends a record rather than snubbing anybody.
+     */
+    private static final SpeechAct ASKS = registerAsk();
+
+    private static SpeechAct registerAsk() {
+        SpeechAct act = new SpeechAct("converse_test_ask", "anima.speech.test.converse_ask", 1,
+                true, true, false, false, List.of());
+        try {
+            return SpeechActs.register(act);
+        } catch (IllegalStateException alreadyRegistered) {
+            return SpeechActs.byKey("converse_test_ask").orElseThrow();
+        }
+    }
 
     // ── rule 1: first tick joins or resumes; a closed record is SUCCESS ─────────────────────
 
@@ -389,9 +407,17 @@ class ConverseTest {
     }
 
     @Test
-    @DisplayName("a chosen line that ends the encounter returns SUCCESS")
+    @DisplayName("a chosen line that ends the encounter returns SUCCESS — the answering goodbye")
     void aLineThatEndsTheEncounterSucceeds() {
         Converse converse = new Converse(otherId, Speech.Opening.QUIET);
+        ctx.speech.chooser = (c, turn) -> null;
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "joined, nothing to say yet");
+        // Their goodbye lands — said standing here, or a line of theirs with nobody in sight reads
+        // as somebody who has walked off. This body's own, a beat later, is the acknowledgement.
+        retreatTo(otherId, new Pos(2, 64, 0), 2.0);
+        ctx.speech.current().orElseThrow()
+                .append(new Utterance(otherId.asPerson(), SpeechActs.END_CHAT.key(), Map.of(), 0));
+        ctx.percepts.time = Picker.REPLY_GRACE_TICKS + Converse.JITTER_TICKS;
         ctx.speech.chooser = (c, turn) -> Chooser.Line.of(SpeechActs.END_CHAT);
 
         assertEquals(TaskStatus.SUCCESS, converse.tick(ctx));
@@ -440,9 +466,9 @@ class ConverseTest {
         ctx.speech.caps = new SpeechEngine.Caps(60, 6_000, 1_200, 10); // patience shrunk to 10 ticks
         ctx.seed(rolling(Converse.JITTER_TICKS)); // the widest roll there is — the floor plus 20
         Converse converse = new Converse(otherId, Speech.Opening.QUIET);
-        ctx.speech.chooser = scripted(Chooser.Line.of(SpeechActs.REQUEST_END_CHAT));
+        ctx.speech.chooser = scripted(Chooser.Line.of(ASKS));
 
-        assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "proposes ending — the other now owes a reply");
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "asks — the other now owes a reply");
 
         // Past the floor and the patience, short of the roll: she has nothing to say yet, and that
         // must not buy the other party time on the clock they are already out of.
@@ -461,10 +487,9 @@ class ConverseTest {
     void givesUpOnAnUnansweredObligation() {
         ctx.speech.caps = new SpeechEngine.Caps(60, 6_000, 1_200, 10); // patience shrunk to 10 ticks
         Converse converse = new Converse(otherId, Speech.Opening.QUIET);
-        ctx.speech.chooser = scripted(Chooser.Line.of(SpeechActs.REQUEST_END_CHAT),
-                Chooser.Line.of(SpeechActs.DEFLECT));
+        ctx.speech.chooser = scripted(Chooser.Line.of(ASKS), Chooser.Line.of(SpeechActs.DEFLECT));
 
-        assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "proposes ending — the other now owes a reply");
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "asks — the other now owes a reply");
         assertFalse(ctx.speech.maySpeak(ctx.speech.current().orElseThrow()),
                 "even her own follow-up waits out the beat");
 
@@ -486,6 +511,46 @@ class ConverseTest {
         assertEquals(otherId.asPerson().toString(), ignored.payload().get(Utterance.SUBJECT));
         assertTrue(journaled(ctx, "gave up waiting"));
         assertTrue(ctx.speech.closedRecords.get(0).closed(), "IGNORED ends() — the engine closes it");
+    }
+
+    @Test
+    @DisplayName("a goodbye nobody answers closes the record quietly — no IGNORED, no snub")
+    void aGoodbyeNobodyAnswersClosesWithoutAVerdict() {
+        ctx.speech.caps = new SpeechEngine.Caps(60, 6_000, 1_200, 10); // patience shrunk to 10 ticks
+        Converse converse = new Converse(otherId, Speech.Opening.QUIET);
+        ctx.speech.chooser = scripted(Chooser.Line.of(SpeechActs.END_CHAT));
+
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "said goodbye — the record waits for the answer");
+        assertFalse(ctx.speech.current().orElseThrow().closed());
+
+        ctx.percepts.time += Picker.REPLY_GRACE_TICKS + Converse.JITTER_TICKS + 11;
+        assertEquals(TaskStatus.SUCCESS, converse.tick(ctx));
+
+        Utterance last = ctx.speech.saidLines.get(ctx.speech.saidLines.size() - 1);
+        assertEquals(SpeechActs.END_CHAT.key(), last.act(), "the goodbye stays the last line — it is why it ended");
+        assertTrue(ctx.speech.closedRecords.get(0).closed());
+        assertTrue(journaled(ctx, "left without an answer"));
+    }
+
+    @Test
+    @DisplayName("a chooser that holds its tongue does not stall the snub clock")
+    void aSilentChooserDoesNotStallTheSnubClock() {
+        ctx.speech.caps = new SpeechEngine.Caps(60, 6_000, 1_200, 10); // patience shrunk to 10 ticks
+        ctx.seed(rolling(0));
+        Converse converse = new Converse(otherId, Speech.Opening.QUIET);
+        ctx.speech.chooser = scripted(Chooser.Line.of(ASKS)); // asks once, then silence
+
+        assertEquals(TaskStatus.RUNNING, converse.tick(ctx));
+
+        // Past the beat and the roll: she may speak, chooses not to, and must still notice the
+        // other party is out of time. Returning on the chooser's silence used to skip that.
+        ctx.percepts.time += Picker.REPLY_GRACE_TICKS + 11;
+        assertTrue(ctx.speech.maySpeak(ctx.speech.current().orElseThrow()),
+                "the floor is met and one line of her own is still hers");
+        assertEquals(TaskStatus.SUCCESS, converse.tick(ctx));
+        assertEquals(SpeechActs.IGNORED.key(),
+                ctx.speech.saidLines.get(ctx.speech.saidLines.size() - 1).act());
+        assertTrue(journaled(ctx, "gave up waiting"));
     }
 
     // ── rule 5: cancel releases nothing — the record survives ───────────────────────────────
@@ -535,7 +600,7 @@ class ConverseTest {
         Converse taskA = new Converse(BeingId.of(other.self), Speech.Opening.I_HAILED);
         Converse taskB = new Converse(BeingId.of(ctx.self), Speech.Opening.THEY_HAILED);
         ctx.speech.chooser = scripted(Chooser.Line.of(SpeechActs.GREETING),
-                Chooser.Line.of(SpeechActs.REQUEST_END_CHAT));
+                Chooser.Line.of(SpeechActs.END_CHAT));
         otherSpeech.chooser = scripted(Chooser.Line.of(SpeechActs.GREETING),
                 Chooser.Line.of(SpeechActs.END_CHAT));
 
@@ -560,21 +625,22 @@ class ConverseTest {
 
         ctx.percepts.time = 3 * beat;
         other.percepts.time = 3 * beat;
-        assertEquals(TaskStatus.RUNNING, taskA.tick(ctx), "A's beat has elapsed — proposes ending");
+        assertEquals(TaskStatus.RUNNING, taskA.tick(ctx), "A's beat has elapsed — says goodbye");
         assertEquals(TaskStatus.RUNNING, taskB.tick(otherContext),
                 "B owes an answer, but an obligation buys no head start on the beat");
 
         ctx.percepts.time = 4 * beat;
         other.percepts.time = 4 * beat;
-        assertEquals(TaskStatus.SUCCESS, taskB.tick(otherContext), "B accepts — END_CHAT closes the record");
+        assertEquals(TaskStatus.SUCCESS, taskB.tick(otherContext),
+                "B acknowledges — the answering goodbye closes the record");
         assertEquals(TaskStatus.SUCCESS, taskA.tick(ctx),
                 "the SHARED record now reads closed, though A's own engine never closed it");
 
         Encounter e = ctx.speech.roster.closed().get(0);
         List<String> acts = e.transcript().stream().map(Utterance::act).toList();
         assertEquals(List.of(SpeechActs.HAIL.key(), SpeechActs.GREETING.key(), SpeechActs.GREETING.key(),
-                SpeechActs.REQUEST_END_CHAT.key(), SpeechActs.END_CHAT.key()), acts,
-                "the hail out front, then GREETING through END_CHAT");
+                SpeechActs.END_CHAT.key(), SpeechActs.END_CHAT.key()), acts,
+                "the hail out front, then GREETING through the two goodbyes");
         assertTrue(e.closed());
         assertEquals(4 * beat, e.closedAt());
 

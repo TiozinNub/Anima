@@ -6,16 +6,20 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.AgentId;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The menu is the picker read by a participant who cannot want: offered is applicable-on-the-beat,
- * and a pick is refused for exactly the reason a player can act on.
+ * The menu is the picker read by a participant who cannot want, narrowed by what they already did
+ * and already know: offered is applicable-on-the-beat less the trims of 2026-09-13, and a pick is
+ * refused for exactly the reason a player can act on.
  */
 class MenuTest {
 
@@ -24,17 +28,29 @@ class MenuTest {
     private final AgentId player = AgentId.random();
     private final AgentId body = AgentId.random();
     private final Random random = new Random(7);
+    /** A contact book as {@code [knower, whom]} pairs — the menu only ever asks it a question. */
+    private final Set<List<AgentId>> book = new HashSet<>();
+    private final BiPredicate<AgentId, AgentId> knows =
+            (knower, whom) -> book.contains(List.of(knower, whom));
 
-    /** A topic-bearing test act, registered once per JVM (the registry is shared across suites). */
-    private static final SpeechAct ABOUT = registerAbout();
+    /**
+     * A topic-bearing act, an introduction, and an ask for one — test-only shapes, since Anima
+     * itself ships no introducing word. Registered once per JVM: the registry is shared across
+     * suites.
+     */
+    private static final SpeechAct ABOUT = register(new SpeechAct("about_test",
+            "anima.speech.test.about", 1, true, false, false, false, List.of(), List.of("rain", "roads")));
+    private static final SpeechAct NAME = register(new SpeechAct("name_test",
+            "anima.speech.test.name", 1, true, false, true, false, List.of()));
+    private static final SpeechAct ASK_NAME = register(new SpeechAct("ask_name_test",
+            "anima.speech.test.ask_name", 1, true, true, false, false,
+            List.of("name_test", SpeechActs.DEFLECT.key())));
 
-    private static SpeechAct registerAbout() {
-        SpeechAct act = new SpeechAct("about_test", "anima.speech.test.about", 1, true, false,
-                false, false, List.of(), List.of("rain", "roads"));
+    private static SpeechAct register(SpeechAct act) {
         try {
             return SpeechActs.register(act);
         } catch (IllegalStateException alreadyRegistered) {
-            return SpeechActs.byKey("about_test").orElseThrow();
+            return SpeechActs.byKey(act.key()).orElseThrow();
         }
     }
 
@@ -46,12 +62,22 @@ class MenuTest {
         return new Utterance(who, act.key(), Map.of(), tick);
     }
 
-    @Test
-    @DisplayName("an empty record offers the picker's applicable set at once")
-    void emptyRecordOffersAtOnce() {
-        List<SpeechAct> offered = Menu.offered(fresh(), player, 0L, CAP);
+    private List<SpeechAct> offered(Encounter e, long now) {
+        return Menu.offered(e, player, now, CAP, knows);
+    }
 
-        assertTrue(offered.contains(SpeechActs.GREETING));
+    private Menu.Pick pick(Encounter e, long now, SpeechAct act, String topic) {
+        return Menu.pick(e, player, now, CAP, knows, act.key(), topic, random);
+    }
+
+    // ── what is offered ──────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("an empty record offers at once: a goodbye, small talk, the two name acts — never the hail")
+    void emptyRecordOffersAtOnce() {
+        List<SpeechAct> offered = offered(fresh(), 0L);
+
+        assertTrue(offered.containsAll(List.of(SpeechActs.END_CHAT, ABOUT, ASK_NAME, NAME)));
         assertFalse(offered.contains(SpeechActs.HAIL), "the hail opens a record; it is not said");
         assertFalse(offered.contains(SpeechActs.IGNORED), "a system verdict is never on a menu");
     }
@@ -62,30 +88,103 @@ class MenuTest {
         Encounter e = fresh();
         e.append(line(body, SpeechActs.GREETING, 100L));
 
-        assertTrue(Menu.offered(e, player, 100L + Picker.REPLY_GRACE_TICKS - 1, CAP).isEmpty());
-        assertFalse(Menu.offered(e, player, 100L + Picker.REPLY_GRACE_TICKS, CAP).isEmpty());
+        assertTrue(offered(e, 100L + Picker.REPLY_GRACE_TICKS - 1).isEmpty());
+        assertFalse(offered(e, 100L + Picker.REPLY_GRACE_TICKS).isEmpty());
     }
+
+    @Test
+    @DisplayName("trim: never the greeting — the hail was the greeting")
+    void neverTheGreeting() {
+        Encounter e = fresh();
+        assertFalse(offered(e, 0L).contains(SpeechActs.GREETING));
+
+        e.append(line(body, SpeechActs.GREETING, 100L));
+        assertFalse(offered(e, 200L).contains(SpeechActs.GREETING), "not even to greet back");
+        assertEquals(Menu.Reason.NOT_OFFERED, pick(e, 200L, SpeechActs.GREETING, null).reason());
+    }
+
+    @Test
+    @DisplayName("trim: saying nothing is only ever the answer to a question")
+    void sayingNothingOnlyAnswersAQuestion() {
+        Encounter e = fresh();
+        assertFalse(offered(e, 0L).contains(SpeechActs.DEFLECT), "never as an opener");
+
+        e.append(line(body, ASK_NAME, 100L));
+        List<SpeechAct> asked = offered(e, 200L);
+        assertTrue(asked.contains(SpeechActs.DEFLECT), "the way to not answer");
+        assertTrue(asked.contains(NAME), "or to answer");
+        assertTrue(asked.contains(SpeechActs.END_CHAT), "or to leave");
+        assertFalse(asked.contains(ABOUT), "the ask constrains everything else away");
+    }
+
+    @Test
+    @DisplayName("trim: an ask for a name only while the name is not in the book")
+    void askingForANameOnlyWhileUnknown() {
+        Encounter e = fresh();
+        assertTrue(offered(e, 0L).contains(ASK_NAME));
+
+        book.add(List.of(player, body));
+        assertFalse(offered(e, 0L).contains(ASK_NAME), "the player knows them — nothing to ask");
+        assertEquals(Menu.Reason.NOT_OFFERED, pick(e, 0L, ASK_NAME, null).reason());
+    }
+
+    @Test
+    @DisplayName("trim: an introduction only while they do not know you")
+    void introducingOnlyWhileUnknownToThem() {
+        Encounter e = fresh();
+        assertTrue(offered(e, 0L).contains(NAME));
+
+        book.add(List.of(body, player));
+        assertFalse(offered(e, 0L).contains(NAME), "they know the player — nothing to introduce");
+        assertEquals(Menu.Reason.NOT_OFFERED, pick(e, 0L, NAME, null).reason());
+    }
+
+    @Test
+    @DisplayName("trim: an introduction once per record, whatever the book says")
+    void introducingOncePerRecord() {
+        Encounter e = fresh();
+        e.append(line(player, NAME, 100L));
+
+        assertFalse(offered(e, 200L).contains(NAME), "already said here");
+        assertEquals(Menu.Reason.NOT_OFFERED, pick(e, 200L, NAME, null).reason());
+    }
+
+    @Test
+    @DisplayName("the steady state between acquaintances: small talk and a goodbye")
+    void steadyState() {
+        Encounter e = fresh();
+        book.add(List.of(player, body));
+        book.add(List.of(body, player));
+        e.append(line(body, SpeechActs.GREETING, 100L));
+
+        List<SpeechAct> offered = offered(e, 200L);
+        assertTrue(offered.containsAll(List.of(ABOUT, SpeechActs.END_CHAT)));
+        assertFalse(offered.contains(SpeechActs.GREETING));
+        assertFalse(offered.contains(SpeechActs.DEFLECT));
+        assertFalse(offered.contains(ASK_NAME));
+        assertFalse(offered.contains(NAME));
+    }
+
+    // ── the pick ─────────────────────────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("a pick of an act the registry does not hold is UNKNOWN")
     void unknownAct() {
-        Menu.Pick pick = Menu.pick(fresh(), player, 0L, CAP, "no_such_word", null, random);
+        Menu.Pick pick = Menu.pick(fresh(), player, 0L, CAP, knows, "no_such_word", null, random);
 
         assertEquals(Menu.Reason.UNKNOWN, pick.reason());
         assertNull(pick.line());
     }
 
     @Test
-    @DisplayName("a registered act the picker would not offer is NOT_OFFERED, even before the beat")
+    @DisplayName("a registered act the menu would not offer is NOT_OFFERED, even before the beat")
     void notOfferedOutranksTooSoon() {
         Encounter e = fresh();
         e.append(line(body, SpeechActs.GREETING, 100L));
 
-        // END_CHAT answers a request_end_chat only — off the table whatever the tick, and the
-        // beat is unspent too: the refusal must name the reason the player can do something about.
-        Menu.Pick pick = Menu.pick(e, player, 101L, CAP, SpeechActs.END_CHAT.key(), null, random);
-
-        assertEquals(Menu.Reason.NOT_OFFERED, pick.reason());
+        // The greeting is off the table whatever the tick, and the beat is unspent too: the
+        // refusal must name the reason the player can do something about.
+        assertEquals(Menu.Reason.NOT_OFFERED, pick(e, 101L, SpeechActs.GREETING, null).reason());
     }
 
     @Test
@@ -94,34 +193,30 @@ class MenuTest {
         Encounter e = fresh();
         e.append(line(body, SpeechActs.GREETING, 100L));
 
-        Menu.Pick pick = Menu.pick(e, player, 101L, CAP, SpeechActs.GREETING.key(), null, random);
-
-        assertEquals(Menu.Reason.TOO_SOON, pick.reason());
+        assertEquals(Menu.Reason.TOO_SOON, pick(e, 101L, SpeechActs.END_CHAT, null).reason());
     }
 
     @Test
     @DisplayName("an offered act on the beat is OK with an empty payload")
     void okPlain() {
-        Menu.Pick pick = Menu.pick(fresh(), player, 0L, CAP, SpeechActs.GREETING.key(), null, random);
+        Menu.Pick pick = pick(fresh(), 0L, SpeechActs.END_CHAT, null);
 
         assertTrue(pick.ok());
-        assertEquals(SpeechActs.GREETING, pick.line().act());
+        assertEquals(SpeechActs.END_CHAT, pick.line().act());
         assertTrue(pick.line().payload().isEmpty());
     }
 
     @Test
     @DisplayName("a topic on an act that carries none is BAD_TOPIC")
     void topicOnTopiclessAct() {
-        Menu.Pick pick = Menu.pick(fresh(), player, 0L, CAP, SpeechActs.GREETING.key(), "rain", random);
-
-        assertEquals(Menu.Reason.BAD_TOPIC, pick.reason());
+        assertEquals(Menu.Reason.BAD_TOPIC, pick(fresh(), 0L, SpeechActs.END_CHAT, "rain").reason());
     }
 
     @Test
     @DisplayName("a topic-bearing act takes a declared topic and refuses an undeclared one")
     void declaredTopicsOnly() {
-        Menu.Pick declared = Menu.pick(fresh(), player, 0L, CAP, ABOUT.key(), "roads", random);
-        Menu.Pick undeclared = Menu.pick(fresh(), player, 0L, CAP, ABOUT.key(), "weather", random);
+        Menu.Pick declared = pick(fresh(), 0L, ABOUT, "roads");
+        Menu.Pick undeclared = pick(fresh(), 0L, ABOUT, "weather");
 
         assertTrue(declared.ok());
         assertEquals("roads", declared.line().payload().get(Utterance.TOPIC));
@@ -131,7 +226,7 @@ class MenuTest {
     @Test
     @DisplayName("a topic-bearing act with no topic given draws one of its own")
     void drawsATopic() {
-        Menu.Pick pick = Menu.pick(fresh(), player, 0L, CAP, ABOUT.key(), null, random);
+        Menu.Pick pick = pick(fresh(), 0L, ABOUT, null);
 
         assertTrue(pick.ok());
         assertTrue(ABOUT.topics().contains(pick.line().payload().get(Utterance.TOPIC)));

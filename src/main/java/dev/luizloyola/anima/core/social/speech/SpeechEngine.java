@@ -101,12 +101,25 @@ public final class SpeechEngine implements Speech {
 
     @Override
     public void say(Encounter e, Chooser.Line line) {
-        Utterance u = new Utterance(self, line.act().key(), line.payload(), now.getAsLong());
+        SpeechAct act = line.act();
+        // Read BEFORE appending — a line of one's own discharges whatever was pending, so asking
+        // afterwards would never find the goodbye this one answers.
+        boolean closes = act.ends() && (!act.obliges() || answersItsOwnKind(e, act));
+        Utterance u = new Utterance(self, act.key(), line.payload(), now.getAsLong());
         e.append(u);
         listener.said(e, u);
-        if (line.act().ends()) {
+        if (closes) {
             close(e);
         }
+    }
+
+    /**
+     * The handshake half of {@link SpeechAct#ends()}: an ending act that obliges is said twice —
+     * the first opens the obligation and leaves the record open for the answer, the second IS
+     * that answer and closes it. One that does not oblige closes on the spot.
+     */
+    private boolean answersItsOwnKind(Encounter e, SpeechAct act) {
+        return Picker.pendingOn(e, self).map(p -> p.act().equals(act.key())).orElse(false);
     }
 
     @Override
@@ -139,6 +152,11 @@ public final class SpeechEngine implements Speech {
     @Override
     public Optional<AgentId> expiredObligation(Encounter e) {
         return Picker.expiredObligation(e, self, now.getAsLong(), caps.get().patienceTicks());
+    }
+
+    @Override
+    public boolean lapsedFarewell(Encounter e) {
+        return Picker.lapsedFarewell(e, self, now.getAsLong(), caps.get().patienceTicks());
     }
 
     /**

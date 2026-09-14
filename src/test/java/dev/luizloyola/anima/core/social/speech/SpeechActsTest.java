@@ -13,9 +13,10 @@ class SpeechActsTest {
 	void animaVocabulary() {
 		assertSame(SpeechActs.GREETING, SpeechActs.byKey("greeting").orElseThrow());
 		assertSame(SpeechActs.END_CHAT, SpeechActs.byKey("end_chat").orElseThrow());
-		assertTrue(SpeechActs.REQUEST_END_CHAT.obliges(),
-				"a proposal to end waits on an answer");
+		assertTrue(SpeechActs.END_CHAT.obliges(), "a goodbye waits on its acknowledgement");
 		assertTrue(SpeechActs.END_CHAT.ends());
+		assertEquals(java.util.List.of("end_chat"), SpeechActs.END_CHAT.responses(),
+				"the only answer to a goodbye is a goodbye");
 		assertFalse(SpeechActs.IGNORED.negotiable(), "the world's lines are not proposals");
 	}
 

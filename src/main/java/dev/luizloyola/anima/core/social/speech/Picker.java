@@ -96,9 +96,6 @@ public final class Picker {
         SpeechAct pendingAct = pending.flatMap(u -> SpeechActs.byKey(u.act())).orElse(null);
         List<String> constrained = pendingAct == null || pendingAct.responses().isEmpty()
                 ? null : pendingAct.responses();
-        boolean endAsked = pending
-                .map(u -> u.act().equals(SpeechActs.REQUEST_END_CHAT.key()))
-                .orElse(false);
         List<Verdict> out = new ArrayList<>();
         for (SpeechAct act : SpeechActs.all()) {
             if (!act.negotiable()) {
@@ -106,13 +103,15 @@ public final class Picker {
                         "a system verdict — written by whoever notices, never chosen"));
             } else if (act == SpeechActs.HAIL) {
                 out.add(new Verdict(act, false, "the hail opens a record; it is not said"));
+            } else if (act.ends()) {
+                // Whatever is pending and whatever the cap: leaving discharges what was owed, so
+                // nothing turns a goodbye away. With a goodbye pending the constraint is [end_chat]
+                // anyway, and the acknowledgement is the only thing on offer.
+                out.add(new Verdict(act, true, "a goodbye is always on offer"));
             } else if (constrained != null && !constrained.contains(act.key())) {
                 out.add(new Verdict(act, false, "constrained by the pending " + pendingAct.key()
                         + " → " + String.join(", ", constrained)));
-            } else if (act.ends() && !endAsked && !capped) {
-                out.add(new Verdict(act, false,
-                        "a goodbye answers a request_end_chat, or a record at its cap"));
-            } else if (capped && !act.ends() && act != SpeechActs.REQUEST_END_CHAT) {
+            } else if (capped) {
                 out.add(new Verdict(act, false, "the cap leaves only farewells"));
             } else {
                 out.add(new Verdict(act, true, "applicable"));
@@ -121,18 +120,47 @@ public final class Picker {
         return out;
     }
 
+    /**
+     * The other party, once a question of ours they never answered has outrun patience — the
+     * snub. An unacknowledged goodbye is deliberately not one: see {@link #lapsedFarewell}.
+     */
     public static Optional<AgentId> expiredObligation(Encounter e, AgentId self, long now,
             int patienceTicks) {
         for (AgentId other : e.participants()) {
             if (other.equals(self)) {
                 continue;
             }
-            Optional<Utterance> pending = pendingOn(e, other);
+            Optional<Utterance> pending = pendingOn(e, other).filter(u -> !isEnding(u));
             if (pending.isPresent() && now - pending.get().tick() > patienceTicks) {
                 return Optional.of(other);
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Whether {@code self}'s own goodbye has gone unacknowledged past patience — the one wait that
+     * ends without a verdict. A snub is a question nobody answered; a goodbye nobody answered is a
+     * body that had already left, and the record's last line is the goodbye, which is the reason
+     * it ended. So the waiter closes the door quietly instead of writing IGNORED about somebody who
+     * owed only an "okay".
+     */
+    public static boolean lapsedFarewell(Encounter e, AgentId self, long now, int patienceTicks) {
+        for (AgentId other : e.participants()) {
+            if (other.equals(self)) {
+                continue;
+            }
+            Optional<Utterance> pending = pendingOn(e, other)
+                    .filter(u -> self.equals(u.author()) && isEnding(u));
+            if (pending.isPresent() && now - pending.get().tick() > patienceTicks) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isEnding(Utterance u) {
+        return SpeechActs.byKey(u.act()).map(SpeechAct::ends).orElse(false);
     }
 
     /**

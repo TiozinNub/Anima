@@ -136,8 +136,8 @@ class SpeechEngineTest {
     }
 
     @Test
-    @DisplayName("say appends authored self, notifies the listener, and END_CHAT closes the record")
-    void sayAppendsNotifiesAndEndChatCloses() {
+    @DisplayName("say appends authored self, notifies the listener, and the answering goodbye closes the record")
+    void sayAppendsNotifiesAndTheAnsweringGoodbyeCloses() {
         Encounters roster = new Encounters();
         long[] clock = {0L};
         Recorder recorder = new Recorder();
@@ -156,8 +156,16 @@ class SpeechEngineTest {
 
         engine.say(e, Chooser.Line.of(SpeechActs.END_CHAT));
 
-        assertTrue(e.closed(), "END_CHAT ends the record");
-        assertEquals(1, recorder.closed.size(), "the close is notified exactly once");
+        assertFalse(e.closed(), "a goodbye obliges an acknowledgement — the record waits for it");
+        assertEquals(SpeechActs.END_CHAT.key(), Picker.pendingOn(e, bob).orElseThrow().act());
+        assertTrue(recorder.closed.isEmpty());
+
+        Recorder bobRecorder = new Recorder();
+        SpeechEngine bobEngine = engineFor(bob, roster, clock, CAPS, bobRecorder);
+        bobEngine.say(e, Chooser.Line.of(SpeechActs.END_CHAT));
+
+        assertTrue(e.closed(), "the answering goodbye closes the record");
+        assertEquals(1, bobRecorder.closed.size(), "the close is notified exactly once, to the closer");
         assertTrue(roster.closed().contains(e), "closing the record moves it off the roster's open list");
     }
 
@@ -244,7 +252,6 @@ class SpeechEngineTest {
         clock[0] = 51L; // 51 ticks since opening at 0 exceeds a 50-tick duration cap
 
         List<SpeechAct> afterCap = engine.turn(e).applicable();
-        assertTrue(afterCap.contains(SpeechActs.REQUEST_END_CHAT));
         assertTrue(afterCap.contains(SpeechActs.END_CHAT));
         assertFalse(afterCap.contains(SpeechActs.GREETING), "past the duration cap only an ending is on offer");
         assertFalse(afterCap.contains(SpeechActs.DEFLECT));
@@ -260,7 +267,7 @@ class SpeechEngineTest {
         SpeechEngine engine = engineFor(alice, roster, clock, shortPatience, recorder);
         Encounter e = roster.join(alice, bob, 1_000L).orElseThrow();
         // Alice is the one who asked — the obligation to answer now sits on bob, not on her.
-        Utterance ask = new Utterance(alice, SpeechActs.REQUEST_END_CHAT.key(), Map.of(), 1_000L);
+        Utterance ask = new Utterance(alice, ASK_WITH_ONLY_GREETING_AS_RESPONSE.key(), Map.of(), 1_000L);
         e.append(ask);
 
         assertFalse(engine.maySpeak(e), "her own line has not yet had its beat");
@@ -298,6 +305,25 @@ class SpeechEngineTest {
     }
 
     @Test
+    @DisplayName("lapsedFarewell is this body's own unanswered goodbye past caps' patience — and no snub")
+    void lapsedFarewellDelegatesToPicker() {
+        Encounters roster = new Encounters();
+        long[] clock = {0L};
+        SpeechEngine.Caps shortPatience = new SpeechEngine.Caps(60, 6_000, 6_000, 300);
+        SpeechEngine engine = engineFor(alice, roster, clock, shortPatience, new Recorder());
+        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
+
+        engine.say(e, Chooser.Line.of(SpeechActs.END_CHAT));
+        assertFalse(e.closed(), "her goodbye waits for bob's");
+
+        clock[0] = 301L;
+        assertTrue(engine.lapsedFarewell(e));
+        assertEquals(Optional.empty(), engine.expiredObligation(e), "an owed acknowledgement is not a snub");
+        assertEquals(Picker.lapsedFarewell(e, alice, clock[0], shortPatience.patienceTicks()),
+                engine.lapsedFarewell(e));
+    }
+
+    @Test
     @DisplayName("counterpart is the other participant, from either side of the pair")
     void counterpartIsTheOtherParticipant() {
         Encounters roster = new Encounters();
@@ -320,12 +346,12 @@ class SpeechEngineTest {
         SpeechEngine engine = engineFor(alice, roster, clock, CAPS, recorder);
         Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
 
-        engine.say(e, Chooser.Line.of(SpeechActs.REQUEST_END_CHAT));
+        engine.say(e, Chooser.Line.of(ASK_WITH_ONLY_GREETING_AS_RESPONSE));
 
         Chooser.Turn afterAsk = engine.turn(e);
         assertTrue(afterAsk.pending().isEmpty(), "nothing is pending ON alice — her own line is last");
-        assertTrue(afterAsk.awaiting().isPresent(), "alice asked bob to end and nothing of his has answered it");
-        assertEquals(SpeechActs.REQUEST_END_CHAT.key(), afterAsk.awaiting().orElseThrow().act());
+        assertTrue(afterAsk.awaiting().isPresent(), "alice asked bob something and nothing of his has answered it");
+        assertEquals(ASK_WITH_ONLY_GREETING_AS_RESPONSE.key(), afterAsk.awaiting().orElseThrow().act());
 
         clock[0] += Picker.REPLY_GRACE_TICKS;
         e.append(new Utterance(bob, SpeechActs.DEFLECT.key(), Map.of(), clock[0]));

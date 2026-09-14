@@ -9,9 +9,11 @@ import java.util.Objects;
  * what the act means:
  * {@code obliges} puts an obligation on the addressee (ignored past patience is a snub);
  * {@code introduces} gives the speaker's name away — addressee and eligible bystanders learn;
- * {@code ends} closes the record; {@code negotiable} distinguishes proposals from verdicts.
+ * {@code ends} closes the record — at once when the act does not oblige (a SYSTEM verdict), and
+ * on the ANSWER when it does: an obliging ending act is a handshake, said once to leave and once
+ * more to acknowledge (END_CHAT); {@code negotiable} distinguishes proposals from verdicts.
  * {@code responses} constrains what discharges the obligation when non-empty; empty means any
- * reply does (REQUEST_END_CHAT: raise a new topic or say goodbye).
+ * reply does.
  * {@code topics} is what a topic-bearing act may be ABOUT — the payload keys a speaker with no
  * gauges to read picks from; empty for every act that carries no topic.
  */

@@ -61,14 +61,14 @@ class ChoosersTest {
         AgentId alice = AgentId.random();
         AgentId bob = AgentId.random();
         Encounter e = new Encounter(UUID.randomUUID(), List.of(alice, bob), 0L);
-        Utterance selfAsk = new Utterance(alice, SpeechActs.REQUEST_END_CHAT.key(), Map.of(), 0L);
-        // greeted, and REQUEST_END_CHAT applicable, with company pressure at the fresh default of
+        Utterance selfAsk = new Utterance(alice, SpeechActs.END_CHAT.key(), Map.of(), 0L);
+        // greeted, and END_CHAT applicable, with company pressure at the fresh default of
         // 0.0 — every condition BASIC's own initiating branch wants, but for the gate this pins.
-        Chooser.Turn turn = new Chooser.Turn(e, List.of(SpeechActs.REQUEST_END_CHAT),
+        Chooser.Turn turn = new Chooser.Turn(e, List.of(SpeechActs.END_CHAT),
                 Optional.empty(), Optional.of(selfAsk), true, Optional.of(bob));
 
         Chooser.Line line = Choosers.BASIC.choose(new FakeContext(), turn);
 
-        assertNull(line, "alice already asked bob to end chat — asking again talks over her own question");
+        assertNull(line, "alice already said goodbye — saying it again talks over her own goodbye");
     }
 }

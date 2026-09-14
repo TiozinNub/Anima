@@ -45,7 +45,7 @@ class PickerTest {
     }
 
     @Test
-    @DisplayName("an empty encounter lets either party speak, offering greeting but never hail or a goodbye")
+    @DisplayName("an empty encounter lets either party speak, offering greeting and a goodbye but never the hail")
     void emptyTranscriptOffersGreetingOnly() {
         Encounter e = fresh();
         assertTrue(Picker.maySpeak(e, alice, 0), "nobody has spoken — either party may open");
@@ -54,7 +54,7 @@ class PickerTest {
         List<SpeechAct> applicable = Picker.applicable(e, alice, 10);
         assertTrue(applicable.contains(SpeechActs.GREETING));
         assertFalse(applicable.contains(SpeechActs.HAIL), "the hail is prefilled at open, never chosen");
-        assertFalse(applicable.contains(SpeechActs.END_CHAT), "nothing has proposed ending yet");
+        assertTrue(applicable.contains(SpeechActs.END_CHAT), "a goodbye is always on offer — leaving needs no permission");
     }
 
     @Test
@@ -81,10 +81,10 @@ class PickerTest {
     }
 
     @Test
-    @DisplayName("a proposal to end obliges bob, who waits out the beat like anyone else, then may say goodbye")
+    @DisplayName("a goodbye obliges bob, who waits out the beat like anyone else, then may acknowledge it")
     void obligingAskStillWaitsOutTheGrace() {
         Encounter e = fresh();
-        Utterance ask = line(alice, SpeechActs.REQUEST_END_CHAT, 100);
+        Utterance ask = line(alice, SpeechActs.END_CHAT, 100);
         e.append(ask);
 
         assertEquals(ask, Picker.pendingOn(e, bob).orElseThrow(), "alice's ask is what's pending on bob");
@@ -93,13 +93,15 @@ class PickerTest {
         assertFalse(Picker.maySpeak(e, bob, 119), "one tick short of the beat is still too soon");
         assertTrue(Picker.maySpeak(e, bob, 120), "the beat elapsed — now the owed answer may come");
         assertTrue(Picker.applicable(e, bob, 10).contains(SpeechActs.END_CHAT));
+        assertFalse(Picker.applicable(e, bob, 10).contains(SpeechActs.GREETING),
+                "a goodbye constrains the answer to a goodbye");
     }
 
     @Test
     @DisplayName("bob answering with any line discharges what was pending on him")
     void selfLineAfterAskDischarges() {
         Encounter e = fresh();
-        e.append(line(alice, SpeechActs.REQUEST_END_CHAT, 100));
+        e.append(line(alice, SpeechActs.END_CHAT, 100));
         e.append(line(bob, SpeechActs.GREETING, 110));
 
         assertTrue(Picker.pendingOn(e, bob).isEmpty(),
@@ -107,7 +109,7 @@ class PickerTest {
     }
 
     @Test
-    @DisplayName("a constrained obligation narrows applicable to only its declared responses")
+    @DisplayName("a constrained obligation narrows applicable to its declared responses, plus the goodbye")
     void constrainedObligationNarrowsApplicable() {
         Encounter e = fresh();
         e.append(line(alice, Q_CONSTRAINED, 100));
@@ -115,8 +117,7 @@ class PickerTest {
         List<SpeechAct> applicable = Picker.applicable(e, bob, 10);
         assertTrue(applicable.contains(SpeechActs.GREETING), "greeting is q_constrained's only response");
         assertFalse(applicable.contains(SpeechActs.DEFLECT));
-        assertFalse(applicable.contains(SpeechActs.REQUEST_END_CHAT));
-        assertFalse(applicable.contains(SpeechActs.END_CHAT));
+        assertTrue(applicable.contains(SpeechActs.END_CHAT), "a goodbye is on offer under any constraint");
         assertFalse(applicable.contains(Q_CONSTRAINED), "q_constrained is not among its own responses");
     }
 
@@ -124,7 +125,7 @@ class PickerTest {
     @DisplayName("expiredObligation reports the other party once their unanswered ask outlives patience")
     void expiredObligationNoticesTheSnub() {
         Encounter e = fresh();
-        Utterance ask = line(alice, SpeechActs.REQUEST_END_CHAT, 1000);
+        Utterance ask = line(alice, Q_CONSTRAINED, 1000);
         e.append(ask);
 
         assertEquals(Optional.of(bob), Picker.expiredObligation(e, alice, ask.tick() + 301, 300),
@@ -144,7 +145,6 @@ class PickerTest {
         e.append(line(alice, SpeechActs.GREETING, 180));
 
         List<SpeechAct> applicable = Picker.applicable(e, bob, 5);
-        assertTrue(applicable.contains(SpeechActs.REQUEST_END_CHAT));
         assertTrue(applicable.contains(SpeechActs.END_CHAT));
         assertFalse(applicable.contains(SpeechActs.GREETING), "past the cap only an ending is on offer");
         assertFalse(applicable.contains(SpeechActs.DEFLECT));
@@ -175,18 +175,45 @@ class PickerTest {
     }
 
     @Test
-    @DisplayName("at the cap, explain says which of the two cap rules turned each act away")
-    void explainNamesBothCapRules() {
+    @DisplayName("at the cap, explain turns everything but the goodbye away and says so")
+    void explainNamesTheCapRule() {
         Encounter e = fresh();
         e.append(line(alice, SpeechActs.GREETING, 100));
 
         List<Picker.Verdict> capped = Picker.explain(e, bob, 1); // one line is already the cap
         assertEquals("the cap leaves only farewells", reasonFor(capped, SpeechActs.GREETING));
-        assertEquals("applicable", reasonFor(capped, SpeechActs.END_CHAT));
+        assertEquals("a goodbye is always on offer", reasonFor(capped, SpeechActs.END_CHAT));
+        assertEquals("a goodbye is always on offer",
+                reasonFor(Picker.explain(e, bob, 10), SpeechActs.END_CHAT),
+                "with room to spare the goodbye is on offer for the same reason");
+    }
 
-        // The same goodbye, off the table for the other reason while the record still has room.
-        assertEquals("a goodbye answers a request_end_chat, or a record at its cap",
-                reasonFor(Picker.explain(e, bob, 10), SpeechActs.END_CHAT));
+    @Test
+    @DisplayName("a pending goodbye constrains the answer to a goodbye, and nothing else")
+    void goodbyePendingConstrainsToTheAcknowledgement() {
+        Encounter e = fresh();
+        e.append(line(alice, SpeechActs.END_CHAT, 100));
+
+        assertEquals(List.of(SpeechActs.END_CHAT), Picker.applicable(e, bob, 10),
+                "the only answer to a goodbye is a goodbye");
+        assertEquals("constrained by the pending end_chat → end_chat",
+                reasonFor(Picker.explain(e, bob, 10), SpeechActs.GREETING));
+    }
+
+    @Test
+    @DisplayName("an unacknowledged goodbye is a lapsed farewell for its author, never a snub")
+    void anUnacknowledgedGoodbyeIsNotASnub() {
+        Encounter e = fresh();
+        Utterance bye = line(alice, SpeechActs.END_CHAT, 1000);
+        e.append(bye);
+
+        assertEquals(Optional.empty(), Picker.expiredObligation(e, alice, bye.tick() + 301, 300),
+                "bob owes only an acknowledgement — not giving one is leaving, not snubbing");
+        assertFalse(Picker.lapsedFarewell(e, alice, bye.tick() + 300, 300), "patience is inclusive");
+        assertTrue(Picker.lapsedFarewell(e, alice, bye.tick() + 301, 300),
+                "alice's own goodbye has gone unanswered past patience");
+        assertFalse(Picker.lapsedFarewell(e, bob, bye.tick() + 301, 300),
+                "the goodbye is alice's to give up on, not bob's");
     }
 
     private static String reasonFor(List<Picker.Verdict> verdicts, SpeechAct act) {

@@ -12,6 +12,7 @@ import dev.luizloyola.anima.core.social.speech.SpeechAct;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import dev.luizloyola.anima.core.social.speech.SpeechEngine;
 import dev.luizloyola.anima.mod.net.ContactsSync;
+import dev.luizloyola.anima.mod.social.ContactData;
 import dev.luizloyola.anima.mod.social.Talkers;
 import java.util.List;
 import java.util.random.RandomGenerator;
@@ -110,7 +111,8 @@ public final class TalkCommands {
         // RandomGenerator (BrainDriver seeds its own AgentRandom across that same gap), and the
         // only thing drawn here is which flavour a topicless small talk lands on.
         Menu.Pick pick = Menu.pick(e, ContactsSync.idOf(player), now, cap(e, now),
-                StringArgumentType.getString(ctx, "act"), topic, RandomGenerator.getDefault());
+                ContactData.get(server)::knows, StringArgumentType.getString(ctx, "act"), topic,
+                RandomGenerator.getDefault());
         if (!pick.ok()) {
             Replies.fail(source, Component.translatable(refusal(pick.reason())));
             return 0;
@@ -164,7 +166,8 @@ public final class TalkCommands {
             return List.of();
         }
         long now = server.overworld().getGameTime();
-        return Menu.offered(e, ContactsSync.idOf(player), now, cap(e, now));
+        return Menu.offered(e, ContactsSync.idOf(player), now, cap(e, now),
+                ContactData.get(server)::knows);
     }
 
     /** The turn cap this record is under right now — the duration cap narrows it to 0. */

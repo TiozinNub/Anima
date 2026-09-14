@@ -93,6 +93,11 @@ public final class FakeSpeech implements Speech {
     }
 
     @Override
+    public boolean lapsedFarewell(Encounter e) {
+        return engine.lapsedFarewell(e);
+    }
+
+    @Override
     public Chooser.Turn turn(Encounter e) {
         return engine.turn(e);
     }

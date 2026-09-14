@@ -21,10 +21,13 @@ public final class SpeechActs {
 			"greeting", "anima.speech.greeting", 3, true, false, false, false, List.of()));
 	public static final SpeechAct DEFLECT = register(new SpeechAct(
 			"deflect", "anima.speech.deflect", 1, true, false, false, false, List.of()));
-	public static final SpeechAct REQUEST_END_CHAT = register(new SpeechAct(
-			"request_end_chat", "anima.speech.request_end_chat", 2, true, true, false, false, List.of()));
+	/**
+	 * The goodbye — a statement, never a proposal (decision: Luiz, 2026-09-13). It obliges AND
+	 * ends: said once to leave, and once more by the other side to acknowledge, which is what
+	 * closes the record. Nothing else answers it, and nobody can refuse to let somebody go.
+	 */
 	public static final SpeechAct END_CHAT = register(new SpeechAct(
-			"end_chat", "anima.speech.end_chat", 2, true, false, false, true, List.of()));
+			"end_chat", "anima.speech.end_chat", 4, true, true, false, true, List.of("end_chat")));
 	/** SYSTEM vocabulary — written by whoever notices, never chosen by a chooser. */
 	public static final SpeechAct IGNORED = register(new SpeechAct(
 			"ignored", "anima.speech.system.ignored", 1, false, false, false, true, List.of()));
