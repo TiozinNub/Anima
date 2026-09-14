@@ -499,6 +499,7 @@
   "anima.talk.bad_topic": "There's nothing to say about that.",
   "anima.talk.unanswered": "%s never answered.",
   "anima.talk.ignored": "%s didn't seem to notice.",
+  "anima.talk.left": "%s walked off.",
   "anima.talk.busy.you": "You're still talking to %s.",
   "anima.talk.busy.now": "%s is busy right now.",
   "anima.talk.busy.them": "%s is already talking to someone."

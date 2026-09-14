@@ -35,6 +35,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * A player's seat at a conversation — the half of participating that a brain does for a settler
@@ -74,6 +75,17 @@ public final class Talkers {
      */
     static final int OWN_LINE_GRACE = Picker.REPLY_GRACE_TICKS + Converse.JITTER_TICKS;
 
+    /**
+     * Beyond chat radius from where they stood for this long, a player has walked away — a step
+     * back or a jump is not leaving, twelve blocks for two seconds is. The verdict it writes is
+     * the Walk away button's own, about the player; a settler's leaving is measured on the
+     * settler's clock instead (patience), the way {@code Converse} trails off on anybody.
+     */
+    static final int WALKED_AWAY_TICKS = 40;
+
+    /** Half-range so {@code now - stamp} on a never-set clock cannot overflow. */
+    private static final long NEVER = Long.MIN_VALUE / 2;
+
     private static final Map<MinecraftServer, Map<UUID, Talker>> BY_SERVER = new HashMap<>();
 
     /** One player's seat: the engine, and how much of which record the menu has been shown for. */
@@ -81,6 +93,11 @@ public final class Talkers {
         final SpeechEngine engine;
         UUID renderedRecord;
         int renderedLines = -1;
+        /** Where the player stood when the record last moved — leaving is measured from here. */
+        Vec3 anchor;
+        int anchoredLines = -1;
+        /** Since when the two have been apart, or {@link #NEVER} — the trailed-off clock. */
+        long apartSince = NEVER;
 
         Talker(SpeechEngine engine) {
             this.engine = engine;
@@ -174,6 +191,9 @@ public final class Talkers {
                 notice(server, player, "anima.talk.ignored", other);
                 continue;
             }
+            if (parted(server, player, talker, e, other, now)) {
+                continue;
+            }
             if (talker.shownFor(e)) {
                 continue;
             }
@@ -189,6 +209,47 @@ public final class Talkers {
                 render(server, player, talker, e);
             }
         }
+    }
+
+    /**
+     * Whether the two have come apart, and closes the record once whoever left has been gone long
+     * enough. Distance is symmetric, so who LEFT is read off who moved: the player, measured from
+     * where they stood when the record last moved; the body, measured from the player — or gone
+     * altogether: unloaded, dead, in another dimension. A player who walked away is called on it
+     * in two seconds, since they cannot read a line from twelve blocks anyway; a body that walked
+     * off gets the patience a settler would give it, and the clock resets if it comes back.
+     */
+    private static boolean parted(MinecraftServer server, ServerPlayer player, Talker talker,
+            Encounter e, AgentId other, long now) {
+        if (talker.anchor == null || talker.anchoredLines != e.transcript().size()) {
+            talker.anchor = player.position();
+            talker.anchoredLines = e.transcript().size();
+        }
+        double reach = radiusOf(server, Optional.of(other));
+        reach *= reach;
+        boolean playerLeft = player.position().distanceToSqr(talker.anchor) > reach;
+        AgentBody body = AgentBodies.findLoaded(server, other);
+        boolean bodyGone = body == null || !body.entity().isAlive()
+                || body.entity().level() != player.level()
+                || player.distanceToSqr(body.entity()) > reach;
+        if (!playerLeft && !bodyGone) {
+            talker.apartSince = NEVER; // together again; whatever was running never ran
+            return false;
+        }
+        if (talker.apartSince == NEVER) {
+            talker.apartSince = now;
+            return false;
+        }
+        if (playerLeft && now - talker.apartSince > WALKED_AWAY_TICKS) {
+            talker.engine.system(e, SpeechActs.IGNORED, ContactsSync.idOf(player));
+            return true;
+        }
+        if (bodyGone && now - talker.apartSince > patienceOf(server, Optional.of(other))) {
+            talker.engine.system(e, SpeechActs.IGNORED, other);
+            notice(server, player, "anima.talk.left", other);
+            return true;
+        }
+        return false;
     }
 
     // ── the menu ─────────────────────────────────────────────────────────────────────────────
