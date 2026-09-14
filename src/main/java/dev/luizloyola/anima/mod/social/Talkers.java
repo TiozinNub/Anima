@@ -9,6 +9,7 @@ import dev.luizloyola.anima.core.social.speech.Chooser;
 import dev.luizloyola.anima.core.social.speech.Encounter;
 import dev.luizloyola.anima.core.social.speech.Encounters;
 import dev.luizloyola.anima.core.social.speech.Menu;
+import dev.luizloyola.anima.core.social.speech.Parting;
 import dev.luizloyola.anima.core.social.speech.Picker;
 import dev.luizloyola.anima.core.social.speech.Speech;
 import dev.luizloyola.anima.core.social.speech.SpeechAct;
@@ -83,9 +84,6 @@ public final class Talkers {
      */
     static final int WALKED_AWAY_TICKS = 40;
 
-    /** Half-range so {@code now - stamp} on a never-set clock cannot overflow. */
-    private static final long NEVER = Long.MIN_VALUE / 2;
-
     private static final Map<MinecraftServer, Map<UUID, Talker>> BY_SERVER = new HashMap<>();
 
     /** One player's seat: the engine, and how much of which record the menu has been shown for. */
@@ -93,11 +91,12 @@ public final class Talkers {
         final SpeechEngine engine;
         UUID renderedRecord;
         int renderedLines = -1;
-        /** Where the player stood when the record last moved — leaving is measured from here. */
+        /** Where the player stood when THIS record last moved — leaving is measured from here. */
         Vec3 anchor;
+        UUID anchoredRecord;
         int anchoredLines = -1;
-        /** Since when the two have been apart, or {@link #NEVER} — the trailed-off clock. */
-        long apartSince = NEVER;
+        /** The trailed-off clock; reset with the anchor when a fresh record replaces the last. */
+        final Parting parting = new Parting();
 
         Talker(SpeechEngine engine) {
             this.engine = engine;
@@ -218,12 +217,21 @@ public final class Talkers {
      * altogether: unloaded, dead, in another dimension. A player who walked away is called on it
      * in two seconds, since they cannot read a line from twelve blocks anyway; a body that walked
      * off gets the patience a settler would give it, and the clock resets if it comes back.
+     *
+     * <p>The anchor and the clock belong to ONE record. Keyed on the line count alone, a fresh
+     * record whose first sweep found the same count as the last anchor kept that anchor — from the
+     * spot the player had walked away from — and closed on its own greeting (2026-09-14).
      */
     private static boolean parted(MinecraftServer server, ServerPlayer player, Talker talker,
             Encounter e, AgentId other, long now) {
-        if (talker.anchor == null || talker.anchoredLines != e.transcript().size()) {
+        boolean fresh = !e.id().equals(talker.anchoredRecord);
+        if (fresh || talker.anchoredLines != e.transcript().size()) {
             talker.anchor = player.position();
+            talker.anchoredRecord = e.id();
             talker.anchoredLines = e.transcript().size();
+            if (fresh) {
+                talker.parting.reset();
+            }
         }
         double reach = radiusOf(server, Optional.of(other));
         reach *= reach;
@@ -232,24 +240,21 @@ public final class Talkers {
         boolean bodyGone = body == null || !body.entity().isAlive()
                 || body.entity().level() != player.level()
                 || player.distanceToSqr(body.entity()) > reach;
-        if (!playerLeft && !bodyGone) {
-            talker.apartSince = NEVER; // together again; whatever was running never ran
-            return false;
+        switch (talker.parting.tick(now, playerLeft, bodyGone, WALKED_AWAY_TICKS,
+                patienceOf(server, Optional.of(other)))) {
+            case SELF_LEFT -> {
+                talker.engine.system(e, SpeechActs.IGNORED, ContactsSync.idOf(player));
+                return true;
+            }
+            case OTHER_GONE -> {
+                talker.engine.system(e, SpeechActs.IGNORED, other);
+                notice(server, player, "anima.talk.left", other);
+                return true;
+            }
+            default -> {
+                return false;
+            }
         }
-        if (talker.apartSince == NEVER) {
-            talker.apartSince = now;
-            return false;
-        }
-        if (playerLeft && now - talker.apartSince > WALKED_AWAY_TICKS) {
-            talker.engine.system(e, SpeechActs.IGNORED, ContactsSync.idOf(player));
-            return true;
-        }
-        if (bodyGone && now - talker.apartSince > patienceOf(server, Optional.of(other))) {
-            talker.engine.system(e, SpeechActs.IGNORED, other);
-            notice(server, player, "anima.talk.left", other);
-            return true;
-        }
-        return false;
     }
 
     // ── the menu ─────────────────────────────────────────────────────────────────────────────
