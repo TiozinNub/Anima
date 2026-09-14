@@ -318,6 +318,20 @@ public final class BrainDriver {
             public double costTolerance(BrainContext c) {
                 return roaming.costTolerance(c);
             }
+
+            // Every default the interface grows has to be forwarded here by hand, or the arbiter
+            // reads the default off this wrapper instead of wander's own answer. yields() was
+            // added, not forwarded, and a hailed body waited out its idle pause anyway
+            // (singleplayer log, 2026-09-14); key() had been an empty string all along.
+            @Override
+            public boolean yields(BrainContext c) {
+                return roaming.yields(c);
+            }
+
+            @Override
+            public String key() {
+                return roaming.key();
+            }
         };
         // Flee is first on purpose: the arbiter breaks pressure ties in list order, so an exact
         // flee/eat tie must resolve to fleeing. Escape sits straight behind it — everything below
