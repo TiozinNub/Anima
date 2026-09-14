@@ -78,7 +78,7 @@ public final class TalkPanel {
         if (state == null) {
             state = next;
         } else {
-            state = new TalkPayload(true, state.who(), state.lines(), List.of(), false);
+            state = new TalkPayload(true, state.who(), state.lines(), List.of());
         }
         closing = true;
         linger = LINGER_TICKS;
@@ -94,8 +94,9 @@ public final class TalkPanel {
         return closing;
     }
 
+    /** Whether there is anything to press — offers are live the moment they are offered. */
     public boolean ready() {
-        return state.ready() && !closing;
+        return !closing && !state.offers().isEmpty();
     }
 
     public List<TalkPayload.Offer> offers() {

@@ -490,8 +490,8 @@ class ConverseTest {
         ctx.speech.chooser = scripted(Chooser.Line.of(ASKS), Chooser.Line.of(SpeechActs.DEFLECT));
 
         assertEquals(TaskStatus.RUNNING, converse.tick(ctx), "asks — the other now owes a reply");
-        assertFalse(ctx.speech.maySpeak(ctx.speech.current().orElseThrow()),
-                "even her own follow-up waits out the beat");
+        assertTrue(ctx.speech.maySpeak(ctx.speech.current().orElseThrow()),
+                "one follow-up is hers on the record's terms; the beat she waits is her own");
 
         // A whole beat — the grace floor plus the widest jitter roll — so the follow-up lands
         // whatever this body rolled. See Converse.JITTER_TICKS.
@@ -546,7 +546,7 @@ class ConverseTest {
         // other party is out of time. Returning on the chooser's silence used to skip that.
         ctx.percepts.time += Picker.REPLY_GRACE_TICKS + 11;
         assertTrue(ctx.speech.maySpeak(ctx.speech.current().orElseThrow()),
-                "the floor is met and one line of her own is still hers");
+                "one line of her own is still hers");
         assertEquals(TaskStatus.SUCCESS, converse.tick(ctx));
         assertEquals(SpeechActs.IGNORED.key(),
                 ctx.speech.saidLines.get(ctx.speech.saidLines.size() - 1).act());

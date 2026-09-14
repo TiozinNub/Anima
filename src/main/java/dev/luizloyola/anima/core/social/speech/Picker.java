@@ -12,7 +12,13 @@ import org.jspecify.annotations.Nullable;
  */
 public final class Picker {
 
-    /** The beat between any two lines — a conversation that lands one per tick is unreadable. */
+    /**
+     * The floor a replier waits before answering — the pace a player reads a conversation at.
+     * Not enforced here (decision: Luiz, 2026-09-14): a pause is the REPLIER's own manner.
+     * {@code Converse} waits this plus its jitter before a settler's line; a player answers when
+     * they click; and a player's seat gives a body this long to answer before offering a second
+     * line. Kept on the record it put every quick answer, a person's included, behind a refusal.
+     */
     public static final int REPLY_GRACE_TICKS = 20;
 
     /** Two lines in a row is a thought; three is a monologue. */
@@ -50,27 +56,17 @@ public final class Picker {
     }
 
     /**
-     * Whether {@code self} may say something into {@code e} right now. EVERY line waits out
-     * {@link #REPLY_GRACE_TICKS} after the previous one — whoever said it, obligation pending or
-     * not; only an empty record speaks at once. An obligation waives the monologue cap (an answer
-     * owed is still owed after two lines of one's own) but never the beat: the grace is the pace
-     * a player reads the conversation at, and letting an owed reply skip it put a whole
-     * conversation on one tick.
+     * Whether {@code self} may say something into {@code e} right now: the record open, and —
+     * unless an answer is owed — no more than {@link #MAX_CONSECUTIVE} lines of their own in a
+     * row. What this refuses is a monologue, never a quick answer: the beat between lines is the
+     * replier's own manner, not the record's rule (see {@link #REPLY_GRACE_TICKS}).
      */
-    public static boolean maySpeak(Encounter e, AgentId self, long now) {
+    public static boolean maySpeak(Encounter e, AgentId self) {
         if (e.closed()) {
             return false;
         }
-        Utterance last = lastSpokenOrNull(e);
-        if (last == null) {
-            return true;
-        }
-        if (now - last.tick() < REPLY_GRACE_TICKS) {
-            return false;
-        }
         // An owed answer outranks the monologue cap — stated even though a line of one's own
-        // discharges what was pending, so the two cannot actually co-occur. Patience (300) dwarfs
-        // the beat: waiting one out can never read as the snub expiredObligation names.
+        // discharges what was pending, so the two cannot actually co-occur.
         return pendingOn(e, self).isPresent() || consecutiveBy(e, self) < MAX_CONSECUTIVE;
     }
 

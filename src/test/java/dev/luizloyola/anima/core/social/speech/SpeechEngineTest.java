@@ -270,12 +270,8 @@ class SpeechEngineTest {
         Utterance ask = new Utterance(alice, ASK_WITH_ONLY_GREETING_AS_RESPONSE.key(), Map.of(), 1_000L);
         e.append(ask);
 
-        assertFalse(engine.maySpeak(e), "her own line has not yet had its beat");
-        assertEquals(Picker.maySpeak(e, alice, clock[0]), engine.maySpeak(e));
-
-        clock[0] = 1_000L + Picker.REPLY_GRACE_TICKS;
-        assertTrue(engine.maySpeak(e), "the beat elapsed — one follow-up of her own is still hers");
-        assertEquals(Picker.maySpeak(e, alice, clock[0]), engine.maySpeak(e));
+        assertTrue(engine.maySpeak(e), "one follow-up of her own is still hers — the pause is her manner, not the record's");
+        assertEquals(Picker.maySpeak(e, alice), engine.maySpeak(e));
 
         clock[0] = 1_000L + 301L; // 301 ticks of silence past a 300-tick patience is a snub
         assertEquals(Optional.of(bob), engine.expiredObligation(e), "bob's obligation has outrun alice's patience");

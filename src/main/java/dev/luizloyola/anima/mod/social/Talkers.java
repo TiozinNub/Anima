@@ -56,17 +56,16 @@ import org.jspecify.annotations.Nullable;
  *
  * <p><b>The panel is fed, never polled.</b> The client draws the last {@link TalkPayload} it was
  * sent and nothing else: opened on the tap, refreshed as each line lands (their line with the acts
- * greyed, the player's own with none — the word is theirs), told the beat has passed (the acts go
- * live), and closed when the record does. Nothing opens it but the tap: a settler walking up and
- * greeting gets a bubble and an action-bar hint, and the player's own click opens the panel into
- * that record (decision: Luiz, 2026-09-14).
+ * under it, the player's own with none — the word is theirs), and closed when the record does.
+ * Nothing opens it but the tap: a settler walking up and greeting gets a bubble and an action-bar
+ * hint, and the player's own click opens the panel into that record (decision: Luiz, 2026-09-14).
  *
- * <p><b>The acts go live on the beat, not on the line.</b> Live buttons under a line the tick it
- * lands would offer what the picker refuses for the next twenty ticks. So the sweep sends the ready
- * flag once {@code maySpeak} holds and the record has grown since it last did — and not straight
- * after a line of the player's own, or a second line would be offered before anybody answered the
- * first; only once {@link #OWN_LINE_GRACE} has passed with no answer. The buttons are a hint;
- * every pick is re-derived from the live record.
+ * <p><b>The acts are live the moment they are offered</b> (decision: Luiz, 2026-09-14): a reply's
+ * pause is the replier's — a settler waits its beat before answering, a player answers when they
+ * click. What the panel withholds is a SECOND line of the player's own before anybody answered
+ * the first: after a line of theirs, or a tap, which the body answers with a greeting, the buttons
+ * wait {@link #OWN_LINE_GRACE} for the answer, and come back if the settler is holding its
+ * tongue. The buttons are a hint; every pick is re-derived from the live record.
  *
  * <p><b>A player borrows the counterpart's numbers.</b> No species, so the chat radius a line
  * carries and the patience a wait is measured by are the counterpart's aspects while it is loaded,
@@ -116,8 +115,9 @@ public final class Talkers {
         @Nullable UUID panelRecord;
         /** The record the player was told somebody is talking to them in — once per record. */
         @Nullable UUID hintedRecord;
-        UUID readyRecord;
-        int readyLines = -1;
+        /** Which record, at what length, the panel last got buttons for — so the sweep sends them once. */
+        UUID offeredRecord;
+        int offeredLines = -1;
         /** Where the player stood when THIS record last moved — leaving is measured from here. */
         Vec3 anchor;
         UUID anchoredRecord;
@@ -131,13 +131,13 @@ public final class Talkers {
             this.engine = engine;
         }
 
-        void wentLive(Encounter e) {
-            readyRecord = e.id();
-            readyLines = e.transcript().size();
+        void offered(Encounter e) {
+            offeredRecord = e.id();
+            offeredLines = e.transcript().size();
         }
 
-        boolean liveFor(Encounter e) {
-            return e.id().equals(readyRecord) && e.transcript().size() == readyLines;
+        boolean offeredFor(Encounter e) {
+            return e.id().equals(offeredRecord) && e.transcript().size() == offeredLines;
         }
     }
 
@@ -162,9 +162,9 @@ public final class Talkers {
     }
 
     /**
-     * Opens the panel on the player's conversation — the tap, and the bare {@code /anima-say}.
-     * Live at once if the beat is already spent (a settler that walked up and waited), greyed
-     * otherwise. Returns whether a record was open at all, so the caller can say so when not.
+     * Opens the panel on the player's conversation — the tap, and the bare {@code /anima-say} —
+     * with buttons if the word is the player's. Returns whether a record was open at all, so the
+     * caller can say so when not.
      */
     public static boolean open(MinecraftServer server, ServerPlayer player) {
         Talker talker = seat(server, player);
@@ -173,18 +173,16 @@ public final class Talkers {
             return false;
         }
         Encounter e = current.get();
-        boolean ready = beatSpent(server, player, talker, e);
-        show(server, player, talker, e, ready);
-        if (ready) {
-            talker.wentLive(e);
+        if (show(server, player, talker, e)) {
+            talker.offered(e);
         }
         return true;
     }
 
     /**
      * A line landed in {@code e}. Every player in it with the panel open sees it now — the acts
-     * greyed under a line of theirs, none under the player's own. A player without the panel open
-     * is told somebody is talking to them, once per record; nothing opens it for them.
+     * under a line of theirs, none under the player's own. A player without the panel open is
+     * told somebody is talking to them, once per record; nothing opens it for them.
      */
     static void refresh(MinecraftServer server, Encounter e, Utterance u) {
         if (u.system()) {
@@ -197,7 +195,9 @@ public final class Talkers {
             }
             Talker talker = seat(server, player);
             if (e.id().equals(talker.panelRecord)) {
-                show(server, player, talker, e, false);
+                if (show(server, player, talker, e)) {
+                    talker.offered(e);
+                }
             } else if (!id.equals(u.author()) && !e.id().equals(talker.hintedRecord)) {
                 talker.hintedRecord = e.id();
                 Speeches.aside(player, Component.translatable("anima.talk.approach",
@@ -235,7 +235,7 @@ public final class Talkers {
         // The JDK's shared generator rather than the player's: a RandomSource is not a
         // RandomGenerator (BrainDriver seeds its own AgentRandom across that same gap), and the
         // only thing drawn here is which flavour a topicless small talk lands on.
-        Menu.Pick pick = Menu.pick(e, ContactsSync.idOf(player), now, cap(e, now),
+        Menu.Pick pick = Menu.pick(e, ContactsSync.idOf(player), cap(e, now),
                 ContactData.get(server)::knows, act, topic, RandomGenerator.getDefault());
         if (!pick.ok()) {
             return refusal(pick.reason());
@@ -278,7 +278,7 @@ public final class Talkers {
             return List.of();
         }
         long now = server.overworld().getGameTime();
-        return Menu.offered(e, ContactsSync.idOf(player), now, cap(e, now),
+        return Menu.offered(e, ContactsSync.idOf(player), cap(e, now),
                 ContactData.get(server)::knows);
     }
 
@@ -333,32 +333,28 @@ public final class Talkers {
             if (brokeOff(server, player, talker, e, other)) {
                 continue;
             }
-            if (talker.panelRecord == null || talker.liveFor(e)) {
+            if (talker.panelRecord == null || talker.offeredFor(e)) {
                 continue;
             }
-            if (beatSpent(server, player, talker, e)) {
-                show(server, player, talker, e, true);
-                talker.wentLive(e);
+            // The word was theirs and they are holding their tongue: the buttons come back.
+            if (!theirTurn(server, player, e) && show(server, player, talker, e)) {
+                talker.offered(e);
             }
         }
     }
 
     /**
-     * Whether the player may speak now — the picker's beat, and the word being theirs after a
-     * line of the player's own or a tap, when the body turns to greet first. Either gets its
-     * whole beat before a line is offered.
+     * Whether the word is theirs: after a line of the player's own — or a tap, which the body
+     * answers with a greeting — the body gets {@link #OWN_LINE_GRACE} to answer before a second
+     * line of the player's is offered.
      */
-    private static boolean beatSpent(MinecraftServer server, ServerPlayer player, Talker talker,
-            Encounter e) {
+    private static boolean theirTurn(MinecraftServer server, ServerPlayer player, Encounter e) {
         AgentId self = ContactsSync.idOf(player);
         long now = server.overworld().getGameTime();
         Optional<Utterance> last = Picker.lastSpoken(e);
-        boolean theirs = last.map(line -> self.equals(line.author())).orElse(true);
+        boolean mine = last.map(line -> self.equals(line.author())).orElse(true);
         long since = last.map(Utterance::tick).orElse(e.openedAt());
-        if (theirs && now - since <= OWN_LINE_GRACE) {
-            return false;
-        }
-        return talker.engine.maySpeak(e);
+        return mine && now - since <= OWN_LINE_GRACE;
     }
 
     /**
@@ -433,11 +429,12 @@ public final class Talkers {
 
     /**
      * Sends the panel its whole state: who, the last {@link #PANEL_LINES} lines as this player
-     * reads them, and the acts — none while the last word is the player's own, greyed until
-     * {@code ready}. Composed here and drawn there; the client keeps nothing.
+     * reads them, and the acts — none while the word is theirs, or while the picker refuses the
+     * player a turn. Composed here and drawn there; the client keeps nothing. Returns whether
+     * any act went with it.
      */
-    private static void show(MinecraftServer server, ServerPlayer player, Talker talker,
-            Encounter e, boolean ready) {
+    private static boolean show(MinecraftServer server, ServerPlayer player, Talker talker,
+            Encounter e) {
         AgentId self = ContactsSync.idOf(player);
         AgentId other = e.other(self).orElse(null);
         long now = server.overworld().getGameTime();
@@ -459,9 +456,8 @@ public final class Talkers {
         Collections.reverse(lines);
 
         List<TalkPayload.Offer> offers = new ArrayList<>();
-        boolean theirWord = Picker.lastSpoken(e).map(u -> self.equals(u.author())).orElse(false);
-        if (!theirWord) {
-            for (SpeechAct act : Menu.offerable(e, self, cap(e, now), ContactData.get(server)::knows)) {
+        if (!theirTurn(server, player, e)) {
+            for (SpeechAct act : Menu.offered(e, self, cap(e, now), ContactData.get(server)::knows)) {
                 offers.add(new TalkPayload.Offer(act.key(),
                         Component.translatable(act.langKey() + ".button"),
                         hover(server, player, act)));
@@ -474,7 +470,8 @@ public final class Talkers {
                 Speeches.nameFor(server, player, other),
                 other == null ? Optional.empty() : Portraits.of(server, other));
         talker.panelRecord = e.id();
-        TalkSync.panel(player, new TalkPayload(true, who, lines, offers, ready && !offers.isEmpty()));
+        TalkSync.panel(player, new TalkPayload(true, who, lines, offers));
+        return !offers.isEmpty();
     }
 
     /**
@@ -516,7 +513,6 @@ public final class Talkers {
         return switch (reason) {
             case UNKNOWN -> "anima.talk.unknown";
             case NOT_OFFERED -> "anima.talk.not_offered";
-            case TOO_SOON -> "anima.talk.too_soon";
             case BAD_TOPIC -> "anima.talk.bad_topic";
             case OK -> throw new IllegalStateException("an accepted pick has no refusal");
         };

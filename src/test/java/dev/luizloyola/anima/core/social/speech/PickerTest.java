@@ -48,8 +48,8 @@ class PickerTest {
     @DisplayName("an empty encounter lets either party speak, offering greeting and a goodbye but never the hail")
     void emptyTranscriptOffersGreetingOnly() {
         Encounter e = fresh();
-        assertTrue(Picker.maySpeak(e, alice, 0), "nobody has spoken — either party may open");
-        assertTrue(Picker.maySpeak(e, bob, 0), "nobody has spoken — either party may open");
+        assertTrue(Picker.maySpeak(e, alice), "nobody has spoken — either party may open");
+        assertTrue(Picker.maySpeak(e, bob), "nobody has spoken — either party may open");
 
         List<SpeechAct> applicable = Picker.applicable(e, alice, 10);
         assertTrue(applicable.contains(SpeechActs.GREETING));
@@ -58,13 +58,12 @@ class PickerTest {
     }
 
     @Test
-    @DisplayName("after alice's greeting, bob must wait out the reply grace before he may answer")
-    void replyGraceBlocksAnImmediateReply() {
+    @DisplayName("after alice's greeting, bob may answer on the very tick — the pause is his to take, not the record's")
+    void aReplyMayLandAtOnce() {
         Encounter e = fresh();
         e.append(line(alice, SpeechActs.GREETING, 100));
 
-        assertFalse(Picker.maySpeak(e, bob, 105), "5 ticks in is well inside the grace window");
-        assertTrue(Picker.maySpeak(e, bob, 120), "20 ticks in, the grace window has fully elapsed");
+        assertTrue(Picker.maySpeak(e, bob), "a quick answer is never refused; a slow one is the replier's manner");
     }
 
     @Test
@@ -72,26 +71,21 @@ class PickerTest {
     void maxConsecutiveCapsSelfFollowUp() {
         Encounter e = fresh();
         e.append(line(alice, SpeechActs.GREETING, 100));
-        assertFalse(Picker.maySpeak(e, alice, 105), "her own follow-up waits the same beat anyone else does");
-        assertTrue(Picker.maySpeak(e, alice, 500), "one line in a row still leaves a follow-up");
+        assertTrue(Picker.maySpeak(e, alice), "one line in a row still leaves a follow-up");
 
         e.append(line(alice, SpeechActs.DEFLECT, 120));
-        assertFalse(Picker.maySpeak(e, alice, 900),
-                "two lines in a row is the cap — long after the grace window doesn't undo it");
+        assertFalse(Picker.maySpeak(e, alice), "two lines in a row is the cap");
     }
 
     @Test
-    @DisplayName("a goodbye obliges bob, who waits out the beat like anyone else, then may acknowledge it")
-    void obligingAskStillWaitsOutTheGrace() {
+    @DisplayName("a goodbye obliges bob, who may acknowledge it at once")
+    void obligingAskMayBeAnsweredAtOnce() {
         Encounter e = fresh();
         Utterance ask = line(alice, SpeechActs.END_CHAT, 100);
         e.append(ask);
 
         assertEquals(ask, Picker.pendingOn(e, bob).orElseThrow(), "alice's ask is what's pending on bob");
-        assertFalse(Picker.maySpeak(e, bob, 100),
-                "being owed an answer is no licence to answer on the very tick it was asked");
-        assertFalse(Picker.maySpeak(e, bob, 119), "one tick short of the beat is still too soon");
-        assertTrue(Picker.maySpeak(e, bob, 120), "the beat elapsed — now the owed answer may come");
+        assertTrue(Picker.maySpeak(e, bob), "an owed answer may come on the tick it was asked");
         assertTrue(Picker.applicable(e, bob, 10).contains(SpeechActs.END_CHAT));
         assertFalse(Picker.applicable(e, bob, 10).contains(SpeechActs.GREETING),
                 "a goodbye constrains the answer to a goodbye");

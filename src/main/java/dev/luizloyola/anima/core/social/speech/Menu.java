@@ -20,7 +20,7 @@ import org.jspecify.annotations.Nullable;
  * greeting and Introduce yourself after introducing, was a menu that meant nothing. {@link
  * #offered} is {@link Picker#applicable} gated on {@link Picker#maySpeak} less those, and {@link
  * #pick} checks a proposal against the same set before anything is said, because the buttons a
- * player clicks are a HINT rendered a beat ago — the record may have moved since.
+ * player clicks are a HINT rendered a moment ago — the record may have moved since.
  *
  * <p><b>Narrowed by flags and the book, never by a consumer's act key.</b> Anima does not know
  * what {@code ask_identity} is; it knows that an act whose declared responses include an
@@ -39,7 +39,7 @@ import org.jspecify.annotations.Nullable;
 public final class Menu {
 
     /** Why a proposed line was or was not accepted — the player-facing reply keys off this. */
-    public enum Reason { OK, UNKNOWN, NOT_OFFERED, TOO_SOON, BAD_TOPIC }
+    public enum Reason { OK, UNKNOWN, NOT_OFFERED, BAD_TOPIC }
 
     /** A checked proposal: the line to say when {@link #ok}, the refusal otherwise. */
     public record Pick(Reason reason, @Nullable Line line) {
@@ -56,13 +56,14 @@ public final class Menu {
     }
 
     /**
-     * The acts {@code self} may say into {@code e} this tick — empty while the beat is unspent.
+     * The acts {@code self} may say into {@code e} right now — empty while the picker refuses
+     * them a turn (the record closed, or two lines of their own already said).
      *
      * @param knows the contact book as a question, {@code (knower, whom)}
      */
-    public static List<SpeechAct> offered(Encounter e, AgentId self, long now, int turnCap,
+    public static List<SpeechAct> offered(Encounter e, AgentId self, int turnCap,
             BiPredicate<AgentId, AgentId> knows) {
-        return Picker.maySpeak(e, self, now) ? offerable(e, self, turnCap, knows) : List.of();
+        return Picker.maySpeak(e, self) ? offerable(e, self, turnCap, knows) : List.of();
     }
 
     /**
@@ -70,22 +71,19 @@ public final class Menu {
      * topic-bearing act with no topic given draws one from what the act declares — the one place
      * a line is chosen for a speaker rather than by one, and it is only ever the flavour.
      *
-     * <p>Refusals are ordered from "you cannot mean that" to "not quite yet": an act the registry
-     * does not hold, then one this menu would not offer whatever the tick, then the beat, then
-     * the topic — so the reason reported is the one the player can act on.
+     * <p>Refusals are ordered from "you cannot mean that" inward: an act the registry does not
+     * hold, then one this menu would not offer, then the topic — so the reason reported is the
+     * one the player can act on.
      */
-    public static Pick pick(Encounter e, AgentId self, long now, int turnCap,
+    public static Pick pick(Encounter e, AgentId self, int turnCap,
             BiPredicate<AgentId, AgentId> knows, String key, @Nullable String topic,
             RandomGenerator random) {
         SpeechAct act = SpeechActs.byKey(key).orElse(null);
         if (act == null) {
             return Pick.refused(Reason.UNKNOWN);
         }
-        if (!offerable(e, self, turnCap, knows).contains(act)) {
+        if (!Picker.maySpeak(e, self) || !offerable(e, self, turnCap, knows).contains(act)) {
             return Pick.refused(Reason.NOT_OFFERED);
-        }
-        if (!Picker.maySpeak(e, self, now)) {
-            return Pick.refused(Reason.TOO_SOON);
         }
         if (act.topics().isEmpty()) {
             return topic == null ? new Pick(Reason.OK, Chooser.Line.of(act))

@@ -74,7 +74,6 @@ public final class TalkScreen extends Screen {
                     .bounds(at.x(), at.y(), at.width(), PanelLayout.BUTTON_H)
                     .tooltip(Tooltip.create(offers.get(i).sample()))
                     .build();
-            button.active = panel.ready();
             addRenderableWidget(button);
         }
     }

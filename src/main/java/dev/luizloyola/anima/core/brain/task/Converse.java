@@ -143,9 +143,10 @@ public final class Converse implements PrimitiveTask {
         // spent; a live order left behind would keep the legs moving toward a stale cell.
         dropWalk(ctx);
         face(ctx, counterpart);
-        // The floor first, then this body's own roll on top of it. A blocked roll falls THROUGH to
-        // the snub check below rather than returning: waiting on somebody is a different clock, and
-        // making it wait on a jitter of ours would let a snubber buy time by our own hesitation.
+        // The record's rule first (an answer owed, the monologue cap), then this body's own beat. A
+        // blocked beat falls THROUGH to the snub check below rather than returning: waiting on
+        // somebody is a different clock, and making it wait on a hesitation of ours would let a
+        // snubber buy time by it.
         if (speech.maySpeak(encounter) && beatElapsed(ctx)) {
             Chooser.Line line = speech.chooser().choose(ctx, speech.turn(encounter));
             if (line != null) {
@@ -286,9 +287,10 @@ public final class Converse implements PrimitiveTask {
     }
 
     /**
-     * Whether this body's own beat has elapsed: {@link Picker#REPLY_GRACE_TICKS}, which
-     * {@link Speech#maySpeak} has already insisted on, plus a fresh roll of up to
-     * {@link #JITTER_TICKS} for every line that lands.
+     * Whether this body's own beat has elapsed: {@link Picker#REPLY_GRACE_TICKS} plus a fresh
+     * roll of up to {@link #JITTER_TICKS} for every line that lands. The pause is this body's
+     * manner, not the record's rule (decision: Luiz, 2026-09-14): the picker lets an answer land
+     * on the very tick, and a settler chooses not to.
      *
      * <p>Only SPEAKING waits on this. Facing, walking, trailing off and the snub clock all read the
      * world rather than this body's hesitation, and are untouched.

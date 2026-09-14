@@ -20,10 +20,10 @@ import net.minecraft.resources.Identifier;
  *
  * @param open false closes the panel; the rest is then empty
  * @param lines the last few lines of the record, oldest first
- * @param offers what may be said — greyed until {@code ready}
+ * @param offers what may be said, live the moment it is offered
  */
-public record TalkPayload(boolean open, Counterpart who, List<Line> lines, List<Offer> offers,
-        boolean ready) implements CustomPacketPayload {
+public record TalkPayload(boolean open, Counterpart who, List<Line> lines, List<Offer> offers)
+        implements CustomPacketPayload {
     public static final Type<TalkPayload> TYPE =
             new Type<>(Identifier.fromNamespaceAndPath(AnimaMod.MOD_ID, "talk"));
 
@@ -64,12 +64,11 @@ public record TalkPayload(boolean open, Counterpart who, List<Line> lines, List<
                     Counterpart.CODEC, TalkPayload::who,
                     Line.CODEC.apply(ByteBufCodecs.list()), TalkPayload::lines,
                     Offer.CODEC.apply(ByteBufCodecs.list()), TalkPayload::offers,
-                    ByteBufCodecs.BOOL, TalkPayload::ready,
                     TalkPayload::new);
 
     public static TalkPayload closed() {
         return new TalkPayload(false, new Counterpart(-1, Component.empty(), Optional.empty()),
-                List.of(), List.of(), false);
+                List.of(), List.of());
     }
 
     @Override

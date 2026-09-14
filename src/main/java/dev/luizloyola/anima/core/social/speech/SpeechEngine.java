@@ -146,7 +146,7 @@ public final class SpeechEngine implements Speech {
 
     @Override
     public boolean maySpeak(Encounter e) {
-        return Picker.maySpeak(e, self, now.getAsLong());
+        return Picker.maySpeak(e, self);
     }
 
     @Override

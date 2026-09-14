@@ -496,7 +496,6 @@
   "anima.talk.not_a_player": "Only somebody with a voice can say that.",
   "anima.talk.unknown": "Nobody here knows how to say that.",
   "anima.talk.not_offered": "That isn't yours to say right now.",
-  "anima.talk.too_soon": "Give them a moment.",
   "anima.talk.bad_topic": "There's nothing to say about that.",
   "anima.talk.unanswered": "%s never answered.",
   "anima.talk.ignored": "%s didn't seem to notice.",
