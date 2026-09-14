@@ -5,8 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -34,7 +39,9 @@ import org.junit.jupiter.api.Test;
  * enforced by {@link ConfigLabelsTest}, so it is the other files that rot.
  *
  * <p>Locales are discovered from the lang directory, so a new {@code es_es.json} is covered the
- * moment it lands. Keys are scraped with a regex: no JSON library, no Minecraft on the classpath.
+ * moment it lands. Keys are scraped with a regex, no Minecraft on the classpath — which is why
+ * {@link #everyLangFileParsesStrictly} exists beside it: the scrape reads keys off a file the game
+ * would throw away whole.
  *
  * <p>Not asserted: that a translation <em>differs</em> from its English source. Plenty of correct
  * translations are identical words ({@code category.social} is "Social" either way).
@@ -85,6 +92,26 @@ class LangSyncTest {
                 assertEquals(placeholders(english), placeholders(line.getValue()),
                         locale + " changes the format arguments of " + line.getKey()
                                 + " — English \"" + english + "\" vs \"" + line.getValue() + "\"");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("every lang file is strict JSON — the game drops a whole file it cannot parse")
+    void everyLangFileParsesStrictly() {
+        // A key appended after the last entry — no comma before it, one after — took every Anima
+        // string in a client to its raw key on 2026-09-14. The loader rejects such a file outright
+        // and falls back to nothing, and the regex scrape above read the keys off it happily.
+        List<String> files = new ArrayList<>(translations());
+        files.add(SOURCE);
+        for (String file : files) {
+            try (JsonReader reader = new JsonReader(new StringReader(read(file)))) {
+                reader.setLenient(false);
+                JsonElement parsed = new Gson().getAdapter(JsonElement.class).read(reader);
+                assertTrue(parsed.isJsonObject(), file + " is not a JSON object");
+                assertEquals(JsonToken.END_DOCUMENT, reader.peek(), file + " has content after the object");
+            } catch (IOException | RuntimeException e) {
+                throw new AssertionError(file + " is not strict JSON — " + e.getMessage(), e);
             }
         }
     }
