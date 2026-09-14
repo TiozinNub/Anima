@@ -66,10 +66,11 @@ public final class Talkers {
     static final int FALLBACK_PATIENCE_TICKS = 300;
 
     /**
-     * How long a line of the player's own keeps the menu away: the floor plus the widest jitter a
-     * settler rolls, so an answer that is coming lands before the buttons do — and a settler that
-     * is holding its tongue on purpose (nothing owed, the goodbye waiting out its silence) leaves
-     * the player buttons to click rather than a dead row scrolled off the top (2026-09-14).
+     * How long a line of the player's own — or a tap, which the body answers with a greeting —
+     * keeps the menu away: the floor plus the widest jitter a settler rolls, so an answer that is
+     * coming lands before the buttons do. A settler holding its tongue on purpose (nothing owed,
+     * the goodbye waiting out its silence) then leaves the player buttons to click rather than a
+     * dead row scrolled off the top (2026-09-14).
      */
     static final int OWN_LINE_GRACE = Picker.REPLY_GRACE_TICKS + Converse.JITTER_TICKS;
 
@@ -176,10 +177,13 @@ public final class Talkers {
             if (talker.shownFor(e)) {
                 continue;
             }
+            // The word is theirs after a line of the player's own — and after a tap, when the
+            // body turns to greet first. Either gets its whole beat before a line is offered.
             Optional<Utterance> last = Picker.lastSpoken(e);
-            if (last.isPresent() && self.equals(last.get().author())
-                    && now - last.get().tick() <= OWN_LINE_GRACE) {
-                continue; // their own line: give the answer its whole beat before offering a second
+            boolean theirs = last.map(line -> self.equals(line.author())).orElse(true);
+            long since = last.map(Utterance::tick).orElse(e.openedAt());
+            if (theirs && now - since <= OWN_LINE_GRACE) {
+                continue;
             }
             if (talker.engine.maySpeak(e)) {
                 render(server, player, talker, e);

@@ -429,6 +429,16 @@ public final class BrainDriver {
     }
 
     /** Whether the arbiter is currently deciding (ON) or a manual task has the wheel (OFF). */
+    /**
+     * Whether this mind would take a conversation right now — the tap on the shoulder's instant
+     * answer, read off the arbiter with the same pressure a hail bids. A brain that is not
+     * arbitrating (auto off) grants nothing, so it is never willing.
+     */
+    public boolean interruptible() {
+        return isAuto() && arbiter.yieldsTo(
+                context().profile().d(ProfileAspect.SOCIAL_HAIL_ANSWER_PRESSURE), context());
+    }
+
     public boolean isAuto() {
         return this.auto;
     }

@@ -221,6 +221,19 @@ public final class BeingSense {
         sensor.renamed(BeingId.of(whom), name);
     }
 
+    /**
+     * A tap on the shoulder — somebody spoke to this body from arm's length. Heard, at their
+     * position, so the mind can turn to them; not a hail: nobody called from over there, and
+     * nothing marks the track as calling (2026-09-14).
+     */
+    public void tappedBy(LivingEntity source) {
+        BeingReading reading = read(source);
+        if (reading != null) {
+            bodies.put(reading.id(), source);
+            sensor.heard(reading, person.level().getGameTime(), true);
+        }
+    }
+
     /** A deliberate shout arrived — see {@link BeingSensorCore#hailedBy}. */
     public void hailedBy(LivingEntity source) {
         BeingReading reading = read(source);

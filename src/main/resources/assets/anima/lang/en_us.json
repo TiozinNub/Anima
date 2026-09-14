@@ -501,4 +501,5 @@
   "anima.talk.ignored": "%s didn't seem to notice.",
   "anima.talk.busy.you": "You're still talking to %s.",
   "anima.talk.busy.them": "%s is already talking to someone."
+  "anima.talk.busy.now": "%s is busy right now.",
 }

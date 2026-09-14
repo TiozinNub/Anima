@@ -501,4 +501,5 @@
   "anima.talk.ignored": "%s não pareceu notar.",
   "anima.talk.busy.you": "Você ainda está conversando com %s.",
   "anima.talk.busy.them": "%s já está conversando com alguém."
+  "anima.talk.busy.now": "%s não tem tempo agora.",
 }

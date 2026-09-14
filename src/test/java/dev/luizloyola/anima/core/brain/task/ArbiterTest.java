@@ -356,6 +356,33 @@ class ArbiterTest {
         assertEquals(1, step(idle.grantedRoots.get(0)).cancels, "the idle root was cancelled on the way out");
     }
 
+    // --- the tap on the shoulder: the tick asked as a question ----------------------------------
+
+    @Test
+    void yieldsToAnswersWhatTheTickWouldDoWithoutGrantingAnything() {
+        FakeInstinct a = new FakeInstinct("a", 0.9, forever("aRoot"));
+        FakeInstinct idle = new FakeInstinct("idle", 0.15, forever("idleRoot"));
+        idle.yields = true;
+
+        Arbiter fresh = new Arbiter(List.of(a));
+        assertTrue(fresh.yieldsTo(0.55, ctx), "idle: anything real would be granted");
+        assertFalse(fresh.yieldsTo(0.0, ctx), "zero pressure is not a bid");
+        assertEquals(0, a.grantedRoots.size(), "asking granted nothing");
+
+        Arbiter busy = new Arbiter(List.of(a));
+        busy.tick(ctx); // A holds the wheel and does not yield
+        a.pressure = 0.3;
+        busy.tick(ctx); // its bid has dropped, but a challenger still has to reach the bar
+        assertFalse(busy.yieldsTo(0.55, ctx), "under the bar a busy body says no");
+        assertTrue(busy.yieldsTo(0.7, ctx), "past the bar it would be cut into");
+        assertEquals(1, a.grantedRoots.size(), "asking granted nothing more");
+
+        Arbiter idling = new Arbiter(List.of(idle));
+        idling.tick(ctx);
+        assertTrue(idling.yieldsTo(0.55, ctx), "an idling body is willing");
+        assertEquals(1, idle.grantedRoots.size(), "and was not interrupted by the question");
+    }
+
     // --- boundary re-grant -----------------------------------------------------------------------
 
     @Test

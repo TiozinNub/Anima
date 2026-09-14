@@ -97,7 +97,7 @@ public final class AnimaMod implements ModInitializer {
         // A player's half of a conversation: the seat that ticks for them, and the right-click
         // that opens one. Anima's, not a consumer's — a wolf can be hailed by a player too.
         dev.luizloyola.anima.mod.social.Talkers.init();
-        dev.luizloyola.anima.mod.social.PlayerHails.init();
+        dev.luizloyola.anima.mod.social.PlayerTaps.init();
         AnimaCommands.register(CONFIG);
         // Its own root because /anima is op-gated whole — see TalkCommands.
         dev.luizloyola.anima.mod.command.TalkCommands.register();

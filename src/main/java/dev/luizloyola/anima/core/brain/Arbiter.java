@@ -313,6 +313,42 @@ public final class Arbiter {
     }
 
     /**
+     * Whether a bid of {@code pressure} from a drive that is not the incumbent would take the
+     * wheel on this tick — the arbitration in {@link #tick} asked as a question, granting nothing.
+     * The tap on the shoulder (a player's right-click) asks it so the answer is instant: a body
+     * that would be granted is willing to be interrupted, one that would have to wait for a
+     * boundary is busy, and the player is told which on the spot rather than after a patience
+     * clock (decision: Luiz, 2026-09-14). "He was busy" is still literally true; it is just said.
+     *
+     * <p>Mirrors the three branches of {@link #tick} and must be kept in step with them: idle
+     * grants anything real; a running errand yields only to a bid past the preempt bar; a running
+     * drive yields to a bid past the bar, or to any bid that outranks it when it
+     * {@link Instinct#yields}.
+     */
+    public boolean yieldsTo(double pressure, BrainContext ctx) {
+        if (pressure <= 0.0) {
+            return false; // zero pressure is not a bid
+        }
+        if (!executor.isBusy()) {
+            return true;
+        }
+        double stickiness = stickiness(ctx.profile());
+        double preempt = preempt(ctx.profile());
+        if (workRunning) {
+            double workEffective = claimedItem == null ? Double.NEGATIVE_INFINITY
+                    : claimedItem.priority() + stickiness;
+            return pressure >= preempt && pressure > workEffective;
+        }
+        int activeIndex = indexOf(active);
+        if (activeIndex < 0) {
+            return pressure >= preempt; // a manual order yields only to a bid that preempts
+        }
+        double activeEffective = lastPressures[activeIndex] + stickiness;
+        return pressure > activeEffective
+                && (pressure >= preempt || instincts.get(activeIndex).yields(ctx));
+    }
+
+    /**
      * The cost ceiling for method selection — the active drive's own
      * ({@link Instinct#costTolerance}), {@link Double#POSITIVE_INFINITY} when nothing is active.
      *
