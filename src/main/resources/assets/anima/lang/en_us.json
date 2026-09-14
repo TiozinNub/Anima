@@ -455,6 +455,7 @@
   "anima.speech.end_chat.4": "Take care.",
   "anima.speech.system.ignored": "(the conversation trailed off)",
   "anima.speech.system.stale": "(they had both forgotten what they were talking about)",
+  "anima.speech.system.interrupted": "(something more pressing came up)",
   "anima.social.overheard.seen": "You overheard %s say their name to someone.",
   "anima.social.overheard.heard": "You overheard someone give their name to %s.",
   "anima.webdebug.not_running": "The web debugger isn't running — /anima webdebug start turns it on.",
@@ -500,6 +501,7 @@
   "anima.talk.unanswered": "%s never answered.",
   "anima.talk.ignored": "%s didn't seem to notice.",
   "anima.talk.left": "%s walked off.",
+  "anima.talk.interrupted": "%s had to go.",
   "anima.talk.busy.you": "You're still talking to %s.",
   "anima.talk.busy.now": "%s is busy right now.",
   "anima.talk.busy.them": "%s is already talking to someone."

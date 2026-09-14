@@ -33,6 +33,13 @@ public final class SpeechActs {
 			"ignored", "anima.speech.system.ignored", 1, false, false, false, true, List.of()));
 	public static final SpeechAct STALE = register(new SpeechAct(
 			"stale", "anima.speech.system.stale", 1, false, false, false, true, List.of()));
+	/**
+	 * A body's mind took the wheel back for something more pressing — a mob to flee, a fire —
+	 * and the counterpart's seat noticed. Between settlers an interruption leaves the record open
+	 * to resume; this is written only by a player's seat, which does not wait (2026-09-14).
+	 */
+	public static final SpeechAct INTERRUPTED = register(new SpeechAct(
+			"interrupted", "anima.speech.system.interrupted", 1, false, false, false, true, List.of()));
 
 	private SpeechActs() {
 	}

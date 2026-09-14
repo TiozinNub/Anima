@@ -439,6 +439,17 @@ public final class BrainDriver {
                 context().profile().d(ProfileAspect.SOCIAL_HAIL_ANSWER_PRESSURE), context());
     }
 
+    /**
+     * Whether this mind is in a conversation right now — the converse instinct has the wheel:
+     * greeting, talking, or walking over to. False the moment something more pressing takes it
+     * (a flee, a fire), which is what a counterpart's seat reads to notice the body broke off;
+     * and false for a brain that is not arbitrating.
+     */
+    public boolean conversing() {
+        return isAuto()
+                && arbiter.activeDrive().filter(ConverseInstinct.class::isInstance).isPresent();
+    }
+
     public boolean isAuto() {
         return this.auto;
     }

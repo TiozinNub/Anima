@@ -98,6 +98,15 @@ public final class Talkers {
     /** How much of the record the panel shows. */
     static final int PANEL_LINES = 3;
 
+    /**
+     * A body still loaded but whose mind has left the conversation — something more pressing
+     * took the wheel: a mob to flee, a fire — for this long, and the record closes. Between
+     * settlers an interruption leaves the record open to resume ({@code Converse}'s own rule); a
+     * player is not left holding a panel for a settler that ran off. Two seconds covers the tick
+     * or two a tapped body takes to pick the conversation up in the first place.
+     */
+    static final int BROKE_OFF_TICKS = 40;
+
     private static final Map<MinecraftServer, Map<UUID, Talker>> BY_SERVER = new HashMap<>();
 
     /** One player's seat: the engine, what the panel is open on, and how much of which record has gone live. */
@@ -115,6 +124,8 @@ public final class Talkers {
         int anchoredLines = -1;
         /** The trailed-off clock; reset with the anchor when a fresh record replaces the last. */
         final Parting parting = new Parting();
+        /** Ticks the counterpart's mind has been elsewhere — see {@link #BROKE_OFF_TICKS}. */
+        int away;
 
         Talker(SpeechEngine engine) {
             this.engine = engine;
@@ -319,6 +330,9 @@ public final class Talkers {
             if (parted(server, player, talker, e, other, now)) {
                 continue;
             }
+            if (brokeOff(server, player, talker, e, other)) {
+                continue;
+            }
             if (talker.panelRecord == null || talker.liveFor(e)) {
                 continue;
             }
@@ -368,6 +382,7 @@ public final class Talkers {
             talker.anchoredLines = e.transcript().size();
             if (fresh) {
                 talker.parting.reset();
+                talker.away = 0;
             }
         }
         double reach = radiusOf(server, Optional.of(other));
@@ -392,6 +407,26 @@ public final class Talkers {
                 return false;
             }
         }
+    }
+
+    /**
+     * Whether the body's mind has left the conversation for good — not conversing for
+     * {@link #BROKE_OFF_TICKS} while loaded. An unloaded body is {@link #parted}'s business. The
+     * verdict is INTERRUPTED about the body: no snub, since nobody chose to stop talking.
+     */
+    private static boolean brokeOff(MinecraftServer server, ServerPlayer player, Talker talker,
+            Encounter e, AgentId other) {
+        AgentBody body = AgentBodies.findLoaded(server, other);
+        if (body == null || body.brain().conversing()) {
+            talker.away = 0;
+            return false;
+        }
+        if (++talker.away < BROKE_OFF_TICKS) {
+            return false;
+        }
+        talker.engine.system(e, SpeechActs.INTERRUPTED, other);
+        notice(server, player, "anima.talk.interrupted", other);
+        return true;
     }
 
     // ── the panel ────────────────────────────────────────────────────────────────────────────

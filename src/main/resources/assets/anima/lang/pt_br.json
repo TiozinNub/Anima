@@ -455,6 +455,7 @@
   "anima.speech.end_chat.4": "Se cuida.",
   "anima.speech.system.ignored": "(a conversa se perdeu)",
   "anima.speech.system.stale": "(os dois já tinham esquecido do que falavam)",
+  "anima.speech.system.interrupted": "(algo mais urgente apareceu)",
   "anima.social.overheard.seen": "Você ouviu %s dizer o próprio nome a alguém.",
   "anima.social.overheard.heard": "Você ouviu alguém dar o próprio nome a %s.",
   "anima.webdebug.not_running": "O depurador web não está rodando — /anima webdebug start o liga.",
@@ -500,6 +501,7 @@
   "anima.talk.unanswered": "%s nunca respondeu.",
   "anima.talk.ignored": "%s não pareceu notar.",
   "anima.talk.left": "%s foi embora.",
+  "anima.talk.interrupted": "%s teve que ir.",
   "anima.talk.busy.you": "Você ainda está conversando com %s.",
   "anima.talk.busy.now": "%s não tem tempo agora.",
   "anima.talk.busy.them": "%s já está conversando com alguém."

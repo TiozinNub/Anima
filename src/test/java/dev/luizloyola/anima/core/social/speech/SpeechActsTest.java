@@ -18,6 +18,8 @@ class SpeechActsTest {
 		assertEquals(java.util.List.of("end_chat"), SpeechActs.END_CHAT.responses(),
 				"the only answer to a goodbye is a goodbye");
 		assertFalse(SpeechActs.IGNORED.negotiable(), "the world's lines are not proposals");
+		assertTrue(SpeechActs.INTERRUPTED.ends(), "a body pulled away ends the record");
+		assertFalse(SpeechActs.INTERRUPTED.obliges(), "and nobody owes an answer to it");
 	}
 
 	@Test
