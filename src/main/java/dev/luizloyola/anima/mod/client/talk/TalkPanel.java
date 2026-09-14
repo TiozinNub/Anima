@@ -11,28 +11,39 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.world.entity.LivingEntity;
+import org.jspecify.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
 /**
  * What the conversation panel shows and how it is painted — everything about the screen that is
- * not a screen, so the version-specific class around it is only the two render hooks and the
+ * not a screen, so the version-specific class around it is only the render hooks and the
  * widgets.
  *
  * <p>Draws the last {@link TalkPayload} and nothing else. The one thing it decides for itself is
  * the linger: when the server closes the record the buttons go and the last line stays up for
  * {@link #LINGER_TICKS} before the panel dismisses itself, so a goodbye is read rather than
  * blinked away.
+ *
+ * <p><b>The counterpart's name is in the header, so their lines do not repeat it</b> (decision:
+ * Luiz, 2026-09-14); the player's own lines carry the player's name in its own colour, which is
+ * also what tells the two apart. The counterpart stands on the right as a paper doll.
  */
 @Environment(EnvType.CLIENT)
 public final class TalkPanel {
 
     /** How the panel paints, whichever GUI API the version has. */
     public interface Canvas {
-        void sprite(Identifier sprite, int x, int y, int width, int height);
+        /** The whole background image, which is exactly the panel's size. */
+        void background(Identifier texture, int x, int y, int width, int height);
 
         void text(FormattedCharSequence line, int x, int y, int color);
 
         void text(Component text, int x, int y, int color);
+
+        /** The counterpart in the inset, following the mouse, as the inventory draws the player. */
+        void doll(LivingEntity who, int left, int top, int right, int bottom, int scale,
+                int mouseX, int mouseY);
     }
 
     static final int LINGER_TICKS = 40;
@@ -91,6 +102,11 @@ public final class TalkPanel {
         return closing ? List.of() : state.offers();
     }
 
+    /** The counterpart's entity id, for the doll; -1 when their body is not loaded. */
+    public int counterpartId() {
+        return state.who().entityId();
+    }
+
     /** Button {@code index} pressed — by the mouse or its number key. */
     public void press(int index) {
         List<TalkPayload.Offer> offers = offers();
@@ -108,41 +124,43 @@ public final class TalkPanel {
         return false;
     }
 
-    /** Wraps the lines and places everything for this screen size. The screen builds its buttons off the result. */
+    /**
+     * Wraps the lines and places everything for this screen size. The lines area holds
+     * {@link PanelLayout#LINE_ROWS} rows; older rows fall off the top. The screen builds its
+     * buttons off the result.
+     */
     public PanelLayout layout(Font font, int screenWidth, int screenHeight) {
-        int inner = Math.min(PanelLayout.MAX_WIDTH, screenWidth - 2 * PanelLayout.SIDE_MARGIN)
-                - 2 * PanelLayout.PAD;
         List<Row> wrapped = new ArrayList<>();
         List<TalkPayload.Line> lines = state.lines();
         for (int i = 0; i < lines.size(); i++) {
             int alpha = LINE_ALPHA[Math.min(LINE_ALPHA.length - 1, lines.size() - 1 - i)];
-            for (FormattedCharSequence row : font.split(composed(lines.get(i)), inner)) {
+            for (FormattedCharSequence row : font.split(composed(lines.get(i)), PanelLayout.TEXT_W)) {
                 wrapped.add(new Row(row, alpha));
             }
         }
-        rows = wrapped;
-        List<Integer> labels = new ArrayList<>();
-        for (TalkPayload.Offer offer : offers()) {
-            labels.add(font.width(offer.label()));
-        }
-        layout = PanelLayout.of(screenWidth, screenHeight, font.lineHeight, rows.size(), labels);
+        int keep = Math.min(wrapped.size(), PanelLayout.LINE_ROWS);
+        rows = List.copyOf(wrapped.subList(wrapped.size() - keep, wrapped.size()));
+        layout = PanelLayout.of(screenWidth, screenHeight, offers().size());
         return layout;
     }
 
-    public void paint(Canvas canvas, Font font, Identifier frame) {
+    public void paint(Canvas canvas, Font font, Identifier background, @Nullable LivingEntity doll,
+            int mouseX, int mouseY) {
         PanelLayout l = layout;
-        canvas.sprite(frame, l.x(), l.y(), l.width(), l.height());
-        int left = l.x() + PanelLayout.PAD;
-        canvas.text(header(), left, l.headerY(), 0xFF000000 | WHITE);
+        canvas.background(background, l.x(), l.y(), PanelLayout.WIDTH, PanelLayout.HEIGHT);
+        canvas.text(header(), l.textLeft(), l.headerY(), 0xFF000000 | WHITE);
         int y = l.linesY();
         for (Row row : rows) {
-            canvas.text(row.text(), left, y, (row.alpha() << 24) | WHITE);
-            y += font.lineHeight + PanelLayout.LINE_GAP;
+            canvas.text(row.text(), l.textLeft(), y, (row.alpha() << 24) | WHITE);
+            y += PanelLayout.ROW_H;
         }
         if (!closing) {
             Component hint = Component.translatable("anima.talk.esc");
-            canvas.text(hint, l.x() + l.width() - PanelLayout.PAD - font.width(hint), l.footerY(),
-                    HINT_COLOR);
+            canvas.text(hint, l.textRight() - font.width(hint), l.footerY(), HINT_COLOR);
+        }
+        if (doll != null) {
+            canvas.doll(doll, l.dollLeft(), l.dollTop(), l.dollRight(), l.dollBottom(),
+                    PanelLayout.DOLL_SCALE, mouseX, mouseY);
         }
     }
 
@@ -153,14 +171,14 @@ public final class TalkPanel {
         return header.append(state.who().name());
     }
 
-    /** {@code [face]Name: line}, the player's own name in its colour and with no face. */
+    /** The counterpart's line bare; the player's own as {@code Name: line} with the name in its colour. */
     private static Component composed(TalkPayload.Line line) {
-        MutableComponent out = Component.empty();
-        line.portrait().ifPresent(out::append);
-        MutableComponent speaker = line.speaker().copy();
-        if (line.mine()) {
-            speaker.withStyle(OWN_NAME);
+        if (!line.mine()) {
+            return line.text();
         }
-        return out.append(speaker).append(": ").append(line.text());
+        return Component.empty()
+                .append(line.speaker().copy().withStyle(OWN_NAME))
+                .append(": ")
+                .append(line.text());
     }
 }
