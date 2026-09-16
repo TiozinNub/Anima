@@ -73,13 +73,19 @@ val modVersion = if (isRelease) exactTag.removePrefix(tagPrefix)
 /** The commit this jar was built from — the identity that `-SNAPSHOT` does not carry. */
 val buildStamp = git("log", "-1", "--format=%cd", "--date=format:%Y%m%d%H%M%S")
 
+// The Minecraft version this node builds against. A node's own version is a comparison key: for
+// the snapshot node it is Fabric Loader's normalised name (26.4-alpha.3), which Mojang publishes
+// nothing under, so the id the game and Maven know travels separately when the two differ. For
+// every committed target they are the same string. See settings.gradle.kts.
+val mcVersion: String = (findProperty("mod.minecraft") as String?) ?: sc.current.version
+
 // The Maven coordinates. Hoisted up here rather than written inline in `publishing` because the
 // test-fixtures capability below has to be spelled with the same words — see the comment
 // there for what happens when it is not.
 val publishGroup: String = sc.properties["mod.group"]
-val publishArtifact = "$modId-${sc.current.version}"
+val publishArtifact = "$modId-$mcVersion"
 
-version = "$modVersion+${sc.current.version}"
+version = "$modVersion+$mcVersion"
 base.archivesName = modId
 
 val requiredJava: JavaVersion = when {
@@ -111,7 +117,7 @@ dependencies {
         for (it in modules) modImplementation(fabricApi.module(it, sc.properties["deps.fabric_api"]))
     }
 
-    minecraft("com.mojang:minecraft:${sc.current.version}")
+    minecraft("com.mojang:minecraft:$mcVersion")
     loomx.applyMojangMappings()
 
     modImplementation("net.fabricmc:fabric-loader:${property("deps.fabric_loader")}")
@@ -372,7 +378,7 @@ tasks {
             "Implementation-Title" to (sc.properties["mod.name"] as String),
             "Implementation-Version" to modVersion,
             "Implementation-Build" to buildStamp,
-            "Minecraft-Version" to sc.current.version,
+            "Minecraft-Version" to mcVersion,
         )
 
         from(rootProject.file("LICENSE"))
@@ -392,7 +398,7 @@ tasks {
 
 publishMods {
     file = loomx.modJar.flatMap { it.archiveFile }
-    displayName = "Anima $modVersion for MC ${sc.current.version}"
+    displayName = "Anima $modVersion for MC $mcVersion"
     version = project.version.toString()
     changelog = providers.environmentVariable("CHANGELOG").orElse("See the commit history.")
     type = ALPHA

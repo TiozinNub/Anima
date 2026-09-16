@@ -10,7 +10,9 @@ stonecutter parameters {
     // work too, but the node form is correct in both shapes — and this file was carried over from
     // a tree where the root had no `mod.version` at all.
     swaps["mod_version"] = "\"${node.project.property("mod.version")}\";"
-    swaps["minecraft"] = "\"${node.metadata.version}\";"
+    // The id the game knows. For the snapshot node that is not the node's own version — see
+    // settings.gradle.kts — so the file it came from is asked first.
+    swaps["minecraft"] = "\"${node.project.findProperty("mod.minecraft") ?: node.metadata.version}\";"
     dependencies["fapi"] = node.project.property("deps.fabric_api") as String
 
     replacements {
