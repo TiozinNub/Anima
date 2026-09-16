@@ -56,3 +56,12 @@ mod.mc_releases = ["26.2"]
 deps.fabric_api = "0.152.2+26.2"
 deps.yacl = "3.9.6+26.2-fabric"
 deps.modmenu = "20.0.1"
+
+["26.3.x"]
+mod.mc_compat = "~26.3"
+mod.mc_releases = ["26.3"]
+
+deps.fabric_api = "0.160.6+26.3"
+deps.yacl = "3.9.6+26.3-fabric"
+# Mod Menu has no release for 26.3 yet; the beta is the only build that targets it.
+deps.modmenu = "21.0.0-beta.1"

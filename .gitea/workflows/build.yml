@@ -39,7 +39,7 @@ jobs:
       matrix:
         # 1.20.1 and 1.21.1 are temporarily dropped — the constraint is Autarkia's (Person needs
         # the 1.21.9+ Avatar pipeline) and this node set is kept identical to it deliberately.
-        version: ['1.21.11', '26.1.x', '26.2.x']
+        version: ['1.21.11', '26.1.x', '26.2.x', '26.3.x']
     continue-on-error: >-
       ${{ matrix.version != '26.1.x'
           && github.event_name != 'schedule'
