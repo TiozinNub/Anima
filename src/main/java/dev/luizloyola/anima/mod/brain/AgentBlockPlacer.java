@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.brain;
 
+import dev.luizloyola.anima.compat.agent.Arms;
 import dev.luizloyola.anima.core.brain.act.BlockPlacer;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.mod.body.AgentBody;
@@ -68,7 +69,7 @@ public final class AgentBlockPlacer implements BlockPlacer {
         SoundType sound = state.getSoundType();
         level.playSound(null, pos, sound.getPlaceSound(), SoundSource.BLOCKS,
                 (sound.getVolume() + 1.0F) / 2.0F, sound.getPitch() * 0.8F);
-        person.entity().swing(InteractionHand.MAIN_HAND);
+        Arms.swingToInteract(person.entity(), InteractionHand.MAIN_HAND);
         person.inventory().remove(itemId, 1);
         return true;
     }

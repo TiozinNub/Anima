@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.brain;
 
+import dev.luizloyola.anima.compat.agent.Arms;
 import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
@@ -547,7 +548,7 @@ public final class BeingSense {
         int streak;
         if (before == null) {
             locomotion = Being.Locomotion.STILL;
-            streak = body.swinging ? 1 : 0;
+            streak = Arms.swinging(body) ? 1 : 0;
             moveTracks.put(body.getId(), new MoveTrack(at, now, locomotion, streak));
         } else if (now - before.time() < MOVE_WINDOW_TICKS) {
             locomotion = before.locomotion(); // inside the window: reuse verdict, KEEP anchor
@@ -557,7 +558,7 @@ public final class BeingSense {
             locomotion = speed > SPRINT_SPEED_PER_TICK ? Being.Locomotion.SPRINTING
                     : speed > MOVE_SPEED_PER_TICK ? Being.Locomotion.WALKING
                     : Being.Locomotion.STILL;
-            streak = body.swinging ? before.swingStreak() + 1 : 0;
+            streak = Arms.swinging(body) ? before.swingStreak() + 1 : 0;
             moveTracks.put(body.getId(), new MoveTrack(at, now, locomotion, streak));
         }
         GazeTrack gaze = gazeTracks.computeIfAbsent(body.getId(), k -> new GazeTrack());
@@ -640,14 +641,14 @@ public final class BeingSense {
         if (now - chestLastOpenAt.getOrDefault(body.getId(), Long.MIN_VALUE / 2) <= CHEST_GRACE_TICKS) {
             return Being.Activity.AT_CHEST; // just stepped back from the lid — the exit grace
         }
-        if (body.swinging && recentlyDealtDamage(body)) {
+        if (Arms.swinging(body) && recentlyDealtDamage(body)) {
             return Being.Activity.FIGHTING; // a landed hit confirms instantly, and lingers:
                                             // the next swings are misses, not mining
         }
         if (PlaceMarks.placedWithin(body.getUUID(), person.level().getGameTime(), BUILD_MARK_TICKS)) {
             return Being.Activity.BUILDING; // blocks landing tell the swing apart from mining
         }
-        if (body.swinging && swingStreak >= MINING_STREAK) {
+        if (Arms.swinging(body) && swingStreak >= MINING_STREAK) {
             return Being.Activity.MINING; // sustained arm work; a lone swing is an interaction
         }
         if (atTable && locomotion == Being.Locomotion.STILL) {

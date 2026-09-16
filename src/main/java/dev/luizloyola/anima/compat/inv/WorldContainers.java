@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.compat.inv;
 
+import dev.luizloyola.anima.compat.agent.Arms;
 import dev.luizloyola.anima.core.brain.act.ContainerAccess;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.ItemSpec;
@@ -128,7 +129,7 @@ public final class WorldContainers implements ContainerAccess {
             container.setChanged();
             // One grab, and only when something really moved. Vanilla's own guard means a second
             // call in the same tick — the refund path PutItems runs — costs no extra packet.
-            eyes.swing(InteractionHand.MAIN_HAND);
+            Arms.swingToInteract(eyes, InteractionHand.MAIN_HAND);
         }
         return accepted;
     }
@@ -161,7 +162,7 @@ public final class WorldContainers implements ContainerAccess {
                     ? ItemStacks.toVanilla(core.withCount(remainder), registries)
                     : net.minecraft.world.item.ItemStack.EMPTY);
             container.setChanged();
-            eyes.swing(InteractionHand.MAIN_HAND);
+            Arms.swingToInteract(eyes, InteractionHand.MAIN_HAND);
             return core.withCount(taken);
         }
         return ItemStack.EMPTY;

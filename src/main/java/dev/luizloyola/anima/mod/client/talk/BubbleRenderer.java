@@ -2,6 +2,7 @@ package dev.luizloyola.anima.mod.client.talk;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import dev.luizloyola.anima.compat.client.talk.BubbleFrame;
 import dev.luizloyola.anima.mod.AnimaMod;
 import java.util.List;
 import net.fabricmc.api.EnvType;
@@ -71,7 +72,7 @@ final class BubbleRenderer {
         int light = light(level, entity, partial);
         pose.pushPose();
         pose.translate(at.x, at.y + 0.5, at.z);
-        pose.mulPose(camera.rotation());
+        BubbleFrame.faceCamera(pose, camera);
         pose.scale(EntityRenderer.NAMETAG_SCALE, -EntityRenderer.NAMETAG_SCALE,
                 EntityRenderer.NAMETAG_SCALE);
 

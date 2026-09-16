@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.brain;
 
+import dev.luizloyola.anima.compat.agent.Arms;
 import dev.luizloyola.anima.core.brain.act.RiseState;
 import dev.luizloyola.anima.core.brain.act.Riser;
 import dev.luizloyola.anima.core.log.Category;
@@ -141,7 +142,7 @@ public final class AgentRiser implements Riser {
             SoundType sound = blockState.getSoundType();
             level.playSound(null, base, sound.getPlaceSound(), SoundSource.BLOCKS,
                     (sound.getVolume() + 1.0F) / 2.0F, sound.getPitch() * 0.8F);
-            person.entity().swing(InteractionHand.MAIN_HAND);
+            Arms.swingToInteract(person.entity(), InteractionHand.MAIN_HAND);
             person.inventory().remove(itemId, 1);
             state = RiseState.RISEN;
             failedCell = null; // the cell yielded — whatever was wrong with it is over

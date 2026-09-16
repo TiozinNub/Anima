@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.brain;
 
+import dev.luizloyola.anima.compat.agent.Arms;
 import dev.luizloyola.anima.core.brain.act.BlockBreaker;
 import dev.luizloyola.anima.core.brain.act.BreakState;
 import dev.luizloyola.anima.core.brain.act.MiningSpeed;
@@ -129,7 +130,7 @@ public final class AgentBlockBreaker implements BlockBreaker {
         // Every tick, like a mining player (continueDestroyBlock does this): swing()'s own
         // guard restarts the animation at half duration — the player arm's mining cadence, owned by
         // vanilla — and only broadcasts on an actual restart, so this does not spam packets.
-        person.entity().swing(InteractionHand.MAIN_HAND);
+        Arms.swingToAttack(person.entity(), InteractionHand.MAIN_HAND);
         if (progress >= 1.0F) {
             clearCrack();
             // The harvest check vanilla's player path applies before dropping: stone punched

@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.client.talk;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.luizloyola.anima.mod.net.TalkPayload;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +14,6 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.LivingEntity;
 import org.jspecify.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * What the conversation panel shows and how it is painted — everything about the screen that is
@@ -118,8 +118,10 @@ public final class TalkPanel {
 
     /** Number keys press the buttons in order. Returns whether the key was one of those. */
     public boolean key(int keyCode) {
-        if (keyCode >= GLFW.GLFW_KEY_1 && keyCode <= GLFW.GLFW_KEY_9) {
-            press(keyCode - GLFW.GLFW_KEY_1);
+        // The game's own constants, not GLFW's: 26.3 moved to SDL, whose codes differ, and
+        // InputConstants follows whichever the node's KeyEvent carries.
+        if (keyCode >= InputConstants.KEY_1 && keyCode <= InputConstants.KEY_9) {
+            press(keyCode - InputConstants.KEY_1);
             return true;
         }
         return false;

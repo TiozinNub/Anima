@@ -8,11 +8,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 
 /**
- * The two version-specific things about drawing a bubble: which Fabric event hands over the
- * submit collector with the pose at the camera origin, and what the main camera's accessor is
- * called. {@code SubmitNodeCollector} and its {@code submitText} / {@code submitCustomGeometry}
- * are identical on every live target, so the drawing lives in {@code mod.client.talk} and only
- * the hook is here — {@code GizmoFrame}'s pattern.
+ * The version-specific things about drawing a bubble: which Fabric event hands over the submit
+ * collector with the pose at the camera origin, what the main camera's accessor is called, and
+ * how a pose is turned to face it. {@code SubmitNodeCollector} and its {@code submitText} /
+ * {@code submitCustomGeometry} are identical on every live target, so the drawing lives in
+ * {@code mod.client.talk} and only the hook is here — {@code GizmoFrame}'s pattern.
  *
  * <ul>
  *   <li>26.1+ (fabric-rendering-v1 23.3.1+): {@code level.LevelRenderEvents.COLLECT_SUBMITS},
@@ -20,6 +20,7 @@ import net.minecraft.client.renderer.SubmitNodeCollector;
  *   <li>1.21.11 (fabric-rendering-v1 16.2.10): {@code world.WorldRenderEvents.AFTER_ENTITIES},
  *       whose {@code commandQueue()} is the same collector under its intermediary name.
  *   <li>26.2 renamed {@code GameRenderer.getMainCamera()} to {@code mainCamera()}.
+ *   <li>26.3 renamed the quaternion {@code PoseStack.mulPose} to {@code rotate}.
  * </ul>
  *
  * <p>Fully-qualified event names on purpose: an import would fail to resolve on the version
@@ -46,6 +47,15 @@ public final class BubbleFrame {
                 .register(context -> frame.draw(context.matrices(), context.commandQueue(),
                         camera()));
         *///?}
+    }
+
+    /** Turns the pose to face the camera: the billboard step of a name tag or a bubble. */
+    public static void faceCamera(PoseStack pose, Camera camera) {
+        //? if >=26.3 {
+        /*pose.rotate(camera.rotation());
+        *///?} else {
+        pose.mulPose(camera.rotation());
+        //?}
     }
 
     private static Camera camera() {
