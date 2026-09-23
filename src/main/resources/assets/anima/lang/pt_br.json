@@ -510,7 +510,7 @@
   "anima.when.yesterday": "ontem",
   "anima.when.days_ago": "uns dias atrás",
   "anima.talk.title": "Conversa",
-  "anima.talk.esc": "Esc: ir embora",
+  "anima.talk.esc": "Esc: fechar",
   "anima.talk.approach": "%s está falando com você.",
   "anima.talk.not_talking": "Você não está conversando com ninguém.",
   "anima.talk.not_a_player": "Só quem tem voz pode dizer isso.",
@@ -521,6 +521,8 @@
   "anima.talk.ignored": "%s não pareceu notar.",
   "anima.talk.left": "%s foi embora.",
   "anima.talk.interrupted": "%s teve que ir.",
+  "anima.talk.set_aside": "Fale com %s de novo para continuar, ou se afaste.",
+  "anima.talk.dropped": "Você deixou a conversa com %s morrer.",
   "anima.talk.busy.you": "Você ainda está conversando com %s.",
   "anima.talk.busy.now": "%s não tem tempo agora.",
   "anima.talk.busy.them": "%s já está conversando com alguém."

@@ -35,9 +35,11 @@ import org.jspecify.annotations.Nullable;
  * <p><b>The world stays in view.</b> The background hook paints the panel and nothing else — no
  * blur, no dimming — and the game does not pause: a paused world is a settler that never answers.
  *
- * <p><b>Going away means leaving.</b> Esc, or anything else that removes this screen while the
- * record is still open, sends one <i>leave</i>; the server reads what that means. A panel the
- * server closed lingers and dismisses itself, and sends nothing.
+ * <p><b>Going away sets the conversation aside, it does not end it</b> (decision: Luiz,
+ * 2026-09-23). Esc, or anything else that removes this screen while the record is still open,
+ * sends one <i>close</i>: the player may only be stepping back to reposition, and walking away or
+ * the counterpart's patience is what ends it. A panel the server closed lingers and dismisses
+ * itself, and sends nothing.
  *
  * <p>26.2 moved the current screen off {@code Minecraft} onto its {@code gui}, so the two
  * accessors the receiver needs live here as well.
@@ -51,7 +53,7 @@ public final class TalkScreen extends Screen {
     private static final float DOLL_Y_OFFSET = 0.0625F;
 
     private final TalkPanel panel;
-    private boolean left;
+    private boolean putDown;
 
     public TalkScreen(TalkPayload first) {
         super(Component.translatable("anima.talk.title"));
@@ -95,20 +97,20 @@ public final class TalkScreen extends Screen {
 
     @Override
     public void onClose() {
-        leave();
+        putDown();
         super.onClose();
     }
 
     @Override
     public void removed() {
-        leave();
+        putDown();
         super.removed();
     }
 
-    private void leave() {
-        if (!left && !panel.closing()) {
-            left = true;
-            TalkClient.leave();
+    private void putDown() {
+        if (!putDown && !panel.closing()) {
+            putDown = true;
+            TalkClient.putDown();
         }
     }
 

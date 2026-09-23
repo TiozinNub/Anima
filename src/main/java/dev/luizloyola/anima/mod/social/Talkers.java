@@ -59,6 +59,8 @@ import org.jspecify.annotations.Nullable;
  * under it, the player's own with none — the word is theirs), and closed when the record does.
  * Nothing opens it but the tap: a settler walking up and greeting gets a bubble and an action-bar
  * hint, and the player's own click opens the panel into that record (decision: Luiz, 2026-09-14).
+ * Closing it ends nothing (decision: Luiz, 2026-09-23): the conversation is set aside, and ends
+ * only when the player walks away or leaves it set aside past the counterpart's patience.
  *
  * <p><b>The acts are live the moment they are offered</b> (decision: Luiz, 2026-09-14): a reply's
  * pause is the replier's — a settler waits its beat before answering, a player answers when they
@@ -88,8 +90,8 @@ public final class Talkers {
 
     /**
      * Beyond chat radius from where they stood for this long, a player has walked away — a step
-     * back or a jump is not leaving, twelve blocks for two seconds is. The verdict it writes is
-     * Esc's own, about the player; a settler's leaving is measured on the settler's clock instead
+     * back or a jump is not leaving, twelve blocks for two seconds is. It lets the record go the
+     * way {@link #letGo} says; a settler's leaving is measured on the settler's clock instead
      * (patience), the way {@code Converse} trails off on anybody.
      */
     static final int WALKED_AWAY_TICKS = 40;
@@ -211,7 +213,7 @@ public final class Talkers {
 
     /** The panel's word, on the server thread. A refusal goes to the action bar. */
     public static void act(MinecraftServer server, ServerPlayer player, TalkActionPayload action) {
-        String refusal = action.leave() ? leave(server, player)
+        String refusal = action.close() ? putDown(server, player)
                 : say(server, player, action.act(), action.topic().orElse(null));
         if (refusal != null) {
             Speeches.aside(player, Component.translatable(refusal)
@@ -245,7 +247,8 @@ public final class Talkers {
     }
 
     /**
-     * Leaving, which the server reads for what it is (decision: Luiz, 2026-09-14): with their
+     * Leaving on purpose — {@code /anima-say leave}; the panel's Esc only puts the conversation
+     * down ({@link #putDown}). The server reads it for what it is (decision: Luiz, 2026-09-14): with their
      * goodbye pending on the player it is the acknowledgement — leaving somebody who said goodbye
      * is no snub — and otherwise it is the verdict, IGNORED about oneself, the very line the
      * counterpart's patience clock would have written a quarter-minute later. Either ends the
@@ -269,6 +272,47 @@ public final class Talkers {
             talker.engine.system(e, SpeechActs.IGNORED, self);
         }
         return null;
+    }
+
+    /**
+     * The panel went away with the record still open — Esc, or another screen over it. Nothing is
+     * said and nothing is decided (decision: Luiz, 2026-09-23): a player steps back to reposition,
+     * and the conversation waits for them. Walking away still ends it ({@link #parted}), and so
+     * does leaving it set aside past the counterpart's patience; talking to them again picks it
+     * back up. Never refuses — a record that closed under the panel is simply nothing to set aside.
+     */
+    public static @Nullable String putDown(MinecraftServer server, ServerPlayer player) {
+        Talker talker = seat(server, player);
+        talker.panelRecord = null;
+        Encounter e = talker.engine.current().orElse(null);
+        if (e == null) {
+            return null;
+        }
+        talker.parting.putDown(server.overworld().getGameTime());
+        // Said here, once, so the settler's next line does not replace it with "is talking to you".
+        talker.hintedRecord = e.id();
+        Speeches.aside(player, Component.translatable("anima.talk.set_aside",
+                        Speeches.nameFor(server, player, talker.engine.counterpart(e).orElse(null)))
+                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
+        return null;
+    }
+
+    /**
+     * Lets the record go without a word from the player — walked away, or set aside too long.
+     * Their goodbye pending closes it quietly: the last line already says why it ended, and putting
+     * a "bye" in the player's mouth they never clicked would be the seat speaking for them.
+     * Otherwise it trailed off on the player, IGNORED about themself.
+     */
+    private static void letGo(Talker talker, Encounter e, AgentId self) {
+        boolean farewellPending = Picker.pendingOn(e, self)
+                .flatMap(pending -> SpeechActs.byKey(pending.act()))
+                .map(SpeechAct::ends)
+                .orElse(false);
+        if (farewellPending) {
+            talker.engine.close(e);
+        } else {
+            talker.engine.system(e, SpeechActs.IGNORED, self);
+        }
     }
 
     /** What this player could say right now — for the command's suggestions; empty for nobody talking. */
@@ -333,6 +377,11 @@ public final class Talkers {
             if (brokeOff(server, player, talker, e, other)) {
                 continue;
             }
+            if (talker.parting.dropped(now, patienceOf(server, Optional.of(other)))) {
+                letGo(talker, e, self);
+                notice(server, player, "anima.talk.dropped", other);
+                continue;
+            }
             if (talker.panelRecord == null || talker.offeredFor(e)) {
                 continue;
             }
@@ -391,7 +440,7 @@ public final class Talkers {
         switch (talker.parting.tick(now, playerLeft, bodyGone, WALKED_AWAY_TICKS,
                 patienceOf(server, Optional.of(other)))) {
             case SELF_LEFT -> {
-                talker.engine.system(e, SpeechActs.IGNORED, ContactsSync.idOf(player));
+                letGo(talker, e, ContactsSync.idOf(player));
                 return true;
             }
             case OTHER_GONE -> {
@@ -470,6 +519,7 @@ public final class Talkers {
                 Speeches.nameFor(server, player, other),
                 other == null ? Optional.empty() : Portraits.of(server, other));
         talker.panelRecord = e.id();
+        talker.parting.pickedUp();
         TalkSync.panel(player, new TalkPayload(true, who, lines, offers));
         return !offers.isEmpty();
     }

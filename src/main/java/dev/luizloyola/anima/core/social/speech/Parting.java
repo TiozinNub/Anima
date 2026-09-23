@@ -10,6 +10,10 @@ package dev.luizloyola.anima.core.social.speech;
  * it after a short grace; a counterpart who is gone gets patience. Together again clears the
  * stamp, and so does every verdict — a clock that outlived its record closed the next one the
  * moment its first line landed (client-caught 2026-09-14).
+ *
+ * <p>A third clock is the player's alone: the conversation <b>set aside</b>. Putting the panel down
+ * ends nothing (decision: Luiz, 2026-09-23) — a player steps back to reposition — so it only starts
+ * a wait, which picking the panel back up cancels and patience runs out.
  */
 public final class Parting {
 
@@ -20,6 +24,8 @@ public final class Parting {
     private static final long NEVER = Long.MIN_VALUE / 2;
 
     private long apartSince = NEVER;
+    /** When the panel was put down on this record, or {@link #NEVER} while it is up or never was. */
+    private long putDownAt = NEVER;
 
     /**
      * One tick of the wait.
@@ -50,8 +56,26 @@ public final class Parting {
         return Verdict.NONE;
     }
 
-    /** A fresh record starts together, whatever the last one ended on. */
+    /** The panel went away with the record still open. A second put-down keeps the first stamp. */
+    public void putDown(long now) {
+        if (putDownAt == NEVER) {
+            putDownAt = now;
+        }
+    }
+
+    /** The panel is up again: the wait never ran. */
+    public void pickedUp() {
+        putDownAt = NEVER;
+    }
+
+    /** Whether the conversation has been set aside for longer than {@code patience} — let drop. */
+    public boolean dropped(long now, int patience) {
+        return putDownAt != NEVER && now - putDownAt > patience;
+    }
+
+    /** A fresh record starts together, whatever the last one ended on — panel up, nothing waiting. */
     public void reset() {
         apartSince = NEVER;
+        putDownAt = NEVER;
     }
 }

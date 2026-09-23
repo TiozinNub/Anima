@@ -35,7 +35,7 @@ public final class TalkClient {
         ClientPlayNetworking.send(TalkActionPayload.say(act, null));
     }
 
-    public static void leave() {
-        ClientPlayNetworking.send(TalkActionPayload.leaving());
+    public static void putDown() {
+        ClientPlayNetworking.send(TalkActionPayload.closing());
     }
 }
