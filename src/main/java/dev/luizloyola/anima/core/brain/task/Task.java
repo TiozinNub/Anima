@@ -45,4 +45,16 @@ public sealed interface Task permits PrimitiveTask, CompoundTask {
     default Coverage coverage() {
         return Coverage.NONE;
     }
+
+    /**
+     * Whether this operation is talking to somebody or walking over to — what a counterpart's seat
+     * reads to tell a body still in the conversation from one pulled away.
+     *
+     * <p>Asked of the whole running chain, not of the drive that granted it: a lonely body talks
+     * inside {@link SeekCompany}, under its need, and reading only the converse instinct closed the
+     * panel two seconds after every settler that walked up to a player (found 2026-09-23).
+     */
+    default boolean converses() {
+        return false;
+    }
 }

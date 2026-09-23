@@ -5,10 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.knowledge.Coverage;
+import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.social.speech.Speech;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -159,5 +162,27 @@ class TaskExecutorTest {
     @Test
     void anOrdinaryErrandDeclaresNoSinkAndCostsNothing() {
         assertSame(Coverage.NONE, new Idle(3).coverage());
+    }
+
+    @Test
+    void aLonelyBodyWalkingUpToTalkIsConversing() {
+        executor.run(new SeekCompany(), ctx);
+
+        assertTrue(executor.conversing(),
+                "the seat reads this — a settler that walked up to a player talks under its need, "
+                        + "not the converse instinct, and must not read as pulled away");
+    }
+
+    @Test
+    void answeringAndTalkingAreConversingAndOtherWorkIsNot() {
+        BeingId who = BeingId.of(AgentId.random());
+        executor.run(new Answer(who, new Pos(0, 0, 0)), ctx);
+        assertTrue(executor.conversing());
+
+        executor.run(new Converse(who, Speech.Opening.QUIET), ctx);
+        assertTrue(executor.conversing());
+
+        executor.run(new Idle(3), ctx);
+        assertFalse(executor.conversing());
     }
 }

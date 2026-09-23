@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 /**
  * Runs one task tree at a time — a recursive-HTN walker whose root may be a {@link PrimitiveTask}
@@ -222,19 +223,28 @@ public final class TaskExecutor {
      * reached through {@code ObtainItem(LOGS)} is a chop whichever way it was arrived at.
      */
     public boolean reshapingGround() {
+        return chainAnswers(Task::reshapesGround);
+    }
+
+    /** Whether the work under way is a conversation — see {@link Task#converses()}. */
+    public boolean conversing() {
+        return chainAnswers(Task::converses);
+    }
+
+    private boolean chainAnswers(Predicate<Task> question) {
         if (root == null) {
             return false;
         }
-        if (root.reshapesGround()) {
+        if (question.test(root)) {
             return true;
         }
         for (Frame frame : stack) {
-            if (frame.compound.reshapesGround()) {
+            if (question.test(frame.compound)) {
                 return true;
             }
         }
         Task node = currentNode();
-        return node != null && node.reshapesGround();
+        return node != null && question.test(node);
     }
 
     /**

@@ -37,6 +37,11 @@ public final class Answer implements CompoundTask {
     }
 
     @Override
+    public boolean converses() {
+        return true;
+    }
+
+    @Override
     public String describe() {
         return "answer a call";
     }

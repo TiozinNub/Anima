@@ -92,6 +92,12 @@ public final class SeekCompany implements PrimitiveTask {
         }
     }
 
+    /** Walking over counts as much as talking: the seat reads it, and this is the lonely half. */
+    @Override
+    public boolean converses() {
+        return true;
+    }
+
     @Override
     public String describe() {
         // Once handed off, the executor's own readout should say what the body is actually doing.

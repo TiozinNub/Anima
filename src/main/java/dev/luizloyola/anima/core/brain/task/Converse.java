@@ -180,6 +180,11 @@ public final class Converse implements PrimitiveTask {
     }
 
     @Override
+    public boolean converses() {
+        return true;
+    }
+
+    @Override
     public String describe() {
         return "converse";
     }
