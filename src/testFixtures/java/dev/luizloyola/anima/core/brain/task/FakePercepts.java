@@ -131,9 +131,16 @@ public final class FakePercepts implements Percepts {
     private static Being personTrack(BeingId id, String name, Pos pos, double distance,
             boolean hailing, boolean playerControlled, Being.Identified identified,
             Being.Awareness awareness) {
+        return personTrack(id, name, pos, distance, hailing, playerControlled, identified,
+                awareness, Being.Activity.IDLE, Being.Locomotion.STILL);
+    }
+
+    private static Being personTrack(BeingId id, String name, Pos pos, double distance,
+            boolean hailing, boolean playerControlled, Being.Identified identified,
+            Being.Awareness awareness, Being.Activity activity, Being.Locomotion locomotion) {
         return new Being(id, Being.Kind.AGENT, "person", name,
                 null, pos, distance, Being.HUMANOID_EYE_HEIGHT, playerControlled, 1, 0, false,
-                List.of(), Being.Activity.IDLE, Being.Locomotion.STILL,
+                List.of(), activity, locomotion,
                 false, false, false, hailing, false, false, Being.Gear.NONE,
                 identified, awareness);
     }
@@ -159,6 +166,13 @@ public final class FakePercepts implements Percepts {
     public static Being personAt(BeingId id, Pos pos, double distance, String name) {
         return personTrack(id, name, pos, distance, false, false, Being.Identified.INDIVIDUAL,
                 Being.Awareness.SEEN);
+    }
+
+    /** A seen stranger visibly doing something — swinging, eating, running. */
+    public static Being personDoing(Pos pos, double distance, Being.Activity activity,
+            Being.Locomotion locomotion) {
+        return personTrack(BeingId.of(UUID.randomUUID()), "", pos, distance, false, false,
+                Being.Identified.INDIVIDUAL, Being.Awareness.SEEN, activity, locomotion);
     }
 
     /**

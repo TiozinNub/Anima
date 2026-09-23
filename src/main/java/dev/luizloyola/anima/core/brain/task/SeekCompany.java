@@ -13,8 +13,8 @@ import dev.luizloyola.anima.core.social.speech.Speech;
  * Go and be near somebody — company's lonely end, and the only thing in rung 4 that OPENS a hail.
  *
  * <p><b>It targets what is perceived, never what is remembered.</b> Nothing is known that was not
- * perceived, so a lonely body with nobody in sight or earshot FAILS here and the arbiter's
- * fail-cooldown paces the retry. Searching for people beyond perception is curiosity's job and is
+ * perceived, so a lonely body with nobody in sight or earshot — or nobody who looks free to talk —
+ * FAILS here and the arbiter's fail-cooldown paces the retry. Searching for people beyond perception is curiosity's job and is
  * deliberately absent — see the voice-and-hail design.
  *
  * <p><b>The hail needs a reason, not a cooldown</b> (decision: Luiz). Two hold in rung 4: not
@@ -182,7 +182,8 @@ public final class SeekCompany implements PrimitiveTask {
     private static Being nearest(BrainContext ctx) {
         Being best = null;
         for (Being being : ctx.percepts().beings()) {
-            if (!being.kind().minded() || ctx.percepts().calledLately(being.id())) {
+            if (!being.kind().minded() || !approachable(being)
+                    || ctx.percepts().calledLately(being.id())) {
                 continue;
             }
             if (best == null || being.distance() < best.distance()) {
@@ -190,5 +191,17 @@ public final class SeekCompany implements PrimitiveTask {
             }
         }
         return best;
+    }
+
+    /**
+     * Whether they look free to talk: arms idle, and not running. {@link Being.Activity#IDLE} is
+     * the approachable state the social spec named and nothing read until 2026-09-23 — a lonely
+     * body walked up to somebody mid-chop, greeted, asked a name, and waited out its patience on
+     * an answer that waits for the worker's task boundary. Read off the body, never the brain, so
+     * a worker standing still between swings still looks free.
+     */
+    private static boolean approachable(Being being) {
+        return being.activity() == Being.Activity.IDLE
+                && being.locomotion() != Being.Locomotion.SPRINTING;
     }
 }

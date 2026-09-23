@@ -189,6 +189,43 @@ class SeekCompanyTest {
         assertFalse(ctx.voice.hailed, "inside hearing range, walking over says it — no shout");
     }
 
+    /**
+     * The forest run of 2026-09-23: a lonely settler walked up to three workers in a row, greeted,
+     * asked each a name, and waited out its patience every time — a worker's answer waits for its
+     * task boundary, so the only fix on the seeker's side is not to go.
+     */
+    @Test
+    void somebodyVisiblyBusyIsNotWalkedTo() {
+        ctx.percepts.company.setValue(0.0);
+        ctx.percepts.beings = List.of(
+                FakePercepts.personDoing(new Pos(3, 64, 0), 3.0, Being.Activity.MINING,
+                        Being.Locomotion.STILL),
+                FakePercepts.personDoing(new Pos(4, 64, 0), 4.0, Being.Activity.EATING,
+                        Being.Locomotion.STILL),
+                FakePercepts.personDoing(new Pos(5, 64, 0), 5.0, Being.Activity.IDLE,
+                        Being.Locomotion.SPRINTING));
+
+        assertEquals(TaskStatus.FAILED, new SeekCompany().tick(ctx),
+                "swinging, eating and running are all somebody busy — nobody here looks free");
+        assertTrue(ctx.percepts.called.isEmpty(),
+                "and nobody is marked: once they are free, they are worth walking to");
+    }
+
+    @Test
+    void aFreeBodyFartherOffBeatsABusyOneNearby() {
+        ctx.percepts.company.setValue(0.0);
+        Being busy = FakePercepts.personDoing(new Pos(2, 64, 0), 2.0, Being.Activity.BUILDING,
+                Being.Locomotion.STILL);
+        Being strolling = FakePercepts.personDoing(new Pos(8, 64, 0), 8.0, Being.Activity.IDLE,
+                Being.Locomotion.WALKING);
+        ctx.percepts.beings = List.of(busy, strolling);
+
+        assertEquals(TaskStatus.RUNNING, new SeekCompany().tick(ctx));
+        assertTrue(ctx.percepts.calledLately(strolling.id()),
+                "walking with idle arms is somebody out for a stroll, and free");
+        assertFalse(ctx.percepts.calledLately(busy.id()));
+    }
+
     @Test
     void aContentBodyDoesNotSeekAtAll() {
         ctx.percepts.company.setValue(0.6); // inside the band
