@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.board.WorkItem;
 import dev.luizloyola.anima.core.inv.ItemCall;
@@ -37,6 +38,11 @@ class KittedErrandTest {
         @Override
         public String describe() {
             return "stand-in";
+        }
+
+        @Override
+        public Deed doing() {
+            return Deed.of(FakeDoings.IDLED);
         }
     }
 

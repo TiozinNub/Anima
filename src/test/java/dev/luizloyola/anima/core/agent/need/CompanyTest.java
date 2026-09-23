@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.brain.history.Doings;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.SpeciesProfile;
@@ -285,7 +286,7 @@ class CompanyTest {
 
         assertEquals(Binding.Verb.MODULATE, crowded.verb());
         assertThrows(IllegalArgumentException.class,
-                () -> new NeedDrive(crowded, ctx -> new WanderStep(8)),
+                () -> new NeedDrive(crowded, Doings.WANDERING, ctx -> new WanderStep(8)),
                 "NeedDrive already refuses a modulator — the guard and the intent now agree");
     }
 
@@ -312,7 +313,7 @@ class CompanyTest {
         Binding aboveGate = new Binding(NeedKind.COMPANY.key(), Binding.Verb.DRIVE,
                 Binding.Side.ABOVE, "test_above_gate");
         aboveGate.attach(NeedKind.COMPANY);
-        NeedDrive drive = new NeedDrive(aboveGate, ctx -> new WanderStep(8));
+        NeedDrive drive = new NeedDrive(aboveGate, Doings.WANDERING, ctx -> new WanderStep(8));
         FakeContext ctx = new FakeContext();
 
         ctx.percepts.company.setValue(0.05); // well below the comfortable stretch

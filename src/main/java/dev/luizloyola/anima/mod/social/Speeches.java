@@ -3,10 +3,13 @@ package dev.luizloyola.anima.mod.social;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.need.Company;
 import dev.luizloyola.anima.core.agent.need.NeedKind;
+import dev.luizloyola.anima.core.brain.history.Doing;
+import dev.luizloyola.anima.core.brain.history.Slot;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.social.speech.Encounter;
+import dev.luizloyola.anima.core.social.speech.Recounting;
 import dev.luizloyola.anima.core.social.speech.SpeechAct;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import dev.luizloyola.anima.core.social.speech.SpeechEngine;
@@ -93,15 +96,19 @@ public final class Speeches {
 
     /**
      * Line {@code index} of {@code e} as it is said — variant and topic resolved, the name an
-     * introduction gives away spelled out — or null for a system line or a word this install
-     * lacks. The same text for every listener: the only argument a line ever carries is the name
-     * being said, and a name in the line IS the introduction.
+     * introduction gives away spelled out, a deed told in its own words — or null for a system line
+     * or a word this install lacks. The same text for every listener: a name in the line IS the
+     * introduction, and a deed names only things, never people.
      */
     public static @Nullable Component spoken(MinecraftServer server, Encounter e, int index) {
         Utterance u = e.transcript().get(index);
         SpeechAct act = SpeechActs.byKey(u.act()).orElse(null);
         if (u.system() || act == null) {
             return null;
+        }
+        Optional<Recounting.Told> told = Recounting.read(u.payload());
+        if (told.isPresent()) {
+            return told(told.get(), variantOf(e.id(), index, Doing.VARIANTS));
         }
         String key = renderKey(act, u.payload(), variantOf(e.id(), index, act.variants()));
         return act.introduces()
@@ -172,6 +179,17 @@ public final class Speeches {
         String topic = payload.get("topic");
         String base = topic == null ? act.langKey() : act.langKey() + "." + topic;
         return act.variants() == 1 ? base : base + "." + variant;
+    }
+
+    /** A deed as a line says it: the doing's own words, its slots in order, then when. */
+    public static Component told(Recounting.Told told, int variant) {
+        List<Slot> slots = told.deed().slots();
+        Object[] args = new Object[slots.size() + 1];
+        for (int i = 0; i < slots.size(); i++) {
+            args[i] = SlotNames.of(slots.get(i));
+        }
+        args[slots.size()] = Component.translatable(told.when().langKey());
+        return Component.translatable(told.deed().doing().langKey() + "." + variant, args);
     }
 
     /**

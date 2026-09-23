@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.brain.history.Doings;
 import dev.luizloyola.anima.core.agent.need.Binding;
 import dev.luizloyola.anima.core.agent.need.NeedKind;
 import dev.luizloyola.anima.core.brain.instinct.Drives;
@@ -77,7 +78,8 @@ class NeedDriveTest {
         NeedKind absent = NeedKind.declare("test_absent", Kind.DOUBLE, 0.0, 1.0, "nothing")
                 .drive(Binding.Side.BELOW, "test_absent_drive")
                 .build();
-        NeedDrive drive = new NeedDrive(absent.binding("test_absent_drive"), c -> new Idle(1));
+        NeedDrive drive = new NeedDrive(absent.binding("test_absent_drive"), Doings.WANDERING,
+                c -> new Idle(1));
         assertEquals(0.0, drive.pressure(ctx));
         assertEquals(0.0, drive.costTolerance(ctx), "and nothing to read means nothing to spend");
     }
@@ -92,7 +94,7 @@ class NeedDriveTest {
     @Test
     void aSideBoundDriveOnlyBidsThroughTheEndItAnswers() {
         NeedDrive seek = new NeedDrive(
-                NeedKind.COMPANY.binding("seek_people"), c -> new Idle(1));
+                NeedKind.COMPANY.binding("seek_people"), Doings.WANDERING, c -> new Idle(1));
 
         ctx.percepts.company.setValue(0.05); // well below the comfortable stretch
         assertTrue(seek.pressure(ctx) > 0.0, "lonely -> the below-comfort drive bids");
@@ -110,7 +112,8 @@ class NeedDriveTest {
                 .modulate("test_weight")
                 .build();
         assertThrows(IllegalArgumentException.class,
-                () -> new NeedDrive(weighing.binding("test_weight"), c -> new Idle(1)),
+                () -> new NeedDrive(weighing.binding("test_weight"), Doings.WANDERING,
+                        c -> new Idle(1)),
                 "it weighs a decision; it does not make one");
     }
 }

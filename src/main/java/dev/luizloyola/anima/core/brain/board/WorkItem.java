@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.board;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.inv.Kit;
 
@@ -41,6 +42,11 @@ public interface WorkItem {
 
     /** One-line name for journal and board readouts, e.g. {@code "acquire logs x16"}. */
     String describe();
+    /**
+     * What working this item has the body doing, as it would tell it afterwards — written into
+     * its history when the item completes. No default, for {@code Instinct#doing}'s reason.
+     */
+    Deed doing();
 
     /** Short progress note for the resume/status lines, e.g. {@code "9/16 held"}; may be empty. */
     default String progress(BrainContext ctx) {

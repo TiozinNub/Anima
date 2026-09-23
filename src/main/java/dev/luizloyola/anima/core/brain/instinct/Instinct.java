@@ -1,6 +1,8 @@
 package dev.luizloyola.anima.core.brain.instinct;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.history.Deed;
+import dev.luizloyola.anima.core.brain.history.History;
 import dev.luizloyola.anima.core.brain.task.Task;
 
 /**
@@ -62,6 +64,15 @@ public interface Instinct {
 
     /** One-word drive name for the debug readout — {@code "eat"}, {@code "wander"}. */
     String describe();
+
+    /**
+     * What granting this drive would have the body doing, slots filled as of now — captured when
+     * the drive is granted and written into the body's {@link History} if its root succeeds.
+     *
+     * <p><b>No default, on purpose.</b> Every action a body takes starts from an instinct or a work
+     * item, so a new drive that forgot this would be a thing a settler does and can never mention.
+     */
+    Deed doing(BrainContext ctx);
 
     /**
      * A stable name for this drive, for anything that refers to one across a restart — a saved

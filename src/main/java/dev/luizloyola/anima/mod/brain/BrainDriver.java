@@ -4,6 +4,8 @@ import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.board.WorkLease;
 import dev.luizloyola.anima.core.brain.board.WorkSource;
+import dev.luizloyola.anima.core.brain.history.Deed;
+import dev.luizloyola.anima.core.brain.history.History;
 import dev.luizloyola.anima.core.brain.act.ActuatorAccess;
 import dev.luizloyola.anima.core.brain.act.BlockBreaker;
 import dev.luizloyola.anima.core.brain.act.BlockPlacer;
@@ -254,6 +256,11 @@ public final class BrainDriver {
             }
 
             @Override
+            public java.util.List<History.Entry> history() {
+                return arbiter.history().recent(percepts.time());
+            }
+
+            @Override
             public boolean reshapingGround() {
                 // Asked of the executor: it is a property of the tree currently running, and
                 // only the executor knows what that is. True while a chop rides its mast,
@@ -331,6 +338,11 @@ public final class BrainDriver {
             @Override
             public String key() {
                 return roaming.key();
+            }
+
+            @Override
+            public Deed doing(BrainContext c) {
+                return roaming.doing(c);
             }
         };
         // Flee is first on purpose: the arbiter breaks pressure ties in list order, so an exact
@@ -426,6 +438,15 @@ public final class BrainDriver {
     /** @see Arbiter#restoreCooldowns */
     public void restoreCooldowns(Map<String, Integer> waiting) {
         this.arbiter.restoreCooldowns(waiting);
+    }
+
+    /** What this body did lately, as saved — newest first, every entry, aged or not. */
+    public java.util.List<History.Entry> history() {
+        return this.arbiter.history().snapshot();
+    }
+
+    public void restoreHistory(java.util.List<History.Entry> saved) {
+        this.arbiter.history().restore(saved);
     }
 
     /** Whether the arbiter is currently deciding (ON) or a manual task has the wheel (OFF). */

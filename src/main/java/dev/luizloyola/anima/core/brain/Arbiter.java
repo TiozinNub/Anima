@@ -4,6 +4,8 @@ import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.board.WorkItem;
 import dev.luizloyola.anima.core.brain.board.WorkSource;
+import dev.luizloyola.anima.core.brain.history.Deed;
+import dev.luizloyola.anima.core.brain.history.History;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.task.TaskExecutor;
 import dev.luizloyola.anima.core.brain.task.TaskStatus;
@@ -84,6 +86,18 @@ public final class Arbiter {
      */
     private Instinct lastFailed;
     private String lastFailureReason = "";
+
+    /** What this body did lately — written here, the one place a grant is known to have succeeded. */
+    private final History history = new History();
+    /**
+     * The active drive's deed, captured when it was granted: a fled zombie is out of sight by the
+     * time the flee succeeds. Null between grants, and after a load until the next tick fills it.
+     */
+    private Deed grantedDeed;
+
+    public History history() {
+        return history;
+    }
 
     /**
      * Every drive sitting out a fail-cooldown, by {@link Instinct#key()}, with the ticks left;
@@ -268,6 +282,9 @@ public final class Arbiter {
         }
 
         // 5. Run one step; detect a task boundary crossed this tick and react to its outcome.
+        if (active != null && grantedDeed == null) {
+            grantedDeed = active.doing(ctx); // a grant restored from a save
+        }
         boolean busyBefore = executor.isBusy();
         executor.tick(ctx);
         if (busyBefore && !executor.isBusy()) {
@@ -281,6 +298,8 @@ public final class Arbiter {
                 } else {
                     ctx.journal().record(Category.PROJECT, claimedItem.describe(),
                             "completed (" + claimedItem.progress(ctx) + ")");
+                    // Read before the board hears of it: completing may retire what the item reads.
+                    history.record(claimedItem.doing(), ctx.percepts().time());
                     work.completed(claimedItem, ctx);
                 }
                 claimedItem = null;
@@ -307,8 +326,10 @@ public final class Arbiter {
                 // than the same one repeating.
                 lastFailed = null;
                 lastFailureReason = "";
+                history.record(grantedDeed, ctx.percepts().time());
             }
             active = null; // next tick's idle-grant re-arbitrates
+            grantedDeed = null;
         }
     }
 
@@ -452,6 +473,7 @@ public final class Arbiter {
                     "resumed (" + item.progress(ctx) + ")");
         }
         active = null;
+        grantedDeed = null;
         workRunning = true;
         // Through the kit wrap: needs fetched, wants tried, then the item's own root — all
         // INSIDE the claim taken above, which is the invariant that stops two bodies shopping
@@ -491,6 +513,7 @@ public final class Arbiter {
             lastGranted = instinct;
         }
         active = instinct;
+        grantedDeed = instinct.doing(ctx);
         executor.run(instinct.root(ctx), ctx); // run() cancels any incumbent first
     }
 

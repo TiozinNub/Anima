@@ -6,6 +6,8 @@ import dev.luizloyola.anima.core.agent.need.NeedLevel;
 import dev.luizloyola.anima.core.agent.need.Needs;
 import dev.luizloyola.anima.core.agent.need.Ramp;
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.history.Deed;
+import dev.luizloyola.anima.core.brain.history.Doing;
 import dev.luizloyola.anima.core.brain.task.Task;
 import java.util.Objects;
 import java.util.function.Function;
@@ -29,16 +31,20 @@ import java.util.function.Function;
 public final class NeedDrive implements Instinct {
 
     private final Binding binding;
+    private final Doing doing;
     private final Function<BrainContext, Task> root;
 
     /**
      * @param binding what the need declared — which need, which end of it, and under what name
+     * @param doing what serving it has the body doing — one class serves several needs, so the
+     *     doing cannot be the class's own
      * @param root a FRESH task tree per grant; see {@link Instinct#root}
      * @throws IllegalArgumentException if the binding is a modulator, which by definition proposes
      *     nothing and can never be an instinct
      */
-    public NeedDrive(Binding binding, Function<BrainContext, Task> root) {
+    public NeedDrive(Binding binding, Doing doing, Function<BrainContext, Task> root) {
         this.binding = Objects.requireNonNull(binding, "binding");
+        this.doing = Objects.requireNonNull(doing, "doing");
         this.root = Objects.requireNonNull(root, "root");
         if (binding.verb() != Binding.Verb.DRIVE) {
             throw new IllegalArgumentException(
@@ -49,6 +55,11 @@ public final class NeedDrive implements Instinct {
     /** What this drive is for. */
     public Binding binding() {
         return binding;
+    }
+
+    @Override
+    public Deed doing(BrainContext ctx) {
+        return Deed.of(doing);
     }
 
     /**

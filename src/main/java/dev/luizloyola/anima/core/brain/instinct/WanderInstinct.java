@@ -3,6 +3,8 @@ package dev.luizloyola.anima.core.brain.instinct;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.history.Deed;
+import dev.luizloyola.anima.core.brain.history.Doings;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.WanderStep;
 
@@ -75,6 +77,11 @@ public final class WanderInstinct implements Instinct {
     @Override
     public boolean yields(BrainContext ctx) {
         return true;
+    }
+
+    @Override
+    public Deed doing(BrainContext ctx) {
+        return Deed.of(Doings.WANDERING);
     }
 
     @Override

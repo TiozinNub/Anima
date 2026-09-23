@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.instinct;
 
 import dev.luizloyola.anima.core.agent.need.NeedKind;
+import dev.luizloyola.anima.core.brain.history.Doings;
 import dev.luizloyola.anima.core.brain.task.SatisfyHunger;
 import dev.luizloyola.anima.core.brain.task.SeekCompany;
 
@@ -27,14 +28,15 @@ public final class Drives {
      * peckish body waits for a task boundary and buys a short errand, a starving one pays anything.
      */
     public static final NeedDrive EAT =
-            new NeedDrive(NeedKind.HUNGER.binding("eat"), ctx -> new SatisfyHunger());
+            new NeedDrive(NeedKind.HUNGER.binding("eat"), Doings.EATING, ctx -> new SatisfyHunger());
 
     /**
      * Company's lonely end: go and be near somebody. Its bid is the gauge's own V-shaped ramp, so
      * only the BELOW side fires here — a crowded body's opinion is the wander's to act on.
      */
     public static final NeedDrive SEEK_PEOPLE =
-            new NeedDrive(NeedKind.COMPANY.binding("seek_people"), ctx -> new SeekCompany());
+            new NeedDrive(NeedKind.COMPANY.binding("seek_people"), Doings.LOOKING_FOR_COMPANY,
+                    ctx -> new SeekCompany());
 
     private Drives() {
     }

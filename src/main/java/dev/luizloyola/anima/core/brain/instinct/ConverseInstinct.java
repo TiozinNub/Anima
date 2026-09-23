@@ -3,6 +3,8 @@ package dev.luizloyola.anima.core.brain.instinct;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.history.Deed;
+import dev.luizloyola.anima.core.brain.history.Doings;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.task.Answer;
@@ -63,6 +65,11 @@ public final class ConverseInstinct implements Instinct {
     public double costTolerance(BrainContext ctx) {
         return 2.0 * ctx.profile().i(nearestCaller(ctx) != null
                 ? ProfileAspect.SOCIAL_HAIL_RADIUS : ProfileAspect.SOCIAL_CHAT_RADIUS);
+    }
+
+    @Override
+    public Deed doing(BrainContext ctx) {
+        return Deed.of(Doings.TALKING);
     }
 
     @Override

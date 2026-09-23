@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.WorkToleranceCurve;
@@ -51,6 +52,11 @@ class ArbiterWorkTest {
         public Task root(BrainContext c) {
             rootsBuilt++;
             return new StepsTask(rootTicks, TaskStatus.SUCCESS);
+        }
+
+        @Override
+        public Deed doing(BrainContext c) {
+            return Deed.of(FakeDoings.IDLED); // out of the history, so an item's deed stands alone
         }
 
         @Override
@@ -138,6 +144,7 @@ class ArbiterWorkTest {
         int rootTicks;
         TaskStatus end = TaskStatus.SUCCESS;
         int rootsBuilt;
+        Deed deed = Deed.of(FakeDoings.DID_IT);
 
         StubItem(double priority, int rootTicks) {
             this.priority = priority;
@@ -164,6 +171,11 @@ class ArbiterWorkTest {
         public String describe() {
             return "acquire logs x16";
         }
+
+        @Override
+        public Deed doing() {
+            return deed;
+        }
     }
 
     private final StubDrive wander = new StubDrive("wander", 0.15, 3);
@@ -175,6 +187,27 @@ class ArbiterWorkTest {
         for (int i = 0; i < n; i++) {
             arbiter.tick(ctx);
         }
+    }
+
+    @Test
+    void aCompletedErrandIsRemembered() {
+        board.offered = new StubItem(0.35, 2);
+        ticks(4);
+
+        assertEquals(1, board.completions, "the errand ran to the end");
+        assertEquals(Deed.of(FakeDoings.DID_IT), arbiter.history().recent(0).get(0).deed());
+    }
+
+    @Test
+    void aFailedErrandIsNot() {
+        StubItem item = new StubItem(0.35, 2);
+        item.end = TaskStatus.FAILED;
+        board.offered = item;
+        ticks(4);
+
+        assertEquals(1, board.failures);
+        assertTrue(arbiter.history().recent(0).isEmpty(),
+                "one rule for every doing: a failed meal is not \"had a bite\"");
     }
 
     @Test

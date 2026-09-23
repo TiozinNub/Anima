@@ -6,6 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.brain.history.Doings;
+import dev.luizloyola.anima.core.brain.history.History;
+import dev.luizloyola.anima.core.brain.history.Slot;
+import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.ConsumeState;
@@ -95,6 +99,7 @@ class ArbiterTest {
         int failCooldownOverride = Instinct.DEFAULT_FAIL_COOLDOWN;
         double budget = Double.POSITIVE_INFINITY;
         boolean yields;
+        Deed deed = Deed.of(FakeDoings.DID_IT);
 
         FakeInstinct(String name, double pressure, Supplier<Task> factory) {
             this.name = name;
@@ -127,6 +132,11 @@ class ArbiterTest {
         @Override
         public boolean yields(BrainContext ctx) {
             return yields;
+        }
+
+        @Override
+        public Deed doing(BrainContext ctx) {
+            return deed;
         }
 
         @Override
@@ -165,6 +175,11 @@ class ArbiterTest {
         }
 
         @Override
+        public Deed doing(BrainContext ctx) {
+            return real.doing(ctx);
+        }
+
+        @Override
         public String describe() {
             return real.describe();
         }
@@ -184,6 +199,53 @@ class ArbiterTest {
 
     private static Step step(Task root) {
         return (Step) root;
+    }
+
+    // --- history ---------------------------------------------------------------------------------
+
+    private static final Deed FLED_ZOMBIE = Deed.of(Doings.FLEEING, Slot.entity("zombie"));
+    private static final Deed FLED_SPIDER = Deed.of(Doings.FLEEING, Slot.entity("spider"));
+
+    @Test
+    void aDriveThatSucceedsIsRememberedAsItWasGranted() {
+        FakeInstinct flee = new FakeInstinct("flee", 0.5, () -> new Step("run", 2, TaskStatus.SUCCESS));
+        flee.deed = FLED_ZOMBIE;
+        Arbiter arbiter = new Arbiter(List.of(flee));
+
+        arbiter.tick(ctx); // granted: the zombie is what it was fleeing
+        flee.deed = FLED_SPIDER; // by the time it got away, something else was in view
+        arbiter.tick(ctx);
+        arbiter.tick(ctx);
+
+        assertEquals(List.of(FLED_ZOMBIE),
+                arbiter.history().recent(0).stream().map(History.Entry::deed).toList(),
+                "the deed is captured at the grant: a fled zombie is out of sight by the end");
+    }
+
+    @Test
+    void aDriveThatFailsIsNotRemembered() {
+        FakeInstinct eat = new FakeInstinct("eat", 0.5, failsImmediately("eat"));
+        eat.deed = Deed.of(Doings.EATING);
+        Arbiter arbiter = new Arbiter(List.of(eat));
+        arbiter.tick(ctx);
+
+        assertTrue(arbiter.history().recent(0).isEmpty(), "a failed meal is not \"had a bite\"");
+    }
+
+    @Test
+    void aPreemptedDriveIsNotRemembered() {
+        FakeInstinct eat = new FakeInstinct("eat", 0.3, forever("eat"));
+        eat.deed = Deed.of(Doings.EATING);
+        FakeInstinct flee = new FakeInstinct("flee", 0.0, succeedsImmediately("run"));
+        flee.deed = FLED_ZOMBIE;
+        Arbiter arbiter = new Arbiter(List.of(flee, eat));
+        arbiter.tick(ctx);
+        flee.pressure = 0.9;
+        arbiter.tick(ctx);
+
+        assertEquals(List.of(FLED_ZOMBIE),
+                arbiter.history().recent(0).stream().map(History.Entry::deed).toList(),
+                "the meal was cut off, not finished");
     }
 
     // --- idle grant ------------------------------------------------------------------------------

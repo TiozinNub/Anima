@@ -2,6 +2,8 @@ package dev.luizloyola.anima.core.brain.instinct;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.history.Deed;
+import dev.luizloyola.anima.core.brain.history.Doings;
 import dev.luizloyola.anima.core.brain.task.PutAwaySurplus;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.inv.Surplus;
@@ -61,6 +63,11 @@ public final class UnburdenInstinct implements Instinct {
         // honestly. A chest past the cap prices itself out and building one becomes cheaper, so
         // walk-or-build falls out of pricing rather than out of a rule.
         return ctx.profile().d(ProfileAspect.UNBURDEN_TOLERANCE);
+    }
+
+    @Override
+    public Deed doing(BrainContext ctx) {
+        return Deed.of(Doings.SORTING_PACK);
     }
 
     @Override

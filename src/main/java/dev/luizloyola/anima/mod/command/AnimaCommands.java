@@ -39,6 +39,7 @@ public final class AnimaCommands {
                                 AgentCommands::log, AgentCommands::knowledge,
                                 AgentCommands::horizon, AgentCommands::survey,
                                 AgentCommands::claims, AgentCommands::peers, AgentCommands::needs,
+                                AgentCommands::history,
                                 AgentCommands::profile, AgentCommands::grave, AgentCommands::chat,
                                 () -> AgentCommands.inv(registry),
                                 () -> AgentCommands.store(registry)),

@@ -5,6 +5,11 @@ import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
+import dev.luizloyola.anima.core.brain.history.Deed;
+import dev.luizloyola.anima.core.brain.history.Doing;
+import dev.luizloyola.anima.core.brain.history.Doings;
+import dev.luizloyola.anima.core.brain.history.History;
+import dev.luizloyola.anima.core.brain.history.Slot;
 import dev.luizloyola.anima.core.brain.task.CompoundTask;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.TaskExecutor;
@@ -41,6 +46,53 @@ public final class BrainState {
     /** Drives sitting out a fail-cooldown, by {@code Instinct.key()}, with the ticks they have left. */
     public static final Codec<Map<String, Integer>> COOLDOWNS =
             Codec.unboundedMap(Codec.STRING, Codec.INT);
+
+    /** One history entry as written: the doing's key, its slots encoded, when, how often. */
+    private record SavedDeed(String doing, List<String> slots, long last, int times) {
+    }
+
+    /**
+     * What a body did lately. An entry whose doing this install no longer declares, or whose slots
+     * no longer fit it, is dropped rather than failing the list: losing one thing to talk about is
+     * cheaper than losing the rest.
+     */
+    public static final Codec<List<History.Entry>> HISTORY = RecordCodecBuilder
+            .<SavedDeed>create(i -> i.group(
+                    Codec.STRING.fieldOf("doing").forGetter(SavedDeed::doing),
+                    Codec.STRING.listOf().fieldOf("slots").forGetter(SavedDeed::slots),
+                    Codec.LONG.fieldOf("last").forGetter(SavedDeed::last),
+                    Codec.INT.fieldOf("times").forGetter(SavedDeed::times))
+                    .apply(i, SavedDeed::new))
+            .listOf()
+            .xmap(BrainState::historyOf, BrainState::savedHistory);
+
+    private static List<History.Entry> historyOf(List<SavedDeed> saved) {
+        List<History.Entry> out = new java.util.ArrayList<>(saved.size());
+        for (SavedDeed each : saved) {
+            Doing doing = Doings.byKey(each.doing()).orElse(null);
+            if (doing == null || each.slots().size() != doing.slots().size()) {
+                continue;
+            }
+            List<Slot> slots = new java.util.ArrayList<>(each.slots().size());
+            for (String encoded : each.slots()) {
+                Slot.decode(encoded).ifPresent(slots::add);
+            }
+            if (slots.size() == doing.slots().size()) {
+                out.add(new History.Entry(new Deed(doing, slots), each.last(), each.times()));
+            }
+        }
+        return out;
+    }
+
+    private static List<SavedDeed> savedHistory(List<History.Entry> entries) {
+        List<SavedDeed> out = new java.util.ArrayList<>(entries.size());
+        for (History.Entry entry : entries) {
+            out.add(new SavedDeed(entry.deed().doing().key(),
+                    entry.deed().slots().stream().map(Slot::encode).toList(),
+                    entry.lastTick(), entry.times()));
+        }
+        return out;
+    }
 
     /** How a task's ending round-trips. An unknown one errors rather than defaulting to RUNNING,
      *  which would restart a finished plan. */

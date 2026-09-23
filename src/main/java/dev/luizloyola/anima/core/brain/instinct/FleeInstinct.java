@@ -3,6 +3,9 @@ package dev.luizloyola.anima.core.brain.instinct;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.history.Deed;
+import dev.luizloyola.anima.core.brain.history.Doings;
+import dev.luizloyola.anima.core.brain.history.Slot;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.task.FleeStep;
@@ -121,6 +124,27 @@ public final class FleeInstinct implements Instinct {
     @Override
     public int failCooldown() {
         return FAIL_COOLDOWN;
+    }
+
+    /**
+     * Run from whatever frightens this body most: its species once made out, "something" before
+     * that — which is honest about an arrow out of the dark.
+     */
+    @Override
+    public Deed doing(BrainContext ctx) {
+        Being scariest = null;
+        double max = 0.0;
+        for (Being being : ctx.percepts().beings()) {
+            double pressure = pressureOf(ctx.profile(), ctx.danger(), being);
+            if (pressure > max) {
+                max = pressure;
+                scariest = being;
+            }
+        }
+        Slot from = scariest == null || scariest.identified() == Being.Identified.NONE
+                || scariest.species().isEmpty()
+                ? Doings.SOMETHING : Slot.entity(scariest.species());
+        return Deed.of(Doings.FLEEING, from);
     }
 
     @Override

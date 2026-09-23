@@ -67,6 +67,9 @@ public final class FakeContext implements BrainContext {
     public double costTolerance = Double.POSITIVE_INFINITY;
     /** What the rig says is spoken for — standing in for the arbiter's publication. */
     public java.util.List<dev.luizloyola.anima.core.inv.ItemCall> reserved = new java.util.ArrayList<>();
+    /** What this rig "did lately", newest first — seeded by small-talk tests. */
+    public final java.util.List<dev.luizloyola.anima.core.brain.history.History.Entry> history =
+            new java.util.ArrayList<>();
     /**
      * Whether the body is mid-operation on the structural blocks around it — see
      * {@link dev.luizloyola.anima.core.brain.task.Task#reshapesGround()}. Settable because a fake
@@ -163,6 +166,11 @@ public final class FakeContext implements BrainContext {
     @Override
     public Speech speech() {
         return speech;
+    }
+
+    @Override
+    public java.util.List<dev.luizloyola.anima.core.brain.history.History.Entry> history() {
+        return history;
     }
 
     @Override

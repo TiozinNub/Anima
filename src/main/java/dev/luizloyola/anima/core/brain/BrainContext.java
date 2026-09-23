@@ -84,6 +84,14 @@ public interface BrainContext {
     }
 
     /**
+     * What this body did lately, newest first and already aged — what small talk draws a body's own
+     * day from. Empty by default: a rig with no arbiter has done nothing worth mentioning.
+     */
+    default java.util.List<dev.luizloyola.anima.core.brain.history.History.Entry> history() {
+        return java.util.List.of();
+    }
+
+    /**
      * The maximum method cost currently acceptable, in the walk-block currency methods price
      * themselves in — a costlier applicable method is treated as inapplicable. Set by the arbiter
      * from the active drive's own budget

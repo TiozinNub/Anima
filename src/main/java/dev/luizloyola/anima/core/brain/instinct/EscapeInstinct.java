@@ -3,6 +3,8 @@ package dev.luizloyola.anima.core.brain.instinct;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.history.Deed;
+import dev.luizloyola.anima.core.brain.history.Doings;
 import dev.luizloyola.anima.core.brain.task.EscapeStep;
 import dev.luizloyola.anima.core.brain.task.Task;
 
@@ -60,6 +62,11 @@ public final class EscapeInstinct implements Instinct {
     @Override
     public Task root(BrainContext ctx) {
         return new EscapeStep();
+    }
+
+    @Override
+    public Deed doing(BrainContext ctx) {
+        return Deed.of(Doings.GETTING_UNSTUCK);
     }
 
     @Override

@@ -2,6 +2,9 @@ package dev.luizloyola.anima.mod.command;
 
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
+import dev.luizloyola.anima.core.brain.history.History;
+import dev.luizloyola.anima.core.brain.history.When;
+import dev.luizloyola.anima.core.social.speech.Recounting;
 import dev.luizloyola.anima.core.agent.AgentModifiers;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.AspectModifier;
@@ -88,6 +91,7 @@ import dev.luizloyola.anima.mod.social.ContactData;
 import dev.luizloyola.anima.mod.social.EncounterData;
 import dev.luizloyola.anima.mod.social.PartyData;
 import dev.luizloyola.anima.mod.social.PlacesData;
+import dev.luizloyola.anima.mod.social.Speeches;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -915,6 +919,17 @@ public final class AgentCommands {
                                                         DoubleArgumentType.getDouble(ctx, "level")))));
     }
 
+    /**
+     * What the resolved agent did lately, newest first, each line as it would be said — the history
+     * small talk draws from, checkable without waiting for a conversation.
+     *
+     * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
+     * so a shared subcommand must be built once per root that mounts it.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> history() {
+        return Commands.literal("history").executes(AgentCommands::historyShow);
+    }
+
     public static LiteralArgumentBuilder<CommandSourceStack> peers() {
         return Commands.literal("peers")
                                 .executes(ctx -> peersList(ctx))
@@ -1512,6 +1527,32 @@ public final class AgentCommands {
             for (Component because : Because.lines(name, gauge)) {
                 Replies.send(source, () -> because);
             }
+        }
+        return 1;
+    }
+
+    private static int historyShow(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody body = Subject.body(ctx);
+        if (body == null) return 0;
+        String name = body.entity().getName().getString();
+        long now = body.entity().level().getGameTime();
+        List<History.Entry> entries = body.brain().history();
+        if (entries.isEmpty()) {
+            Replies.send(source, () -> Component.translatable("anima.command.history.none", name)
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        Replies.send(source, () -> Component.translatable("anima.command.history.header",
+                name, entries.size()).withStyle(ChatFormatting.AQUA));
+        for (History.Entry entry : entries) {
+            long age = now - entry.lastTick();
+            // Variant 1 always: this is the words checked, not a conversation re-rolled.
+            Component said = Speeches.told(new Recounting.Told(entry.deed(), When.of(age)), 1);
+            Replies.send(source, () -> indent(Component.translatable("anima.command.history.entry",
+                    entry.deed().doing().key(), entry.times(), age, said)
+                    .withStyle(age > History.MAX_AGE_TICKS ? ChatFormatting.DARK_GRAY
+                            : ChatFormatting.GRAY)));
         }
         return 1;
     }

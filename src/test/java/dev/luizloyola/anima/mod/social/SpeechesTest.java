@@ -3,10 +3,18 @@ package dev.luizloyola.anima.mod.social;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.brain.history.Deed;
+import dev.luizloyola.anima.core.brain.history.Doing;
+import dev.luizloyola.anima.core.brain.history.Doings;
+import dev.luizloyola.anima.core.brain.history.Slot;
+import dev.luizloyola.anima.core.brain.history.When;
+import dev.luizloyola.anima.core.social.speech.Recounting;
 import dev.luizloyola.anima.core.social.speech.SpeechAct;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -101,5 +109,27 @@ class SpeechesTest {
     void otherPayloadEntriesAreNotTopics() {
         assertEquals("anima.speech.greeting.1",
                 Speeches.renderKey(act("anima.speech.greeting", 3), Map.of("mood", "warm"), 1));
+    }
+
+    /**
+     * A told deed renders from the doing's own key, slots in declared order and {@code when} last —
+     * the order a line's {@code %1$s…} was written against. Lang slots only: an item or a species
+     * needs the game's registries, which this suite does not stand up.
+     */
+    @Test
+    void aToldDeedTakesTheDoingsKeyAndItsSlotsInOrderThenWhen() {
+        Doing gathering = Doings.byKey("speeches_test_gathering").orElseGet(() -> Doings.register(
+                new Doing("speeches_test_gathering", "test.doing.gathering", List.of("item", "for"),
+                        true)));
+        Deed deed = Deed.of(gathering, Slot.lang("test.goods.logs"), Slot.lang("test.purpose.yard"));
+
+        Component line = Speeches.told(new Recounting.Told(deed, When.YESTERDAY), 2);
+
+        TranslatableContents said = (TranslatableContents) line.getContents();
+        assertEquals("test.doing.gathering.2", said.getKey());
+        List<String> args = java.util.Arrays.stream(said.getArgs())
+                .map(arg -> ((TranslatableContents) ((Component) arg).getContents()).getKey())
+                .toList();
+        assertEquals(List.of("test.goods.logs", "test.purpose.yard", "anima.when.yesterday"), args);
     }
 }
