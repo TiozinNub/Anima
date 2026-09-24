@@ -88,6 +88,14 @@ public final class SenseState {
                     Codec.DOUBLE.optionalFieldOf("eyeHeight", Being.HUMANOID_EYE_HEIGHT),
                     Codec.BOOL.optionalFieldOf("playerControlled", false));
 
+    /**
+     * What is on a body and in its hand, paired for the same sixteen-field reason as {@link #BODY}.
+     * {@code held} DEFAULTS, so a reading saved before it existed loads with nothing in hand.
+     */
+    private static final com.mojang.serialization.MapCodec<
+            com.mojang.datafixers.util.Pair<Being.Gear, String>> HAND = Codec.mapPair(
+                    GEAR.fieldOf("gear"), Codec.STRING.optionalFieldOf("held", ""));
+
     private static final Codec<BeingReading> READING = RecordCodecBuilder.create(r -> r.group(
             BEING_ID.fieldOf("id").forGetter(BeingReading::id),
             KIND.fieldOf("kind").forGetter(BeingReading::kind),
@@ -105,13 +113,14 @@ public final class SenseState {
             Codec.BOOL.fieldOf("watching").forGetter(BeingReading::watching),
             Codec.BOOL.fieldOf("aimedAt").forGetter(BeingReading::aimedAt),
             Codec.BOOL.fieldOf("aggressive").forGetter(BeingReading::aggressive),
-            GEAR.fieldOf("gear").forGetter(BeingReading::gear),
+            HAND.forGetter(reading -> com.mojang.datafixers.util.Pair.of(
+                    reading.gear(), reading.held())),
             ACTIVITY.fieldOf("activity").forGetter(BeingReading::activity)
     ).apply(r, (id, kind, species, name, profession, herdAnimal, pos, distance, body, locomotion,
-                sneaking, watching, aimedAt, aggressive, gear, activity) ->
+                sneaking, watching, aimedAt, aggressive, hand, activity) ->
             new BeingReading(id, kind, species, name, profession.orElse(null), herdAnimal, pos,
                     distance, body.getFirst(), body.getSecond(), locomotion, sneaking, watching,
-                    aimedAt, aggressive, gear, activity)));
+                    aimedAt, aggressive, hand.getFirst(), activity, hand.getSecond())));
 
     private static final Codec<BeingSensorCore.TrackState> TRACK =
             RecordCodecBuilder.create(t -> t.group(

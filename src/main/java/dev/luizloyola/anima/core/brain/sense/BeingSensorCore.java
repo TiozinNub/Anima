@@ -342,7 +342,7 @@ public final class BeingSensorCore {
         track.last = new BeingReading(r.id(), r.kind(), r.species(), name, r.profession(),
                 r.herdAnimal(), r.pos(), r.distance(), r.eyeHeight(), r.playerControlled(),
                 r.locomotion(), r.sneaking(), r.watching(), r.aimedAt(), r.aggressive(), r.gear(),
-                r.activity());
+                r.activity(), r.held());
         if (track.herd == null) {
             announceIfChanged(track, before); // masked below INDIVIDUAL, so this can be a no-op
         }
@@ -839,7 +839,7 @@ public final class BeingSensorCore {
 
     /**
      * A track rendered as one {@link Being}, MASKED to its achieved tier: below SPECIES even the
-     * kind is unknown, below INDIVIDUAL the name, profession and gear stay hidden. Approach shows
+     * kind is unknown, below INDIVIDUAL the name, profession, gear and what is in hand stay hidden. Approach shows
      * only on an identified aggressive body.
      *
      * <p>Eye height and player-control pass through the mask untouched: they are facts about the
@@ -868,7 +868,7 @@ public final class BeingSensorCore {
                 track.hailedAt != NEVER,
                 track.approaching && aggressive, aggressive,
                 seen ? r.gear() : Being.Gear.NONE,
-                tier, track.awareness);
+                tier, track.awareness, seen ? r.held() : "");
     }
 
     /**
@@ -900,7 +900,7 @@ public final class BeingSensorCore {
                 placed.profession(), placed.herdAnimal(), placed.pos(), placed.distance(),
                 placed.eyeHeight(), placed.playerControlled(),
                 told.locomotion(), false, false, false, placed.aggressive(), placed.gear(),
-                told.activity());
+                told.activity(), placed.held());
     }
 
     /** The shape a stale reading collapses to: just someone there — all axes faded. */
@@ -909,7 +909,7 @@ public final class BeingSensorCore {
                 last.profession(), last.herdAnimal(), last.pos(), last.distance(),
                 last.eyeHeight(), last.playerControlled(),
                 Being.Locomotion.STILL, false, false, false, last.aggressive(), last.gear(),
-                Being.Activity.IDLE);
+                Being.Activity.IDLE, last.held());
     }
 
     // ── continuity ───────────────────────────────────────────────────────────────────────────

@@ -306,6 +306,34 @@ class BeingSensorCoreTest {
                 "craning up brings them into the cone");
     }
 
+    /** Their reading, with {@code held} in hand. */
+    private static BeingReading holding(BeingReading r, String held) {
+        return new BeingReading(r.id(), r.kind(), r.species(), r.name(), r.profession(),
+                r.herdAnimal(), r.pos(), r.distance(), r.eyeHeight(), r.playerControlled(),
+                r.locomotion(), r.sneaking(), r.watching(), r.aimedAt(), r.aggressive(), r.gear(),
+                r.activity(), held);
+    }
+
+    @Test
+    void whatIsInHandIsSeen() {
+        BeingId smith = world.addPerson("Smith", new Pos(0, 64, 3), 3.0, Being.Activity.IDLE);
+        world.bodies.put(smith, holding(world.bodies.get(smith), "minecraft:iron_axe"));
+        tickN(1);
+
+        assertEquals("minecraft:iron_axe", only().held());
+    }
+
+    @Test
+    void whatIsInHandIsNotHeard() {
+        BeingId smith = world.addPerson("Smith", new Pos(0, 64, -5), 5.0, Being.Activity.MINING);
+        world.hidden.add(smith); // behind the observer and walled off: ears only
+        world.bodies.put(smith, holding(world.bodies.get(smith), "minecraft:iron_axe"));
+        sensor.heard(world.bodies.get(smith), now, false);
+        tickN(1);
+
+        assertEquals("", only().held(), "a swing is heard; the axe doing it is not");
+    }
+
     @Test
     void theAxesCoexist() {
         BeingId snacker = world.addPerson("Snacker", new Pos(0, 64, 3), 3.0, Being.Activity.EATING);

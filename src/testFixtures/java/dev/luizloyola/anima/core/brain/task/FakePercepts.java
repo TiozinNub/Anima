@@ -3,6 +3,7 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.knowledge.FakeProbe;
+import dev.luizloyola.anima.core.brain.sense.Surroundings;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Drop;
@@ -62,6 +63,8 @@ public final class FakePercepts implements Percepts {
     public List<Drop> drops = List.of();
     /** The game clock — settable; tests that price staleness advance it. */
     public long time;
+    /** The sky, hour and light — null, the default, is a rig with no world to read. */
+    public Surroundings surroundings;
     /** What the legs last found out about being shut in — settable; defaults to nothing known. */
     public Confinement confinement = Confinement.NONE;
     /** A settler's eyes and arm, unless a test says otherwise. */
@@ -168,6 +171,17 @@ public final class FakePercepts implements Percepts {
                 Being.Awareness.SEEN);
     }
 
+    /** A seen stranger with {@code held} (an item id) in hand. */
+    public static Being personHolding(BeingId id, Pos pos, double distance, String held) {
+        Being plain = personAt(id, pos, distance, "");
+        return new Being(plain.id(), plain.kind(), plain.species(), plain.name(), plain.profession(),
+                plain.pos(), plain.distance(), plain.eyeHeight(), plain.playerControlled(),
+                plain.count(), plain.spread(), plain.herdAnimal(), plain.members(), plain.activity(),
+                plain.locomotion(), plain.sneaking(), plain.watching(), plain.aimedAt(),
+                plain.hailing(), plain.approaching(), plain.aggressive(), plain.gear(),
+                plain.identified(), plain.awareness(), held);
+    }
+
     /** A seen stranger visibly doing something — swinging, eating, running. */
     public static Being personDoing(Pos pos, double distance, Being.Activity activity,
             Being.Locomotion locomotion) {
@@ -203,6 +217,11 @@ public final class FakePercepts implements Percepts {
     @Override
     public long time() {
         return time;
+    }
+
+    @Override
+    public java.util.Optional<Surroundings> surroundings() {
+        return java.util.Optional.ofNullable(surroundings);
     }
 
     @Override

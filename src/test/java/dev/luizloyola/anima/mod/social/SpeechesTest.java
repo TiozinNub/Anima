@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.history.Doing;
 import dev.luizloyola.anima.core.brain.history.Doings;
 import dev.luizloyola.anima.core.brain.history.Slot;
 import dev.luizloyola.anima.core.brain.history.When;
+import dev.luizloyola.anima.core.social.speech.LineSlots;
 import dev.luizloyola.anima.core.social.speech.Recounting;
 import dev.luizloyola.anima.core.social.speech.SpeechAct;
 import java.util.List;
@@ -131,5 +132,21 @@ class SpeechesTest {
                 .map(arg -> ((TranslatableContents) ((Component) arg).getContents()).getKey())
                 .toList();
         assertEquals(List.of("test.goods.logs", "test.purpose.yard", "anima.when.yesterday"), args);
+    }
+
+    @Test
+    @DisplayName("a topic that names something renders it as the line's argument")
+    void aTopicCarriesItsSlots() {
+        Map<String, String> payload = LineSlots.with(Map.of("topic", "self.carrying"),
+                List.of(Slot.lang("test.goods.logs")));
+
+        TranslatableContents said =
+                (TranslatableContents) Speeches.withSlots("k", payload).getContents();
+
+        assertEquals("k", said.getKey());
+        assertEquals("test.goods.logs",
+                ((TranslatableContents) ((Component) said.getArgs()[0]).getContents()).getKey());
+        assertEquals(0, ((TranslatableContents) Speeches.withSlots("k", Map.of("topic", "mood"))
+                .getContents()).getArgs().length, "a topic naming nothing takes no arguments");
     }
 }

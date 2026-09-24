@@ -110,6 +110,14 @@ public interface Percepts {
     long time();
 
     /**
+     * The sky, the hour and the light where the body stands, as it can tell them. Empty for a body
+     * with no world to read — a rig, most of all.
+     */
+    default java.util.Optional<Surroundings> surroundings() {
+        return java.util.Optional.empty();
+    }
+
+    /**
      * Whether this body can get out of where it is — see {@link Confinement}.
      *
      * <p>A percept rather than something a drive works out: the answer comes from a route search's

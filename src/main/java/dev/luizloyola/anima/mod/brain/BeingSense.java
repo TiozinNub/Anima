@@ -590,7 +590,13 @@ public final class BeingSense {
                 // read here or nowhere.
                 body.getEyeHeight(), body instanceof Player,
                 locomotion, body.isCrouching(), watching, aimedAt,
-                false, Being.Gear.NONE, activity);
+                false, Being.Gear.NONE, activity, heldBy(body));
+    }
+
+    /** The item id in their main hand, or empty for bare hands — what anybody looking can see. */
+    private static String heldBy(LivingEntity body) {
+        ItemStack held = body.getMainHandItem();
+        return held.isEmpty() ? "" : BuiltInRegistries.ITEM.getKey(held.getItem()).toString();
     }
 
     /**

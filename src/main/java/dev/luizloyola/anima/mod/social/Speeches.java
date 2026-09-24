@@ -9,6 +9,7 @@ import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.social.speech.Encounter;
+import dev.luizloyola.anima.core.social.speech.LineSlots;
 import dev.luizloyola.anima.core.social.speech.Recounting;
 import dev.luizloyola.anima.core.social.speech.SpeechAct;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
@@ -113,7 +114,7 @@ public final class Speeches {
         String key = renderKey(act, u.payload(), variantOf(e.id(), index, act.variants()));
         return act.introduces()
                 ? Component.translatable(key, nameOf(server, u.author()))
-                : Component.translatable(key);
+                : withSlots(key, u.payload());
     }
 
     /**
@@ -179,6 +180,17 @@ public final class Speeches {
         String topic = payload.get("topic");
         String base = topic == null ? act.langKey() : act.langKey() + "." + topic;
         return act.variants() == 1 ? base : base + "." + variant;
+    }
+
+    /**
+     * {@code key} with whatever the payload names as its arguments — a topic about somebody's axe
+     * carries the axe. A payload whose slots cannot be read renders the words without them rather
+     * than dropping the line.
+     */
+    static Component withSlots(String key, Map<String, String> payload) {
+        List<Slot> slots = LineSlots.of(payload).orElse(List.of());
+        return slots.isEmpty() ? Component.translatable(key)
+                : Component.translatable(key, slots.stream().map(SlotNames::of).toArray());
     }
 
     /** A deed as a line says it: the doing's own words, its slots in order, then when. */

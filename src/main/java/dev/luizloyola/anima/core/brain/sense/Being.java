@@ -36,6 +36,10 @@ import org.jspecify.annotations.Nullable;
  * answer a spoken line at all"; that question has no other discriminator until a player can reply.
  * Neither is masked by {@link #identified}: they are facts about the body, not reads off it.
  *
+ * <p>{@link #held} is the item id a PERSON visibly holds in the main hand, empty for bare hands or
+ * anything not made out by sight. Kept apart from {@link #gear} on purpose: gear is the danger
+ * story, and an axe in every settler's hand is not a reason to fear them.
+ *
  * <p><b>Herds are one perception:</b> 3+ same-species herd animals collapse into one being with
  * {@link #count} > 1, 1–2 stay individuals; {@link #awareness} then carries the best member
  * channel and {@link #pos} the centroid.
@@ -47,7 +51,8 @@ public record Being(BeingId id, Kind kind, String species, String name,
                     Activity activity, Locomotion locomotion,
                     boolean sneaking, boolean watching, boolean aimedAt, boolean hailing,
                     boolean approaching,
-                    boolean aggressive, Gear gear, Identified identified, Awareness awareness) {
+                    boolean aggressive, Gear gear, Identified identified, Awareness awareness,
+                    String held) {
 
     /**
      * The eye height of an ordinary standing humanoid. A DEFAULT only: a live reading measures the
@@ -58,6 +63,21 @@ public record Being(BeingId id, Kind kind, String species, String name,
 
     public Being {
         members = java.util.List.copyOf(members);
+        held = held == null ? "" : held;
+    }
+
+    /** A reading with nothing seen in hand — every body but a person made out by sight. */
+    public Being(BeingId id, Kind kind, String species, String name,
+                 @Nullable String profession, Pos pos, double distance, double eyeHeight,
+                 boolean playerControlled, int count,
+                 int spread, boolean herdAnimal, java.util.List<BeingId> members,
+                 Activity activity, Locomotion locomotion,
+                 boolean sneaking, boolean watching, boolean aimedAt, boolean hailing,
+                 boolean approaching,
+                 boolean aggressive, Gear gear, Identified identified, Awareness awareness) {
+        this(id, kind, species, name, profession, pos, distance, eyeHeight, playerControlled,
+                count, spread, herdAnimal, members, activity, locomotion, sneaking, watching,
+                aimedAt, hailing, approaching, aggressive, gear, identified, awareness, "");
     }
 
     /** How far up the ladder the observer has made this one out. */

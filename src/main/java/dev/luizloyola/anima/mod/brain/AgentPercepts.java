@@ -2,6 +2,7 @@ package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.compat.inv.CookedForms;
 import dev.luizloyola.anima.compat.inv.FoodValues;
+import dev.luizloyola.anima.compat.WorldClocks;
 import dev.luizloyola.anima.compat.nav.LevelGrid;
 import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
@@ -12,6 +13,8 @@ import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.mod.nav.PathfinderService;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
@@ -21,6 +24,7 @@ import dev.luizloyola.anima.core.brain.sense.Drop;
 import dev.luizloyola.anima.core.brain.sense.FoodLookup;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.brain.sense.Surroundings;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import dev.luizloyola.anima.core.agent.FoodValue;
@@ -204,6 +208,34 @@ public final class AgentPercepts implements Percepts {
     @Override
     public long time() {
         return this.person.level().getGameTime();
+    }
+
+    /**
+     * Read fresh on every ask: a conversation asks once per line, and each read is a handful of
+     * lookups at one block. Weather is told by the biome underfoot, so a desert stays dry in rain
+     * and a mountain top gets snow.
+     */
+    @Override
+    public java.util.Optional<Surroundings> surroundings() {
+        Level level = this.person.level();
+        BlockPos eyes = BlockPos.containing(this.person.entity().getEyePosition());
+        return java.util.Optional.of(new Surroundings(weatherAt(level, eyes),
+                Surroundings.DayPhase.of(WorldClocks.timeOfDay(level)),
+                level.getMaxLocalRawBrightness(eyes), level.canSeeSky(eyes)));
+    }
+
+    private static Surroundings.Weather weatherAt(Level level, BlockPos at) {
+        if (!level.isRaining()) {
+            return Surroundings.Weather.CLEAR;
+        }
+        Biome.Precipitation falling = level.getBiome(at).value()
+                .getPrecipitationAt(at, level.getSeaLevel());
+        return switch (falling) {
+            case NONE -> Surroundings.Weather.CLEAR;
+            case SNOW -> Surroundings.Weather.SNOW;
+            case RAIN -> level.isThundering() ? Surroundings.Weather.THUNDER
+                    : Surroundings.Weather.RAIN;
+        };
     }
 
     /**

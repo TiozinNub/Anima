@@ -21,5 +21,21 @@ public record BeingReading(BeingId id, Being.Kind kind, String species, String n
                            double distance, double eyeHeight, boolean playerControlled,
                            Being.Locomotion locomotion, boolean sneaking,
                            boolean watching, boolean aimedAt, boolean aggressive,
-                           Being.Gear gear, Being.Activity activity) {
+                           Being.Gear gear, Being.Activity activity, String held) {
+
+    public BeingReading {
+        held = held == null ? "" : held;
+    }
+
+    /** A reading with nothing seen in hand — every sound, and every body but a person. */
+    public BeingReading(BeingId id, Being.Kind kind, String species, String name,
+                        @Nullable String profession, boolean herdAnimal, Pos pos,
+                        double distance, double eyeHeight, boolean playerControlled,
+                        Being.Locomotion locomotion, boolean sneaking,
+                        boolean watching, boolean aimedAt, boolean aggressive,
+                        Being.Gear gear, Being.Activity activity) {
+        this(id, kind, species, name, profession, herdAnimal, pos, distance, eyeHeight,
+                playerControlled, locomotion, sneaking, watching, aimedAt, aggressive, gear,
+                activity, "");
+    }
 }
