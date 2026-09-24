@@ -27,7 +27,8 @@ public final class SurroundingsReader {
         return new Surroundings(weatherAt(level, eyes),
                 Surroundings.DayPhase.of(WorldClocks.timeOfDay(level)),
                 level.getMaxLocalRawBrightness(eyes),
-                level.getBrightness(LightLayer.SKY, eyes) > 0);
+                level.getBrightness(LightLayer.SKY, eyes) > 0,
+                ThunderMarks.heardBy(body));
     }
 
     private static Surroundings.Weather weatherAt(Level level, BlockPos at) {

@@ -7,8 +7,21 @@ package dev.luizloyola.anima.core.brain.sense;
  * @param light what the body's eyes get, 0–15: sky and block light, the sky dimmed by the hour
  * @param outdoors whether any sky light reaches the body's eyes — open sky, or under a canopy,
  *     where rain and dusk still show; never a cave or a sealed room, where neither can be told
+ * @param thunder the latest thunderclap within earshot, if one is fresh enough to remark on — a
+ *     SOUND, so it is heard indoors too, and what makes "Hear that thunder?" follow a real strike
+ *     rather than the weather's name
  */
-public record Surroundings(Weather weather, DayPhase phase, int light, boolean outdoors) {
+public record Surroundings(Weather weather, DayPhase phase, int light, boolean outdoors,
+        java.util.Optional<Thunderclap> thunder) {
+
+    /** No thunder heard — every reading but one that follows a strike. */
+    public Surroundings(Weather weather, DayPhase phase, int light, boolean outdoors) {
+        this(weather, phase, light, outdoors, java.util.Optional.empty());
+    }
+
+    /** One strike, as the body heard it: how long ago, and how far off. */
+    public record Thunderclap(long ticksAgo, double distance) {
+    }
 
     public enum Weather { CLEAR, RAIN, THUNDER, SNOW }
 
