@@ -242,7 +242,19 @@ public final class Talkers {
         if (!pick.ok()) {
             return refusal(pick.reason());
         }
-        speech.say(e, pick.line());
+        Chooser.Line line = pick.line();
+        // A chat left to the draw asks the consumer first: the sky over the player, their pack,
+        // the settler in front of them — never the same thing twice (decision: Luiz, 2026-09-24).
+        // The menu's own draw is the fallback for an install with no vocabulary to ask.
+        Optional<PlayerTopics.Source> topics = PlayerTopics.source();
+        if (topic == null && !line.act().topics().isEmpty() && topics.isPresent()) {
+            Optional<Map<String, String>> payload = topics.get().pick(server, player, e);
+            if (payload.isEmpty()) {
+                return "anima.talk.nothing_new";
+            }
+            line = new Chooser.Line(line.act(), payload.get());
+        }
+        speech.say(e, line);
         return null;
     }
 
@@ -506,7 +518,12 @@ public final class Talkers {
 
         List<TalkPayload.Offer> offers = new ArrayList<>();
         if (!theirTurn(server, player, e)) {
+            boolean topicsLeft = PlayerTopics.source()
+                    .map(source -> source.anythingLeft(server, player, e)).orElse(true);
             for (SpeechAct act : Menu.offered(e, self, cap(e, now), ContactData.get(server)::knows)) {
+                if (!act.topics().isEmpty() && !topicsLeft) {
+                    continue; // nothing new left to chat about: the goodbye is still there
+                }
                 offers.add(new TalkPayload.Offer(act.key(),
                         Component.translatable(act.langKey() + ".button"),
                         hover(server, player, act)));

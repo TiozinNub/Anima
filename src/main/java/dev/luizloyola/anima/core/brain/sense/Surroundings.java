@@ -5,9 +5,10 @@ package dev.luizloyola.anima.core.brain.sense;
  * body says about the day comes from here, never from the server's own view of the world.
  *
  * @param light what the body's eyes get, 0–15: sky and block light, the sky dimmed by the hour
- * @param underSky whether the sky is overhead — weather and hour are only told by looking at it
+ * @param outdoors whether any sky light reaches the body's eyes — open sky, or under a canopy,
+ *     where rain and dusk still show; never a cave or a sealed room, where neither can be told
  */
-public record Surroundings(Weather weather, DayPhase phase, int light, boolean underSky) {
+public record Surroundings(Weather weather, DayPhase phase, int light, boolean outdoors) {
 
     public enum Weather { CLEAR, RAIN, THUNDER, SNOW }
 

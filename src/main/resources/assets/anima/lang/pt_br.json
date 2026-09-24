@@ -516,6 +516,7 @@
   "anima.talk.not_a_player": "Só quem tem voz pode dizer isso.",
   "anima.talk.unknown": "Ninguém aqui sabe dizer isso.",
   "anima.talk.not_offered": "Isso não cabe a você dizer agora.",
+  "anima.talk.nothing_new": "Você não consegue pensar em nada novo pra dizer.",
   "anima.talk.bad_topic": "Não há o que dizer sobre isso.",
   "anima.talk.unanswered": "%s nunca respondeu.",
   "anima.talk.ignored": "%s não pareceu notar.",
