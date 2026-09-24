@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.brain;
 
 import dev.luizloyola.anima.core.brain.act.ActuatorAccess;
 import dev.luizloyola.anima.core.brain.board.AgentClaims;
+import dev.luizloyola.anima.core.brain.gate.Gate;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
@@ -110,6 +111,14 @@ public interface BrainContext {
      */
     default java.util.List<ItemCall> reserved() {
         return java.util.List.of();
+    }
+
+    /**
+     * What this body may seek, make and do — see {@link Gate}. Defaults to {@link Gate.View#OPEN}:
+     * a rig with no body behind it may do anything.
+     */
+    default Gate.View gate() {
+        return Gate.View.OPEN;
     }
 
     /**

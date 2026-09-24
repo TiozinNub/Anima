@@ -1,6 +1,8 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.brain.BrainContext;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * A goal: something to achieve, not something to do. A compound never touches actuators — it
@@ -19,6 +21,14 @@ public non-sealed interface CompoundTask extends Task {
      * cost ({@link Method#estimateCost}) are decided at expansion time, against fresh percepts.
      */
     List<Method> methods();
+
+    /**
+     * Why this goal may not be pursued at all, asked before any method is. Empty by default;
+     * {@link ObtainItem} answers for the gate, so a body forbidden an item goes after it by no way.
+     */
+    default Optional<String> refusal(BrainContext ctx) {
+        return Optional.empty();
+    }
 
     /**
      * One-line goal summary for the debug readout, e.g. {@code "satisfy hunger"} — chained by

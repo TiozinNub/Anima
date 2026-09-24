@@ -308,6 +308,12 @@ public final class TaskExecutor {
                 failCurrent(ctx); // the branch fails, as a method failure in the parent — no exception
                 continue;
             }
+            java.util.Optional<String> refused = compound.refusal(ctx);
+            if (refused.isPresent()) {
+                noteFailure(compound.describe() + ": " + refused.get());
+                failCurrent(ctx);
+                continue;
+            }
             Frame frame = new Frame(compound);
             if (!chooseRound(frame, ctx)) {
                 noteExhausted(noWay(frame, ctx));

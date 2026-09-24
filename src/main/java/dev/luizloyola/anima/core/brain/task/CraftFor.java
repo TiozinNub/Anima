@@ -106,15 +106,16 @@ public final class CraftFor implements Method {
     }
 
     /**
-     * Recipes this method may use: producing the spec, not already pursued, and <b>reachable</b>
-     * — every bill line must have some way to be had from here. Without that filter "any axe"
+     * Recipes this method may use: producing the spec, not already pursued, allowed this body by
+     * the gate, and <b>reachable</b> — every bill line must have some way to be had from here.
+     * Without that filter "any axe"
      * resolved to the book's first entry (the copper axe) and, one method attempt per round, a
      * settler with a forest at their back shrugged the want off over copper ingots.
      */
     private List<CraftRecipe> usable(BrainContext ctx) {
         List<CraftRecipe> fit = new ArrayList<>();
         for (CraftRecipe recipe : Recipes.producing(spec)) {
-            if (pursued.contains(recipe.outputId())) {
+            if (pursued.contains(recipe.outputId()) || !ctx.gate().mayMake(recipe.outputId())) {
                 continue;
             }
             Set<String> guard = new HashSet<>(pursued);
@@ -133,6 +134,9 @@ public final class CraftFor implements Method {
      */
     public static boolean anyReachable(ItemSpec spec, BrainContext ctx) {
         for (CraftRecipe recipe : Recipes.producing(spec)) {
+            if (!ctx.gate().mayMake(recipe.outputId())) {
+                continue;
+            }
             Set<String> guard = new HashSet<>();
             guard.add(recipe.outputId());
             if (reachable(recipe, guard, ctx, REACH_DEPTH)) {
@@ -180,7 +184,7 @@ public final class CraftFor implements Method {
         // Deliberately UNREGISTERED: a throwaway lens for one question, not a name to persist.
         ItemSpec lineSpec = new ItemSpec("(reachable?)", line.acceptedIds()::contains);
         for (CraftRecipe making : Recipes.producing(lineSpec)) {
-            if (guard.contains(making.outputId())) {
+            if (guard.contains(making.outputId()) || !ctx.gate().mayMake(making.outputId())) {
                 continue;
             }
             Set<String> deeper = new HashSet<>(guard);

@@ -4,9 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.gate.Act;
+import dev.luizloyola.anima.core.brain.gate.Gate;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -50,6 +54,44 @@ class ObtainItemTest {
     @AfterEach
     void tearDown() {
         Producers.reset();
+        Gate.install(Gate.OPEN);
+    }
+
+    /** A context whose gate refuses shears and cobblestone — a Wood Age body, near enough. */
+    private static FakeContext woodAge() {
+        Gate.install(new Gate.Policy() {
+            @Override
+            public Optional<String> refuseItem(AgentId body, String itemId) {
+                return itemId.equals("minecraft:shears") || itemId.equals("minecraft:cobblestone")
+                        ? Optional.of("not yet") : Optional.empty();
+            }
+
+            @Override
+            public Optional<String> refuseAct(AgentId body, Act act) {
+                return Optional.empty();
+            }
+        });
+        FakeContext ctx = new FakeContext();
+        ctx.gate = Gate.viewFor(ctx.self, ctx.journal());
+        return ctx;
+    }
+
+    @Test
+    void anObtainTheGateRefusesFailsBeforeTryingAnyWay() {
+        FakeContext ctx = woodAge();
+        TaskExecutor executor = new TaskExecutor();
+        executor.run(new ObtainItem(ItemSpec.anyOf(Set.of("minecraft:shears")), 1), ctx);
+        executor.tick(ctx);
+        assertEquals(Optional.of("obtain shears x1: may not seek it"), executor.failureReason());
+    }
+
+    @Test
+    void anIngredientOfAnAllowedCraftIsNotAskedAgain() {
+        FakeContext ctx = woodAge();
+        ItemSpec cobble = ItemSpec.anyOf(Set.of("minecraft:cobblestone"));
+        assertTrue(new ObtainItem(cobble, 8).refusal(ctx).isPresent(), "sought for itself: refused");
+        assertTrue(new ObtainItem(cobble, 8, Set.of("minecraft:furnace")).refusal(ctx).isEmpty(),
+                "sought for a furnace the gate let through: the recipe already asked");
     }
 
     @Test

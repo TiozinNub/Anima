@@ -88,6 +88,19 @@ public final class ObtainItem implements AchieveTask {
         return methods;
     }
 
+    /**
+     * Only a top-level obtain is the body's own seeking. One inside a craft chain was asked for by
+     * a recipe the gate already let through, which is how a furnace still gets its cobblestone in
+     * an age that makes nothing else of stone.
+     */
+    @Override
+    public java.util.Optional<String> refusal(BrainContext ctx) {
+        if (!pursued.isEmpty() || ctx.gate().maySeek(spec)) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of("may not seek it");
+    }
+
     @Override
     public String describe() {
         return "obtain " + spec.name() + " x" + count;

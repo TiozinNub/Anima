@@ -5,11 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.brain.gate.Act;
+import dev.luizloyola.anima.core.brain.gate.Gate;
 import dev.luizloyola.anima.core.craft.CraftRecipe;
 import dev.luizloyola.anima.core.craft.Recipes;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -62,11 +66,67 @@ class CraftForTest {
     @AfterEach
     void tearDown() {
         Recipes.reset();
+        Gate.install(Gate.OPEN);
     }
 
     private static void book(CraftRecipe... recipes) {
         List<CraftRecipe> all = List.of(recipes);
         Recipes.provide(spec -> all.stream().filter(r -> spec.matches(r.outputId())).toList());
+    }
+
+    private static CraftRecipe stoneAxeNeedingTable() {
+        return new CraftRecipe("minecraft:stone_axe", ItemStack.of("minecraft:stone_axe", 1, 1),
+                List.of(new CraftRecipe.Ingredient(Set.of("minecraft:cobblestone"), 3),
+                        new CraftRecipe.Ingredient(Set.of("minecraft:stick"), 2)), true);
+    }
+
+    /** Refuses every stone item, the way a Wood Age answer would. */
+    private void gateOutStone() {
+        Gate.install(new Gate.Policy() {
+            @Override
+            public Optional<String> refuseItem(AgentId body, String itemId) {
+                return itemId.startsWith("minecraft:stone_")
+                        ? Optional.of("not in the Stone Age") : Optional.empty();
+            }
+
+            @Override
+            public Optional<String> refuseAct(AgentId body, Act act) {
+                return Optional.empty();
+            }
+        });
+        ctx.gate = Gate.viewFor(ctx.self, ctx.journal());
+    }
+
+    @Test
+    void aRecipeTheGateRefusesIsNeverChosen() {
+        // Stone first, so the book's own order would pick it: both bills are covered, a tie.
+        book(stoneAxeNeedingTable(), axeNeedingTable());
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:cobblestone", 3, 64));
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_planks", 3, 64));
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:stick", 2, 64));
+        ItemSpec anyAxe = ItemSpec.anyOf(Set.of("minecraft:wooden_axe", "minecraft:stone_axe"));
+
+        List<Task> open = new CraftFor(anyAxe, 1, Set.of()).decompose(ctx);
+        assertEquals("minecraft:stone_axe",
+                ((CraftStep) open.get(open.size() - 1)).recipe().outputId(), "ungated, the book decides");
+
+        gateOutStone();
+        List<Task> gated = new CraftFor(anyAxe, 1, Set.of()).decompose(ctx);
+        assertEquals("minecraft:wooden_axe",
+                ((CraftStep) gated.get(gated.size() - 1)).recipe().outputId(),
+                "cobblestone in the pack does not make a stone axe in the Wood Age");
+    }
+
+    @Test
+    void aRefusedRecipeIsNotAWayToReachAnything() {
+        book(stoneAxeNeedingTable());
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:cobblestone", 3, 64));
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:stick", 2, 64));
+        ItemSpec stoneAxe = ItemSpec.anyOf(Set.of("minecraft:stone_axe"));
+        assertTrue(CraftFor.anyReachable(stoneAxe, ctx));
+        gateOutStone();
+        assertFalse(CraftFor.anyReachable(stoneAxe, ctx),
+                "the board's question gets the same answer, so no errand is claimed toward it");
     }
 
     @Test

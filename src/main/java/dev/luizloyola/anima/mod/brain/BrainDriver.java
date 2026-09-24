@@ -2,6 +2,7 @@ package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.gate.Gate;
 import dev.luizloyola.anima.core.brain.board.WorkLease;
 import dev.luizloyola.anima.core.brain.board.WorkSource;
 import dev.luizloyola.anima.core.brain.history.Deed;
@@ -126,6 +127,9 @@ public final class BrainDriver {
      * construction.
      */
     private Speech speech;
+
+    /** This person's view of the gate, resolved lazily and cached exactly like {@link #knowledge}. */
+    private Gate.View gate;
 
     /**
      * Where layer-3 demand comes from, supplied by whoever owns this body: a library cannot know
@@ -258,6 +262,11 @@ public final class BrainDriver {
             @Override
             public java.util.List<History.Entry> history() {
                 return arbiter.history().recent(percepts.time());
+            }
+
+            @Override
+            public Gate.View gate() {
+                return resolveGate();
             }
 
             @Override
@@ -530,6 +539,14 @@ public final class BrainDriver {
             this.claims = Claims.of(level.getServer()).forPerson(this.person.agentId());
         }
         return this.claims;
+    }
+
+    /** The person's gate view, resolved once and cached — see {@link #gate}. */
+    private Gate.View resolveGate() {
+        if (this.gate == null) {
+            this.gate = Gate.viewFor(this.person.agentId(), this.person.journal());
+        }
+        return this.gate;
     }
 
     /** The person's conversation port, resolved once and cached — see {@link #speech}. */

@@ -188,6 +188,15 @@ public final class FakeContext implements BrainContext {
         return costTolerance;
     }
 
+    /** What this rig may seek and make — open unless a gate test binds a view. */
+    public dev.luizloyola.anima.core.brain.gate.Gate.View gate =
+            dev.luizloyola.anima.core.brain.gate.Gate.View.OPEN;
+
+    @Override
+    public dev.luizloyola.anima.core.brain.gate.Gate.View gate() {
+        return gate;
+    }
+
     /** The body's stream. Fixed by default so a test that draws twice gets the same two numbers
      *  every run; {@link #seed} pins it where a test cares which numbers those are. */
     private java.util.random.RandomGenerator random =
