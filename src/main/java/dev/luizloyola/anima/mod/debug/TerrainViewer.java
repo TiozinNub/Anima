@@ -118,8 +118,9 @@ public final class TerrainViewer {
         int maxX = centre.getX() + r;
         int maxZ = centre.getZ() + r;
         // Ground read past the painted edge, so the windows at the edge — smoothing, the area
-        // square, a footprint — see ground on both sides rather than the edge of the read.
-        int margin = Math.max(rules.footprint(), Math.max(2 * rules.smoothRadius(), rules.areaSize()));
+        // square, a footprint, the land a hillside stands above — see ground on both sides rather
+        // than the edge of the read.
+        int margin = Terrain.reach(rules);
         GroundSample sample = GroundReader.read(player.level(),
                 minX - margin, minZ - margin, maxX + margin, maxZ + margin);
         Terrain terrain = Terrain.analyse(sample, rules);

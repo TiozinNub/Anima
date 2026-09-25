@@ -203,9 +203,15 @@ public enum Knob implements KnobSpec {
             "How far one column may stand above or below the smoothed ground and still be "
                     + "flat: 2 lets a two-block hole or bump through."),
     TERRAIN_STEEP_ANGLE("terrain.steep_angle", Kind.DOUBLE, 45, 1, 89,
-            "The gentlest rise called steep, in degrees, measured across four blocks of bare "
-                    + "ground. At 45 the smallest steep rise is four blocks in four, so no hole, "
-                    + "bump or ledge of three or less is steep."),
+            "The gentlest climb a hillside makes, in degrees: at 45 with steep_height 8, the "
+                    + "ground climbs 8 blocks within 8."),
+    TERRAIN_STEEP_HEIGHT("terrain.steep_height", Kind.INT, 8, 1, 64,
+            "How far the ground climbs at steep_angle to be a hillside rather than a bump: 8 is "
+                    + "enough hill to dig a base into."),
+    TERRAIN_STEEP_ABOVE_LAND("terrain.steep_above_land", Kind.DOUBLE, 4, 0, 64,
+            "How far a hillside's top stands above the average ground within 32 blocks, water "
+                    + "included. Tells a hillside from the wall of a pit, whose top is only the "
+                    + "level of the land around it."),
     TERRAIN_CLIFF_HEIGHT("terrain.cliff_height", Kind.INT, 4, 2, 64,
             "The smallest drop from one column to the next called a cliff — near vertical by "
                     + "construction, 76° at 4. Four is the first drop a body can neither climb "

@@ -16,8 +16,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The ground under the trees, judged by rules: trunks come off, a hole in a meadow is still flat, a
- * slope is not, a four-block wall is a cliff and forty-five degrees is steep, a crafting table
- * spoils the ground around it, and nothing unseen is ever usable.
+ * slope is not, a four-block wall is a cliff, a hillside is steep and a pit's wall is not, a
+ * crafting table spoils the ground around it, and nothing unseen is ever usable.
  */
 class TerrainTest {
 
@@ -113,12 +113,12 @@ class TerrainTest {
     }
 
     @Test
-    void aWallIsACliffAtItsTopAndSteepAtItsFoot() {
+    void aWallIsACliffAtItsTop() {
         Terrain terrain = analyse(sample(SIZE, (x, z) -> x < MID ? LEVEL : LEVEL + 4));
 
         assertEquals(Kind.CLIFF, terrain.kind(MID, MID));
         assertEquals(4, terrain.drop(MID, MID));
-        assertEquals(Kind.STEEP, terrain.kind(MID - 1, MID));
+        assertNotEquals(Kind.CLIFF, terrain.kind(MID - 1, MID));
         assertEquals(0, terrain.drop(MID - 1, MID));
     }
 
@@ -135,25 +135,60 @@ class TerrainTest {
         }
     }
 
-    @Test
-    void fortyFiveDegreesIsSteepAndThreeInFourIsNot() {
-        Terrain steep = analyse(sample(SIZE, (x, z) -> LEVEL + x));
-        Terrain gentler = analyse(sample(SIZE, (x, z) -> LEVEL + 3 * x / 4));
+    /** A meadow, a 45° flank {@code height} tall starting at {@code foot}, and a plateau. */
+    private static GroundSample hill(int foot, int height) {
+        return sample(SIZE, (x, z) -> LEVEL + Math.max(0, Math.min(height, x - foot)));
+    }
 
-        assertEquals(Kind.STEEP, steep.kind(MID, MID), "one in one is 45°");
-        assertEquals(Kind.UNEVEN, gentler.kind(MID, MID), "three in four is 37°");
+    /** 12 tall: more than the steep height, less than twice it, so its middle is what counts. */
+    @Test
+    void aHillsideIsSteep() {
+        Terrain terrain = analyse(hill(14, 12));
+
+        assertEquals(Kind.STEEP, terrain.kind(20, MID), "the middle of the flank");
+        assertNotEquals(Kind.STEEP, terrain.kind(5, MID), "the meadow below");
+        assertNotEquals(Kind.STEEP, terrain.kind(36, MID), "the plateau above");
+    }
+
+    /** Too short to climb the steep height at all, or climbing it along too narrow a band. */
+    @Test
+    void aShortRiseIsNotAHillside() {
+        for (int height : new int[] {6, 10}) {
+            Terrain terrain = analyse(hill(15, height));
+            for (int x = 0; x < SIZE; x++) {
+                assertNotEquals(Kind.STEEP, terrain.kind(x, MID), height + " tall, x = " + x);
+            }
+        }
+    }
+
+    /** A pit climbs as far as a hillside does, but only back up to the level of the land. */
+    @Test
+    void aPitWallIsNotAHillside() {
+        Terrain terrain = analyse(sample(SIZE,
+                (x, z) -> Math.abs(x - MID) <= 3 && Math.abs(z - MID) <= 3 ? LEVEL - 10 : LEVEL));
+
+        assertEquals(Kind.CLIFF, terrain.kind(MID + 4, MID), "the rim");
+        for (int x = 0; x < SIZE; x++) {
+            for (int z = 0; z < SIZE; z++) {
+                assertNotEquals(Kind.STEEP, terrain.kind(x, z), "(" + x + ", " + z + ")");
+            }
+        }
     }
 
     @Test
     void theConfigDecidesWhatIsSteepAndWhatIsACliff() {
-        GroundSample threeInFour = sample(SIZE, (x, z) -> LEVEL + 3 * x / 4); // 37°
         GroundSample wall = sample(SIZE, (x, z) -> x < MID ? LEVEL : LEVEL + 3);
-        assertEquals(Kind.UNEVEN, analyse(threeInFour).kind(MID, MID));
+        assertEquals(Kind.STEEP, analyse(hill(12, 16)).kind(20, MID));
         assertNotEquals(Kind.CLIFF, analyse(wall).kind(MID, MID));
 
-        Config.install(Config.get().with(Knob.TERRAIN_STEEP_ANGLE, 35.0)
-                .with(Knob.TERRAIN_CLIFF_HEIGHT, 3));
-        assertEquals(Kind.STEEP, analyse(threeInFour).kind(MID, MID));
+        for (Knob knob : new Knob[] {Knob.TERRAIN_STEEP_ANGLE, Knob.TERRAIN_STEEP_HEIGHT,
+                Knob.TERRAIN_STEEP_ABOVE_LAND}) {
+            double past = knob == Knob.TERRAIN_STEEP_ANGLE ? 60 : 20; // past what the hill offers
+            Config.install(Config.get().with(knob, past));
+            assertNotEquals(Kind.STEEP, analyse(hill(12, 16)).kind(20, MID), knob.key());
+            Config.reset();
+        }
+        Config.install(Config.get().with(Knob.TERRAIN_CLIFF_HEIGHT, 3));
         assertEquals(Kind.CLIFF, analyse(wall).kind(MID, MID));
     }
 

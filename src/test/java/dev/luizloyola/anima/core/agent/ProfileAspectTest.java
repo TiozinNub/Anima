@@ -81,6 +81,8 @@ class ProfileAspectTest {
             Knob.TERRAIN_MAX_SLOPE,
             Knob.TERRAIN_MAX_ROUGH,
             Knob.TERRAIN_STEEP_ANGLE,
+            Knob.TERRAIN_STEEP_HEIGHT,
+            Knob.TERRAIN_STEEP_ABOVE_LAND,
             Knob.TERRAIN_CLIFF_HEIGHT,
             Knob.TERRAIN_AREA_SIZE,
             Knob.TERRAIN_USED_MARGIN,

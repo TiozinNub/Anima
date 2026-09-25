@@ -38,7 +38,10 @@ public final class Terrain {
         USED,
         /** The top of a near-vertical wall: the ground drops the cliff height or more beside it. */
         CLIFF,
-        /** Rising at the steep angle or more across four blocks. */
+        /**
+         * A hillside: the ground climbs the steep height at the steep angle or more, up to a top
+         * that stands above the land around it.
+         */
         STEEP,
         /** Too sloped or too rough to be flat, after smoothing, but not steep. */
         UNEVEN,
@@ -74,12 +77,11 @@ public final class Terrain {
     /** A cut this deep means something stands on the surface rather than being part of it. */
     private static final int STANDING_CUT = 2;
 
-    /**
-     * Steepness is measured across this many blocks. Across four, the smallest rise steep at 45° is
-     * four blocks, the cliff height, so no hole, bump or ledge of 1–3 is steep; across two, every
-     * two-block hole in a meadow was.
-     */
-    private static final int STEEP_SPAN = 4;
+    /** How far around a hillside the land it must stand above is averaged. */
+    private static final int LAND_RADIUS = 32;
+
+    /** A hillside must fit a square this wide: room to dig a base's front into it. */
+    private static final int HILLSIDE_SQUARE = 5;
 
     private final int minX;
     private final int minZ;
@@ -156,7 +158,7 @@ public final class Terrain {
         boolean[] flatArea = openSquare(flat, w, d, rules.areaSize());
         boolean[] clearing = openSquare(flatOpen, w, d, rules.areaSize());
         int[] drops = drops(ground, known, w, d);
-        boolean[] steep = steep(ground, known, w, d, Math.tan(Math.toRadians(rules.steepAngle())));
+        boolean[] steep = steep(ground, known, fluid, w, d, rules);
 
         Kind[] kinds = new Kind[n];
         for (int i = 0; i < n; i++) {
@@ -172,6 +174,15 @@ public final class Terrain {
         }
         List<Site> sites = sites(ground, valid, standing, w, d, rules, in.minX(), in.minZ());
         return new Terrain(in.minX(), in.minZ(), w, ground, drops, kinds, cover, sites);
+    }
+
+    /**
+     * How far past a column its judgement reads. A caller painting a box reads this much around
+     * it, or the columns at its edge are judged on half their surroundings.
+     */
+    public static int reach(TerrainRules rules) {
+        return Math.max(Math.max(rules.footprint(), 2 * rules.smoothRadius()),
+                Math.max(rules.areaSize(), LAND_RADIUS + steepSpan(rules)));
     }
 
     /** The bare ground's top block, or {@link GroundSample#UNKNOWN}. */
@@ -277,24 +288,73 @@ public final class Terrain {
         return out;
     }
 
-    /** Where the ground rises by {@code rise} per block or more, up or down, across the span. */
-    private static boolean[] steep(int[] ground, boolean[] known, int w, int d, double rise) {
-        boolean[] out = new boolean[w * d];
+    /** The longest run over which climbing the steep height is still the steep angle or more. */
+    private static int steepSpan(TerrainRules rules) {
+        double run = rules.steepHeight() / Math.tan(Math.toRadians(rules.steepAngle()));
+        return Math.max(1, (int) Math.floor(run + 1e-9));
+    }
+
+    /**
+     * Hillsides: the ground climbs the steep height within the steep span, measured centred on the
+     * column, the highest ground within the span stands above the land around, and a square of
+     * such columns fits. Measured from the column out to a span away, the middle of a flank between
+     * one and two steep heights tall climbed too little either way. A pit's wall climbs as far as a
+     * hillside does, but its top is only the level of the land.
+     */
+    private static boolean[] steep(int[] ground, boolean[] known, boolean[] fluid, int w, int d,
+                                   TerrainRules rules) {
+        int span = steepSpan(rules);
+        int ahead = span / 2;
+        int behind = span - ahead;
+        // Water counts: it is the low ground a plateau's flank rises from.
+        double[] land = smooth(ground, known, w, d, LAND_RADIUS);
+        int[] top = highest(ground, known, w, d, span);
+        boolean[] hill = new boolean[w * d];
         for (int row = 0; row < d; row++) {
             for (int col = 0; col < w; col++) {
                 int i = row * w + col;
-                if (!known[i]) {
+                if (!known[i] || fluid[i] || top[i] - land[i] < rules.steepAboveLand()) {
                     continue;
                 }
-                for (int[] axis : AXES) {
-                    int r = row + axis[1] * STEEP_SPAN;
-                    int c = col + axis[0] * STEEP_SPAN;
-                    if (r >= 0 && r < d && c >= 0 && c < w && known[r * w + c]
-                            && Math.abs(ground[i] - ground[r * w + c]) >= rise * STEEP_SPAN - 1e-9) {
-                        out[i] = true;
-                        break;
+                hill[i] = climbs(ground, known, w, d, row, col - behind, row, col + ahead, rules)
+                        || climbs(ground, known, w, d, row - behind, col, row + ahead, col, rules);
+            }
+        }
+        return openSquare(hill, w, d, HILLSIDE_SQUARE);
+    }
+
+    private static boolean climbs(int[] ground, boolean[] known, int w, int d, int r0, int c0,
+                                  int r1, int c1, TerrainRules rules) {
+        if (r0 < 0 || c0 < 0 || r1 >= d || c1 >= w) {
+            return false;
+        }
+        int a = r0 * w + c0;
+        int b = r1 * w + c1;
+        return known[a] && known[b] && Math.abs(ground[b] - ground[a]) >= rules.steepHeight();
+    }
+
+    /** The highest known ground within {@code r} of each column, as a square. */
+    private static int[] highest(int[] ground, boolean[] known, int w, int d, int r) {
+        int[] across = new int[w * d];
+        for (int row = 0; row < d; row++) {
+            for (int col = 0; col < w; col++) {
+                int high = Integer.MIN_VALUE;
+                for (int c = Math.max(0, col - r); c <= Math.min(w - 1, col + r); c++) {
+                    if (known[row * w + c]) {
+                        high = Math.max(high, ground[row * w + c]);
                     }
                 }
+                across[row * w + col] = high;
+            }
+        }
+        int[] out = new int[w * d];
+        for (int row = 0; row < d; row++) {
+            for (int col = 0; col < w; col++) {
+                int high = Integer.MIN_VALUE;
+                for (int rr = Math.max(0, row - r); rr <= Math.min(d - 1, row + r); rr++) {
+                    high = Math.max(high, across[rr * w + col]);
+                }
+                out[row * w + col] = high;
             }
         }
         return out;
