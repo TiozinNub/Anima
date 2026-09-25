@@ -47,7 +47,7 @@ import net.minecraft.world.phys.Vec3;
  * box is a flat billboard up to three blocks wide, so turning the camera swept its plane through
  * whatever the speaker stood against and every fragment past the surface went missing. A wall
  * still hides a bubble, but as a whole — {@link #inSight} asks once whether the camera reaches
- * the point it hangs from, and a speaker out of sight draws nothing. Order does what depth did:
+ * the speaker, and a speaker out of sight draws nothing. Order does what depth did:
  * {@link Bubbles} hands out two per bubble, farthest speaker first.
  *
  * <p><b>Lit between full-bright and the world</b> (decision: Luiz, 2026-09-14): block light under
@@ -78,11 +78,11 @@ final class BubbleRenderer {
         if (attachment == null) {
             return;
         }
-        Vec3 anchor = entity.getPosition(partial).add(attachment).add(0, 0.5, 0);
-        if (!inSight(level, camera, entity, anchor)) {
+        if (!inSight(level, camera, entity, partial)) {
             return;
         }
-        Vec3 at = anchor.subtract(camera.position());
+        Vec3 at = entity.getPosition(partial).add(attachment).add(0, 0.5, 0)
+                .subtract(camera.position());
         int light = light(level, entity, partial);
         pose.pushPose();
         pose.translate(at.x, at.y, at.z);
@@ -121,13 +121,16 @@ final class BubbleRenderer {
     }
 
     /**
-     * Whether the camera reaches the point the bubble hangs from in a straight line. Visual
-     * shapes, and fluids ignored — a bubble underwater is still readable. Blocks only: a body in
-     * the way never hides a bubble, which is the rule a nameplate follows too.
+     * Whether the camera reaches the speaker's eyes in a straight line. The speaker, not the
+     * bubble: the box hangs a block over the head, where a ceiling or an overhang can cut the
+     * line while the body it belongs to is in plain view. Visual shapes, and fluids ignored — a
+     * bubble underwater is still readable. Blocks only: a body in the way never hides a bubble,
+     * which is the rule a nameplate follows too.
      */
-    private static boolean inSight(ClientLevel level, Camera camera, Entity entity, Vec3 anchor) {
-        return level.clip(new ClipContext(camera.position(), anchor, ClipContext.Block.VISUAL,
-                ClipContext.Fluid.NONE, entity)).getType() == HitResult.Type.MISS;
+    private static boolean inSight(ClientLevel level, Camera camera, Entity entity, float partial) {
+        return level.clip(new ClipContext(camera.position(), entity.getEyePosition(partial),
+                        ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, entity))
+                .getType() == HitResult.Type.MISS;
     }
 
     /** One atlas cell, drawn whole. */
