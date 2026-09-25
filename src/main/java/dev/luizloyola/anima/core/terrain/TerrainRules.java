@@ -1,20 +1,20 @@
 package dev.luizloyola.anima.core.terrain;
 
+import dev.luizloyola.anima.core.config.Config;
+import dev.luizloyola.anima.core.config.ConfigValues;
+import dev.luizloyola.anima.core.config.Knob;
+
 /**
- * What counts as flat, open and usable ground, and what a building site may cost. The caller's
- * opinion, not the terrain's: a settlement and a pet looking for somewhere to lie down want
- * different numbers.
+ * What counts as flat, open and usable ground, and what a building site may cost.
  *
- * <p>Flatness is loose by default: ground a little work makes usable counts, since no large area
- * is dead level. Over 38 million columns of the forest world (2026-09-25) these defaults call 55% of
- * dry land flat; the first ones, 4 · 1/8 · 1, called 34%. {@code maxSlope} does most of that work —
- * {@code maxRough} matters only once {@code smoothRadius} is wide enough to turn short rises into
- * roughness. See {@code docs/superpowers/specs/2026-09-25-topography-design.md}.
+ * <p>Read from Anima's {@code terrain.*} config ({@link #configured()}), where the defaults and
+ * the measurements behind them live. Flatness is loose there on purpose: ground a little work makes
+ * usable counts, since no large area is dead level. See
+ * {@code docs/superpowers/specs/2026-09-25-topography-design.md}.
  *
  * @param smoothRadius the smoothing window's half-width; flatness is judged across it
  * @param maxSlope     the steepest smoothed rise per block still called flat
- * @param maxRough     how far one column may stand off the smoothed surface — 1 lets a
- *                     one-block hole or bump through
+ * @param maxRough     how far one column may stand off the smoothed surface
  * @param areaSize     the side of the square an area must fit; odd
  * @param usedMargin   how far used ground reaches past the block that marks it
  * @param footprint    the side of a building site; odd
@@ -23,9 +23,6 @@ package dev.luizloyola.anima.core.terrain;
  */
 public record TerrainRules(int smoothRadius, double maxSlope, double maxRough, int areaSize,
                            int usedMargin, int footprint, double maxTilt, double treeCost) {
-
-    public static final TerrainRules DEFAULTS =
-            new TerrainRules(6, 1.0 / 5, 2.0, 9, 4, 17, 1.0 / 10, 20.0);
 
     public TerrainRules {
         if (smoothRadius < 1 || usedMargin < 0 || maxSlope < 0 || maxRough < 0 || maxTilt < 0
@@ -38,5 +35,22 @@ public record TerrainRules(int smoothRadius, double maxSlope, double maxRough, i
             throw new IllegalArgumentException("sizes must be odd: area " + areaSize
                     + ", footprint " + footprint);
         }
+    }
+
+    /**
+     * The rules in force. Read on every call, so a {@code /anima config set} is seen by the next
+     * look. Sizes round up to odd rather than refusing an even one.
+     */
+    public static TerrainRules configured() {
+        ConfigValues config = Config.get();
+        return new TerrainRules(
+                config.i(Knob.TERRAIN_SMOOTH_RADIUS),
+                config.d(Knob.TERRAIN_MAX_SLOPE),
+                config.d(Knob.TERRAIN_MAX_ROUGH),
+                config.i(Knob.TERRAIN_AREA_SIZE) | 1,
+                config.i(Knob.TERRAIN_USED_MARGIN),
+                config.i(Knob.TERRAIN_SITE_SIZE) | 1,
+                config.d(Knob.TERRAIN_MAX_TILT),
+                config.d(Knob.TERRAIN_TREE_COST));
     }
 }

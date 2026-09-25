@@ -11,7 +11,9 @@ import java.util.Optional;
  * {@link dev.luizloyola.anima.core.agent.ProfileAspect}s, in the file of the mod that ships the
  * body. What stays is what a species must not answer for itself: {@code limits.*}, the operator's
  * ceiling on work per agent per tick; {@code claims.*}, the contract of a registry two agents
- * share; {@code journal.*}, disk use. A consumer's own tunables go in its own enum and file
+ * share; {@code journal.*}, disk use; {@code terrain.*}, how the ground is judged flat and usable,
+ * which is a world's to tune rather than a species' (Luiz, 2026-09-25). A consumer's own tunables
+ * go in its own enum and file
  * ({@link KnobSpec}, {@link KnobSet}); flee weights are not knobs at all, entity ids being an open
  * set ({@code DangerFile}).
  *
@@ -186,6 +188,34 @@ public enum Knob implements KnobSpec {
             "Log why a body was offered no work, when the reason changes. On by default: it only "
                     + "speaks when the answer moves, so a benched settler writes one line, not one "
                     + "per tick."),
+
+    // --- terrain: how the ground is judged, by /anima terrain and whatever chooses a site ---
+
+    /** @see dev.luizloyola.anima.core.terrain.TerrainRules#configured() */
+    TERRAIN_SMOOTH_RADIUS("terrain.smooth_radius", Kind.INT, 6, 1, 16,
+            "Half-width of the window the ground is smoothed over, in blocks. Flatness is judged "
+                    + "across it: wider turns short rises into roughness instead of slope."),
+    TERRAIN_MAX_SLOPE("terrain.max_slope", Kind.DOUBLE, 0.2, 0, 1,
+            "The steepest smoothed rise per block still called flat — 0.2 is one block up in "
+                    + "five. The dial that matters most: on the forest world 0.125 called 34% of "
+                    + "dry land flat, 0.2 called 55%."),
+    TERRAIN_MAX_ROUGH("terrain.max_rough", Kind.DOUBLE, 2, 0, 16,
+            "How far one column may stand above or below the smoothed ground and still be "
+                    + "flat: 2 lets a two-block hole or bump through."),
+    TERRAIN_AREA_SIZE("terrain.area_size", Kind.INT, 9, 1, 63,
+            "A flat area or clearing must fit a square this wide, so that it is wide rather than "
+                    + "merely large. Rounded up to odd."),
+    TERRAIN_USED_MARGIN("terrain.used_margin", Kind.INT, 4, 0, 32,
+            "How far past a block somebody placed (a crafting table, a chest, a path) the "
+                    + "ground counts as used."),
+    TERRAIN_SITE_SIZE("terrain.site_size", Kind.INT, 17, 3, 63,
+            "The side of a building site, in blocks. Rounded up to odd."),
+    TERRAIN_MAX_TILT("terrain.max_tilt", Kind.DOUBLE, 0.1, 0, 1,
+            "The steepest plane a building site may lie on — 0.1 is one block in ten. Stricter "
+                    + "than max_slope because it is judged across the whole site, where a single "
+                    + "step and a steady slope no longer look alike."),
+    TERRAIN_TREE_COST("terrain.tree_cost", Kind.DOUBLE, 20, 0, 1000,
+            "One tree to fell, in blocks of digging and filling, when building sites are ranked."),
 
     // --- webdebug: the browser debug UI, off unless asked for -----------------------------
 

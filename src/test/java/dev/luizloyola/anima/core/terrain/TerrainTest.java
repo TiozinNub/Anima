@@ -4,9 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.config.Config;
+import dev.luizloyola.anima.core.config.Knob;
 import dev.luizloyola.anima.core.terrain.Terrain.Kind;
 import dev.luizloyola.anima.core.terrain.Terrain.Site;
 import java.util.function.IntBinaryOperator;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -34,7 +38,14 @@ class TerrainTest {
     }
 
     private static Terrain analyse(GroundSample sample) {
-        return Terrain.analyse(sample, TerrainRules.DEFAULTS);
+        return Terrain.analyse(sample, TerrainRules.configured());
+    }
+
+    /** The shipped defaults, whatever another suite left installed. */
+    @BeforeEach
+    @AfterEach
+    void defaults() {
+        Config.reset();
     }
 
     @Test
@@ -99,19 +110,27 @@ class TerrainTest {
         assertEquals(Kind.STEEP, terrain.kind(MID, MID));
     }
 
+    @Test
+    void theConfigDecidesWhatIsFlat() {
+        Config.install(Config.get().with(Knob.TERRAIN_MAX_SLOPE, 0.3));
+        Terrain terrain = analyse(sample(SIZE, (x, z) -> LEVEL + x / 4));
+
+        assertEquals(Kind.CLEARING, terrain.kind(MID, MID), "one in four is flat at max_slope 0.3");
+    }
+
     /**
      * Per cell a step and a slope look alike; across a footprint they do not. One 17×17 footprint,
      * so there is exactly one position to judge.
      */
     @Test
     void aSiteTakesAStepButNotASlope() {
-        int f = TerrainRules.DEFAULTS.footprint();
+        int f = TerrainRules.configured().footprint();
         Terrain step = analyse(sample(f, (x, z) -> x < f / 2 ? LEVEL : LEVEL + 1));
         Terrain slope = analyse(sample(f, (x, z) -> LEVEL + x / 6));
 
         assertEquals(1, step.sites().size());
         Site site = step.sites().get(0);
-        assertTrue(site.tilt() < TerrainRules.DEFAULTS.maxTilt(), "tilt " + site.tilt());
+        assertTrue(site.tilt() < TerrainRules.configured().maxTilt(), "tilt " + site.tilt());
         assertTrue(slope.sites().isEmpty(), "a 1-in-6 slope is too tilted to build on");
     }
 
@@ -122,7 +141,7 @@ class TerrainTest {
         GroundSample sample = level();
         sample.set(table, table, LEVEL + 1, GroundSample.USED); // a crafting table
         Terrain terrain = analyse(sample);
-        int margin = TerrainRules.DEFAULTS.usedMargin();
+        int margin = TerrainRules.configured().usedMargin();
 
         assertEquals(Kind.USED, terrain.kind(table, table));
         assertEquals(Kind.USED, terrain.kind(table + margin, table));

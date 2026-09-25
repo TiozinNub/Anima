@@ -60,16 +60,9 @@ public final class TerrainViewer {
 
     private static final Map<MinecraftServer, Map<UUID, Watch>> WATCHERS = new HashMap<>();
 
-    /**
-     * Each player's rules, kept while the view is off so turning it back on shows what they set.
-     * Per player, not a config knob: the rules are a caller's opinion, and this view is one caller.
-     */
-    private static final Map<MinecraftServer, Map<UUID, TerrainRules>> RULES = new HashMap<>();
-
     /** Call once from mod init. */
     public static void init() {
         ServerLifecycleEvents.SERVER_STOPPING.register(WATCHERS::remove);
-        ServerLifecycleEvents.SERVER_STOPPING.register(RULES::remove);
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             if (server.getTickCount() % RESCAN_INTERVAL_TICKS != 0) {
                 return;
@@ -85,7 +78,7 @@ public final class TerrainViewer {
                 if (player == null) {
                     each.remove(); // logged off: the view dies with them, the TTL fades it
                 } else {
-                    render(server, player, entry.getValue());
+                    render(player, entry.getValue());
                 }
             }
         });
@@ -108,26 +101,13 @@ public final class TerrainViewer {
             watch.radius = radius;
         }
         watches.put(player.getUUID(), watch);
-        render(server, player, watch); // the first frame lands with the reply, not a cadence later
+        render(player, watch); // the first frame lands with the reply, not a cadence later
         return watch.radius;
     }
 
-    /** The rules this player's view judges by. */
-    public static TerrainRules rules(MinecraftServer server, ServerPlayer player) {
-        return RULES.getOrDefault(server, Map.of()).getOrDefault(player.getUUID(), TerrainRules.DEFAULTS);
-    }
-
-    /** Sets the rules this player's view judges by, and repaints at once if it is on. */
-    public static void rules(MinecraftServer server, ServerPlayer player, TerrainRules rules) {
-        RULES.computeIfAbsent(server, s -> new HashMap<>()).put(player.getUUID(), rules);
-        Watch watch = WATCHERS.getOrDefault(server, Map.of()).get(player.getUUID());
-        if (watch != null) {
-            render(server, player, watch);
-        }
-    }
-
-    private static void render(MinecraftServer server, ServerPlayer player, Watch watch) {
-        TerrainRules rules = rules(server, player);
+    private static void render(ServerPlayer player, Watch watch) {
+        // Read every frame, so a /anima config set shows at the next rescan.
+        TerrainRules rules = TerrainRules.configured();
         BlockPos centre = player.blockPosition();
         int r = watch.radius;
         int minX = centre.getX() - r;

@@ -75,6 +75,16 @@ class ProfileAspectTest {
             // a view on: it is about what the person AT THE KEYBOARD wants to be able to read back.
             Knob.JOURNAL_OP,
             Knob.JOURNAL_PROJECT_OFFER,
+            // How the ground is judged flat and usable — a reading of the world, tuned per world by
+            // whoever runs it (Luiz, 2026-09-25), the way the debug view and a site chooser see it.
+            Knob.TERRAIN_SMOOTH_RADIUS,
+            Knob.TERRAIN_MAX_SLOPE,
+            Knob.TERRAIN_MAX_ROUGH,
+            Knob.TERRAIN_AREA_SIZE,
+            Knob.TERRAIN_USED_MARGIN,
+            Knob.TERRAIN_SITE_SIZE,
+            Knob.TERRAIN_MAX_TILT,
+            Knob.TERRAIN_TREE_COST,
             // A socket, a port and a URL. Nothing about a mind at all: the dashboard watches every
             // species at once and there is one of it per server, so a species answering for any of
             // these would be answering for what everybody else's debugging looks like.
