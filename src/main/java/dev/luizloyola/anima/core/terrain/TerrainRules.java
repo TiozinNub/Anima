@@ -5,8 +5,11 @@ package dev.luizloyola.anima.core.terrain;
  * opinion, not the terrain's: a settlement and a pet looking for somewhere to lie down want
  * different numbers.
  *
- * <p>Defaults are the prototype's, measured on the forest world on 2026-09-25 — see
- * {@code docs/superpowers/specs/2026-09-25-topography-design.md}.
+ * <p>Flatness is loose by default: ground a little work makes usable counts, since no large area
+ * is dead level. Over 38 million columns of the forest world (2026-09-25) these defaults call 55% of
+ * dry land flat; the first ones, 4 · 1/8 · 1, called 34%. {@code maxSlope} does most of that work —
+ * {@code maxRough} matters only once {@code smoothRadius} is wide enough to turn short rises into
+ * roughness. See {@code docs/superpowers/specs/2026-09-25-topography-design.md}.
  *
  * @param smoothRadius the smoothing window's half-width; flatness is judged across it
  * @param maxSlope     the steepest smoothed rise per block still called flat
@@ -22,7 +25,7 @@ public record TerrainRules(int smoothRadius, double maxSlope, double maxRough, i
                            int usedMargin, int footprint, double maxTilt, double treeCost) {
 
     public static final TerrainRules DEFAULTS =
-            new TerrainRules(4, 1.0 / 8, 1.0, 9, 4, 17, 1.0 / 10, 20.0);
+            new TerrainRules(6, 1.0 / 5, 2.0, 9, 4, 17, 1.0 / 10, 20.0);
 
     public TerrainRules {
         if (smoothRadius < 1 || usedMargin < 0 || maxSlope < 0 || maxRough < 0 || maxTilt < 0

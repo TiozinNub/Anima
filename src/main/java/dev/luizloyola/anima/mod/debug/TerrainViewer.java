@@ -40,12 +40,6 @@ public final class TerrainViewer {
     public static final int MIN_RADIUS = 16;
     public static final int MAX_RADIUS = 128;
 
-    /**
-     * Ground read past the painted edge, so the windows at the edge — smoothing, the area square,
-     * a footprint — see ground on both sides rather than the edge of the read.
-     */
-    private static final int MARGIN = TerrainRules.DEFAULTS.footprint();
-
     /** Boxes per frame. Kinds are added most telling first; what does not fit is dropped whole. */
     private static final int MAX_BOXES = 6000;
 
@@ -66,9 +60,16 @@ public final class TerrainViewer {
 
     private static final Map<MinecraftServer, Map<UUID, Watch>> WATCHERS = new HashMap<>();
 
+    /**
+     * Each player's rules, kept while the view is off so turning it back on shows what they set.
+     * Per player, not a config knob: the rules are a caller's opinion, and this view is one caller.
+     */
+    private static final Map<MinecraftServer, Map<UUID, TerrainRules>> RULES = new HashMap<>();
+
     /** Call once from mod init. */
     public static void init() {
         ServerLifecycleEvents.SERVER_STOPPING.register(WATCHERS::remove);
+        ServerLifecycleEvents.SERVER_STOPPING.register(RULES::remove);
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             if (server.getTickCount() % RESCAN_INTERVAL_TICKS != 0) {
                 return;
@@ -84,7 +85,7 @@ public final class TerrainViewer {
                 if (player == null) {
                     each.remove(); // logged off: the view dies with them, the TTL fades it
                 } else {
-                    render(player, entry.getValue());
+                    render(server, player, entry.getValue());
                 }
             }
         });
@@ -107,20 +108,38 @@ public final class TerrainViewer {
             watch.radius = radius;
         }
         watches.put(player.getUUID(), watch);
-        render(player, watch); // the first frame lands with the reply, not a cadence later
+        render(server, player, watch); // the first frame lands with the reply, not a cadence later
         return watch.radius;
     }
 
-    private static void render(ServerPlayer player, Watch watch) {
+    /** The rules this player's view judges by. */
+    public static TerrainRules rules(MinecraftServer server, ServerPlayer player) {
+        return RULES.getOrDefault(server, Map.of()).getOrDefault(player.getUUID(), TerrainRules.DEFAULTS);
+    }
+
+    /** Sets the rules this player's view judges by, and repaints at once if it is on. */
+    public static void rules(MinecraftServer server, ServerPlayer player, TerrainRules rules) {
+        RULES.computeIfAbsent(server, s -> new HashMap<>()).put(player.getUUID(), rules);
+        Watch watch = WATCHERS.getOrDefault(server, Map.of()).get(player.getUUID());
+        if (watch != null) {
+            render(server, player, watch);
+        }
+    }
+
+    private static void render(MinecraftServer server, ServerPlayer player, Watch watch) {
+        TerrainRules rules = rules(server, player);
         BlockPos centre = player.blockPosition();
         int r = watch.radius;
         int minX = centre.getX() - r;
         int minZ = centre.getZ() - r;
         int maxX = centre.getX() + r;
         int maxZ = centre.getZ() + r;
+        // Ground read past the painted edge, so the windows at the edge — smoothing, the area
+        // square, a footprint — see ground on both sides rather than the edge of the read.
+        int margin = Math.max(rules.footprint(), Math.max(2 * rules.smoothRadius(), rules.areaSize()));
         GroundSample sample = GroundReader.read(player.level(),
-                minX - MARGIN, minZ - MARGIN, maxX + MARGIN, maxZ + MARGIN);
-        Terrain terrain = Terrain.analyse(sample, TerrainRules.DEFAULTS);
+                minX - margin, minZ - margin, maxX + margin, maxZ + margin);
+        Terrain terrain = Terrain.analyse(sample, rules);
 
         List<CellOverlayPayload.BoxGroup> boxes = new ArrayList<>();
         int budget = MAX_BOXES;

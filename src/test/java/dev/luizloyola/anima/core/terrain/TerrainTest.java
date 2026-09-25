@@ -84,8 +84,17 @@ class TerrainTest {
     }
 
     @Test
+    void aTwoBlockHoleIsStillFlat() {
+        GroundSample sample = level();
+        sample.set(MID, MID, LEVEL - 2, 0);
+        Terrain terrain = analyse(sample);
+
+        assertEquals(Kind.CLEARING, terrain.kind(MID, MID));
+    }
+
+    @Test
     void aSlopeIsNotFlat() {
-        Terrain terrain = analyse(sample(SIZE, (x, z) -> LEVEL + x / 6));
+        Terrain terrain = analyse(sample(SIZE, (x, z) -> LEVEL + x / 4));
 
         assertEquals(Kind.STEEP, terrain.kind(MID, MID));
     }
