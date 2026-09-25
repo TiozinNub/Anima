@@ -48,7 +48,7 @@ public final class AnimaCommands {
                         // with a subject and `as Cleo debug horizon true` would read like a promise
                         // it does not keep.
                         List.of(AgentCommands::list, AgentCommands::probe, AgentCommands::recipes,
-                                AgentCommands::debug,
+                                AgentCommands::debug, TerrainCommands::terrain,
                                 dev.luizloyola.anima.mod.webdebug.WebCommands::tree,
                                 () -> ConfigCommands.tree(Config.store(), configFile)),
                         List.of())));

@@ -294,6 +294,8 @@
   "anima.command.survey.gave_up": "%s looked all the way round from %s, %s, %s: %s made out in %s reads — gave up at %s%% of the turn, which is a bug or a very strange world.",
   "anima.command.horizon.none": "%s has no skyline — places.horizon_radius is inside the sense radius.",
   "anima.command.horizon.nothing_seen": "%s hasn't perceived anything yet.",
+  "anima.command.terrain.on": "Reading the ground within %s blocks: clearings yellow, flat ground under trees amber, used ground red, the best %s-block sites outlined.",
+  "anima.command.terrain.off": "The ground view is off.",
   "anima.command.horizon.header": "%s — skyline to %s blocks across a %s° cone: %s of %s bearings walked, %s glimpsed",
   "anima.command.horizon.cut_short": ", %s ran out of loaded world",
   "anima.command.horizon.steepest": ", steepest %s° up",

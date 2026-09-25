@@ -83,6 +83,7 @@ public final class AnimaMod implements ModInitializer {
         });
         // Registered here so a bare install, or a consumer that paints nothing, still has it.
         dev.luizloyola.anima.mod.debug.CellOverlays.init();
+        dev.luizloyola.anima.mod.debug.TerrainViewer.init();
         // The follow-me leash's tick. Here rather than in a consumer: `/anima follow` is on the
         // library's own root, so the order must be drivable with Anima alone.
         dev.luizloyola.anima.mod.nav.Escorts.init();
