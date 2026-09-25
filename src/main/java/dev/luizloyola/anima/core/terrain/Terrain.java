@@ -22,6 +22,9 @@ import java.util.List;
  *       steady slope look alike; across a footprint they do not.</li>
  * </ol>
  *
+ * <p>Steep ground and cliffs are judged on the bare ground, never the smoothed: at the default
+ * radius smoothing turns a ten-block wall into a ramp of one in 1.2.
+ *
  * <p>Fluid, used and unknown ground takes no part in smoothing and refuses any area or site.
  */
 public final class Terrain {
@@ -33,8 +36,12 @@ public final class Terrain {
         FLUID,
         /** Marked by a block somebody put there, or within the margin of one. */
         USED,
-        /** Too steep or too rough, after smoothing. */
+        /** The top of a near-vertical wall: the ground drops the cliff height or more beside it. */
+        CLIFF,
+        /** Rising at the steep angle or more across two blocks. */
         STEEP,
+        /** Too sloped or too rough to be flat, after smoothing, but not steep. */
+        UNEVEN,
         /** Flat, but no square of the area size fits around it. */
         FLAT,
         /** Inside a square of flat ground; something may stand on it. */
@@ -67,20 +74,28 @@ public final class Terrain {
     /** A cut this deep means something stands on the surface rather than being part of it. */
     private static final int STANDING_CUT = 2;
 
+    /**
+     * Steepness is measured across this many blocks. Across one, every two-block ledge in a meadow
+     * is 63°; across two, the smallest rise steep at 60° is four blocks.
+     */
+    private static final int STEEP_SPAN = 2;
+
     private final int minX;
     private final int minZ;
     private final int width;
     private final int[] ground;
+    private final int[] drops;
     private final Kind[] kinds;
     private final boolean[] cover;
     private final List<Site> sites;
 
-    private Terrain(int minX, int minZ, int width, int[] ground, Kind[] kinds, boolean[] cover,
-                    List<Site> sites) {
+    private Terrain(int minX, int minZ, int width, int[] ground, int[] drops, Kind[] kinds,
+                    boolean[] cover, List<Site> sites) {
         this.minX = minX;
         this.minZ = minZ;
         this.width = width;
         this.ground = ground;
+        this.drops = drops;
         this.kinds = kinds;
         this.cover = cover;
         this.sites = sites;
@@ -108,8 +123,10 @@ public final class Terrain {
                 ground[i] = GroundSample.UNKNOWN;
                 continue;
             }
-            standing[i] = surface[i] - opened[i] >= STANDING_CUT;
-            ground[i] = standing[i] ? opened[i] : surface[i];
+            boolean cut = surface[i] - opened[i] >= STANDING_CUT;
+            ground[i] = cut ? opened[i] : surface[i];
+            // Or the reader already looked under it: a trunk, a mushroom cap.
+            standing[i] = cut || in.has(i, GroundSample.STANDING);
             cover[i] = standing[i] || in.has(i, GroundSample.CANOPY);
             fluid[i] = in.has(i, GroundSample.FLUID);
             usedBlock[i] = in.has(i, GroundSample.USED);
@@ -137,19 +154,23 @@ public final class Terrain {
         }
         boolean[] flatArea = openSquare(flat, w, d, rules.areaSize());
         boolean[] clearing = openSquare(flatOpen, w, d, rules.areaSize());
+        int[] drops = drops(ground, known, w, d);
+        boolean[] steep = steep(ground, known, w, d, Math.tan(Math.toRadians(rules.steepAngle())));
 
         Kind[] kinds = new Kind[n];
         for (int i = 0; i < n; i++) {
             kinds[i] = !known[i] ? Kind.UNKNOWN
                     : fluid[i] ? Kind.FLUID
                     : used[i] ? Kind.USED
+                    : drops[i] >= rules.cliffHeight() ? Kind.CLIFF
+                    : steep[i] ? Kind.STEEP
                     : clearing[i] ? Kind.CLEARING
                     : flatArea[i] ? Kind.FLAT_AREA
                     : flat[i] ? Kind.FLAT
-                    : Kind.STEEP;
+                    : Kind.UNEVEN;
         }
         List<Site> sites = sites(ground, valid, standing, w, d, rules, in.minX(), in.minZ());
-        return new Terrain(in.minX(), in.minZ(), w, ground, kinds, cover, sites);
+        return new Terrain(in.minX(), in.minZ(), w, ground, drops, kinds, cover, sites);
     }
 
     /** The bare ground's top block, or {@link GroundSample#UNKNOWN}. */
@@ -159,6 +180,11 @@ public final class Terrain {
 
     public Kind kind(int x, int z) {
         return this.kinds[index(x, z)];
+    }
+
+    /** How far the ground falls to its lowest neighbour, 0 if to none: at a cliff, its height. */
+    public int drop(int x, int z) {
+        return this.drops[index(x, z)];
     }
 
     /** Leaves overhead, or something standing on the ground here. */
@@ -223,6 +249,54 @@ public final class Terrain {
             }
         }
         return opened;
+    }
+
+    // ---- steep ground and cliffs ---------------------------------------------------------------
+
+    private static final int[][] AXES = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+
+    /** The largest fall from each column to a known neighbour along an axis. */
+    private static int[] drops(int[] ground, boolean[] known, int w, int d) {
+        int[] out = new int[w * d];
+        for (int row = 0; row < d; row++) {
+            for (int col = 0; col < w; col++) {
+                int i = row * w + col;
+                if (!known[i]) {
+                    continue;
+                }
+                for (int[] axis : AXES) {
+                    int r = row + axis[1];
+                    int c = col + axis[0];
+                    if (r >= 0 && r < d && c >= 0 && c < w && known[r * w + c]) {
+                        out[i] = Math.max(out[i], ground[i] - ground[r * w + c]);
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Where the ground rises by {@code rise} per block or more, up or down, across the span. */
+    private static boolean[] steep(int[] ground, boolean[] known, int w, int d, double rise) {
+        boolean[] out = new boolean[w * d];
+        for (int row = 0; row < d; row++) {
+            for (int col = 0; col < w; col++) {
+                int i = row * w + col;
+                if (!known[i]) {
+                    continue;
+                }
+                for (int[] axis : AXES) {
+                    int r = row + axis[1] * STEEP_SPAN;
+                    int c = col + axis[0] * STEEP_SPAN;
+                    if (r >= 0 && r < d && c >= 0 && c < w && known[r * w + c]
+                            && Math.abs(ground[i] - ground[r * w + c]) >= rise * STEEP_SPAN - 1e-9) {
+                        out[i] = true;
+                        break;
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     // ---- smoothing -----------------------------------------------------------------------------

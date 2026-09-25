@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.terrain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.config.Config;
@@ -15,7 +16,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The ground under the trees, judged by rules: trunks come off, a hole in a meadow is still flat, a
- * slope is not, a crafting table spoils the ground around it, and nothing unseen is ever usable.
+ * slope is not, a four-block wall is a cliff and sixty degrees is steep, a crafting table spoils the
+ * ground around it, and nothing unseen is ever usable.
  */
 class TerrainTest {
 
@@ -107,7 +109,86 @@ class TerrainTest {
     void aSlopeIsNotFlat() {
         Terrain terrain = analyse(sample(SIZE, (x, z) -> LEVEL + x / 4));
 
-        assertEquals(Kind.STEEP, terrain.kind(MID, MID));
+        assertEquals(Kind.UNEVEN, terrain.kind(MID, MID));
+    }
+
+    @Test
+    void aWallIsACliffAtItsTopAndSteepAtItsFoot() {
+        Terrain terrain = analyse(sample(SIZE, (x, z) -> x < MID ? LEVEL : LEVEL + 4));
+
+        assertEquals(Kind.CLIFF, terrain.kind(MID, MID));
+        assertEquals(4, terrain.drop(MID, MID));
+        assertEquals(Kind.STEEP, terrain.kind(MID - 1, MID));
+        assertEquals(0, terrain.drop(MID - 1, MID));
+    }
+
+    @Test
+    void aLedgeOfThreeOrLessIsNeitherSteepNorACliff() {
+        for (int ledge = 1; ledge <= 3; ledge++) {
+            int height = ledge;
+            Terrain terrain = analyse(sample(SIZE, (x, z) -> x < MID ? LEVEL : LEVEL + height));
+            for (int x = 0; x < SIZE; x++) {
+                Kind kind = terrain.kind(x, MID);
+                assertNotEquals(Kind.CLIFF, kind, height + "-block ledge, x = " + x);
+                assertNotEquals(Kind.STEEP, kind, height + "-block ledge, x = " + x);
+            }
+        }
+    }
+
+    @Test
+    void sixtyDegreesIsSteepAndFortyFiveIsNot() {
+        Terrain steep = analyse(sample(SIZE, (x, z) -> LEVEL + 2 * x));
+        Terrain walkable = analyse(sample(SIZE, (x, z) -> LEVEL + x));
+
+        assertEquals(Kind.STEEP, steep.kind(MID, MID), "two in one is 63°");
+        assertEquals(Kind.UNEVEN, walkable.kind(MID, MID));
+    }
+
+    @Test
+    void theConfigDecidesWhatIsSteepAndWhatIsACliff() {
+        GroundSample threeInTwo = sample(SIZE, (x, z) -> LEVEL + 3 * x / 2); // 56°
+        GroundSample wall = sample(SIZE, (x, z) -> x < MID ? LEVEL : LEVEL + 3);
+        assertEquals(Kind.UNEVEN, analyse(threeInTwo).kind(MID, MID));
+        assertNotEquals(Kind.CLIFF, analyse(wall).kind(MID, MID));
+
+        Config.install(Config.get().with(Knob.TERRAIN_STEEP_ANGLE, 55.0)
+                .with(Knob.TERRAIN_CLIFF_HEIGHT, 3));
+        assertEquals(Kind.STEEP, analyse(threeInTwo).kind(MID, MID));
+        assertEquals(Kind.CLIFF, analyse(wall).kind(MID, MID));
+    }
+
+    @Test
+    void aCliffOverWaterIsACliff() {
+        GroundSample sample = level();
+        for (int x = 0; x < SIZE; x++) {
+            for (int z = 0; z < SIZE; z++) {
+                sample.set(x, z, x < MID ? LEVEL : LEVEL + 5, x < MID ? GroundSample.FLUID : 0);
+            }
+        }
+        Terrain terrain = analyse(sample);
+
+        assertEquals(Kind.CLIFF, terrain.kind(MID, MID));
+        assertEquals(5, terrain.drop(MID, MID));
+    }
+
+    /**
+     * A mushroom cap is too wide for the opening, so the reader looks under it and says so. The
+     * ground there is flat, and what stood on it is still something to clear. One 17×17 footprint.
+     */
+    @Test
+    void whatTheReaderLookedUnderStillStands() {
+        int f = TerrainRules.configured().footprint();
+        GroundSample sample = sample(f, (x, z) -> LEVEL);
+        for (int x = f / 2 - 3; x <= f / 2 + 3; x++) {
+            for (int z = f / 2 - 3; z <= f / 2 + 3; z++) {
+                sample.set(x, z, LEVEL, GroundSample.STANDING);
+            }
+        }
+        Terrain terrain = analyse(sample);
+
+        assertTrue(terrain.covered(f / 2, f / 2));
+        assertEquals(Kind.FLAT_AREA, terrain.kind(f / 2, f / 2), "flat, but not open");
+        assertEquals(1, terrain.sites().get(0).trees(), "one cap, one thing to fell");
     }
 
     @Test

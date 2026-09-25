@@ -4,7 +4,8 @@ import java.util.Arrays;
 
 /**
  * The ground over a box of columns as it was read, before anything is inferred: the top of
- * whatever stops a body (leaves excluded), and three facts about each column.
+ * whatever stops a body (leaves excluded, and the ground under a tree or a huge mushroom), and four
+ * facts about each column.
  *
  * <p>Filled by the compat reader from loaded chunks only; a column it could not read stays
  * {@link #UNKNOWN}, which every rule downstream treats as "I could not see there", never as open
@@ -20,6 +21,8 @@ public final class GroundSample {
     public static final int FLUID = 2;
     /** The surface block, or the one standing on it, says somebody uses this ground. */
     public static final int USED = 4;
+    /** A trunk or a huge mushroom stands here; the surface given is the ground under it. */
+    public static final int STANDING = 8;
 
     private final int minX;
     private final int minZ;

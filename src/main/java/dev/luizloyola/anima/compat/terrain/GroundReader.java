@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.compat.terrain;
 
 import dev.luizloyola.anima.core.terrain.GroundSample;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -14,8 +15,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
 
 /**
  * Reads the ground over a box of loaded chunks into a {@link GroundSample}: two heightmap lookups
- * and two block reads per column. Never loads a chunk; a column in one that is absent or unprimed
- * stays unknown.
+ * and two block reads per column, and a read down to the ground where a trunk or a huge mushroom
+ * stands on it. Never loads a chunk; a column in one that is absent or unprimed stays unknown.
  *
  * <p>{@code MOTION_BLOCKING} counts leaves and {@code MOTION_BLOCKING_NO_LEAVES} does not, so the
  * two disagree exactly where a canopy stands. The surface block's own fluid state is what finds
@@ -30,6 +31,24 @@ public final class GroundReader {
      */
     public static final TagKey<Block> USED_GROUND =
             TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("anima", "used_ground"));
+
+    /**
+     * Blocks that stand on the ground without being it: logs and huge mushrooms, read under.
+     * {@code data/anima/tags/block/not_ground.json}. A mushroom cap is 5–7 wide, too wide for
+     * {@code Terrain}'s opening, and read as ground it rings every huge mushroom with a cliff.
+     */
+    public static final TagKey<Block> NOT_GROUND =
+            TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("anima", "not_ground"));
+
+    /** The heightmap's own test, so the ground under a tree is where it would stop without one. */
+    private static final Predicate<BlockState> SURFACE =
+            Heightmap.Types.MOTION_BLOCKING_NO_LEAVES.isOpaque();
+
+    /** Past the tallest vanilla tree; a column with no ground within it keeps what it showed. */
+    private static final int MAX_GROWTH = 48;
+
+    /** Growth this tall stands on the ground. One log lying on it is a fallen tree. */
+    private static final int STANDING_HEIGHT = 2;
 
     private GroundReader() {
     }
@@ -55,13 +74,21 @@ public final class GroundReader {
                         int top = chunk.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z);
                         int surface = chunk.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
                         BlockState ground = chunk.getBlockState(at.set(x, surface, z));
-                        // A torch or a rail stops nothing, so it is never the surface: it is the
-                        // block on top of it.
-                        BlockState above = chunk.getBlockState(at.set(x, surface + 1, z));
                         int flags = 0;
                         if (top > surface) {
                             flags |= GroundSample.CANOPY;
                         }
+                        if (ground.is(NOT_GROUND)) {
+                            int under = groundUnder(chunk, at, x, surface, z);
+                            if (surface - under >= STANDING_HEIGHT) {
+                                flags |= GroundSample.STANDING;
+                            }
+                            surface = under;
+                            ground = chunk.getBlockState(at.set(x, surface, z));
+                        }
+                        // A torch or a rail stops nothing, so it is never the surface: it is the
+                        // block on top of it.
+                        BlockState above = chunk.getBlockState(at.set(x, surface + 1, z));
                         if (!ground.getFluidState().isEmpty()) {
                             flags |= GroundSample.FLUID;
                         }
@@ -74,5 +101,17 @@ public final class GroundReader {
             }
         }
         return sample;
+    }
+
+    /** The first block below {@code from} that is ground, or {@code from} when none is near. */
+    private static int groundUnder(ChunkAccess chunk, BlockPos.MutableBlockPos at, int x, int from,
+                                   int z) {
+        for (int y = from - 1; y >= from - MAX_GROWTH; y--) {
+            BlockState state = chunk.getBlockState(at.set(x, y, z));
+            if (SURFACE.test(state) && !state.is(NOT_GROUND)) {
+                return y;
+            }
+        }
+        return from;
     }
 }

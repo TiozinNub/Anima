@@ -19,8 +19,9 @@ import net.minecraft.server.level.ServerPlayer;
 
 /**
  * The ground around the WATCHING PLAYER as {@link Terrain} judges it, painted over the live world:
- * clearings, flat ground under trees, used ground, and the best building sites outlined. No agent
- * involved — the same reader and rules a site chooser would use, pointed at wherever you stand.
+ * clearings, flat ground under trees, used ground, steep ground, the faces of cliffs, and the best
+ * building sites outlined. No agent involved — the same reader and rules a site chooser would use,
+ * pointed at wherever you stand.
  *
  * <p>Each kind of ground is merged into rectangles of one height before it is sent: a cell apiece
  * would be 16,000 boxes at the default radius, each drawn every frame. The panes are fill only,
@@ -46,6 +47,8 @@ public final class TerrainViewer {
     private static final int CLEARING_FILL = 0x66FFE040;
     private static final int FLAT_FILL = 0x40B8A040;
     private static final int USED_FILL = 0x80FF3030;
+    private static final int STEEP_FILL = 0x60FF8020;
+    private static final int CLIFF_FILL = 0xA020E0E0;
     private static final int SITE_STROKE = 0xFFFF40FF;
     private static final float SITE_WIDTH = 2.5F;
     private static final int LABEL = 0xFFFFC0FF;
@@ -125,6 +128,9 @@ public final class TerrainViewer {
         int budget = MAX_BOXES;
         budget = add(boxes, budget, USED_FILL,
                 panes(terrain, Terrain.Kind.USED, minX, minZ, maxX, maxZ));
+        budget = add(boxes, budget, CLIFF_FILL, walls(terrain, minX, minZ, maxX, maxZ));
+        budget = add(boxes, budget, STEEP_FILL,
+                panes(terrain, Terrain.Kind.STEEP, minX, minZ, maxX, maxZ));
         budget = add(boxes, budget, CLEARING_FILL,
                 panes(terrain, Terrain.Kind.CLEARING, minX, minZ, maxX, maxZ));
         add(boxes, budget, FLAT_FILL, panes(terrain, Terrain.Kind.FLAT_AREA, minX, minZ, maxX, maxZ));
@@ -163,6 +169,25 @@ public final class TerrainViewer {
         }
         boxes.add(new CellOverlayPayload.BoxGroup(0, 0F, fill, false, panes));
         return budget - panes.size();
+    }
+
+    /**
+     * Each cliff as its wall: the top column's blocks from the foot up, whose side facing the drop
+     * is the face itself. A pane on the top would only mark the edge.
+     */
+    static List<CellOverlayPayload.Box> walls(Terrain terrain, int minX, int minZ, int maxX,
+                                              int maxZ) {
+        List<CellOverlayPayload.Box> out = new ArrayList<>();
+        for (int z = minZ; z <= maxZ; z++) {
+            for (int x = minX; x <= maxX; x++) {
+                if (terrain.kind(x, z) == Terrain.Kind.CLIFF) {
+                    int top = terrain.ground(x, z);
+                    out.add(new CellOverlayPayload.Box(
+                            new BlockPos(x, top - terrain.drop(x, z) + 1, z), new BlockPos(x, top, z)));
+                }
+            }
+        }
+        return out;
     }
 
     private record Run(int start, int end, int y) {
