@@ -197,24 +197,85 @@ public final class CraftFor implements Method {
     }
 
     /**
-     * The recipe to expand: covered-from-the-pack beats everything, then the fewest missing
-     * items, then in-hand over table (no walk beats a walk), then source order — so the same
-     * pack always plans the same craft.
+     * The recipe to expand: covered-from-the-pack beats everything, then one whose shortfall can be
+     * had right now, then the fewest missing items, then in-hand over table (no walk beats a walk),
+     * then source order — so the same pack always plans the same craft.
+     *
+     * <p>"Right now" is what stopped an empty-handed settler in an oak forest choosing acacia
+     * planks: every plank recipe is one log short, the book's first is acacia, and no tree it knew
+     * could give an acacia log (in-world, 2026-09-24). Reachability still only asks whether a way
+     * could exist; this asks which one does.
      */
     private CraftRecipe pick(BrainContext ctx) {
         Inventory pack = ctx.percepts().inventory();
         CraftRecipe best = null;
         int bestMissing = Integer.MAX_VALUE;
+        boolean bestNow = false;
         for (CraftRecipe recipe : usable(ctx)) {
-            int missing = missingFor(recipe, craftsNeeded(recipe, pack), pack);
-            if (missing < bestMissing
-                    || (missing == bestMissing && best != null
-                            && best.needsTable() && !recipe.needsTable())) {
+            int crafts = craftsNeeded(recipe, pack);
+            int missing = missingFor(recipe, crafts, pack);
+            boolean now = missing == 0 || shortfallHadNow(recipe, crafts, ctx, NOW_DEPTH);
+            boolean wins = best == null
+                    || (now && !bestNow)
+                    || (now == bestNow && (missing < bestMissing
+                            || (missing == bestMissing && best.needsTable() && !recipe.needsTable())));
+            if (wins) {
                 best = recipe;
                 bestMissing = missing;
+                bestNow = now;
             }
         }
         return best;
+    }
+
+    /** How deep "can be had now" follows a craft: planks from logs is one level. */
+    private static final int NOW_DEPTH = 2;
+
+    /** Whether every line the pack is short of has a way that applies at this moment. */
+    private static boolean shortfallHadNow(CraftRecipe recipe, int crafts, BrainContext ctx,
+                                           int depth) {
+        Inventory pack = ctx.percepts().inventory();
+        for (CraftRecipe.Ingredient line : recipe.ingredients()) {
+            if (pack.count(line.acceptedIds()::contains) >= line.count() * crafts) {
+                continue;
+            }
+            if (!lineHadNow(line, ctx, depth)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * One short line's ways, asked whether they apply now rather than whether they exist: a drop in
+     * sight, a producer that can act (a remembered tree of the right species), a store known to hold
+     * it, or a recipe whose own shortfall can be had now.
+     */
+    private static boolean lineHadNow(CraftRecipe.Ingredient line, BrainContext ctx, int depth) {
+        for (dev.luizloyola.anima.core.brain.sense.Drop drop : ctx.percepts().drops()) {
+            if (line.accepts(drop.itemId())) {
+                return true;
+            }
+        }
+        ItemSpec lineSpec = ItemSpec.anyOf(line.acceptedIds());
+        for (Method way : Producers.forItems(line.acceptedIds(), lineSpec)) {
+            if (way.applicable(ctx)) {
+                return true;
+            }
+        }
+        if (new TakeFromStore(lineSpec, line.count()).applicable(ctx)) {
+            return true;
+        }
+        if (depth <= 0) {
+            return false;
+        }
+        for (CraftRecipe making : Recipes.producing(lineSpec)) {
+            if (ctx.gate().mayMake(making.outputId())
+                    && shortfallHadNow(making, 1, ctx, depth - 1)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** How many crafts close the shortfall between the pack and the wanted count. */

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.gate.Act;
 import dev.luizloyola.anima.core.brain.gate.Gate;
 import dev.luizloyola.anima.core.craft.CraftRecipe;
@@ -66,6 +67,7 @@ class CraftForTest {
     @AfterEach
     void tearDown() {
         Recipes.reset();
+        Producers.reset();
         Gate.install(Gate.OPEN);
     }
 
@@ -127,6 +129,49 @@ class CraftForTest {
         gateOutStone();
         assertFalse(CraftFor.anyReachable(stoneAxe, ctx),
                 "the board's question gets the same answer, so no errand is claimed toward it");
+    }
+
+    private static CraftRecipe planks(String wood) {
+        return new CraftRecipe("minecraft:" + wood + "_planks",
+                ItemStack.of("minecraft:" + wood + "_planks", 4, 64),
+                List.of(new CraftRecipe.Ingredient(Set.of("minecraft:" + wood + "_log"), 1)), false);
+    }
+
+    @Test
+    void aTieGoesToTheRecipeWhoseShortfallCanBeHadNow() {
+        // Every plank recipe is one log short and the book lists acacia first; the only tree this
+        // body remembers is an oak. Registered for any log, applicable only to the species it knows.
+        book(planks("acacia"), planks("oak"));
+        ItemSpec anyLog = ItemSpec.register(new ItemSpec("craft-test-any-log",
+                id -> id.endsWith("_log")));
+        Producers.register(anyLog, wanted -> new Method() {
+            @Override
+            public boolean applicable(BrainContext c) {
+                return wanted.matches("minecraft:oak_log");
+            }
+
+            @Override
+            public double estimateCost(BrainContext c) {
+                return 1.0;
+            }
+
+            @Override
+            public List<Task> decompose(BrainContext c) {
+                return List.of();
+            }
+
+            @Override
+            public String describe() {
+                return "fell a remembered oak";
+            }
+        });
+        ItemSpec anyPlanks = ItemSpec.anyOf(Set.of("minecraft:acacia_planks", "minecraft:oak_planks"));
+
+        List<Task> plan = new CraftFor(anyPlanks, 4, Set.of()).decompose(ctx);
+
+        assertEquals("minecraft:oak_planks",
+                ((CraftStep) plan.get(plan.size() - 1)).recipe().outputId(),
+                "an empty-handed settler in an oak forest makes oak planks, not the book's first");
     }
 
     @Test
