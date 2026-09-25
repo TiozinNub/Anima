@@ -16,8 +16,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The ground under the trees, judged by rules: trunks come off, a hole in a meadow is still flat, a
- * slope is not, a four-block wall is a cliff and sixty degrees is steep, a crafting table spoils the
- * ground around it, and nothing unseen is ever usable.
+ * slope is not, a four-block wall is a cliff and forty-five degrees is steep, a crafting table
+ * spoils the ground around it, and nothing unseen is ever usable.
  */
 class TerrainTest {
 
@@ -136,24 +136,24 @@ class TerrainTest {
     }
 
     @Test
-    void sixtyDegreesIsSteepAndFortyFiveIsNot() {
-        Terrain steep = analyse(sample(SIZE, (x, z) -> LEVEL + 2 * x));
-        Terrain walkable = analyse(sample(SIZE, (x, z) -> LEVEL + x));
+    void fortyFiveDegreesIsSteepAndThreeInFourIsNot() {
+        Terrain steep = analyse(sample(SIZE, (x, z) -> LEVEL + x));
+        Terrain gentler = analyse(sample(SIZE, (x, z) -> LEVEL + 3 * x / 4));
 
-        assertEquals(Kind.STEEP, steep.kind(MID, MID), "two in one is 63°");
-        assertEquals(Kind.UNEVEN, walkable.kind(MID, MID));
+        assertEquals(Kind.STEEP, steep.kind(MID, MID), "one in one is 45°");
+        assertEquals(Kind.UNEVEN, gentler.kind(MID, MID), "three in four is 37°");
     }
 
     @Test
     void theConfigDecidesWhatIsSteepAndWhatIsACliff() {
-        GroundSample threeInTwo = sample(SIZE, (x, z) -> LEVEL + 3 * x / 2); // 56°
+        GroundSample threeInFour = sample(SIZE, (x, z) -> LEVEL + 3 * x / 4); // 37°
         GroundSample wall = sample(SIZE, (x, z) -> x < MID ? LEVEL : LEVEL + 3);
-        assertEquals(Kind.UNEVEN, analyse(threeInTwo).kind(MID, MID));
+        assertEquals(Kind.UNEVEN, analyse(threeInFour).kind(MID, MID));
         assertNotEquals(Kind.CLIFF, analyse(wall).kind(MID, MID));
 
-        Config.install(Config.get().with(Knob.TERRAIN_STEEP_ANGLE, 55.0)
+        Config.install(Config.get().with(Knob.TERRAIN_STEEP_ANGLE, 35.0)
                 .with(Knob.TERRAIN_CLIFF_HEIGHT, 3));
-        assertEquals(Kind.STEEP, analyse(threeInTwo).kind(MID, MID));
+        assertEquals(Kind.STEEP, analyse(threeInFour).kind(MID, MID));
         assertEquals(Kind.CLIFF, analyse(wall).kind(MID, MID));
     }
 

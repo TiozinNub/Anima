@@ -69,7 +69,7 @@
   "anima.config.option.terrain.max_rough": "Largest hole or bump",
   "anima.config.option.terrain.max_rough.desc": "How far one column may stand above or below the smoothed ground and still be flat. 2 lets a two-block hole or bump through.",
   "anima.config.option.terrain.steep_angle": "Steep angle",
-  "anima.config.option.terrain.steep_angle.desc": "The gentlest rise called steep, in degrees, measured across two blocks. At 60 the smallest steep rise is four blocks in two, which nobody can walk up; a single two-block ledge is not steep.",
+  "anima.config.option.terrain.steep_angle.desc": "The gentlest rise called steep, in degrees, measured across four blocks. At 45 the smallest steep rise is four blocks in four, so no hole, bump or ledge of three blocks or less is steep.",
   "anima.config.option.terrain.cliff_height": "Cliff height",
   "anima.config.option.terrain.cliff_height.desc": "The smallest drop from one column to the next called a cliff. 4 is the first drop you can neither climb nor fall without harm.",
   "anima.config.option.terrain.area_size": "Area size",

@@ -38,7 +38,7 @@ public final class Terrain {
         USED,
         /** The top of a near-vertical wall: the ground drops the cliff height or more beside it. */
         CLIFF,
-        /** Rising at the steep angle or more across two blocks. */
+        /** Rising at the steep angle or more across four blocks. */
         STEEP,
         /** Too sloped or too rough to be flat, after smoothing, but not steep. */
         UNEVEN,
@@ -75,10 +75,11 @@ public final class Terrain {
     private static final int STANDING_CUT = 2;
 
     /**
-     * Steepness is measured across this many blocks. Across one, every two-block ledge in a meadow
-     * is 63°; across two, the smallest rise steep at 60° is four blocks.
+     * Steepness is measured across this many blocks. Across four, the smallest rise steep at 45° is
+     * four blocks, the cliff height, so no hole, bump or ledge of 1–3 is steep; across two, every
+     * two-block hole in a meadow was.
      */
-    private static final int STEEP_SPAN = 2;
+    private static final int STEEP_SPAN = 4;
 
     private final int minX;
     private final int minZ;

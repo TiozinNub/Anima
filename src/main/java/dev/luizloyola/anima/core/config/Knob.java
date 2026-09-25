@@ -202,10 +202,10 @@ public enum Knob implements KnobSpec {
     TERRAIN_MAX_ROUGH("terrain.max_rough", Kind.DOUBLE, 2, 0, 16,
             "How far one column may stand above or below the smoothed ground and still be "
                     + "flat: 2 lets a two-block hole or bump through."),
-    TERRAIN_STEEP_ANGLE("terrain.steep_angle", Kind.DOUBLE, 60, 1, 89,
-            "The gentlest rise called steep, in degrees, measured across two blocks of bare "
-                    + "ground. At 60 the smallest steep rise is four blocks in two, which a body "
-                    + "cannot walk up; a single two-block ledge is not steep."),
+    TERRAIN_STEEP_ANGLE("terrain.steep_angle", Kind.DOUBLE, 45, 1, 89,
+            "The gentlest rise called steep, in degrees, measured across four blocks of bare "
+                    + "ground. At 45 the smallest steep rise is four blocks in four, so no hole, "
+                    + "bump or ledge of three or less is steep."),
     TERRAIN_CLIFF_HEIGHT("terrain.cliff_height", Kind.INT, 4, 2, 64,
             "The smallest drop from one column to the next called a cliff — near vertical by "
                     + "construction, 76° at 4. Four is the first drop a body can neither climb "

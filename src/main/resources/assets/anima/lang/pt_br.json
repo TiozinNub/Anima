@@ -78,7 +78,7 @@
   "anima.config.option.terrain.max_rough": "Maior buraco ou calombo",
   "anima.config.option.terrain.max_rough.desc": "Quanto uma coluna pode ficar acima ou abaixo do terreno suavizado e ainda ser plana. 2 deixa passar um buraco ou calombo de dois blocos.",
   "anima.config.option.terrain.steep_angle": "Ângulo íngreme",
-  "anima.config.option.terrain.steep_angle.desc": "A menor subida que conta como íngreme, em graus, medida ao longo de dois blocos. Em 60 a menor subida íngreme é de quatro blocos em dois, que ninguém consegue subir andando; um único degrau de dois blocos não é íngreme.",
+  "anima.config.option.terrain.steep_angle.desc": "A menor subida que conta como íngreme, em graus, medida ao longo de quatro blocos. Em 45 a menor subida íngreme é de quatro blocos em quatro, então nenhum buraco, calombo ou degrau de três blocos ou menos é íngreme.",
   "anima.config.option.terrain.cliff_height": "Altura de penhasco",
   "anima.config.option.terrain.cliff_height.desc": "A menor queda de uma coluna para a vizinha que conta como penhasco. 4 é a primeira queda que não se consegue nem escalar nem descer sem se machucar.",
   "anima.config.option.terrain.area_size": "Tamanho da área",

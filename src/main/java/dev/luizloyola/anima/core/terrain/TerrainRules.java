@@ -15,7 +15,7 @@ import dev.luizloyola.anima.core.config.Knob;
  * @param smoothRadius the smoothing window's half-width; flatness is judged across it
  * @param maxSlope     the steepest smoothed rise per block still called flat
  * @param maxRough     how far one column may stand off the smoothed surface
- * @param steepAngle   the gentlest rise, in degrees across two blocks, called steep
+ * @param steepAngle   the gentlest rise, in degrees across four blocks, called steep
  * @param cliffHeight  the smallest drop to a neighbouring column called a cliff
  * @param areaSize     the side of the square an area must fit; odd
  * @param usedMargin   how far used ground reaches past the block that marks it
