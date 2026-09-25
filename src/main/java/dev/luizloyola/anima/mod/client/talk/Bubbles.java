@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import dev.luizloyola.anima.compat.client.talk.BubbleFrame;
 import dev.luizloyola.anima.mod.net.BubblePayload;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -43,6 +44,11 @@ public final class Bubbles {
     static final int FADE_TICKS = 10;
     /** Vanilla's own name-tag range. */
     private static final double RANGE_SQ = 64 * 64;
+    /**
+     * Where a frame's bubble orders start. Above the handful vanilla layers with (a collar over a
+     * wolf, a text display's letters over its own background), so a bubble is drawn over the lot.
+     */
+    private static final int ORDER = 16;
 
     private static final Map<Integer, Bubble> OVER = new HashMap<>();
 
@@ -98,6 +104,7 @@ public final class Bubbles {
         float partial = minecraft.getDeltaTracker().getGameTimeDeltaPartialTick(true);
         boolean firstPerson = minecraft.options.getCameraType().isFirstPerson();
         long now = level.getGameTime();
+        List<Shown> shown = new ArrayList<>(OVER.size());
         for (Iterator<Map.Entry<Integer, Bubble>> it = OVER.entrySet().iterator(); it.hasNext(); ) {
             Map.Entry<Integer, Bubble> entry = it.next();
             Bubble bubble = entry.getValue();
@@ -108,14 +115,28 @@ public final class Bubbles {
             }
             Entity entity = level.getEntity(entry.getKey());
             if (entity == null || !entity.isAlive() || entity.isInvisible()
-                    || (firstPerson && entity == minecraft.getCameraEntity())
-                    || entity.getPosition(partial).distanceToSqr(camera.position()) > RANGE_SQ) {
+                    || (firstPerson && entity == minecraft.getCameraEntity())) {
                 continue;
             }
-            float alpha = Math.min(1f, (LIFE_TICKS - age) / FADE_TICKS);
-            List<FormattedCharSequence> lines = bubble.lines(minecraft.font);
-            BubbleRenderer.submit(pose, collector, minecraft.font, camera, level, entity, partial,
-                    lines, bubble.box, alpha);
+            double away = entity.getPosition(partial).distanceToSqr(camera.position());
+            if (away > RANGE_SQ) {
+                continue;
+            }
+            shown.add(new Shown(entity, bubble, Math.min(1f, (LIFE_TICKS - age) / FADE_TICKS),
+                    away));
+        }
+        // Nothing depth-tests a bubble any more, so the order they go in is the only thing keeping
+        // a near one over a far one: farthest first, two orders each — its box, then its lines.
+        shown.sort(Comparator.comparingDouble(Shown::away).reversed());
+        int order = ORDER;
+        for (Shown one : shown) {
+            List<FormattedCharSequence> lines = one.bubble.lines(minecraft.font);
+            BubbleRenderer.submit(pose, collector, camera, level, one.entity, partial, lines,
+                    one.bubble.box, one.alpha, order);
+            order += 2;
         }
     }
+
+    /** A bubble that survived the frame's culling, with the distance that says which is on top. */
+    private record Shown(Entity entity, Bubble bubble, float alpha, double away) {}
 }

@@ -10,6 +10,7 @@ import net.fabricmc.api.Environment;
 import net.minecraft.client.Camera;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.OrderedSubmitNodeCollector;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
@@ -19,7 +20,9 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityAttachment;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -36,9 +39,16 @@ import net.minecraft.world.phys.Vec3;
  * columns 0–2 by rows 0–2 are the nine-slice (corners, edges, centre), and column 3 rows 0–1 is
  * the tail piece — the bottom edge's middle segment with the tail under it, drawn between the two
  * runs of bottom edge so nothing overlaps. Edges and the centre repeat at their native size; the
- * last repeat is clipped, its UVs with it. Goes through the text render type with the atlas as
- * its texture: translucent, depth-tested — a wall hides it — and the text is polygon-offset over
- * it, the way a text display keeps its letters above its own background.
+ * last repeat is clipped, its UVs with it. Goes through the see-through text render type with the
+ * atlas as its texture, and the lines through the same one an order later — a text display layers
+ * its own background the same way.
+ *
+ * <p><b>Nothing depth-tests a bubble</b> (2026-09-24). It did until a wall cut one in half: the
+ * box is a flat billboard up to three blocks wide, so turning the camera swept its plane through
+ * whatever the speaker stood against and every fragment past the surface went missing. A wall
+ * still hides a bubble, but as a whole — {@link #inSight} asks once whether the camera reaches
+ * the point it hangs from, and a speaker out of sight draws nothing. Order does what depth did:
+ * {@link Bubbles} hands out two per bubble, farthest speaker first.
  *
  * <p><b>Lit between full-bright and the world</b> (decision: Luiz, 2026-09-14): block light under
  * the speaker is floored at {@link #MIN_BLOCK_LIGHT}, sky light read as is, so a bubble dims at
@@ -60,24 +70,29 @@ final class BubbleRenderer {
     /** Of 15 — a torch two blocks off. A starting number, to be judged at night. */
     static final int MIN_BLOCK_LIGHT = 8;
 
-    static void submit(PoseStack pose, SubmitNodeCollector collector, Font font, Camera camera,
+    static void submit(PoseStack pose, SubmitNodeCollector collector, Camera camera,
             ClientLevel level, Entity entity, float partial, List<FormattedCharSequence> lines,
-            BubbleBox box, float alpha) {
+            BubbleBox box, float alpha, int order) {
         Vec3 attachment = entity.getAttachments()
                 .getNullable(EntityAttachment.NAME_TAG, 0, entity.getYRot(partial));
         if (attachment == null) {
             return;
         }
-        Vec3 at = entity.getPosition(partial).add(attachment).subtract(camera.position());
+        Vec3 anchor = entity.getPosition(partial).add(attachment).add(0, 0.5, 0);
+        if (!inSight(level, camera, entity, anchor)) {
+            return;
+        }
+        Vec3 at = anchor.subtract(camera.position());
         int light = light(level, entity, partial);
         pose.pushPose();
-        pose.translate(at.x, at.y + 0.5, at.z);
+        pose.translate(at.x, at.y, at.z);
         BubbleFrame.faceCamera(pose, camera);
         pose.scale(EntityRenderer.NAMETAG_SCALE, -EntityRenderer.NAMETAG_SCALE,
                 EntityRenderer.NAMETAG_SCALE);
 
         int tint = argb(Math.round(255 * alpha), 0xFFFFFF);
-        collector.submitCustomGeometry(pose, RenderTypes.text(ATLAS), (p, consumer) -> {
+        OrderedSubmitNodeCollector under = collector.order(order);
+        under.submitCustomGeometry(pose, RenderTypes.textSeeThrough(ATLAS), (p, consumer) -> {
             float l = box.left();
             float t = box.top();
             float r = box.right();
@@ -97,11 +112,22 @@ final class BubbleRenderer {
         });
 
         int textColor = argb(Math.max(MIN_TEXT_ALPHA, Math.round(255 * alpha)), TEXT_RGB);
+        OrderedSubmitNodeCollector over = collector.order(order + 1);
         for (int i = 0; i < lines.size(); i++) {
-            collector.submitText(pose, box.textX(i), box.textY(i), lines.get(i), false,
-                    Font.DisplayMode.POLYGON_OFFSET, light, textColor, 0, 0);
+            over.submitText(pose, box.textX(i), box.textY(i), lines.get(i), false,
+                    Font.DisplayMode.SEE_THROUGH, light, textColor, 0, 0);
         }
         pose.popPose();
+    }
+
+    /**
+     * Whether the camera reaches the point the bubble hangs from in a straight line. Visual
+     * shapes, and fluids ignored — a bubble underwater is still readable. Blocks only: a body in
+     * the way never hides a bubble, which is the rule a nameplate follows too.
+     */
+    private static boolean inSight(ClientLevel level, Camera camera, Entity entity, Vec3 anchor) {
+        return level.clip(new ClipContext(camera.position(), anchor, ClipContext.Block.VISUAL,
+                ClipContext.Fluid.NONE, entity)).getType() == HitResult.Type.MISS;
     }
 
     /** One atlas cell, drawn whole. */
