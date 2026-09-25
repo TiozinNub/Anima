@@ -2,8 +2,6 @@ package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
-import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
-import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.craft.Workbench;
@@ -201,7 +199,7 @@ public final class EnsureStore implements AchieveTask {
          * it actually went.
          */
         private List<Task> openTheYard(BrainContext ctx) {
-            Pos ground = groundNear(ctx, hint);
+            Pos ground = Ground.near(ctx, hint, 2);
             Pos stand = EnsureTable.WalkToKnown.standableBeside(ground, ctx);
             List<Task> steps = new ArrayList<>();
             Pos feet = ctx.percepts().position();
@@ -212,71 +210,6 @@ public final class EnsureStore implements AchieveTask {
             steps.add(new PlaceBlock(Store.ITEM_ID, ground.x(), ground.y(), ground.z()));
             steps.add(new FoundPlace(Store.POI, ground.x(), ground.y(), ground.z()));
             return steps;
-        }
-
-        /**
-         * The hint itself when a chest can stand there, else the closest cell around it that can —
-         * two rings, nearest first. Falls back to the hint, which lets the placer refuse and the
-         * round re-derive rather than inventing somewhere far away.
-         */
-        private static Pos groundNear(BrainContext ctx, Pos wanted) {
-            // The COLUMN first, then the neighbours' columns. An operator points at a spot from
-            // wherever they are standing, and on real ground that is routinely a storey out — a
-            // yard asked for at y 73 over ground at y 63 left a settler "arriving" ten blocks
-            // beneath a cell she could never reach, re-deriving for ever (in-world, 2026-08-20).
-            Pos here = standable(ctx, wanted);
-            if (here != null) {
-                return here;
-            }
-            for (int ring = 1; ring <= 2; ring++) {
-                for (int[] side : SIDES) {
-                    Pos cell = standable(ctx, new Pos(wanted.x() + side[0] * ring, wanted.y(),
-                            wanted.z() + side[1] * ring));
-                    if (cell != null) {
-                        return cell;
-                    }
-                }
-            }
-            return wanted;
-        }
-
-        /** How far up and down a column is searched for the surface — a storey either way. */
-        private static final int COLUMN_REACH = 12;
-
-        /**
-         * Whether a store can stand in {@code cell}: empty, on something solid, nobody in it —
-         * and never on another store's <b>lid</b>.
-         *
-         * <p>A chest holds the next one up perfectly well, which is what turned a contested yard
-         * into a COLUMN of four rather than a row (in-world, 2026-08-25, at
-         * {@code (-690, 72..75, 893)}): each settler found the cell taken, looked one higher, and
-         * found a floor. Only the bottom chest was ever reachable.
-         */
-        private static boolean canHoldAStore(BrainContext ctx, Pos cell) {
-            BlockProbe probe = ctx.percepts().blocks();
-            if (probe.at(cell.x(), cell.y(), cell.z()) != BlockKind.AIR) {
-                return false;
-            }
-            BlockKind floor = probe.at(cell.x(), cell.y() - 1, cell.z());
-            return floor != BlockKind.AIR && !Store.isStore(floor)
-                    && !PlaceBlock.occupied(ctx, cell);
-        }
-
-        /**
-         * The cell in {@code column}'s vertical line that a chest can stand in. Searched from the
-         * asked-for height outward, nearest first, so a hint that is already right costs one read
-         * and a hint in the air finds the floor under it.
-         */
-        private static @Nullable Pos standable(BrainContext ctx, Pos column) {
-            for (int step = 0; step <= COLUMN_REACH; step++) {
-                for (int dy : step == 0 ? new int[]{0} : new int[]{-step, step}) {
-                    Pos cell = new Pos(column.x(), column.y() + dy, column.z());
-                    if (canHoldAStore(ctx, cell)) {
-                        return cell;
-                    }
-                }
-            }
-            return null;
         }
 
         /**
@@ -297,12 +230,12 @@ public final class EnsureStore implements AchieveTask {
          * which sends the caller back to building next to itself.
          */
         private static Pos freeBeside(BrainContext ctx, Pos anchor, Pos stand) {
-            for (int[] side : SIDES) {
+            for (int[] side : Ground.SIDES) {
                 Pos cell = new Pos(anchor.x() + side[0], anchor.y(), anchor.z() + side[1]);
                 if (cell.x() == stand.x() && cell.y() == stand.y() && cell.z() == stand.z()) {
                     continue;
                 }
-                if (canHoldAStore(ctx, cell)) {
+                if (Ground.canHold(ctx, cell)) {
                     return cell;
                 }
             }
@@ -317,10 +250,10 @@ public final class EnsureStore implements AchieveTask {
         private static Pos spotBeside(BrainContext ctx) {
             Pos feet = ctx.percepts().position();
             for (int ring = 1; ring <= 2; ring++) {
-                for (int[] side : SIDES) {
+                for (int[] side : Ground.SIDES) {
                     Pos cell = new Pos(feet.x() + side[0] * ring, feet.y(),
                             feet.z() + side[1] * ring);
-                    if (canHoldAStore(ctx, cell)) {
+                    if (Ground.canHold(ctx, cell)) {
                         return cell;
                     }
                 }
@@ -329,7 +262,4 @@ public final class EnsureStore implements AchieveTask {
         }
     }
 
-    /** The eight horizontal neighbours, sides first — a chest in a corner is awkward to reach. */
-    private static final int[][] SIDES = {
-            {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
 }

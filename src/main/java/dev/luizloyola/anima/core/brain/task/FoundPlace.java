@@ -3,6 +3,7 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.log.Category;
 
 /**
  * Claim a place you just made for your party — the communal half of {@link NotePlace}, for a thing
@@ -25,6 +26,10 @@ public final class FoundPlace implements PrimitiveTask {
     @Override
     public TaskStatus tick(BrainContext ctx) {
         ctx.knowledge().places().foundCommunal(kind, anchor, ctx.percepts().time());
+        // The one visible trace of a party place being made: placing is silent, and without this a
+        // settler's walk back to a yard read as nothing at all (2026-09-24).
+        ctx.journal().record(Category.BRAIN, "place", "claimed " + kind.key() + " at ("
+                + anchor.x() + ", " + anchor.y() + ", " + anchor.z() + ") for the party");
         return TaskStatus.SUCCESS;
     }
 

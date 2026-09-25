@@ -323,6 +323,25 @@ public final class AnimaTasks {
                                 .forGetter(dev.luizloyola.anima.core.brain.task.FoundPlace::anchor)
                 ).apply(t, (kind, at) -> new dev.luizloyola.anima.core.brain.task.FoundPlace(
                         kind, at.x(), at.y(), at.z()))));
+        TaskCodecs.register("anima:place_station",
+                dev.luizloyola.anima.core.brain.task.PlaceStation.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POI_KIND.fieldOf("kind")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceStation::kind),
+                        Codec.STRING.fieldOf("item")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceStation::itemId),
+                        POS.fieldOf("near")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceStation::near)
+                ).apply(t, dev.luizloyola.anima.core.brain.task.PlaceStation::new)));
+        TaskCodecs.register("anima:put_down", dev.luizloyola.anima.core.brain.task.PutDown.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POI_KIND.fieldOf("kind")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PutDown::kind),
+                        Codec.STRING.fieldOf("item")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PutDown::itemId),
+                        POS.fieldOf("near")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PutDown::near)
+                ).apply(t, dev.luizloyola.anima.core.brain.task.PutDown::new)));
 
         // Both carry the same shape: where, what, how many, and how far the phase machine got —
         // the pause counter and moved tally are what let a reload resume mid-stack rather than

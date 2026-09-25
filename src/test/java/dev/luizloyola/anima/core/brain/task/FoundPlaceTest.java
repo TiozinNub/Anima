@@ -55,7 +55,21 @@ class FoundPlaceTest {
                 "membership is how Rowan knows; they have never been within 90 blocks of it");
     }
 
-    /** Everybody is in the one party — the roster stand-in these two cases need. */
+    @Test
+    void theClaimIsWrittenDown() {
+        Places places = new Places();
+        FakeContext ctx = new FakeContext();
+        places.asks(everyoneIn(PartyId.random()));
+        ctx.knowledge.sees(places.viewFor(ctx.self), () -> ctx.percepts.time);
+
+        new FoundPlace(BENCH, 88, 64, -12).tick(ctx);
+
+        assertTrue(ctx.journal().recent(10).stream().anyMatch(e -> e.detail().equals(
+                        "claimed test_found_bench at (88, 64, -12) for the party")),
+                "placing is silent, so this line is the only trace a party place was made");
+    }
+
+    /** Everybody is in the one party — the roster stand-in these cases need. */
     private static Places.Parties everyoneIn(PartyId party) {
         return new Places.Parties() {
             @Override
