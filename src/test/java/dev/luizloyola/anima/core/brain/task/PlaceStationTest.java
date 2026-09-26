@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.craft.Workbench;
 import dev.luizloyola.anima.core.inv.ItemSpec;
@@ -88,6 +89,26 @@ class PlaceStationTest {
         assertEquals(NEAR, clear.target(), "the cell still wins: what grows there is cleared, not avoided");
         PlaceBlock place = assertInstanceOf(PlaceBlock.class, steps.get(2));
         assertEquals(NEAR, place.target());
+    }
+
+    /**
+     * An air pocket under the base's centre, the workbench on it: the column search went through the
+     * ground and put the chest in the pocket, three below the table (2026-09-26). It stays on the
+     * ground, beside the table.
+     */
+    @Test
+    void aPocketUnderTheCentreDoesNotTakeTheChest() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(0, 64, 0);
+        ctx.percepts.inventory.add(ItemStack.of(Store.ITEM_ID, 1, 64));
+        ctx.percepts.blocks.set(NEAR.x(), NEAR.y(), NEAR.z(), Workbench.BLOCK);
+        ctx.percepts.blocks.set(NEAR.x(), NEAR.y() - 2, NEAR.z(), BlockKind.AIR);
+        ctx.percepts.blocks.set(NEAR.x(), NEAR.y() - 3, NEAR.z(), BlockKind.AIR);
+
+        List<Task> steps = new PutDown(Store.POI, Store.ITEM_ID, NEAR).methods().get(0).decompose(ctx);
+        Pos spot = ((PlaceBlock) steps.get(1)).target();
+
+        assertEquals(NEAR.y(), spot.y(), "on the ground beside the table, not under it: " + spot);
     }
 
     @Test

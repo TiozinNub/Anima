@@ -89,17 +89,32 @@ final class Ground {
     }
 
     /**
-     * The cell in {@code column}'s vertical line that a station can stand in. Searched from the
-     * asked-for height outward, nearest first, so a cell that is already right costs one read and
-     * one in the air finds the floor under it.
+     * The cell in {@code column}'s vertical line that a station can stand in, reached without passing
+     * through anything solid: out of a named block upward to the first open cell, or down through
+     * open cells to the floor. Searched both ways regardless, a base's chest went through the ground
+     * into an air pocket three blocks under its workbench (2026-09-26); an operator's hint a storey
+     * up still falls to the floor under it.
      */
     private static @Nullable Pos standable(BrainContext ctx, Pos column) {
-        for (int step = 0; step <= COLUMN_REACH; step++) {
-            for (int dy : step == 0 ? new int[]{0} : new int[]{-step, step}) {
-                Pos cell = new Pos(column.x(), column.y() + dy, column.z());
-                if (canHold(ctx, cell)) {
-                    return cell;
+        BlockProbe probe = ctx.percepts().blocks();
+        int x = column.x();
+        int z = column.z();
+        if (probe.at(x, column.y(), z) != BlockKind.AIR) {
+            for (int y = column.y() + 1; y <= column.y() + COLUMN_REACH; y++) {
+                if (probe.at(x, y, z) == BlockKind.AIR) {
+                    Pos cell = new Pos(x, y, z);
+                    return canHold(ctx, cell) ? cell : null;
                 }
+            }
+            return null;
+        }
+        for (int y = column.y(); y >= column.y() - COLUMN_REACH; y--) {
+            Pos cell = new Pos(x, y, z);
+            if (canHold(ctx, cell)) {
+                return cell;
+            }
+            if (probe.at(x, y - 1, z) != BlockKind.AIR) {
+                return null; // a floor, and not one to build on: go no further down this column
             }
         }
         return null;
