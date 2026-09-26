@@ -28,16 +28,43 @@ public final class SetbackField {
     public static final double REACH = 4.0;
 
     /** Nothing has gone wrong anywhere — what a body that has been having a good day carries. */
-    public static final SetbackField NONE = new SetbackField(List.of());
+    public static final SetbackField NONE = new SetbackField(List.of(), List.of());
 
     /** One place that beat this body: where, what kind of trouble, and how much it is worth now. */
     public record Source(Pos at, Setbacks.Kind kind, double weight) {
     }
 
     private final List<Source> sources;
+    private final List<Setbacks.RefusedMove> refused;
 
     SetbackField(List<Source> sources) {
+        this(sources, List.of());
+    }
+
+    SetbackField(List<Source> sources, List<Setbacks.RefusedMove> refused) {
         this.sources = List.copyOf(sources);
+        this.refused = List.copyOf(refused);
+    }
+
+    /** Whether any move is refused outright — checked once per search, so the edge test is free. */
+    public boolean hasRefusals() {
+        return !this.refused.isEmpty();
+    }
+
+    /**
+     * Whether this body refuses the move from {@code (fx, fy, fz)} to {@code (tx, ty, tz)} — one
+     * it got hurt following ({@link Setbacks#refuse}). A scan: there are a few dozen at most.
+     */
+    public boolean refuses(int fx, int fy, int fz, int tx, int ty, int tz) {
+        for (Setbacks.RefusedMove move : this.refused) {
+            Pos from = move.from();
+            Pos to = move.to();
+            if (from.x() == fx && from.y() == fy && from.z() == fz
+                    && to.x() == tx && to.y() == ty && to.z() == tz) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -78,7 +105,7 @@ public final class SetbackField {
 
     /** Whether there is anything to weigh at all — the common case is no, and it is free. */
     public boolean isEmpty() {
-        return this.sources.isEmpty();
+        return this.sources.isEmpty() && this.refused.isEmpty();
     }
 
     /** Everything contributing, for a readout that wants to say what went wrong where. */

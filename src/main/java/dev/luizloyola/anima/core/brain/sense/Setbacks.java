@@ -94,6 +94,31 @@ public final class Setbacks {
     private final List<Setback> entries = new ArrayList<>();
 
     /**
+     * How long a move that hurt stays refused — one in-game day. Longer than a setback by far:
+     * a setback is a lean, and a refused move is this body saying "not that way again". A day
+     * because the world can change under it, and a bridge built over the gap should not be
+     * refused for ever.
+     */
+    public static final int REFUSED_LIFETIME_TICKS = 24_000;
+    /** How many refused moves are kept; the oldest goes first. */
+    public static final int REFUSED_CAPACITY = 32;
+
+    /**
+     * A move this body was following when it got hurt: from the cell it set out from — a leap's
+     * takeoff — to the cell it was making for. Refused outright, not priced: a fall that costs a
+     * heart is not a detour's worth of trouble, it is a move this body cannot make (Luiz,
+     * 2026-09-25).
+     */
+    public record RefusedMove(Pos from, Pos to, long tick) {
+    }
+
+    private final List<RefusedMove> refused = new ArrayList<>();
+
+    /** Everything this store keeps, for the save. */
+    public record State(List<Setback> entries, List<RefusedMove> refused) {
+    }
+
+    /**
      * Remember that this place beat us. A repeat at the same cell refreshes the memory and
      * strengthens it instead of crowding the list; a different kind at the same cell takes the
      * cell over, because the newest news about a place is the truest.
@@ -115,13 +140,26 @@ public final class Setbacks {
     }
 
     /**
+     * Never again that move: this body got hurt following it. A repeat refreshes the day it is
+     * refused for.
+     */
+    public void refuse(Pos from, Pos to, long now) {
+        prune(now);
+        this.refused.removeIf(move -> move.from().equals(from) && move.to().equals(to));
+        if (this.refused.size() >= REFUSED_CAPACITY) {
+            this.refused.remove(0);
+        }
+        this.refused.add(new RefusedMove(from, to, now));
+    }
+
+    /**
      * What the search should be told, right now — an immutable snapshot with every entry's age
      * already priced in. Empty (and free to consult) for a body that has not been having trouble,
      * which is nearly all of them nearly all of the time.
      */
     public SetbackField field(long now) {
         prune(now);
-        if (this.entries.isEmpty()) {
+        if (this.entries.isEmpty() && this.refused.isEmpty()) {
             return SetbackField.NONE;
         }
         List<SetbackField.Source> sources = new ArrayList<>(this.entries.size());
@@ -131,7 +169,9 @@ public final class Setbacks {
                 sources.add(new SetbackField.Source(entry.at(), entry.kind(), weight));
             }
         }
-        return sources.isEmpty() ? SetbackField.NONE : new SetbackField(sources);
+        return sources.isEmpty() && this.refused.isEmpty()
+                ? SetbackField.NONE
+                : new SetbackField(sources, this.refused);
     }
 
     /** How much a setback of this age is still worth: full when fresh, nothing once faded out. */
@@ -148,18 +188,19 @@ public final class Setbacks {
     /** Drops everything that has finished fading. Called wherever the list is about to be used. */
     private void prune(long now) {
         this.entries.removeIf(entry -> now - entry.tick() >= LIFETIME_TICKS);
+        this.refused.removeIf(move -> now - move.tick() >= REFUSED_LIFETIME_TICKS);
     }
 
     /** Whether anything is remembered at all (without pruning — a cheap, approximate reading). */
     public boolean isEmpty() {
-        return this.entries.isEmpty();
+        return this.entries.isEmpty() && this.refused.isEmpty();
     }
 
     /** One line for the debug readout: how much trouble, and the worst of it. */
     public String describe(long now) {
         prune(now);
         if (this.entries.isEmpty()) {
-            return "nothing lately";
+            return this.refused.isEmpty() ? "nothing lately" : this.refused.size() + " move(s) refused";
         }
         Setback worst = this.entries.get(0);
         for (Setback entry : this.entries) {
@@ -169,18 +210,21 @@ public final class Setbacks {
         }
         return this.entries.size() + " place(s), worst "
                 + worst.kind().name().toLowerCase(java.util.Locale.ROOT) + " ×" + worst.strength()
-                + " at (" + worst.at().x() + ", " + worst.at().y() + ", " + worst.at().z() + ")";
+                + " at (" + worst.at().x() + ", " + worst.at().y() + ", " + worst.at().z() + ")"
+                + (this.refused.isEmpty() ? "" : ", " + this.refused.size() + " move(s) refused");
     }
 
     // ── continuity ───────────────────────────────────────────────────────────────────────────
 
     /** Everything remembered, for the save. Ages are absolute ticks, so they keep fading correctly. */
-    public List<Setback> snapshot() {
-        return List.copyOf(this.entries);
+    public State snapshot() {
+        return new State(List.copyOf(this.entries), List.copyOf(this.refused));
     }
 
-    public void restore(List<Setback> saved) {
+    public void restore(State saved) {
         this.entries.clear();
-        this.entries.addAll(saved);
+        this.entries.addAll(saved.entries());
+        this.refused.clear();
+        this.refused.addAll(saved.refused());
     }
 }

@@ -47,7 +47,7 @@ class SetbacksTest {
         setbacks.record(new Pos(1, 1, 1), Setbacks.Kind.WEDGED, 0);
         double once = setbacks.field(0).at(1, 1, 1);
         setbacks.record(new Pos(1, 1, 1), Setbacks.Kind.WEDGED, 1);
-        assertEquals(1, setbacks.snapshot().size(), "one place, not two");
+        assertEquals(1, setbacks.snapshot().entries().size(), "one place, not two");
         assertTrue(setbacks.field(1).at(1, 1, 1) > once, "and it counts for more");
     }
 
@@ -56,7 +56,7 @@ class SetbacksTest {
         for (int i = 0; i < 50; i++) {
             setbacks.record(new Pos(1, 1, 1), Setbacks.Kind.WEDGED, i);
         }
-        assertEquals(4, setbacks.snapshot().get(0).strength());
+        assertEquals(4, setbacks.snapshot().entries().get(0).strength());
     }
 
     /** The newest news about a place is the truest: a different kind takes the cell over. */
@@ -64,8 +64,8 @@ class SetbacksTest {
     void aDifferentKindAtTheSameCellReplacesTheOldReading() {
         setbacks.record(new Pos(1, 1, 1), Setbacks.Kind.STRAYED, 0);
         setbacks.record(new Pos(1, 1, 1), Setbacks.Kind.WEDGED, 1);
-        assertEquals(1, setbacks.snapshot().size());
-        assertEquals(Setbacks.Kind.WEDGED, setbacks.snapshot().get(0).kind());
+        assertEquals(1, setbacks.snapshot().entries().size());
+        assertEquals(Setbacks.Kind.WEDGED, setbacks.snapshot().entries().get(0).kind());
     }
 
     /**
@@ -80,7 +80,7 @@ class SetbacksTest {
         assertTrue(half > 0.0 && half < fresh, "it thins out on the way");
 
         assertTrue(setbacks.field(Setbacks.LIFETIME_TICKS).isEmpty(), "and then it is gone");
-        assertTrue(setbacks.snapshot().isEmpty(), "not merely weightless — actually dropped");
+        assertTrue(setbacks.snapshot().entries().isEmpty(), "not merely weightless — actually dropped");
     }
 
     @Test
@@ -88,8 +88,8 @@ class SetbacksTest {
         for (int i = 0; i < Setbacks.CAPACITY + 5; i++) {
             setbacks.record(new Pos(i, 1, 1), Setbacks.Kind.WEDGED, i);
         }
-        assertEquals(Setbacks.CAPACITY, setbacks.snapshot().size());
-        assertFalse(setbacks.snapshot().stream().anyMatch(entry -> entry.at().x() == 0),
+        assertEquals(Setbacks.CAPACITY, setbacks.snapshot().entries().size());
+        assertFalse(setbacks.snapshot().entries().stream().anyMatch(entry -> entry.at().x() == 0),
                 "the first place it had trouble is the first one forgotten");
     }
 
@@ -113,5 +113,21 @@ class SetbacksTest {
         setbacks.record(new Pos(1, 2, 3), Setbacks.Kind.WEDGED, 0);
         setbacks.record(new Pos(1, 2, 3), Setbacks.Kind.WEDGED, 1);
         assertEquals("2 place(s), worst wedged ×2 at (1, 2, 3)", setbacks.describe(1));
+    }
+
+    /** A move that hurt stays refused for a day, and a save does not forgive it. */
+    @Test
+    void aRefusedMoveOutlivesASetbackAndASave() {
+        Pos takeoff = new Pos(1, 1, 0);
+        Pos landing = new Pos(4, 1, 0);
+        setbacks.refuse(takeoff, landing, 0);
+        assertTrue(setbacks.field(Setbacks.LIFETIME_TICKS).refuses(1, 1, 0, 4, 1, 0));
+        assertFalse(setbacks.field(0).refuses(4, 1, 0, 1, 1, 0), "the other way is a different move");
+
+        Setbacks reloaded = new Setbacks();
+        reloaded.restore(setbacks.snapshot());
+        assertTrue(reloaded.field(1).refuses(1, 1, 0, 4, 1, 0));
+        assertFalse(reloaded.field(Setbacks.REFUSED_LIFETIME_TICKS).refuses(1, 1, 0, 4, 1, 0),
+                "a day later the world may have changed under it");
     }
 }

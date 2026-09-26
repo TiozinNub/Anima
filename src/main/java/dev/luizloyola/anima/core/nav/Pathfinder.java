@@ -281,6 +281,8 @@ public final class Pathfinder {
      * before the search left the server thread, exactly like the danger field beside it.
      */
     private final SetbackField setbacks;
+    /** Whether this body refuses any move at all — the common case is no, and then no edge asks. */
+    private final boolean refusing;
 
     /**
      * Where the body may stand at all — {@link PathRequest#domain()}. Enforced here at the one
@@ -307,6 +309,7 @@ public final class Pathfinder {
         this.profile = request.profile();
         this.danger = request.danger();
         this.setbacks = request.setbacks();
+        this.refusing = this.setbacks.hasRefusals();
         this.domain = request.domain();
         this.variety = request.variety();
         this.goalX = request.goalX();
@@ -1287,6 +1290,15 @@ public final class Pathfinder {
         int ny = unpackY(neighbor);
         if (!this.domain.contains(unpackX(neighbor), ny, unpackZ(neighbor))) {
             return; // outside the fence there is no world, not merely a worse one
+        }
+        if (this.refusing) {
+            // From where the body sets out, which for a leap sourced behind a run-up is its
+            // takeoff: the cell the follower was leaving when it got hurt.
+            long setOut = takeoff != NO_PARENT ? takeoff : current;
+            if (this.setbacks.refuses(unpackX(setOut), unpackY(setOut), unpackZ(setOut),
+                    unpackX(neighbor), ny, unpackZ(neighbor))) {
+                return;
+            }
         }
         int surface16 = footing == NO_FOOTING ? 0
                 : Math.max(0, Math.min(15, (int) Math.round((footing - ny) * 16.0)));

@@ -154,4 +154,33 @@ class PathfinderSetbackTest {
         assertTrue(plain.waypoints()
                 .equals(through(realDetourOnly(), SetbackField.NONE).waypoints()));
     }
+
+    /**
+     * <pre>
+     *   z=0  1 1 . . 1 1     a gap of two: the leap from x=1 to x=4 is the short way
+     *   z=1  1 # # # # 1
+     *   z=2  1 1 1 1 1 1     the long way round
+     * </pre>
+     * Once the leap has hurt this body it is refused, whatever it costs to go round (Luiz,
+     * 2026-09-25). A setback only leans on a route; a settler re-planned a leap it kept falling
+     * short of until it died.
+     */
+    @Test
+    void aMoveThatHurtIsNotPlannedAgain() {
+        AsciiWorld world = AsciiWorld.of(
+                "11  11",
+                "1####1",
+                "111111");
+        Path free = Pathfinder.find(world, PathRequest.of(0, 1, 0, 5, 1, 0, TestBodies.BIPED));
+        assertTrue(free.waypoints().stream().anyMatch(w -> w.move() == MoveType.LEAP),
+                () -> "the short way should be the leap: " + free.waypoints());
+
+        Setbacks memory = new Setbacks();
+        memory.refuse(new Pos(1, 1, 0), new Pos(4, 1, 0), 0);
+        Path refused = Pathfinder.find(world,
+                PathRequest.of(0, 1, 0, 5, 1, 0, TestBodies.BIPED).avoiding(memory.field(0)));
+        assertTrue(refused.reachedGoal());
+        assertFalse(refused.waypoints().stream().anyMatch(w -> w.move() == MoveType.LEAP),
+                () -> "the refused leap was planned again: " + refused.waypoints());
+    }
 }

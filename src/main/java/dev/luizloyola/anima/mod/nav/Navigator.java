@@ -173,6 +173,8 @@ public final class Navigator {
     private @Nullable NavGrid liveGrid;
     private @Nullable ServerLevel liveGridLevel;
     private int index;
+    /** Where the current route was planned from — the near end of its first edge. */
+    private @Nullable BlockPos routeFrom;
     private int stuckTicks;
     private int noMoveTicks;
     /** Consecutive grounded FOLLOWING ticks — bounds the landing-brake window (see tickFollowing). */
@@ -238,6 +240,33 @@ public final class Navigator {
     }
 
     /** Abandon the current goal and hold position. */
+    /**
+     * The body just took fall damage. If it was following a route, the move it was making — the
+     * previous waypoint to the current one — is refused from now on, so the next search cannot
+     * send it the same way (Luiz, 2026-09-25). A leap onto a rim with no run-up killed three
+     * settlers one heart at a time, re-planned after every fall.
+     */
+    public void hurtByFall() {
+        if (this.state != State.FOLLOWING || this.path == null
+                || this.index < 0 || this.index >= this.path.waypoints().size()) {
+            return;
+        }
+        Waypoint to = this.path.waypoints().get(this.index);
+        Pos from;
+        if (this.index > 0) {
+            Waypoint previous = this.path.waypoints().get(this.index - 1);
+            from = new Pos(previous.x(), previous.y(), previous.z());
+        } else if (this.routeFrom != null) {
+            from = new Pos(this.routeFrom.getX(), this.routeFrom.getY(), this.routeFrom.getZ());
+        } else {
+            return; // a restored walk still on its first edge: nothing says where that began
+        }
+        this.person.setbacks().refuse(from, new Pos(to.x(), to.y(), to.z()), level().getGameTime());
+        log("refused", "the " + to.move().name().toLowerCase(java.util.Locale.ROOT) + " from ("
+                + from.x() + ", " + from.y() + ", " + from.z() + ") to (" + to.x() + ", " + to.y()
+                + ", " + to.z() + ") hurt");
+    }
+
     public void stop() {
         if (this.pending != null) {
             this.pending.cancel(false);
@@ -487,6 +516,7 @@ public final class Navigator {
         // can still be requested.
         AgentId who = this.person.agentId();
         BlockPos start = startCell();
+        this.routeFrom = start;
         PathfinderService.Dispatched dispatched = PathfinderService.inThread()
                 ? PathfinderService.computeNow(level(), who, start, this.goal,
                         capabilities(), DangerFields.of(this.person), troubles())

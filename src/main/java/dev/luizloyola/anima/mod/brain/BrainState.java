@@ -271,15 +271,29 @@ public final class BrainState {
      * <p>Kinds round-trip by name; an unknown one errors rather than silently re-filing, as the
      * journal's category codec does.
      */
-    public static final Codec<List<Setbacks.Setback>> SETBACKS = RecordCodecBuilder
+    private static final Codec<Setbacks.Setback> SETBACK = RecordCodecBuilder
             .<Setbacks.Setback>create(s -> s.group(
                     SENSE_POS.fieldOf("at").forGetter(Setbacks.Setback::at),
                     Codec.STRING.fieldOf("kind").forGetter(entry -> entry.kind().name()),
                     Codec.LONG.fieldOf("tick").forGetter(Setbacks.Setback::tick),
                     Codec.INT.fieldOf("strength").forGetter(Setbacks.Setback::strength)
             ).apply(s, (at, kind, tick, strength) ->
-                    new Setbacks.Setback(at, Setbacks.Kind.valueOf(kind), tick, strength)))
-            .listOf();
+                    new Setbacks.Setback(at, Setbacks.Kind.valueOf(kind), tick, strength)));
+
+    private static final Codec<Setbacks.RefusedMove> REFUSED_MOVE = RecordCodecBuilder.create(r -> r.group(
+            SENSE_POS.fieldOf("from").forGetter(Setbacks.RefusedMove::from),
+            SENSE_POS.fieldOf("to").forGetter(Setbacks.RefusedMove::to),
+            Codec.LONG.fieldOf("tick").forGetter(Setbacks.RefusedMove::tick)
+    ).apply(r, Setbacks.RefusedMove::new));
+
+    /** Saves written before 2026-09-25 hold the bare list of setbacks, and read as no moves refused. */
+    public static final Codec<Setbacks.State> SETBACKS = Codec.withAlternative(
+            RecordCodecBuilder.<Setbacks.State>create(s -> s.group(
+                    SETBACK.listOf().fieldOf("entries").forGetter(Setbacks.State::entries),
+                    REFUSED_MOVE.listOf().optionalFieldOf("refused", List.of())
+                            .forGetter(Setbacks.State::refused)
+            ).apply(s, Setbacks.State::new)),
+            SETBACK.listOf().xmap(list -> new Setbacks.State(list, List.of()), Setbacks.State::entries));
 
     private static final Codec<ClaimIndex.Claim> CLAIM = RecordCodecBuilder.create(c -> c.group(
             Codec.STRING.fieldOf("kind").forGetter(claim -> claim.kind().key()),

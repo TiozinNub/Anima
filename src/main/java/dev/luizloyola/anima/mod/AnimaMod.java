@@ -99,6 +99,7 @@ public final class AnimaMod implements ModInitializer {
         // that opens one. Anima's, not a consumer's — a wolf can be hailed by a player too.
         dev.luizloyola.anima.mod.social.Talkers.init();
         dev.luizloyola.anima.mod.brain.ThunderMarks.init();
+        dev.luizloyola.anima.mod.nav.Falls.init();
         dev.luizloyola.anima.mod.social.PlayerTaps.init();
         dev.luizloyola.anima.mod.net.TalkSync.install();
         AnimaCommands.register(CONFIG);
