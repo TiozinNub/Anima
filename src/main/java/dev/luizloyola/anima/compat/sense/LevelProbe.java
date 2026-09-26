@@ -125,6 +125,16 @@ public final class LevelProbe implements BlockProbe {
     }
 
     @Override
+    public boolean empty(int x, int y, int z) {
+        ChunkAccess loaded = chunkFor(x, z);
+        if (loaded == null) {
+            return false;
+        }
+        this.scratch.set(x, y, z);
+        return loaded.getBlockState(this.scratch).isAir();
+    }
+
+    @Override
     public int groundY(int x, int z) {
         return highest(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
     }

@@ -6,6 +6,8 @@ import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.craft.Workbench;
 import dev.luizloyola.anima.core.store.Store;
+import java.util.ArrayList;
+import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -69,6 +71,21 @@ final class Ground {
         BlockKind floor = probe.at(cell.x(), cell.y() - 1, cell.z());
         return floor != BlockKind.AIR && !Store.isStore(floor) && floor != Workbench.BLOCK
                 && !PlaceBlock.occupied(ctx, cell);
+    }
+
+    /**
+     * Put {@code itemId} into {@code cell}, breaking what grows there first. A cell the chooser calls
+     * empty may hold leaf litter, petals or a flower — walk-through, so {@link #canHold} takes it —
+     * and the game will not build over those: a base's chest was refused beside its workbench on a
+     * forest floor until somebody cleared the petals (2026-09-26).
+     */
+    static List<Task> clearAndPlace(BrainContext ctx, String itemId, Pos cell) {
+        List<Task> steps = new ArrayList<>(2);
+        if (!ctx.percepts().blocks().empty(cell.x(), cell.y(), cell.z())) {
+            steps.add(new BreakBlock(cell.x(), cell.y(), cell.z()));
+        }
+        steps.add(new PlaceBlock(itemId, cell.x(), cell.y(), cell.z()));
+        return steps;
     }
 
     /**

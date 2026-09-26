@@ -7,6 +7,7 @@ import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.craft.Workbench;
 import dev.luizloyola.anima.core.inv.ItemSpec;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -138,10 +139,11 @@ public final class EnsureTable implements AchieveTask {
         @Override
         public List<Task> decompose(BrainContext ctx) {
             Pos spot = spotBeside(ctx);
-            return List.of(
-                    new ObtainItem(ItemSpec.anyOf(Set.of(Workbench.ITEM_ID)), 1, pursued),
-                    new PlaceBlock(Workbench.ITEM_ID, spot.x(), spot.y(), spot.z()),
-                    new FoundPlace(Workbench.POI, spot.x(), spot.y(), spot.z()));
+            List<Task> steps = new ArrayList<>(4);
+            steps.add(new ObtainItem(ItemSpec.anyOf(Set.of(Workbench.ITEM_ID)), 1, pursued));
+            steps.addAll(Ground.clearAndPlace(ctx, Workbench.ITEM_ID, spot));
+            steps.add(new FoundPlace(Workbench.POI, spot.x(), spot.y(), spot.z()));
+            return steps;
         }
 
         @Override

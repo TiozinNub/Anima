@@ -177,7 +177,7 @@ public final class EnsureStore implements AchieveTask {
                 spot = spotBeside(ctx);
             }
             steps.add(new ObtainItem(ItemSpec.anyOf(Set.of(Store.ITEM_ID)), 1, Set.of()));
-            steps.add(new PlaceBlock(Store.ITEM_ID, spot.x(), spot.y(), spot.z()));
+            steps.addAll(Ground.clearAndPlace(ctx, Store.ITEM_ID, spot));
             // Communal, not owned: a container a settler places belongs to the PARTY, which is
             // 2a's ruling honoured by the first code that ever places one.
             steps.add(new FoundPlace(Store.POI, spot.x(), spot.y(), spot.z()));
@@ -207,7 +207,7 @@ public final class EnsureStore implements AchieveTask {
                 steps.add(new GoTo(stand.x(), stand.y(), stand.z()));
             }
             steps.add(new ObtainItem(ItemSpec.anyOf(Set.of(Store.ITEM_ID)), 1, Set.of()));
-            steps.add(new PlaceBlock(Store.ITEM_ID, ground.x(), ground.y(), ground.z()));
+            steps.addAll(Ground.clearAndPlace(ctx, Store.ITEM_ID, ground));
             steps.add(new FoundPlace(Store.POI, ground.x(), ground.y(), ground.z()));
             return steps;
         }

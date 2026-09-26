@@ -75,7 +75,7 @@ public final class PutDown implements CompoundTask {
             if (!(feet.x() == stand.x() && feet.y() == stand.y() && feet.z() == stand.z())) {
                 steps.add(new GoTo(stand.x(), stand.y(), stand.z()));
             }
-            steps.add(new PlaceBlock(itemId, spot.x(), spot.y(), spot.z()));
+            steps.addAll(Ground.clearAndPlace(ctx, itemId, spot));
             steps.add(new FoundPlace(kind, spot.x(), spot.y(), spot.z()));
             return steps;
         }

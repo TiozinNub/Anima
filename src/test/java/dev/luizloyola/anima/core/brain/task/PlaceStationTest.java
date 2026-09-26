@@ -70,6 +70,26 @@ class PlaceStationTest {
         assertTrue(Math.abs(spot.x() - NEAR.x()) <= 1 && Math.abs(spot.z() - NEAR.z()) <= 1);
     }
 
+    /**
+     * Petals, leaf litter or a flower in the cell: walk-through, so the chooser takes it, but the
+     * game will not build over it. A base's chest was refused beside its workbench on a forest floor
+     * until the petals were cleared (2026-09-26); now the plan breaks them first.
+     */
+    @Test
+    void whatGrowsInTheCellIsBrokenBeforeTheStationGoesIn() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(0, 64, 0);
+        ctx.percepts.inventory.add(ItemStack.of(Store.ITEM_ID, 1, 64));
+        ctx.percepts.blocks.plant(NEAR.x(), NEAR.y(), NEAR.z());
+
+        List<Task> steps = new PutDown(Store.POI, Store.ITEM_ID, NEAR).methods().get(0).decompose(ctx);
+
+        BreakBlock clear = assertInstanceOf(BreakBlock.class, steps.get(1));
+        assertEquals(NEAR, clear.target(), "the cell still wins: what grows there is cleared, not avoided");
+        PlaceBlock place = assertInstanceOf(PlaceBlock.class, steps.get(2));
+        assertEquals(NEAR, place.target());
+    }
+
     @Test
     void withNothingCarriedThereIsNothingToPutDown() {
         FakeContext ctx = new FakeContext();

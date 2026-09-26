@@ -17,6 +17,7 @@ public final class FakeProbe implements BlockProbe {
     private final Map<Pos, BlockKind> blocks = new HashMap<>();
     private final Map<Pos, String> ids = new HashMap<>();
     private final Set<Column> unloaded = new HashSet<>();
+    private final Set<Pos> plants = new HashSet<>();
     private final Set<Pos> hidden = new HashSet<>();
     public int reads;
 
@@ -91,6 +92,25 @@ public final class FakeProbe implements BlockProbe {
     @Override
     public int surfaceY(int x, int z) {
         return highest(x, z, false);
+    }
+
+    /**
+     * Something a body walks through at this cell — grass, petals, leaf litter: {@link #at} reads
+     * {@link BlockKind#AIR} there, as the live probe does, and {@link #empty} does not.
+     */
+    public void plant(int x, int y, int z) {
+        plants.add(new Pos(x, y, z));
+    }
+
+    @Override
+    public boolean empty(int x, int y, int z) {
+        if (unloaded.contains(new Column(x, z))) {
+            return false;
+        }
+        Pos cell = new Pos(x, y, z);
+        BlockKind kind = blocks.get(cell);
+        boolean air = kind != null ? kind == BlockKind.AIR : y > GROUND_Y;
+        return air && !plants.contains(cell);
     }
 
     @Override

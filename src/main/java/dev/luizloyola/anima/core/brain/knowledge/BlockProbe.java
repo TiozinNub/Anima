@@ -25,6 +25,14 @@ public interface BlockProbe {
     int groundY(int x, int z);
 
     /**
+     * Whether this cell holds nothing at all — false when out of reach. {@link #at} answers
+     * {@link BlockKind#AIR} for whatever a body walks through (grass, flowers, petals, leaf litter),
+     * which is right for a sense and wrong for a builder: the game will not place a block into most
+     * of them.
+     */
+    boolean empty(int x, int y, int z);
+
+    /**
      * The y of the topmost cell here holding anything at all, or {@link Integer#MIN_VALUE} when the
      * column is out of reach.
      *
