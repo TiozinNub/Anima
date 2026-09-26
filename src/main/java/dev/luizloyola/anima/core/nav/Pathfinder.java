@@ -781,6 +781,12 @@ public final class Pathfinder {
         //
         // A body with neither is standing still, and there is exactly one such cell in any route:
         // its start. That one gets a run-up planned for it instead, below.
+        //
+        // A DROP is neither. The body lands falling, and a jump pressed on the tick it lands is a
+        // jump it does not get — the run-up branch below refuses a downhill approach for the same
+        // reason. Allowed, a route dropped onto a rim and leapt a 3-gap straight off the landing;
+        // the body fell short into the gap, and re-planned the same leap until it died (2026-09-10,
+        // reproduced 2026-09-25).
         if (node.parent != NO_PARENT) {
             // Where the flight came from, which for a run-up-sourced leap is its takeoff and not
             // its parent — the parent is a cell further back, and counting it would overstate both
@@ -790,7 +796,7 @@ public final class Pathfinder {
                     : node.parent;
             int ax = Integer.signum(x - unpackX(arrival));
             int az = Integer.signum(z - unpackZ(arrival));
-            if (ax * dx + az * dz > 0) {
+            if (ax * dx + az * dz > 0 && node.move != MoveType.DROP) {
                 leapFrom(current, node, x, y, z, from, dx, dz, maxLeap, 1, 0.0);
             } else if (node.move == MoveType.LEAP) {
                 int arrived = Math.max(Math.abs(x - unpackX(arrival)),

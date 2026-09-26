@@ -560,4 +560,17 @@ class PathfinderTest {
                 PathRequest.of(0, 1, 1, 6, 1, 0, TestBodies.BIPED).within(middleRow(7)));
         assertFalse(path.reachedGoal(), "the goal itself is outside the world the fence leaves");
     }
+
+    /**
+     * Dropped onto a one-block rim, a body has no run-up for a wide leap: it lands falling. The
+     * planner offered the leap anyway, and the follower fell short into the gap every time
+     * (2026-09-10). A hop needs no run-up, so a 1-gap off the same landing is still fine.
+     */
+    @Test
+    void aDropOntoTheRimIsNoRunUpForAWideLeap() {
+        AsciiWorld wide = AsciiWorld.of("553   33");
+        assertFalse(Pathfinder.find(wide, PathRequest.of(0, 5, 0, 7, 3, 0, TestBodies.BIPED)).reachedGoal());
+        AsciiWorld narrow = AsciiWorld.of("553 33");
+        assertTrue(Pathfinder.find(narrow, PathRequest.of(0, 5, 0, 5, 3, 0, TestBodies.BIPED)).reachedGoal());
+    }
 }
