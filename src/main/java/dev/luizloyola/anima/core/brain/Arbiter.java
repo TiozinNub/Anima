@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Locale;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Every tick, reads each {@link Instinct}'s pressure, picks the winner, and keeps its one
@@ -132,6 +133,26 @@ public final class Arbiter {
     public Grant grant() {
         return new Grant(active == null ? "" : active.key(), workRunning,
                 lastGranted == null ? "" : lastGranted.key());
+    }
+
+    /**
+     * Puts a saved plan and its grant back together, and says whether the plan came back. A grant
+     * that was working an errand nobody holds any more — its lease lapsed while the body was frozen
+     * in an unloaded chunk — comes back without its plan and without a drive: run, it would work an
+     * item the board has since offered to somebody else, and a settler did exactly that on
+     * 2026-09-26. The next tick decides afresh.
+     */
+    public boolean restore(TaskExecutor.State plan, Grant grant, @Nullable WorkItem held) {
+        if (grant.workRunning() && held == null) {
+            this.active = null;
+            this.lastGranted = byKey(grant.lastGranted());
+            this.claimedItem = null;
+            this.workRunning = false;
+            return false;
+        }
+        this.executor.restore(plan);
+        restoreGrant(grant, held);
+        return true;
     }
 
     /** Puts a saved grant back. An unknown drive clears the grant rather than failing the load. */

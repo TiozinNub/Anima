@@ -462,4 +462,28 @@ class ArbiterWorkTest {
         assertEquals(1, arbiter.reserved(ctx).size(),
                 "no errand, no kit — but a body still keeps its own things");
     }
+
+    /**
+     * A body restored mid-errand whose lease lapsed before it loaded — frozen in an unloaded chunk
+     * longer than the TTL. Nothing names its item any more, so the plan does not come back: run, it
+     * worked a trip the board had offered to somebody else (2026-09-26). With the item held, it does.
+     */
+    @Test
+    void aPlanForAnErrandNobodyHoldsIsNotRestored() {
+        board.offered = new StubItem(0.35, 5);
+        ticks(2);
+        TaskExecutor.State plan = arbiter.executor().snapshot();
+        Arbiter.Grant grant = arbiter.grant();
+        assertTrue(grant.workRunning(), "mid-errand when saved");
+
+        Arbiter lapsed = new Arbiter(List.of(eat, wander), new StubBoard());
+        assertFalse(lapsed.restore(plan, grant, null));
+        assertFalse(lapsed.executor().isBusy(), "no plan for an errand nobody holds");
+        assertFalse(lapsed.grant().workRunning());
+
+        Arbiter held = new Arbiter(List.of(eat, wander), new StubBoard());
+        assertTrue(held.restore(plan, grant, board.offered));
+        assertTrue(held.executor().isBusy());
+        assertTrue(held.grant().workRunning());
+    }
 }

@@ -431,8 +431,10 @@ public final class BrainDriver {
      */
     public void restore(BrainSnapshot snapshot,
                         dev.luizloyola.anima.core.brain.board.WorkItem held) {
-        this.arbiter.executor().restore(snapshot.plan());
-        this.arbiter.restoreGrant(snapshot.grant(), held);
+        if (!this.arbiter.restore(snapshot.plan(), snapshot.grant(), held)) {
+            this.person.journal().record(Category.BRAIN, "resume",
+                    "dropped the plan for an errand nobody holds any more; deciding afresh");
+        }
     }
 
     public record BrainSnapshot(dev.luizloyola.anima.core.brain.task.TaskExecutor.State plan,
