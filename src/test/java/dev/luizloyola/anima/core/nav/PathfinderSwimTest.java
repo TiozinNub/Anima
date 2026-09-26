@@ -286,4 +286,19 @@ class PathfinderSwimTest {
         Path path = plungeFromTowerOfHeight(33);
         assertFalse(path.reachedGoal(), "33 is past the bound: " + path.waypoints());
     }
+
+    /**
+     * A one-wide waterfall rising from a pool against a wall, the goal over the wall: nothing reaches
+     * it, and the cell nearest it is the top of the falling water. A walk that ends there is declared
+     * stranded, the body stops swimming and falls out of the column (a forest canyon, three deaths,
+     * 2026-09-10). When the search has seen everything, the path ends where the body can stand.
+     */
+    @Test
+    void aSearchThatSawEverythingDoesNotEndUpAWaterfall() {
+        AsciiWorld world = AsciiWorld.of("11WWW#9").fill(4, 1, 0, 4, 8, 0, CellType.WATER);
+        Path path = Pathfinder.find(world, PathRequest.of(0, 1, 0, 6, 9, 0, TestBodies.BIPED));
+        assertFalse(path.reachedGoal());
+        Waypoint last = path.waypoints().get(path.waypoints().size() - 1);
+        assertFalse(last.move().inWater(), () -> "ended afloat: " + path.waypoints());
+    }
 }

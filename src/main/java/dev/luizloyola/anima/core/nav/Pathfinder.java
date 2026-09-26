@@ -408,6 +408,13 @@ public final class Pathfinder {
         long best = start;
         double bestScore = partialScore(request.startX(), request.startY(), request.startZ());
         double bestG = 0.0;
+        // The same choice among cells the body can rest in — reached on its feet, not afloat. Used
+        // when the search has seen everything: a goal nothing reaches is not worth ending a walk
+        // up a waterfall for, and a body stopped there falls out of it. A search the budget cut
+        // short keeps its afloat endpoint, because that is how a long swim is made in legs.
+        long bestRest = start;
+        double bestRestScore = bestScore;
+        double bestRestG = 0.0;
 
         int expanded = 0;
         // Set explicitly rather than derived from the loop condition afterwards: a last pop that
@@ -434,13 +441,20 @@ public final class Pathfinder {
                 bestScore = score;
                 bestG = node.g;
             }
+            if (!node.move.inWater()
+                    && (score < bestRestScore || (score == bestRestScore && node.g < bestRestG))) {
+                bestRest = current;
+                bestRestScore = score;
+                bestRestG = node.g;
+            }
             if (++expanded >= request.maxNodes()) {
                 exhausted = false;
                 break;
             }
             expandNeighbors(current, node);
         }
-        return reconstruct(best, false, exhausted && sealedIn(request), expanded);
+        return reconstruct(exhausted ? bestRest : best, false, exhausted && sealedIn(request),
+                expanded);
     }
 
     /**
