@@ -35,4 +35,12 @@ public non-sealed interface CompoundTask extends Task {
      * {@link TaskExecutor#describe()} into the expansion path.
      */
     String describe();
+
+    /**
+     * Puts the task this compound was built around back into its restored decomposition, when the
+     * decomposition hands that same object on — a wrapper's child. A restore decodes the two apart;
+     * this makes them one again, so what the wrapper reads is what runs. Nothing by default.
+     */
+    default void rejoin(List<Task> subtasks) {
+    }
 }

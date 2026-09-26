@@ -54,6 +54,15 @@ public final class KittedErrand implements CompoundTask {
         return work;
     }
 
+    /** The work comes last, after the kit is got. */
+    @Override
+    public void rejoin(List<Task> subtasks) {
+        int at = subtasks.size() - 1;
+        if (at >= 0 && at < subtasks.size() && subtasks.get(at).getClass() == work.getClass()) {
+            subtasks.set(at, work);
+        }
+    }
+
     private String describeWork() {
         if (work instanceof PrimitiveTask primitive) {
             return primitive.describe();

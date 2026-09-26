@@ -40,6 +40,15 @@ public final class Try implements CompoundTask {
         return attempt;
     }
 
+    /** The attempt is the whole decomposition. */
+    @Override
+    public void rejoin(List<Task> subtasks) {
+        int at = 0;
+        if (at >= 0 && at < subtasks.size() && subtasks.get(at).getClass() == attempt.getClass()) {
+            subtasks.set(at, attempt);
+        }
+    }
+
     private String describeChild() {
         if (attempt instanceof PrimitiveTask primitive) {
             return primitive.describe();

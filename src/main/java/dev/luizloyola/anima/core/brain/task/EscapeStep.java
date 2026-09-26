@@ -6,6 +6,7 @@ import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.continuity.Ephemeral;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
@@ -173,6 +174,7 @@ public final class EscapeStep implements CompoundTask {
      * arbiter builds a fresh {@code EscapeStep} per grant, and {@link Method#applicable},
      * {@link Method#estimateCost} and {@link Method#decompose} would otherwise each re-scan.
      */
+    @Ephemeral("a memo of this grant's look around, asked again when a method is next chosen")
     private @Nullable Option[] scan;
 
     private Option[] scan(BrainContext ctx) {
@@ -303,7 +305,9 @@ public final class EscapeStep implements CompoundTask {
         return ctx.percepts().terrain().cell(here.x(), head, here.z()) != CellType.PASSABLE;
     }
 
+    @Ephemeral("a memo, asked again when a method is next chosen")
     private @Nullable Pos air;
+    @Ephemeral("goes with the memo above")
     private boolean airSought;
 
     /**

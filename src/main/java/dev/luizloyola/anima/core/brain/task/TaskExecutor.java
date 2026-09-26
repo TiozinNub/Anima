@@ -604,6 +604,15 @@ public final class TaskExecutor {
     /**
      * Puts a saved plan back, mid-descent, without running anything — not {@link #run}, which would
      * start it from its root. The next ordinary tick carries on from the frame this leaves current.
+     *
+     * <p><b>One tree, not copies of it.</b> Live, frame 0 runs the root and each deeper frame runs
+     * the subtask its parent is on, and a wrapper's child is the same object as its decomposition's.
+     * The save writes each out separately, so they decode apart; left so, the root and every
+     * wrapper's child were copies that never ticked but were still read — {@code describe},
+     * {@code chainCoverage}, {@code reshapesGround} (2026-09-25). Each frame is therefore taken as a
+     * path into the tree: its compound is its parent's current subtask, and the saved one is used
+     * only where the path breaks. Every copy was written from the same object in the same instant,
+     * so which one is kept loses nothing.
      */
     public void restore(State state) {
         stack.clear();
@@ -611,8 +620,10 @@ public final class TaskExecutor {
         this.lastDescription = state.lastDescription();
         this.lastStatus = state.lastStatus();
         this.failureReason = state.failureReason();
+        Task node = this.root;
         for (FrameState saved : state.frames()) {
-            Frame frame = new Frame(saved.compound());
+            CompoundTask compound = node instanceof CompoundTask onPath ? onPath : saved.compound();
+            Frame frame = new Frame(compound);
             for (int i = 0; i < saved.tried().size() && i < frame.tried.length; i++) {
                 frame.tried[i] = saved.tried().get(i);
             }
@@ -624,11 +635,13 @@ public final class TaskExecutor {
                     ? frame.methods.get(saved.methodIndex())
                     : null;
             frame.subtasks = new ArrayList<>(saved.subtasks());
+            compound.rejoin(frame.subtasks);
             frame.index = saved.index();
             frame.rounds = saved.rounds();
             frame.lastProgress = saved.lastProgress();
             frame.pricedOut = saved.pricedOut();
             stack.add(frame);
+            node = frame.index < frame.subtasks.size() ? frame.subtasks.get(frame.index) : null;
         }
     }
 }

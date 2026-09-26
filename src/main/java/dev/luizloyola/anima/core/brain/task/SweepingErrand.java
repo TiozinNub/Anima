@@ -55,6 +55,15 @@ public final class SweepingErrand implements CompoundTask {
         return work;
     }
 
+    /** The work is the whole decomposition. */
+    @Override
+    public void rejoin(List<Task> subtasks) {
+        int at = 0;
+        if (at >= 0 && at < subtasks.size() && subtasks.get(at).getClass() == work.getClass()) {
+            subtasks.set(at, work);
+        }
+    }
+
     private String describeWork() {
         if (work instanceof PrimitiveTask primitive) {
             return primitive.describe();
