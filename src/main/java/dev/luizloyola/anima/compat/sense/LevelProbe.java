@@ -125,6 +125,11 @@ public final class LevelProbe implements BlockProbe {
     }
 
     @Override
+    public int groundY(int x, int z) {
+        return highest(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+    }
+
+    @Override
     public int topY(int x, int z) {
         // WORLD_SURFACE is "anything that is not air", so it catches everything MOTION_BLOCKING
         // does plus the collision-free things standing on top of it — a cane brake, a berry bush,

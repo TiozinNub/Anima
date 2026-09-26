@@ -10,6 +10,7 @@ import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.CellType;
+import dev.luizloyola.anima.core.nav.GoalCell;
 import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.PathRequest;
 import dev.luizloyola.anima.core.nav.Pathfinder;
@@ -62,8 +63,6 @@ public final class PathfinderService {
      * happen leg by leg instead of baking enormous boxes).
      */
     private static final int MAX_REACH = 96;
-    /** How far below a clicked goal to look for actual ground (clicks land on faces, not floors). */
-    private static final int GOAL_DROP_SCAN = 12;
     /** How far above a submerged start to look for its own waterline — see {@link #surfaceStart}. */
     private static final int START_RISE_SCAN = 8;
 
@@ -176,7 +175,8 @@ public final class PathfinderService {
             MoveCapabilities body, DangerField danger, @Nullable AgentId who,
             SetbackField setbacks) {
         BlockPos afloat = surfaceStart(snapshot, start, body);
-        BlockPos grounded = groundGoal(snapshot, goal, body.canSwim());
+        BlockPos grounded = new BlockPos(goal.getX(),
+                GoalCell.groundY(snapshot, goal.getX(), goal.getY(), goal.getZ(), body), goal.getZ());
         return PathRequest.of(afloat.getX(), afloat.getY(), afloat.getZ(),
                         grounded.getX(), grounded.getY(), grounded.getZ(), body, danger)
                 .varying(variety(who))
@@ -292,27 +292,6 @@ public final class PathfinderService {
             }
         }
         return true;
-    }
-
-    private static BlockPos groundGoal(WorldSnapshot snapshot, BlockPos goal, boolean canSwim) {
-        int x = goal.getX();
-        int z = goal.getZ();
-        for (int y = goal.getY(); y > goal.getY() - GOAL_DROP_SCAN; y--) {
-            if (canSwim && snapshot.cell(x, y, z) == CellType.WATER
-                    && snapshot.cell(x, y + 1, z) == CellType.PASSABLE) {
-                return new BlockPos(x, y, z); // the water surface — a swimmer floats here
-            }
-            CellType below = snapshot.cell(x, y - 1, z);
-            if (below == CellType.GROUND
-                    && snapshot.cell(x, y, z) == CellType.PASSABLE
-                    && snapshot.cell(x, y + 1, z) == CellType.PASSABLE) {
-                return new BlockPos(x, y, z);
-            }
-            if (below == CellType.OBSTACLE || below == CellType.DANGER) {
-                break; // solid-but-unstandable or harmful floor: nothing walkable further down
-            }
-        }
-        return goal;
     }
 
     private static ExecutorService executor() {

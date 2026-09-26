@@ -18,6 +18,13 @@ public interface BlockProbe {
     int surfaceY(int x, int z);
 
     /**
+     * The y of the ground here — {@link #surfaceY} with leaves looked through — or
+     * {@link Integer#MIN_VALUE} when out of reach. Where a walk to this column should end: nobody
+     * walks on a canopy, and a goal named on one sends the legs looking for a floor.
+     */
+    int groundY(int x, int z);
+
+    /**
      * The y of the topmost cell here holding anything at all, or {@link Integer#MIN_VALUE} when the
      * column is out of reach.
      *

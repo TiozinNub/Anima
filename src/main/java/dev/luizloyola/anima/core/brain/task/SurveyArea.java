@@ -453,8 +453,10 @@ public final class SurveyArea implements PrimitiveTask {
         }
         this.target = worst;
         Pos centre = centreOf(worst);
-        int y = probe.surfaceY(centre.x(), centre.z());
-        this.walk = new GoTo(centre.x(), y, centre.z());
+        // The feet cell over the ground, not the top block: a canopy is no place to stand, and a goal
+        // named inside a block leaves the legs to find the floor.
+        int y = probe.groundY(centre.x(), centre.z());
+        this.walk = new GoTo(centre.x(), y + 1, centre.z());
         this.walkTicks = 0;
         return TaskStatus.RUNNING;
     }

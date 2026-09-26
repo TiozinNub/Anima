@@ -94,11 +94,20 @@ public final class FakeProbe implements BlockProbe {
     }
 
     @Override
+    public int groundY(int x, int z) {
+        return highest(x, z, false, true);
+    }
+
+    @Override
     public int topY(int x, int z) {
         return highest(x, z, true);
     }
 
     private int highest(int x, int z, boolean countingThin) {
+        return highest(x, z, countingThin, false);
+    }
+
+    private int highest(int x, int z, boolean countingThin, boolean skippingLeaves) {
         reads++;
         if (unloaded.contains(new Column(x, z))) {
             return Integer.MIN_VALUE;
@@ -107,7 +116,8 @@ public final class FakeProbe implements BlockProbe {
         for (Map.Entry<Pos, BlockKind> entry : blocks.entrySet()) {
             Pos p = entry.getKey();
             if (p.x() == x && p.z() == z && p.y() > top
-                    && (countingThin || !thin.contains(entry.getValue()))) {
+                    && (countingThin || !thin.contains(entry.getValue()))
+                    && !(skippingLeaves && entry.getValue() == BlockKind.LEAVES)) {
                 top = p.y();
             }
         }

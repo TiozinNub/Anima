@@ -1091,20 +1091,32 @@ public final class Pathfinder {
      * below asks, of the same two cells, against a different {@link CellType}.
      */
     private double footing(int x, int y, int z) {
-        CellType here = this.grid.cell(x, y, z);
+        return footingOf(this.grid, this.profile, x, y, z);
+    }
+
+    private static double footingOf(NavGrid grid, MoveCapabilities profile, int x, int y, int z) {
+        CellType here = grid.cell(x, y, z);
         if (here == CellType.STEP) {
-            double surface = this.grid.surface(x, y, z);
-            return fits(x, y, z, surface) ? y + surface : NO_FOOTING;
+            double surface = grid.surface(x, y, z);
+            return fitsOf(grid, profile, x, y, z, surface) ? y + surface : NO_FOOTING;
         }
         if (here != CellType.PASSABLE && here != CellType.WATER) {
             return NO_FOOTING; // solid, harmful, or off the edge of the world
         }
-        if (this.grid.cell(x, y - 1, z) != CellType.GROUND) {
+        if (grid.cell(x, y - 1, z) != CellType.GROUND) {
             return NO_FOOTING; // nothing under us — or a STEP, which is its own feet-cell
         }
         // fits() demands PASSABLE overhead, so for a water cell it is also the test that the head
         // is above the waterline: one more cell of water up there and this is swimming, not wading.
-        return fits(x, y, z, 0.0) ? y : NO_FOOTING;
+        return fitsOf(grid, profile, x, y, z, 0.0) ? y : NO_FOOTING;
+    }
+
+    /**
+     * Whether {@code body} can stand in feet-cell {@code (x,y,z)} — the search's own
+     * {@link #footing} rule, for a caller that must agree with it about where a walk can end.
+     */
+    public static boolean standable(NavGrid grid, MoveCapabilities body, int x, int y, int z) {
+        return footingOf(grid, body, x, y, z) != NO_FOOTING;
     }
 
     /** Whether feet-cell {@code (x,y,z)} affords footing at all — {@link #footing} as a predicate. */
@@ -1132,9 +1144,14 @@ public final class Pathfinder {
      * {@code body.height}.
      */
     private boolean fits(int x, int y, int z, double surface) {
-        int top = this.profile.topCell(surface);
+        return fitsOf(this.grid, this.profile, x, y, z, surface);
+    }
+
+    private static boolean fitsOf(NavGrid grid, MoveCapabilities profile, int x, int y, int z,
+                                  double surface) {
+        int top = profile.topCell(surface);
         for (int i = 1; i <= top; i++) {
-            if (this.grid.cell(x, y + i, z) != CellType.PASSABLE) return false;
+            if (grid.cell(x, y + i, z) != CellType.PASSABLE) return false;
         }
         return true;
     }
