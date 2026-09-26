@@ -301,4 +301,28 @@ class PathfinderSwimTest {
         Waypoint last = path.waypoints().get(path.waypoints().size() - 1);
         assertFalse(last.move().inWater(), () -> "ended afloat: " + path.waypoints());
     }
+
+    /**
+     * <pre>
+     *   x=0: a one-high flooded gap under rock — where the body is
+     *   x=1: open water three deep, air over it
+     *   x=2: the bank
+     * </pre>
+     * A standing body does not fit the gap, but a body in it is there, in the swimming pose, and
+     * strokes out. Refused, the start had no move at all and read as sealed, and the escape cut at
+     * the rock until the body drowned (2026-09-10, reproduced 2026-09-25).
+     */
+    @Test
+    void aBodyInAFloodedGapStrokesOutOfIt() {
+        AsciiWorld world = AsciiWorld.of("555")
+                .fill(0, 2, 0, 0, 2, 0, CellType.WATER)
+                .fill(1, 2, 0, 1, 4, 0, CellType.WATER);
+        assertTrue(Pathfinder.find(world,
+                PathRequest.of(0, 2, 0, 2, 5, 0, TestBodies.BIPED)).reachedGoal());
+        // The confinement survey is asked with no breath to spend, as a body's percept asks it: the
+        // stroke out is refused for air, which says the rock did not shut the body in.
+        MoveCapabilities breathless = new MoveCapabilities(1.8, 1, 3, 3, true, 0);
+        assertFalse(Pathfinder.survey(world,
+                PathRequest.of(0, 2, 0, 0, 2, 0, breathless)).sealed());
+    }
 }

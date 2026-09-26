@@ -1,14 +1,20 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.agent.need.NeedKind;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
+import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
+import dev.luizloyola.anima.core.nav.NavGrid;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -30,6 +36,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>The rungs, in preference order:
  * <ol>
+ *   <li><b>Rise</b> — in water and short of air, swim to the nearest air first. Nothing is cut
+ *       under water unless the breath is still easy: a body sealed in a flooded gap once cut at
+ *       the rock above it until it drowned.
  *   <li><b>Step out</b> — cut through the wall beside us, only where the way out is sideways.
  *   <li><b>Cut a stair</b> — open the two cells above the block next door and step up, our own
  *       ceiling first. The way out of anything with a lid.
@@ -45,7 +54,7 @@ import org.jspecify.annotations.Nullable;
 public final class EscapeStep implements CompoundTask {
 
     private final List<Method> methods =
-            List.of(new StepOut(), new CutAStair(), new LowerYourself(), new SaySo());
+            List.of(new Rise(), new StepOut(), new CutAStair(), new LowerYourself(), new SaySo());
 
     @Override
     public List<Method> methods() {
@@ -192,7 +201,7 @@ public final class EscapeStep implements CompoundTask {
      */
     private static Option[] survey(BrainContext ctx) {
         Option[] best = new Option[3];
-        if (!canDig(ctx)) {
+        if (!canDig(ctx) || (inWater(ctx) && breath(ctx) > 0.0)) {
             return best;
         }
         Pos here = ctx.percepts().position();
@@ -258,6 +267,97 @@ public final class EscapeStep implements CompoundTask {
             tasks.add(new GoTo(option.into().x(), option.into().y(), option.into().z()));
         }
         return tasks;
+    }
+
+    // ── rung 0: rise ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * How short of air a body in water must be before getting out of it comes first — between
+     * short and gasping, so a dive the route planned for is not cut off halfway.
+     */
+    public static final double RISE_AT = 0.5;
+    /** How much water is searched for air. A lake's surface is rarely far; a flooded cave may be. */
+    private static final int AIR_SEARCH_CELLS = 512;
+
+    /** Whether the body's feet are in water — where its breath can run out. */
+    private static boolean inWater(BrainContext ctx) {
+        Pos here = ctx.percepts().position();
+        return ctx.percepts().terrain().cell(here.x(), here.y(), here.z()) == CellType.WATER;
+    }
+
+    private static double breath(BrainContext ctx) {
+        return ctx.percepts().needs().pressure(NeedKind.BREATH);
+    }
+
+    /** In water and short enough of air that getting out of it outranks everything. */
+    public static boolean shortOfAir(BrainContext ctx) {
+        return inWater(ctx) && breath(ctx) >= RISE_AT;
+    }
+
+    private @Nullable Pos air;
+    private boolean airSought;
+
+    /**
+     * The nearest water cell with air over it, through water only, or null. Six-way through water
+     * rather than a route search: the body may be in a gap no standing body fits, and the question
+     * is only where the surface is.
+     */
+    private @Nullable Pos air(BrainContext ctx) {
+        if (!this.airSought) {
+            this.airSought = true;
+            this.air = nearestAir(ctx.percepts().terrain(), ctx.percepts().position());
+        }
+        return this.air;
+    }
+
+    private static final int[][] SIX = {{0, 1, 0}, {1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1},
+            {0, -1, 0}};
+
+    static @Nullable Pos nearestAir(NavGrid grid, Pos from) {
+        ArrayDeque<Pos> open = new ArrayDeque<>();
+        Set<Pos> seen = new HashSet<>();
+        open.add(from);
+        seen.add(from);
+        while (!open.isEmpty() && seen.size() <= AIR_SEARCH_CELLS) {
+            Pos cell = open.poll();
+            if (grid.cell(cell.x(), cell.y(), cell.z()) == CellType.WATER
+                    && grid.cell(cell.x(), cell.y() + 1, cell.z()) == CellType.PASSABLE) {
+                return cell;
+            }
+            for (int[] d : SIX) {
+                Pos next = new Pos(cell.x() + d[0], cell.y() + d[1], cell.z() + d[2]);
+                if (seen.add(next) && grid.cell(next.x(), next.y(), next.z()) == CellType.WATER) {
+                    open.add(next);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Swim to the nearest air. First, and costless, whenever it applies. */
+    private final class Rise implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return shortOfAir(ctx) && air(ctx) != null;
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            return 0.0;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            Pos to = air(ctx);
+            narrate(ctx, "escape", "swimming up for air at (" + to.x() + ", " + to.y() + ", "
+                    + to.z() + ")");
+            return List.of(new GoTo(to.x(), to.y(), to.z()));
+        }
+
+        @Override
+        public String describe() {
+            return "swim up for air";
+        }
     }
 
     // ── rung 1: step out ─────────────────────────────────────────────────────────────────────

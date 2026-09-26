@@ -4,8 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import dev.luizloyola.anima.core.agent.TestSpecies;
+import dev.luizloyola.anima.core.agent.need.BreathNeed;
 import dev.luizloyola.anima.core.brain.instinct.EscapeInstinct;
 import dev.luizloyola.anima.core.brain.sense.Confinement;
+import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.nav.CellType;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -58,5 +61,25 @@ class EscapeInstinctTest {
         assertEquals(0.0, escape.pressure(ctx));
         ctx.reshapingGround = false;
         assertEquals(EscapeInstinct.pressure(TestSpecies.PROFILE), escape.pressure(ctx));
+    }
+
+    /**
+     * In water and short of air, the drive bids though nothing proves a seal, and whatever work the
+     * body is doing: a settler in a flooded gap under a lake read as free once the search could
+     * stroke out of it, and nothing else would have moved it before it drowned.
+     */
+    @Test
+    void aBodyShortOfAirInWaterBidsWhateverElseIsTrue() {
+        int[] air = {60};
+        ctx.percepts.needs.add(new BreathNeed(() -> air[0], () -> 300, () -> TestSpecies.PROFILE));
+        Pos feet = ctx.percepts.position;
+        ctx.percepts.terrain = (x, y, z) -> x == feet.x() && y == feet.y() && z == feet.z()
+                ? CellType.WATER : CellType.PASSABLE;
+        ctx.percepts.confinement = Confinement.NONE;
+        ctx.reshapingGround = true;
+        assertEquals(EscapeInstinct.pressure(TestSpecies.PROFILE), escape.pressure(ctx));
+
+        air[0] = 300;
+        assertEquals(0.0, escape.pressure(ctx), "a full lungful under water is a swim, not a plight");
     }
 }

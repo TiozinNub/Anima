@@ -19,6 +19,9 @@ import dev.luizloyola.anima.core.brain.task.Task;
  * reads {@code confinement().sealed()}, a search's own proof that there is nowhere left to go, so
  * the bid is flat.
  *
+ * <p><b>And on running out of air in water</b>, which is being shut in by the one wall a body
+ * cannot see through a route search: it bids the same, and its step swims up first.
+ *
  * <p>It also stops a loop: a sealed body used to fail a wander, sit out a hundred ticks, roll
  * another target and fail again forever, each turn costing a fresh terrain capture and a full
  * search.
@@ -53,6 +56,10 @@ public final class EscapeInstinct implements Instinct {
      */
     @Override
     public double pressure(BrainContext ctx) {
+        // Before the ground-work gate: whatever put the body under water, air comes first.
+        if (EscapeStep.shortOfAir(ctx)) {
+            return pressure(ctx.profile());
+        }
         if (ctx.reshapingGround()) {
             return 0.0;
         }

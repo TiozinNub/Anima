@@ -283,6 +283,8 @@ public final class Pathfinder {
     private final SetbackField setbacks;
     /** Whether this body refuses any move at all — the common case is no, and then no edge asks. */
     private final boolean refusing;
+    /** Where the body is — the one cell it occupies whether the model says it fits there or not. */
+    private final long startKey;
 
     /**
      * Where the body may stand at all — {@link PathRequest#domain()}. Enforced here at the one
@@ -310,6 +312,7 @@ public final class Pathfinder {
         this.danger = request.danger();
         this.setbacks = request.setbacks();
         this.refusing = this.setbacks.hasRefusals();
+        this.startKey = pack(request.startX(), request.startY(), request.startZ());
         this.domain = request.domain();
         this.variety = request.variety();
         this.goalX = request.goalX();
@@ -545,7 +548,14 @@ public final class Pathfinder {
      */
     private void swimNeighbors(long current, Node node, int x, int y, int z, double from) {
         if (!this.profile.canSwim()) return;
-        if (!isWaterNode(x, y, z)) {
+        boolean afloat = isWaterNode(x, y, z);
+        // A body already in water it does not fit standing — a one-high flooded gap, taken in the
+        // swimming pose — is there all the same, and strokes out of it. Refused, it had no move at
+        // all, and a start with no moves read as proof of a seal: the escape cut a stair into the
+        // rock while the body drowned (2026-09-10, reproduced 2026-09-25).
+        boolean wedged = !afloat && current == this.startKey
+                && this.grid.cell(x, y, z) == CellType.WATER && !isStandable(x, y, z);
+        if (!afloat && !wedged) {
             for (int[] d : CARDINALS) swimEnter(current, node, x, y, z, from, d[0], d[1]);
             return;
         }
@@ -556,7 +566,7 @@ public final class Pathfinder {
             int[] o = WATER_STROKES[i];
             swimStroke(current, node, x, y, z, o[0], o[1], o[2], WATER_STROKE_LENGTHS[i]);
         }
-        if (!isSubmerged(x, y, z)) {
+        if (afloat && !isSubmerged(x, y, z)) {
             for (int[] d : CARDINALS) swimExit(current, node, x, y, z, d[0], d[1]);
         }
     }

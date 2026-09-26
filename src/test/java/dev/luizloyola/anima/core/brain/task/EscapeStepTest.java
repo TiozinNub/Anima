@@ -6,10 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.TestSpecies;
+import dev.luizloyola.anima.core.agent.need.BreathNeed;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.FakeProbe;
 import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.nav.CellType;
+import dev.luizloyola.anima.core.nav.NavGrid;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -350,5 +353,44 @@ class EscapeStepTest {
         ctx.percepts.position = new Pos(0, FakeProbe.GROUND_Y + 200, 0);
         assertFalse(escape.methods().get(2).applicable(ctx),
                 "the ground is there, but not within a look this rung is willing to trust");
+    }
+
+    /** A column of water over the body, three deep, with air over it; rock everywhere else. */
+    private void underWater(int[] air) {
+        ctx.percepts.needs.add(new BreathNeed(() -> air[0], () -> 300, () -> TestSpecies.PROFILE));
+        ctx.percepts.terrain = (x, y, z) -> {
+            if (x == 0 && z == 0) {
+                return y < FEET ? CellType.GROUND : y <= FEET + 3 ? CellType.WATER : CellType.PASSABLE;
+            }
+            return y <= FEET + 5 ? CellType.GROUND : CellType.PASSABLE;
+        };
+    }
+
+    /**
+     * A settler sealed in a flooded gap under a lake cut at the rock over its head until it
+     * drowned (2026-09-10). Short of air in water, the first rung is the way up, and nothing is cut.
+     */
+    @Test
+    void shortOfAirUnderWaterItSwimsUpBeforeItCuts() {
+        wall(1, 0);
+        underWater(new int[] {60});
+        assertEquals("swim up for air", chosen());
+        GoTo up = (GoTo) plan().get(0);
+        assertEquals(FEET + 3, up.y(), "the top of the water, where the head comes out");
+    }
+
+    @Test
+    void withNoAirInReachItSaysSoRatherThanCutUnderWater() {
+        wall(1, 0);
+        underWater(new int[] {60});
+        ctx.percepts.terrain = (x, y, z) -> CellType.WATER;
+        assertEquals("call for help", chosen());
+    }
+
+    @Test
+    void theSurfaceIsFoundThroughTheWaterOnly() {
+        NavGrid pond = (x, y, z) -> x >= 0 && x <= 3 && z == 0 && y >= 0 && y <= 2
+                ? CellType.WATER : y > 2 ? CellType.PASSABLE : CellType.GROUND;
+        assertEquals(new Pos(0, 2, 0), EscapeStep.nearestAir(pond, new Pos(0, 0, 0)));
     }
 }
