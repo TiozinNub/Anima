@@ -325,4 +325,23 @@ class PathfinderSwimTest {
         assertFalse(Pathfinder.survey(world,
                 PathRequest.of(0, 2, 0, 0, 2, 0, breathless)).sealed());
     }
+
+    /**
+     * A flooded tunnel under rock, the far bank past what the budget lets one search reach. The
+     * nearest cell to the goal is deep in the tunnel; a leg that ended there left the body under
+     * water when the walk failed. A leg cut short by the budget may end afloat, but with its head
+     * in the air.
+     */
+    @Test
+    void aLegCutShortNeverEndsWithTheHeadUnderWater() {
+        AsciiWorld world = AsciiWorld.of("1" + "W".repeat(20) + "1")
+                .fill(2, 1, 0, 20, 3, 0, CellType.GROUND);
+        Path path = Pathfinder.find(world, new PathRequest(0, 1, 0, 21, 1, 0, TestBodies.BIPED,
+                null, null, 10, 0L, null));
+        assertFalse(path.reachedGoal());
+        Waypoint last = path.waypoints().isEmpty()
+                ? new Waypoint(0, 1, 0, MoveType.WALK)
+                : path.waypoints().get(path.waypoints().size() - 1);
+        assertTrue(last.x() <= 1, () -> "ended in the tunnel: " + path.waypoints());
+    }
 }

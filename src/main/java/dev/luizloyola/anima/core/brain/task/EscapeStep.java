@@ -289,9 +289,18 @@ public final class EscapeStep implements CompoundTask {
         return ctx.percepts().needs().pressure(NeedKind.BREATH);
     }
 
-    /** In water and short enough of air that getting out of it outranks everything. */
+    /**
+     * In water with its head under — water or the rock of a flooded gap — and short enough of air
+     * that getting out outranks everything. Not once the head is out: the air comes back on its own
+     * over the next ticks, and a body already at the surface re-took the rise until it had.
+     */
     public static boolean shortOfAir(BrainContext ctx) {
-        return inWater(ctx) && breath(ctx) >= RISE_AT;
+        if (!inWater(ctx) || breath(ctx) < RISE_AT) {
+            return false;
+        }
+        Pos here = ctx.percepts().position();
+        int head = here.y() + height(ctx) - 1;
+        return ctx.percepts().terrain().cell(here.x(), head, here.z()) != CellType.PASSABLE;
     }
 
     private @Nullable Pos air;

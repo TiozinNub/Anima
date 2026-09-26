@@ -417,10 +417,14 @@ public final class Pathfinder {
         // The same choice among cells the body can rest in — reached on its feet, not afloat. Used
         // when the search has seen everything: a goal nothing reaches is not worth ending a walk
         // up a waterfall for, and a body stopped there falls out of it. A search the budget cut
-        // short keeps its afloat endpoint, because that is how a long swim is made in legs.
+        // short may end afloat, because that is how a long swim is made in legs — but with its
+        // head in the air: a leg that ended under water left a body there when the walk failed.
         long bestRest = start;
         double bestRestScore = bestScore;
         double bestRestG = 0.0;
+        long bestAir = start;
+        double bestAirScore = bestScore;
+        double bestAirG = 0.0;
 
         int expanded = 0;
         // Set explicitly rather than derived from the loop condition afterwards: a last pop that
@@ -453,13 +457,19 @@ public final class Pathfinder {
                 bestRestScore = score;
                 bestRestG = node.g;
             }
+            if ((score < bestAirScore || (score == bestAirScore && node.g < bestAirG))
+                    && !isSubmerged(unpackX(current), unpackY(current), unpackZ(current))) {
+                bestAir = current;
+                bestAirScore = score;
+                bestAirG = node.g;
+            }
             if (++expanded >= request.maxNodes()) {
                 exhausted = false;
                 break;
             }
             expandNeighbors(current, node);
         }
-        return reconstruct(exhausted ? bestRest : best, false, exhausted && sealedIn(request),
+        return reconstruct(exhausted ? bestRest : bestAir, false, exhausted && sealedIn(request),
                 expanded);
     }
 

@@ -73,12 +73,18 @@ class EscapeInstinctTest {
         int[] air = {60};
         ctx.percepts.needs.add(new BreathNeed(() -> air[0], () -> 300, () -> TestSpecies.PROFILE));
         Pos feet = ctx.percepts.position;
-        ctx.percepts.terrain = (x, y, z) -> x == feet.x() && y == feet.y() && z == feet.z()
-                ? CellType.WATER : CellType.PASSABLE;
+        int[] surface = {feet.y() + 1}; // the top water cell: the head is under while this is it
+        ctx.percepts.terrain = (x, y, z) -> x == feet.x() && z == feet.z()
+                && y >= feet.y() && y <= surface[0] ? CellType.WATER : CellType.PASSABLE;
         ctx.percepts.confinement = Confinement.NONE;
         ctx.reshapingGround = true;
         assertEquals(EscapeInstinct.pressure(TestSpecies.PROFILE), escape.pressure(ctx));
 
+        surface[0] = feet.y();
+        assertEquals(0.0, escape.pressure(ctx),
+                "head out of the water: the air comes back on its own, and the rise is done");
+
+        surface[0] = feet.y() + 1;
         air[0] = 300;
         assertEquals(0.0, escape.pressure(ctx), "a full lungful under water is a swim, not a plight");
     }
