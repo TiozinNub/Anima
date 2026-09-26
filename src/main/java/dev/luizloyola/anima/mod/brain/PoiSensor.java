@@ -111,9 +111,13 @@ public final class PoiSensor {
         return line.toString();
     }
 
-    /** What this body has already accounted for, or empty before the pipeline is built. */
+    /**
+     * What this body has already accounted for. Before the pipeline is built that is whatever a load
+     * left waiting for it: a body saved before its first sense wrote nothing, and lost the survey.
+     */
     public java.util.Optional<PoiSensorCore.State> snapshot() {
-        return core == null ? java.util.Optional.empty() : java.util.Optional.of(core.snapshot());
+        return core == null ? java.util.Optional.ofNullable(pendingState)
+                : java.util.Optional.of(core.snapshot());
     }
 
     /**
