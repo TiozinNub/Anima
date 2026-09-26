@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.ConfinementCadence;
+import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.mod.nav.PathfinderService;
@@ -239,11 +240,45 @@ public final class AgentPercepts implements Percepts {
             return this.confinement == null ? Confinement.NONE : this.confinement;
         }
         this.confinement = this.person.level() instanceof ServerLevel level
-                ? PathfinderService.surveyFrom(level, this.person.blockPosition(),
-                        MoveCapabilities.of(this.person.profile()))
+                ? survey(level)
                 : Confinement.NONE;
         cadence.ran(now, this.confinement);
         return this.confinement;
+    }
+
+    @Override
+    public boolean strandedHere() {
+        return this.person.level() instanceof ServerLevel level
+                && this.person.setbacks().enclosed(position(), level.getGameTime());
+    }
+
+    /**
+     * The ordinary survey, and a wider one when stranded walks say the body may be shut in
+     * something the ordinary box cannot see whole — a crevice, a cave pocket. A wider look that
+     * finds a way out clears the evidence: the body was not shut in, or has got out (Luiz,
+     * 2026-09-26). About 8 ms a look in the crevice, once a second while it climbs out.
+     */
+    private Confinement survey(ServerLevel level) {
+        MoveCapabilities body = MoveCapabilities.of(this.person.profile());
+        BlockPos feet = this.person.blockPosition();
+        Confinement near = PathfinderService.surveyFrom(level, feet, body);
+        if (near.sealed()) {
+            return near;
+        }
+        Pos at = new Pos(feet.getX(), feet.getY(), feet.getZ());
+        if (!this.person.setbacks().enclosed(at, level.getGameTime())) {
+            return near;
+        }
+        Confinement wide = PathfinderService.surveyWide(level, feet, body);
+        if (!wide.sealed()) {
+            this.person.setbacks().free();
+            return near;
+        }
+        if (this.confinement == null || !this.confinement.sealed()) {
+            this.person.journal().record(Category.BRAIN, "enclosed", "walks from here keep "
+                    + "failing; shut in a pocket of " + wide.cells() + " cells");
+        }
+        return wide;
     }
 
     /**

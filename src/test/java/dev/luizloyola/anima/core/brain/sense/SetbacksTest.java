@@ -130,4 +130,31 @@ class SetbacksTest {
         assertFalse(reloaded.field(Setbacks.REFUSED_LIFETIME_TICKS).refuses(1, 1, 0, 4, 1, 0),
                 "a day later the world may have changed under it");
     }
+
+    /**
+     * Stranded walks from around one spot mark it shut in, roof or no roof — but only from a small
+     * region, and only there, and not for ever (Luiz, 2026-09-26). The same goal retried counts: a
+     * body in a crevice retried the one tree above it for good.
+     */
+    @Test
+    void strandedWalksFromAroundOneSpotMarkItShutIn() {
+        Pos floor = new Pos(0, 74, 0);
+        Pos tree = new Pos(10, 85, 0);
+        setbacks.stranded(floor, tree, 97, 0);
+        setbacks.stranded(new Pos(1, 74, 2), tree, 97, 40);
+        assertFalse(setbacks.enclosed(floor, 60), "two is not yet a pattern");
+        setbacks.stranded(floor, tree, 97, 80);
+        assertTrue(setbacks.enclosed(floor, 100));
+        assertFalse(setbacks.enclosed(new Pos(40, 74, 0), 100), "the evidence is about there, not here");
+
+        Setbacks reloaded = new Setbacks();
+        reloaded.restore(setbacks.snapshot());
+        assertTrue(reloaded.enclosed(floor, 100), "a save does not forgive it");
+        assertFalse(reloaded.enclosed(floor, 80 + Setbacks.STRANDED_WINDOW_TICKS),
+                "two minutes on, it is forgotten");
+
+        setbacks.stranded(floor, new Pos(50, 64, 50), Setbacks.POCKET_CELLS + 1, 110);
+        assertFalse(setbacks.enclosed(floor, 120),
+                "a search that got far is proof of open ground, and clears what was gathered");
+    }
 }

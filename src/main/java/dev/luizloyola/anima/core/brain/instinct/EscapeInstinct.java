@@ -52,7 +52,7 @@ public final class EscapeInstinct implements Instinct {
      * pays for a survey a second.
      *
      * <p>The cost, knowingly accepted: a body that walls itself in while mining will not notice
-     * until the operation ends.
+     * until the operation ends, or until its walks start failing stranded from where it stands.
      */
     @Override
     public double pressure(BrainContext ctx) {
@@ -60,7 +60,9 @@ public final class EscapeInstinct implements Instinct {
         if (EscapeStep.shortOfAir(ctx)) {
             return pressure(ctx.profile());
         }
-        if (ctx.reshapingGround()) {
+        // Exempt unless its own walks keep failing from here: a settler in a crevice retried an
+        // unreachable tree for good and was never asked (2026-09-26).
+        if (ctx.reshapingGround() && !ctx.percepts().strandedHere()) {
             return 0.0;
         }
         return ctx.percepts().confinement().sealed() ? pressure(ctx.profile()) : 0.0;

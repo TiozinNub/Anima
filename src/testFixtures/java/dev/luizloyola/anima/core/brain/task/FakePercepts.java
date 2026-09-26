@@ -67,6 +67,8 @@ public final class FakePercepts implements Percepts {
     public Surroundings surroundings;
     /** What the legs last found out about being shut in — settable; defaults to nothing known. */
     public Confinement confinement = Confinement.NONE;
+    /** Whether walks keep failing stranded from here — settable; defaults to no. */
+    public boolean strandedHere;
     /** A settler's eyes and arm, unless a test says otherwise. */
     public double eyeHeight = 1.62;
     public double crouchedEyeHeight = 1.27;
@@ -239,6 +241,11 @@ public final class FakePercepts implements Percepts {
                 return Optional.ofNullable(cookedById.get(stack.id()));
             }
         };
+    }
+
+    @Override
+    public boolean strandedHere() {
+        return strandedHere;
     }
 
     @Override

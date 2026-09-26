@@ -129,6 +129,14 @@ public interface Percepts {
     }
 
     /**
+     * Whether this body's own walks keep failing stranded from about here — the suspicion that sends
+     * {@link #confinement} looking wider (see {@code Setbacks.enclosed}). Nothing known by default.
+     */
+    default boolean strandedHere() {
+        return false;
+    }
+
+    /**
      * How far above its feet this body's eyes are, in blocks — where every reach and every line of
      * sight starts. Read off the live entity, never a species constant: the entity is the one
      * that knows. The default is a humanoid's, for a rig with no body behind it.

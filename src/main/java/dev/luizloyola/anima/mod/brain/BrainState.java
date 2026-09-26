@@ -296,12 +296,20 @@ public final class BrainState {
             Codec.LONG.fieldOf("tick").forGetter(Setbacks.RefusedMove::tick)
     ).apply(r, Setbacks.RefusedMove::new));
 
+    private static final Codec<Setbacks.Stranded> STRANDED = RecordCodecBuilder.create(w -> w.group(
+            SENSE_POS.fieldOf("from").forGetter(Setbacks.Stranded::from),
+            SENSE_POS.fieldOf("goal").forGetter(Setbacks.Stranded::goal),
+            Codec.LONG.fieldOf("tick").forGetter(Setbacks.Stranded::tick)
+    ).apply(w, Setbacks.Stranded::new));
+
     /** Saves written before 2026-09-25 hold the bare list of setbacks, and read as no moves refused. */
     public static final Codec<Setbacks.State> SETBACKS = Codec.withAlternative(
             RecordCodecBuilder.<Setbacks.State>create(s -> s.group(
                     SETBACK.listOf().fieldOf("entries").forGetter(Setbacks.State::entries),
                     REFUSED_MOVE.listOf().optionalFieldOf("refused", List.of())
-                            .forGetter(Setbacks.State::refused)
+                            .forGetter(Setbacks.State::refused),
+                    STRANDED.listOf().optionalFieldOf("stranded", List.of())
+                            .forGetter(Setbacks.State::stranded)
             ).apply(s, Setbacks.State::new)),
             SETBACK.listOf().xmap(list -> new Setbacks.State(list, List.of()), Setbacks.State::entries));
 

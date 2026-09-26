@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.mod.brain;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.mojang.serialization.JsonOps;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
@@ -97,13 +99,15 @@ class ContinuitySurveyTest {
     }
 
     @Test
-    void theSetbacksAndTheirRefusals() {
+    void everythingTheSetbacksKeep() {
         var setbacks = new dev.luizloyola.anima.core.brain.sense.Setbacks();
         setbacks.record(new Pos(1, 2, 3), dev.luizloyola.anima.core.brain.sense.Setbacks.Kind.WEDGED, 5);
         setbacks.refuse(new Pos(1, 2, 3), new Pos(4, 2, 3), 6);
+        setbacks.stranded(new Pos(1, 2, 3), new Pos(9, 12, 3), 97, 7);
         var saved = BrainState.SETBACKS.encodeStart(JsonOps.INSTANCE, setbacks.snapshot()).getOrThrow();
         var restored = new dev.luizloyola.anima.core.brain.sense.Setbacks();
         restored.restore(BrainState.SETBACKS.parse(JsonOps.INSTANCE, saved).getOrThrow());
         report("setbacks", setbacks, restored);
+        assertEquals(List.of(), StateGraph.capture(setbacks).diff(StateGraph.capture(restored)));
     }
 }

@@ -54,6 +54,18 @@ class EscapeInstinctTest {
         assertEquals(0.0, escape.pressure(ctx));
     }
 
+    /**
+     * Ground work is let off the question — unless its own walks keep failing from here. A settler
+     * in a crevice retried the tree above it for good while its chop kept the drive from asking.
+     */
+    @Test
+    void groundWorkThatKeepsFailingToWalkIsAskedAfterAll() {
+        ctx.percepts.confinement = new Confinement(true, 97);
+        ctx.reshapingGround = true;
+        ctx.percepts.strandedHere = true;
+        assertEquals(EscapeInstinct.pressure(TestSpecies.PROFILE), escape.pressure(ctx));
+    }
+
     @Test
     void theDriveComesBackWhenTheWorkStops() {
         ctx.percepts.confinement = new Confinement(true, 1);

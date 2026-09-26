@@ -160,6 +160,32 @@ public final class PathfinderService {
     }
 
     /**
+     * How far the survey reaches when stranded walks say the body may be shut in: far enough to
+     * see a crevice or a cave pocket whole, which {@link #SURVEY_MARGIN} does not. A one-wide
+     * crevice and the cave under it, 258 cells reaching 35 blocks from where the body stood and 13
+     * below it, read as open at 32 and sealed from 40 (2026-09-26). No wider than one long walk's
+     * capture: {@link #MAX_REACH} plus {@link #HORIZONTAL_MARGIN} each side.
+     */
+    private static final int WIDE_SURVEY_MARGIN = 64;
+    /**
+     * Its reach up and down. Not the routing band: that sits at most 14 under the body and the
+     * crevice's cave went 13 down, inside the five cells of the rim that void a proof.
+     */
+    private static final int WIDE_SURVEY_DEPTH = 32;
+
+    /**
+     * {@link #surveyFrom} over the wide box — only on evidence, since it is a much larger capture.
+     */
+    public static Confinement surveyWide(ServerLevel level, BlockPos start, MoveCapabilities body) {
+        WorldSnapshot snapshot = WorldSnapshot.capture(level,
+                start.offset(-WIDE_SURVEY_MARGIN, -WIDE_SURVEY_DEPTH, -WIDE_SURVEY_MARGIN),
+                start.offset(WIDE_SURVEY_MARGIN, WIDE_SURVEY_DEPTH, WIDE_SURVEY_MARGIN));
+        BlockPos afloat = surfaceStart(snapshot, start, body);
+        return Pathfinder.survey(snapshot, PathRequest.of(afloat.getX(), afloat.getY(),
+                afloat.getZ(), afloat.getX(), afloat.getY(), afloat.getZ(), body));
+    }
+
+    /**
      * Dev-phase trace; the log prefix doubles as proof the search left the server thread.
      *
      * <p>Stamped with {@code who} to tell one agent re-asking a doomed question from many asking

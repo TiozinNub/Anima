@@ -114,8 +114,40 @@ public final class Setbacks {
 
     private final List<RefusedMove> refused = new ArrayList<>();
 
+    /**
+     * How long a stranded walk counts as evidence of being shut in — two minutes. Long enough for a
+     * few jobs to be tried and fail; short enough that a pocket the body has left is forgotten.
+     */
+    public static final int STRANDED_WINDOW_TICKS = 2_400;
+    /**
+     * The largest region a stranded search may have enumerated and still count: a pocket, not a
+     * valley. Under the search's budget by a margin, so a search that stopped here ran out of
+     * places, not of time — open ground exhausts the budget first and never counts.
+     */
+    public static final int POCKET_CELLS = 1_024;
+    /** How close a walk must have started to where the body stands to be evidence about here. */
+    public static final int POCKET_RADIUS = 12;
+    /**
+     * How many stranded walks from around one spot make it read as shut in. Walks, not different
+     * places: a body in a crevice retried the one tree above it for good, each retry re-planned
+     * from the same side, and open ground is kept out by {@link #POCKET_CELLS} — and the wider
+     * survey that has to prove the suspicion — not by variety (2026-09-26).
+     */
+    public static final int STRANDED_WALKS = 3;
+    /** How many are kept: a retry loop adds one every few seconds. */
+    private static final int STRANDED_CAPACITY = 16;
+
+    /** A walk that could not leave where it started, toward a place it could not reach. */
+    public record Stranded(Pos from, Pos goal, long tick) {
+    }
+
+    private final List<Stranded> stranded = new ArrayList<>();
+
     /** Everything this store keeps, for the save. */
-    public record State(List<Setback> entries, List<RefusedMove> refused) {
+    public record State(List<Setback> entries, List<RefusedMove> refused, List<Stranded> stranded) {
+        public State(List<Setback> entries, List<RefusedMove> refused) {
+            this(entries, refused, List.of());
+        }
     }
 
     /**
@@ -150,6 +182,49 @@ public final class Setbacks {
             this.refused.remove(0);
         }
         this.refused.add(new RefusedMove(from, to, now));
+    }
+
+    /**
+     * A walk from {@code from} failed stranded, its search having enumerated {@code cells} cells.
+     * Evidence of being shut in only from a small region: a search that got far is proof the body
+     * is not in a pocket, and clears what was gathered (Luiz, 2026-09-26: stranded walks pile up and
+     * mark the area, roof or no roof, but never open ground).
+     */
+    public void stranded(Pos from, Pos goal, int cells, long now) {
+        prune(now);
+        if (cells > POCKET_CELLS) {
+            this.stranded.clear();
+            return;
+        }
+        if (this.stranded.size() >= STRANDED_CAPACITY) {
+            this.stranded.remove(0);
+        }
+        this.stranded.add(new Stranded(from, goal, now));
+    }
+
+    /**
+     * Whether the walks that failed from around {@code at} lately say it is shut in: at least
+     * {@link #STRANDED_WALKS} stranded from within {@link #POCKET_RADIUS}. A suspicion, not a proof:
+     * the confinement sense takes it as the reason to look wider, and a wider look that finds a way
+     * out clears it.
+     */
+    public boolean enclosed(Pos at, long now) {
+        prune(now);
+        int near = 0;
+        for (Stranded walk : this.stranded) {
+            int dx = walk.from().x() - at.x();
+            int dy = walk.from().y() - at.y();
+            int dz = walk.from().z() - at.z();
+            if (dx * dx + dy * dy + dz * dz <= POCKET_RADIUS * POCKET_RADIUS) {
+                near++;
+            }
+        }
+        return near >= STRANDED_WALKS;
+    }
+
+    /** The body is not shut in after all, or has got out: what was gathered no longer holds. */
+    public void free() {
+        this.stranded.clear();
     }
 
     /**
@@ -189,11 +264,12 @@ public final class Setbacks {
     private void prune(long now) {
         this.entries.removeIf(entry -> now - entry.tick() >= LIFETIME_TICKS);
         this.refused.removeIf(move -> now - move.tick() >= REFUSED_LIFETIME_TICKS);
+        this.stranded.removeIf(walk -> now - walk.tick() >= STRANDED_WINDOW_TICKS);
     }
 
     /** Whether anything is remembered at all (without pruning — a cheap, approximate reading). */
     public boolean isEmpty() {
-        return this.entries.isEmpty() && this.refused.isEmpty();
+        return this.entries.isEmpty() && this.refused.isEmpty() && this.stranded.isEmpty();
     }
 
     /** One line for the debug readout: how much trouble, and the worst of it. */
@@ -218,7 +294,8 @@ public final class Setbacks {
 
     /** Everything remembered, for the save. Ages are absolute ticks, so they keep fading correctly. */
     public State snapshot() {
-        return new State(List.copyOf(this.entries), List.copyOf(this.refused));
+        return new State(List.copyOf(this.entries), List.copyOf(this.refused),
+                List.copyOf(this.stranded));
     }
 
     public void restore(State saved) {
@@ -226,5 +303,7 @@ public final class Setbacks {
         this.entries.addAll(saved.entries());
         this.refused.clear();
         this.refused.addAll(saved.refused());
+        this.stranded.clear();
+        this.stranded.addAll(saved.stranded());
     }
 }

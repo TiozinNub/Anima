@@ -682,6 +682,12 @@ public final class Navigator {
         if (result.isEmpty() || (!result.reachedGoal() && endsWhereWeStand(result))) {
             this.state = State.FAILED;
             this.failure = MoveFailure.STRANDED;
+            if (this.routeFrom != null && this.goal != null) {
+                this.person.setbacks().stranded(
+                        new Pos(this.routeFrom.getX(), this.routeFrom.getY(), this.routeFrom.getZ()),
+                        new Pos(this.goal.getX(), this.goal.getY(), this.goal.getZ()),
+                        result.reachableCells(), level().getGameTime());
+            }
             log("failed", "no path to " + this.goal.toShortString() + " — "
                     + MoveFailure.STRANDED.describe()
                     + (result.sealed() ? ", sealed in " + result.reachableCells() + " cells" : ""));
