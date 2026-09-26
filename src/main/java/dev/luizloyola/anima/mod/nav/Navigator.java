@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.nav;
 
+import dev.luizloyola.anima.compat.nav.LevelGrid;
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.need.Gauge;
@@ -29,7 +30,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -169,6 +169,9 @@ public final class Navigator {
     private int reachableCells;
     /** The snapshot the current path was planned over; the follower reads it for edge awareness. */
     private @Nullable NavGrid grid;
+    /** {@link #liveGrid}'s reader, rebuilt only when the body changes level. */
+    private @Nullable NavGrid liveGrid;
+    private @Nullable ServerLevel liveGridLevel;
     private int index;
     private int stuckTicks;
     private int noMoveTicks;
@@ -1309,7 +1312,7 @@ public final class Navigator {
             Waypoint to = this.path.waypoints().get(i);
             for (CellNeed need : PathIntegrity.edgeNeeds(from, to, body)) {
                 pos.set(need.x(), need.y(), need.z());
-                if (level.isLoaded(pos) && !stillHolds(level, pos, need.need())) {
+                if (level.isLoaded(pos) && !NavGrids.satisfies(liveGrid(level), need)) {
                     return need;
                 }
             }
@@ -1348,22 +1351,16 @@ public final class Navigator {
     }
 
     /**
-     * Whether the live world still satisfies one {@link CellNeed} — the mod-side half, since only
-     * here is there a level to read. {@link CellNeed.Need#FOOTING} alone reads two cells: footing
-     * can be a partial floor in the cell or a full block under it, so a slab laid over the route
-     * reads as the route still holding.
+     * The live world as a {@link NavGrid}, so the follower asks {@link NavGrids#satisfies} — the rule
+     * the planner's routes are held to — instead of a copy of it. The copy drifted: it refused wading
+     * footing the planner allows, and every route through shallow water re-planned every 20 ticks.
      */
-    private static boolean stillHolds(ServerLevel level, BlockPos.MutableBlockPos pos,
-                                      CellNeed.Need need) {
-        CellType here = WorldSnapshot.classifyAt(level, pos);
-        return switch (need) {
-            case CLEAR -> here == CellType.PASSABLE;
-            case WATER -> here == CellType.WATER;
-            case ROOM -> here == CellType.PASSABLE || here == CellType.WATER;
-            case FOOTING -> here == CellType.STEP
-                    || (here == CellType.PASSABLE
-                            && WorldSnapshot.classifyAt(level, pos.move(Direction.DOWN)) == CellType.GROUND);
-        };
+    private NavGrid liveGrid(ServerLevel level) {
+        if (this.liveGrid == null || this.liveGridLevel != level) {
+            this.liveGrid = new LevelGrid(level);
+            this.liveGridLevel = level;
+        }
+        return this.liveGrid;
     }
 
     /**

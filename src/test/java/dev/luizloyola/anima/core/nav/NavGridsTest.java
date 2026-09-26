@@ -57,4 +57,16 @@ class NavGridsTest {
     void besideAWallIsNotAnEdge() {
         assertFalse(nearDrop(AsciiWorld.of("11#"), 1, 1, 0));
     }
+
+    /**
+     * The follower asks this of the live world, so it must say what the planner assumes: a puddle is
+     * floor. A follower with its own copy of the rule refused it and re-planned every 20 ticks.
+     */
+    @Test
+    void aPuddleIsFootingAndOpenWaterIsNot() {
+        AsciiWorld world = AsciiWorld.of("1wW");
+        assertTrue(NavGrids.satisfies(world, new CellNeed(0, 1, 0, CellNeed.Need.FOOTING)));
+        assertTrue(NavGrids.satisfies(world, new CellNeed(1, 0, 0, CellNeed.Need.FOOTING)));
+        assertFalse(NavGrids.satisfies(world, new CellNeed(2, 0, 0, CellNeed.Need.FOOTING)));
+    }
 }

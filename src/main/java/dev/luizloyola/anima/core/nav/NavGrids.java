@@ -73,10 +73,11 @@ public final class NavGrids {
     }
 
     /**
-     * Whether a grid satisfies one {@link CellNeed} — the question the follower asks of the LIVE
-     * world at each new node ({@code Navigator.stillHolds}), asked of a snapshot instead. The pair
-     * must agree; they are separate because the follower must notice where the world has diverged
-     * from the planning grid, so it cannot be handed that grid.
+     * Whether a grid satisfies one {@link CellNeed} — asked by the follower of the LIVE world at each
+     * new node, through a grid over the level rather than the planning grid, since it must notice
+     * where the world has diverged from what was planned on. One rule for both: a follower that kept
+     * its own copy refused the wading footing below, and re-planned every route through shallow water
+     * every 20 ticks (2026-09-25).
      *
      * <p>Asked OF the planning grid it checks a route against its own integrity contract: every
      * edge the search emits must already meet what {@link PathIntegrity} says it needs. A path that
