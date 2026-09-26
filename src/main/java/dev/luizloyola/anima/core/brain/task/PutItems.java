@@ -361,9 +361,17 @@ public final class PutItems implements PrimitiveTask {
         return "put " + spec.name() + " x" + count + " into " + where;
     }
 
-    /** Null for a stow or a deposit, both of which resolve their store at OPEN and persist none. */
+    /** Null for a stow or a deposit, both of which resolve their store at OPEN. */
     public @Nullable Pos at() {
         return fixedAt;
+    }
+
+    /**
+     * The store this run settled on — {@link #at} for a named store, the one chosen at OPEN for a
+     * stow or a deposit, null before that.
+     */
+    public @Nullable Pos store() {
+        return at;
     }
 
     /** Null for a stow, whose selection is "whatever nobody spoke for". */
@@ -392,6 +400,17 @@ public final class PutItems implements PrimitiveTask {
         this.phase = phase;
         this.pause.restore(pauseTicks);
         this.moved = moved;
+        return this;
+    }
+
+    /**
+     * Puts back the store a reloaded run had settled on. Without it a stow saved while moving came
+     * back with none and inserted into nothing, which crashed the server (2026-09-25).
+     */
+    public PutItems settledOn(@Nullable Pos store) {
+        if (store != null) {
+            this.at = store;
+        }
         return this;
     }
 }

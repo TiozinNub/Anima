@@ -382,8 +382,12 @@ public final class AnimaTasks {
                         Codec.INT.fieldOf("pause")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::pauseTicks),
                         Codec.INT.fieldOf("moved")
-                                .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::moved)
-                ).apply(t, (at, spec, count, phase, pause, moved) ->
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PutItems::moved),
+                        // The store a stow or a deposit settled on at OPEN. Added 2026-09-26; a
+                        // save without it settles again, as it always has.
+                        POS.optionalFieldOf("store")
+                                .forGetter(task -> java.util.Optional.ofNullable(task.store()))
+                ).apply(t, (at, spec, count, phase, pause, moved, store) ->
                         (at.isPresent() && spec.isPresent()
                                 ? dev.luizloyola.anima.core.brain.task.PutItems.of(
                                         at.get(), spec.get(), count)
@@ -391,7 +395,8 @@ public final class AnimaTasks {
                                         ? dev.luizloyola.anima.core.brain.task.PutItems.deposit(
                                                 spec.get(), count)
                                         : dev.luizloyola.anima.core.brain.task.PutItems.stow())
-                                .resume(phase, pause, moved))));
+                                .resume(phase, pause, moved)
+                                .settledOn(store.orElse(null)))));
 
         // Both carry a destination since 3a. Optional fields: the 2b flavour writes neither, and a
         // plan saved before the yard existed loads as that flavour without a migration.

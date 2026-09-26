@@ -9,7 +9,9 @@ import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.task.EscapeStep;
 import dev.luizloyola.anima.core.brain.task.FakeContext;
+import dev.luizloyola.anima.core.brain.task.HandlingPhase;
 import dev.luizloyola.anima.core.brain.task.PlaceStation;
+import dev.luizloyola.anima.core.brain.task.PutItems;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.TaskExecutor;
 import dev.luizloyola.anima.core.brain.task.Try;
@@ -87,5 +89,15 @@ class ExecutorContinuityTest {
             }
         }
         assertEquals(List.of(), lost(running(new EscapeStep(), ctx, 2)));
+    }
+
+    /** A stow saved while moving kept its phase and lost its store, and crashed on the next tick. */
+    @Test
+    void aStowMidMoveKeepsTheStoreItSettledOn() {
+        PutItems live = PutItems.stow().resume(HandlingPhase.MOVE, 0, 3).settledOn(new Pos(4, 64, 2));
+        var codec = TaskCodecs.codec();
+        Task restored = codec.parse(JsonOps.INSTANCE,
+                codec.encodeStart(JsonOps.INSTANCE, live).getOrThrow()).getOrThrow();
+        assertEquals(List.of(), StateGraph.capture(live).diff(StateGraph.capture(restored)));
     }
 }
