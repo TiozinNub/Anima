@@ -226,6 +226,11 @@ public final class PathfinderService {
         return start;
     }
 
+    /** The capture a search from {@code start} to {@code goal} plans on — for a restored walk. */
+    public static WorldSnapshot snapshotFor(ServerLevel level, BlockPos start, BlockPos goal) {
+        return sharedSnapshot(level, start, goal);
+    }
+
     private static WorldSnapshot sharedSnapshot(ServerLevel level, BlockPos start, BlockPos goal) {
         return snapshotAround(level, start, goal, HORIZONTAL_MARGIN, true);
     }

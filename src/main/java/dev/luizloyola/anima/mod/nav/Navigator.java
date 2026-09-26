@@ -578,7 +578,13 @@ public final class Navigator {
     /** Polls the in-flight request; the future completes on a worker, so only ever read it here. */
     private void tickPathing() {
         this.person.stopMoving();
-        if (this.pending == null || !this.pending.isDone()) {
+        if (this.pending == null) {
+            // A walk restored mid-search: the search was never saved, so ask again. Waiting on it
+            // left a body in PATHING for good (2026-09-25).
+            requestPath();
+            return;
+        }
+        if (!this.pending.isDone()) {
             return;
         }
         CompletableFuture<Path> done = this.pending;
@@ -1446,8 +1452,9 @@ public final class Navigator {
     }
 
     /**
-     * Puts a walk back. The grid is left null on purpose: the follower asks for one when it needs
-     * it, and rebuilding it from the restored world gives back the same grid.
+     * Puts a walk back. A route being followed gets its grid re-captured here, since nothing else
+     * would until the next re-path and careful mode, the landing brake and the underwater test all
+     * read it; a walk saved mid-search re-asks on its first tick ({@link #tickPathing}).
      */
     public void restore(Walk saved) {
         this.state = Navigator.State.valueOf(saved.state());
@@ -1464,5 +1471,9 @@ public final class Navigator {
         this.integrityCheckedIndex = saved.integrityCheckedIndex();
         this.proactiveRepathCooldown = saved.proactiveRepathCooldown();
         this.failure = MoveFailure.valueOf(saved.failure());
+        this.pending = null;
+        this.grid = this.state == State.FOLLOWING && this.goal != null
+                ? PathfinderService.snapshotFor(level(), startCell(), this.goal)
+                : null;
     }
 }
