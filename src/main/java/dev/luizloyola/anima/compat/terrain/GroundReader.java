@@ -1,10 +1,13 @@
 package dev.luizloyola.anima.compat.terrain;
 
+import dev.luizloyola.anima.core.terrain.FrozenWater;
 import dev.luizloyola.anima.core.terrain.GroundSample;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -12,6 +15,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.material.FluidState;
 
 /**
  * Reads the ground over a box of loaded chunks into a {@link GroundSample}: two heightmap lookups
@@ -21,7 +25,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
  * <p>{@code MOTION_BLOCKING} counts leaves and {@code MOTION_BLOCKING_NO_LEAVES} does not, so the
  * two disagree exactly where a canopy stands. The surface block's own fluid state is what finds
  * water: under leaves {@code OCEAN_FLOOR} answers with the leaves, and water there would read as
- * land at its surface.
+ * land at its surface. Ice has none, and no heightmap sees under it, so a column topped with ice or
+ * snow is walked down ({@link FrozenWater}).
  */
 public final class GroundReader {
 
@@ -89,8 +94,21 @@ public final class GroundReader {
                         // A torch or a rail stops nothing, so it is never the surface: it is the
                         // block on top of it.
                         BlockState above = chunk.getBlockState(at.set(x, surface + 1, z));
-                        if (!ground.getFluidState().isEmpty()) {
+                        FluidState fluid = ground.getFluidState();
+                        if (!fluid.isEmpty()) {
                             flags |= GroundSample.FLUID;
+                            if (fluid.is(FluidTags.LAVA)) {
+                                flags |= GroundSample.LAVA;
+                            }
+                        } else if (ground.is(BlockTags.ICE) || ground.is(BlockTags.SNOW)) {
+                            int column = x;
+                            int row = z;
+                            int water = FrozenWater.surface(y -> frozenCell(chunk, at, column, y, row),
+                                    surface, level.getSeaLevel(), MAX_GROWTH);
+                            if (water != FrozenWater.LAND) {
+                                flags |= GroundSample.FLUID;
+                                surface = water;
+                            }
                         }
                         if (ground.is(USED_GROUND) || above.is(USED_GROUND)) {
                             flags |= GroundSample.USED;
@@ -101,6 +119,20 @@ public final class GroundReader {
             }
         }
         return sample;
+    }
+
+    /** A cell as {@link FrozenWater} reads it, by vanilla tag so modded ice and snow count too. */
+    private static FrozenWater.Cell frozenCell(ChunkAccess chunk, BlockPos.MutableBlockPos at, int x,
+                                               int y, int z) {
+        BlockState state = chunk.getBlockState(at.set(x, y, z));
+        if (state.is(BlockTags.ICE)) {
+            return FrozenWater.Cell.ICE;
+        }
+        if (state.is(BlockTags.SNOW)) {
+            return FrozenWater.Cell.SNOW;
+        }
+        return state.getFluidState().is(FluidTags.WATER) ? FrozenWater.Cell.WATER
+                : FrozenWater.Cell.OTHER;
     }
 
     /** The first block below {@code from} that is ground, or {@code from} when none is near. */

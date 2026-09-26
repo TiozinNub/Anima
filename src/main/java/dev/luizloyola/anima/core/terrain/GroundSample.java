@@ -17,12 +17,17 @@ public final class GroundSample {
 
     /** Leaves stand over this column. */
     public static final int CANOPY = 1;
-    /** Water or lava at the surface, open or under leaves. */
+    /**
+     * Water or lava at the surface, open, under leaves, or frozen — ice over water, or reaching
+     * below the sea's surface. A frozen column's surface is the water's.
+     */
     public static final int FLUID = 2;
     /** The surface block, or the one standing on it, says somebody uses this ground. */
     public static final int USED = 4;
     /** A trunk or a huge mushroom stands here; the surface given is the ground under it. */
     public static final int STANDING = 8;
+    /** The fluid at the surface is lava. Always with {@link #FLUID}. */
+    public static final int LAVA = 16;
 
     private final int minX;
     private final int minZ;
