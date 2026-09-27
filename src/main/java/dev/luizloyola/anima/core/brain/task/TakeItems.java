@@ -22,12 +22,16 @@ import java.util.Optional;
  * instead: nothing to open at all (which drops a claim the world no longer backs), a container with
  * nothing left matching {@code spec} (which corrects the belief), and a pack with no room, which is
  * checked BEFORE the world is touched so a take can never over-reach what the pack can carry.
+ *
+ * <p>A {@code looking} take is a first look into a store nobody had opened: finding none there is
+ * an answer, so it SUCCEEDS, and the look it wrote is what the next choice is made from.
  */
 public final class TakeItems implements PrimitiveTask {
 
     private final Pos at;
     private final ItemSpec spec;
     private final int count;
+    private final boolean looking;
 
     private HandlingPhase phase = HandlingPhase.OPEN;
     private final Pause pause = new Pause();
@@ -35,9 +39,14 @@ public final class TakeItems implements PrimitiveTask {
     private boolean opened;
 
     public TakeItems(Pos at, ItemSpec spec, int count) {
+        this(at, spec, count, false);
+    }
+
+    public TakeItems(Pos at, ItemSpec spec, int count, boolean looking) {
         this.at = at;
         this.spec = spec;
         this.count = Math.max(1, count);
+        this.looking = looking;
     }
 
     @Override
@@ -101,7 +110,7 @@ public final class TakeItems implements PrimitiveTask {
                 Inventory pack = ctx.percepts().inventory();
                 ItemStack next = nextStack(ctx.actuators().containers().contents(at));
                 if (next.isEmpty()) {
-                    return finish(ctx, "nothing left in the store");
+                    return looking ? looked(ctx) : finish(ctx, "nothing left in the store");
                 }
                 // Never reach for more than the pack can hold. take() removes from the world
                 // FIRST, so anything the pack then refuses depends on the container taking it
@@ -116,7 +125,7 @@ public final class TakeItems implements PrimitiveTask {
                 }
                 ItemStack got = ctx.actuators().containers().take(at, spec, want);
                 if (got.isEmpty()) {
-                    return finish(ctx, "nothing left in the store");
+                    return looking ? looked(ctx) : finish(ctx, "nothing left in the store");
                 }
                 ItemStack unplaced = pack.add(got);
                 int landed = got.count() - unplaced.count();
@@ -232,6 +241,15 @@ public final class TakeItems implements PrimitiveTask {
         return TaskStatus.FAILED;
     }
 
+    private TaskStatus looked(BrainContext ctx) {
+        if (moved > 0) {
+            return succeed(ctx);
+        }
+        shut(ctx);
+        ctx.journal().record(Category.BRAIN, "take", "looked in a store: no " + spec.name());
+        return TaskStatus.SUCCESS;
+    }
+
     @Override
     public void cancel(BrainContext ctx) {
         // A pause is only a countdown, and every stack that already landed is real items in the
@@ -256,6 +274,10 @@ public final class TakeItems implements PrimitiveTask {
 
     public int count() {
         return count;
+    }
+
+    public boolean looking() {
+        return looking;
     }
 
     public HandlingPhase phase() {

@@ -368,7 +368,7 @@ public final class CraftFor implements Method {
                 return true;
             }
         }
-        if (new TakeFromStore(lineSpec, line.count()).applicable(ctx)) {
+        if (TakeFromStore.seenHolding(ctx, lineSpec)) {
             return true;
         }
         if (depth <= 0) {

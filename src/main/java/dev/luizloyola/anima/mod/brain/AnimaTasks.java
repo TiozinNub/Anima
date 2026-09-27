@@ -359,9 +359,12 @@ public final class AnimaTasks {
                         Codec.INT.fieldOf("pause")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::pauseTicks),
                         Codec.INT.fieldOf("moved")
-                                .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::moved)
-                ).apply(t, (at, spec, count, phase, pause, moved) ->
-                        new dev.luizloyola.anima.core.brain.task.TakeItems(at, spec, count)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::moved),
+                        // Optional so every save from before a look was a thing reads as a take.
+                        Codec.BOOL.optionalFieldOf("looking", false)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TakeItems::looking)
+                ).apply(t, (at, spec, count, phase, pause, moved, looking) ->
+                        new dev.luizloyola.anima.core.brain.task.TakeItems(at, spec, count, looking)
                                 .resume(phase, pause, moved))));
 
         TaskCodecs.register("anima:put_items", dev.luizloyola.anima.core.brain.task.PutItems.class,

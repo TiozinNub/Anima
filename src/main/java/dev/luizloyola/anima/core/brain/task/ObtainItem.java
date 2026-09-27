@@ -24,7 +24,9 @@ public final class ObtainItem implements AchieveTask {
         /** Everything Anima knows: pick one up, produce it, craft it, or take it from a store. */
         ANY,
         /** Everything except taking it out of a store. */
-        NOT_STORES
+        NOT_STORES,
+        /** Only taking it out of a store — what a hungry body tries before it goes looking. */
+        STORES
     }
 
     private final ItemSpec spec;
@@ -57,18 +59,21 @@ public final class ObtainItem implements AchieveTask {
         this.pursued = java.util.Set.copyOf(pursued);
         this.sources = sources;
         List<Method> ways = new ArrayList<>();
-        // Picking one up is the way Anima always knows: it needs no knowledge of where the
-        // thing came from. Everything else is the consuming mod's to teach.
-        ways.add(new PickUpNearby(spec));
-        ways.addAll(Producers.forSpec(spec));
-        // A literal spec (a crafting ingredient) reaches producers by CONTENT: "any oak log"
-        // intersects what a consumer's logs spec means, so its chop is on this menu too — the
-        // bridge that lets a craft chain end in a felled tree.
-        ItemSpec.literalIds(spec).ifPresent(ids -> ways.addAll(Producers.forItems(ids, spec)));
-        ways.add(new CraftFor(spec, count, this.pursued));
+        // A stores-only roster is one way long whatever the other ways are, so its index 0 holds.
+        if (sources != Sources.STORES) {
+            // Picking one up is the way Anima always knows: it needs no knowledge of where the
+            // thing came from. Everything else is the consuming mod's to teach.
+            ways.add(new PickUpNearby(spec));
+            ways.addAll(Producers.forSpec(spec));
+            // A literal spec (a crafting ingredient) reaches producers by CONTENT: "any oak log"
+            // intersects what a consumer's logs spec means, so its chop is on this menu too — the
+            // bridge that lets a craft chain end in a felled tree.
+            ItemSpec.literalIds(spec).ifPresent(ids -> ways.addAll(Producers.forItems(ids, spec)));
+            ways.add(new CraftFor(spec, count, this.pursued));
+        }
         // Appended AFTER CraftFor on purpose: a saved plan resumes its method by index, so nothing
         // may be inserted above it. Selection is by cost, so last in the list still wins when cheap.
-        ways.add(new TakeFromStore(spec, count, sources == Sources.ANY));
+        ways.add(new TakeFromStore(spec, count, sources != Sources.NOT_STORES));
         this.methods = List.copyOf(ways);
     }
 

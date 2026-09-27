@@ -280,6 +280,8 @@
   "anima.config.aspect.stores.staleness_weight.desc": "Blocks-equivalent added to a store's cost per 100 ticks since it was last looked in. How much this mind distrusts an old memory: higher walks less far on worse information.",
   "anima.config.aspect.stores.full_avoid_ticks": "Full store cooldown",
   "anima.config.aspect.stores.full_avoid_ticks.desc": "Ticks a store found full is left alone. Not a wrong belief to correct — it is full of real things — so only a timer un-blinds it.",
+  "anima.config.aspect.stores.recheck_ticks": "Store re-check wait",
+  "anima.config.aspect.stores.recheck_ticks.desc": "Ticks a look into a store that lacked something keeps a body from looking there again. After that the store is as good as unopened: somebody may have filled it since.",
   "anima.config.expects.bool": "true or false",
   "anima.config.expects.int": "a whole number in [%s, %s]",
   "anima.config.expects.double": "a number in [%s, %s]",

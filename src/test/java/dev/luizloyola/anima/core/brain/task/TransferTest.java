@@ -167,6 +167,25 @@ class TransferTest {
     }
 
     @Test
+    void aFirstLookThatFindsNoneSucceedsAndRemembersIt() {
+        FakeContext ctx = ctxWithBox(List.of(ItemStack.of("minecraft:cobblestone", 9, 64)));
+        ctx.percepts.time = 700L;
+        assertEquals(TaskStatus.SUCCESS, run(new TakeItems(AT, LOGS, 16, true), ctx, 2000),
+                "nobody had opened it, so none is an answer and the round moves on");
+        assertEquals(9, ctx.knowledge.insideOf(AT).orElseThrow().count(
+                ItemSpec.anyOf(java.util.Set.of("minecraft:cobblestone"))));
+        assertTrue(ctx.containers.closed.contains(AT), "and the lid comes back down");
+    }
+
+    @Test
+    void aFirstLookThatCannotOpenStillFails() {
+        FakeContext ctx = ctxWithBox(List.of());
+        ctx.containers.outOfReach.add(AT);
+        assertEquals(TaskStatus.FAILED, run(new TakeItems(AT, LOGS, 16, true), ctx, 2000),
+                "no look happened, so there is no answer to report");
+    }
+
+    @Test
     void takingWithAFullPackFailsWithoutDeletingTheStack() {
         // ContainerAccess.take has already removed the stack from the world by the time the pack
         // is asked to hold it; a full pack must push what does not fit back into the chest, not

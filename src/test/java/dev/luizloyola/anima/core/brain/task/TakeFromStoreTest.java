@@ -5,129 +5,223 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.inv.ItemStack;
+import dev.luizloyola.anima.core.social.PartyId;
+import dev.luizloyola.anima.core.social.Places;
 import dev.luizloyola.anima.core.store.Store;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
- * Taking a thing out of a store a party already filled: applicable only against a body's OWN
- * {@code insideOf} sighting (a remembered place says nothing about contents), gated shut again
- * once that sighting no longer covers the spec, priced at distance plus staleness over every
- * known store, and appended after {@link CraftFor} in {@link ObtainItem}'s method list — new
- * ways are always appended, never inserted, so a saved plan's earlier indices hold.
+ * Taking a thing out of one of the party's stores: only the party's, priced at distance plus the
+ * look's age when it was seen there, at 1.5× distance when nobody has looked, never above that for
+ * age, and ruled out for {@code stores.recheck_ticks} after a look that found none. Appended after
+ * {@link CraftFor} in {@link ObtainItem}'s method list — new ways are always appended, never
+ * inserted, so a saved plan's earlier indices hold.
  */
 class TakeFromStoreTest {
 
     private static final ItemSpec LOGS = ItemSpec.register(
             new ItemSpec("take-from-store-test-logs", id -> id.endsWith("_log")));
 
-    /** Records a store belief at {@code at}, last opened at {@code seenTick}, holding nine logs. */
-    private static void seeStoreAt(FakeContext ctx, Pos at, long seenTick) {
-        ctx.knowledge.note(new PoiMemory(Store.POI, at, Region.of(at), 1, false, seenTick),
-                AgentKnowledge.maxPerKind(ctx.profile()));
-        ctx.knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 9, 64)), seenTick,
+    private final FakeContext ctx = new FakeContext();
+    private final Places places = new Places();
+
+    TakeFromStoreTest() {
+        PartyId party = PartyId.random();
+        places.asks(new Places.Parties() {
+            @Override
+            public Optional<PartyId> current(AgentId who) {
+                return Optional.of(party);
+            }
+
+            @Override
+            public PartyId of(AgentId who) {
+                return party;
+            }
+        });
+        ctx.knowledge.sees(places.viewFor(ctx.self), () -> ctx.percepts.time);
+    }
+
+    private void claim(Pos at) {
+        places.viewFor(ctx.self).foundCommunal(Store.POI, at, 0L);
+    }
+
+    private void look(Pos at, long seenTick, ItemStack... inside) {
+        ctx.knowledge.sawInside(at, List.of(inside), seenTick,
                 AgentKnowledge.maxPerKind(ctx.profile()));
     }
 
-    /** A fresh {@link FakeContext} that already knows one such store. */
-    private static FakeContext ctxKnowing(Pos at, long seenTick, long now) {
-        FakeContext ctx = new FakeContext();
-        seeStoreAt(ctx, at, seenTick);
-        ctx.percepts.time = now;
-        return ctx;
+    /** One of the party's stores, last opened at {@code seenTick}, holding nine logs. */
+    private void storeWithLogs(Pos at, long seenTick) {
+        claim(at);
+        look(at, seenTick, ItemStack.of("minecraft:oak_log", 9, 64));
+    }
+
+    private TakeItems chosen() {
+        return assertInstanceOf(TakeItems.class, new TakeFromStore(LOGS, 4).decompose(ctx).get(1));
+    }
+
+    private double cost() {
+        return new TakeFromStore(LOGS, 4).estimateCost(ctx);
     }
 
     @Test
     void takeFromStoreIsAppendedLast() {
-        // Only pins TakeFromStore's OWN relative position — last among ObtainItem's ways. It
-        // would stay green even if a defect inserted a new way ahead of CraftFor instead of
-        // appending one, since TakeFromStore would still land last either way. The absolute-index
-        // guarantee a saved plan actually depends on is pinned in ObtainItemTest's
+        // Only pins TakeFromStore's OWN relative position — last among ObtainItem's ways. The
+        // absolute-index guarantee a saved plan depends on is pinned in ObtainItemTest's
         // aLiteralIngredientReachesTheConsumersProducerByContent, not here.
         List<Method> methods = new ObtainItem(LOGS, 4, java.util.Set.of()).methods();
         assertTrue(methods.get(methods.size() - 1) instanceof TakeFromStore);
     }
 
     @Test
-    void itIsApplicableOnlyWhenAKnownStoreIsBelievedToHoldTheThing() {
-        FakeContext ctx = new FakeContext();
-        TakeFromStore method = new TakeFromStore(LOGS, 4);
-        assertFalse(method.applicable(ctx), "no store known, nothing to take from");
-
-        Pos at = new Pos(6, 64, 0);
-        ctx.knowledge.note(new PoiMemory(Store.POI, at, Region.of(at), 1, false, 0L), 64);
-        assertFalse(method.applicable(ctx), "a store nobody has opened says nothing about its contents");
-
-        ctx.knowledge.sawInside(at, List.of(ItemStack.of("minecraft:oak_log", 9, 64)), 0L,
-                AgentKnowledge.maxPerKind(ctx.profile()));
-        assertTrue(method.applicable(ctx));
+    void aStoresOnlyObtainHasThisOneWay() {
+        List<Method> methods = new ObtainItem(LOGS, 4, java.util.Set.of(),
+                ObtainItem.Sources.STORES).methods();
+        assertEquals(1, methods.size(), "a saved plan resumes by index, so index 0 must be it");
+        assertInstanceOf(TakeFromStore.class, methods.get(0));
     }
 
     @Test
-    void itIsNotApplicableWhenTheSightingDoesNotCoverTheSpec() {
-        FakeContext ctx = new FakeContext();
+    void aStoreSomebodyElsePlacedIsNeverAWay() {
+        Pos theirs = new Pos(6, 64, 0);
+        ctx.knowledge.note(new PoiMemory(Store.POI, theirs, Region.of(theirs), 1, false, 0L),
+                AgentKnowledge.maxPerKind(ctx.profile()));
+        look(theirs, 0L, ItemStack.of("minecraft:oak_log", 9, 64));
+
+        assertFalse(new TakeFromStore(LOGS, 4).applicable(ctx),
+                "seen full of logs, but not the party's: taking them would be stealing");
+        assertFalse(TakeFromStore.seenHolding(ctx, LOGS));
+    }
+
+    @Test
+    void anUnopenedStoreOfThePartysIsWorthALook() {
         Pos at = new Pos(6, 64, 0);
-        ctx.knowledge.note(new PoiMemory(Store.POI, at, Region.of(at), 1, false, 0L),
-                AgentKnowledge.maxPerKind(ctx.profile()));
-        TakeFromStore method = new TakeFromStore(LOGS, 4);
+        assertFalse(new TakeFromStore(LOGS, 4).applicable(ctx), "no store at all");
 
-        ctx.knowledge.sawInside(at, List.of(ItemStack.of("minecraft:cobblestone", 9, 64)), 0L,
-                AgentKnowledge.maxPerKind(ctx.profile()));
-        assertFalse(method.applicable(ctx), "a chest of cobble is no way to obtain logs");
+        claim(at);
+        assertTrue(new TakeFromStore(LOGS, 4).applicable(ctx));
+        assertEquals(1.5 * 6, cost(), 1e-9);
+        assertTrue(chosen().looking(), "finding none in it is an answer, not a failure");
+    }
 
-        // What TakeItems writes back after the last matching stack comes out — the loop must
-        // close here rather than keep sending a settler back to a chest it just emptied.
-        ctx.knowledge.sawInside(at, List.of(), 0L, AgentKnowledge.maxPerKind(ctx.profile()));
-        assertFalse(method.applicable(ctx), "an emptied sighting is not a way to obtain logs either");
+    @Test
+    void anUnopenedStoreIsNotEvidenceTheThingExists() {
+        claim(new Pos(6, 64, 0));
+        assertFalse(TakeFromStore.seenHolding(ctx, LOGS),
+                "a recipe must not count on logs nobody has seen");
+
+        storeWithLogs(new Pos(-6, 64, 0), 0L);
+        assertTrue(TakeFromStore.seenHolding(ctx, LOGS));
+    }
+
+    @Test
+    void anUnopenedStoreFiveAwayBeatsAKnownOneTenAway() {
+        Pos known = new Pos(10, 64, 0);
+        Pos unopened = new Pos(-5, 64, 0);
+        storeWithLogs(known, 0L);
+        claim(unopened);
+
+        assertEquals(unopened, chosen().at(), "7.5 against 10: opening it may end the trip sooner");
+    }
+
+    @Test
+    void atTheSameDistanceTheKnownStoreWins() {
+        Pos known = new Pos(10, 64, 0);
+        Pos unopened = new Pos(-10, 64, 0);
+        storeWithLogs(known, 0L);
+        claim(unopened);
+
+        TakeItems take = chosen();
+        assertEquals(known, take.at());
+        assertFalse(take.looking(), "a store seen holding logs and found without is a wrong belief");
+    }
+
+    @Test
+    void ageNeverPricesALookAboveNotHavingLooked() {
+        Pos known = new Pos(10, 64, 0);
+        Pos unopened = new Pos(-10, 64, 0);
+        storeWithLogs(known, 0L);
+        claim(unopened);
+        ctx.percepts.time = 1_000_000L;
+
+        assertEquals(15.0, cost(), 1e-9, "capped at the unopened price, not 10 + 5000");
+        assertEquals(known, chosen().at(), "and at that tie the look still wins");
     }
 
     @Test
     void aStaleBeliefCostsMoreThanAFreshOneAtTheSameDistance() {
-        FakeContext fresh = ctxKnowing(new Pos(6, 64, 0), 1000L, 1000L);
-        FakeContext stale = ctxKnowing(new Pos(6, 64, 0), 0L, 1000L);
-        assertTrue(new TakeFromStore(LOGS, 4).estimateCost(stale)
-                        > new TakeFromStore(LOGS, 4).estimateCost(fresh),
+        storeWithLogs(new Pos(6, 64, 0), 0L);
+        ctx.percepts.time = 0L;
+        double fresh = cost();
+        ctx.percepts.time = 1000L;
+        assertTrue(cost() > fresh,
                 "distance alone would send a settler to a chest emptied an hour ago");
     }
 
     @Test
-    void itPicksTheNearerOfTwoEquallyFreshStores() {
-        FakeContext ctx = new FakeContext();
-        Pos near = new Pos(3, 64, 0);
-        Pos far = new Pos(-20, 64, 0);
-        seeStoreAt(ctx, near, 0L);
-        seeStoreAt(ctx, far, 0L);
-        ctx.percepts.time = 0L;
+    void aRecentLookThatFoundNoneRulesTheStoreOut() {
+        Pos at = new Pos(6, 64, 0);
+        claim(at);
+        look(at, 0L, ItemStack.of("minecraft:cobblestone", 9, 64));
+        int recheck = ctx.profile().i(ProfileAspect.STORES_RECHECK_TICKS);
 
-        TakeItems take = assertInstanceOf(TakeItems.class,
-                new TakeFromStore(LOGS, 4).decompose(ctx).get(1));
-        assertEquals(near, take.at(), "the nearer store wins when both beliefs are equally fresh");
+        ctx.percepts.time = recheck - 1;
+        assertFalse(new TakeFromStore(LOGS, 4).applicable(ctx), "a chest of cobble, looked at lately");
+
+        ctx.percepts.time = recheck;
+        assertTrue(new TakeFromStore(LOGS, 4).applicable(ctx),
+                "somebody may have filled it since: as good as unopened");
+        assertEquals(1.5 * 6, cost(), 1e-9);
+        assertTrue(chosen().looking());
+    }
+
+    @Test
+    void aStoreShutToUsIsNotTriedAgainUntilItsTimerRunsOut() {
+        Pos at = new Pos(6, 64, 0);
+        claim(at);
+        ctx.knowledge.avoid(Store.POI, at, 100L);
+
+        assertFalse(new TakeFromStore(LOGS, 4).applicable(ctx),
+                "unopened forever, so it would be the cheapest way every round until the cap");
+        ctx.percepts.time = 100L;
+        assertTrue(new TakeFromStore(LOGS, 4).applicable(ctx));
+    }
+
+    @Test
+    void itPicksTheNearerOfTwoEquallyFreshStores() {
+        Pos near = new Pos(3, 64, 0);
+        storeWithLogs(near, 0L);
+        storeWithLogs(new Pos(-20, 64, 0), 0L);
+
+        assertEquals(near, chosen().at());
     }
 
     @Test
     void itPicksTheFresherOfTwoEquidistantStores() {
-        FakeContext ctx = new FakeContext();
-        Pos stale = new Pos(6, 64, 0);
         Pos fresh = new Pos(-6, 64, 0);
-        seeStoreAt(ctx, stale, 0L);
-        seeStoreAt(ctx, fresh, 1000L);
+        storeWithLogs(new Pos(6, 64, 0), 0L);
+        storeWithLogs(fresh, 1000L);
         ctx.percepts.time = 1000L;
 
-        TakeItems take = assertInstanceOf(TakeItems.class,
-                new TakeFromStore(LOGS, 4).decompose(ctx).get(1));
-        assertEquals(fresh, take.at(), "the fresher belief wins when both stores are equidistant");
+        assertEquals(fresh, chosen().at());
     }
 
     @Test
     void itWalksToTheStoreAndTakesFromIt() {
         Pos at = new Pos(6, 64, 0);
-        FakeContext ctx = ctxKnowing(at, 0L, 0L);
+        storeWithLogs(at, 0L);
         List<Task> plan = new TakeFromStore(LOGS, 4).decompose(ctx);
         assertEquals(2, plan.size());
 
@@ -144,8 +238,7 @@ class TakeFromStoreTest {
 
     @Test
     void anObtainThatMayNotEmptyStoresKeepsTheMethodButNeverPicksIt() {
-        Pos at = new Pos(6, 64, 0);
-        FakeContext ctx = ctxKnowing(at, 0L, 0L);
+        storeWithLogs(new Pos(6, 64, 0), 0L);
 
         List<Method> roster = new ObtainItem(LOGS, 4, java.util.Set.of(),
                 ObtainItem.Sources.NOT_STORES).methods();
@@ -160,14 +253,35 @@ class TakeFromStoreTest {
 
     @Test
     void theSameStoreIsStillFairGameForAnOrdinaryObtain() {
-        Pos at = new Pos(6, 64, 0);
-        FakeContext ctx = ctxKnowing(at, 0L, 0L);
+        storeWithLogs(new Pos(6, 64, 0), 0L);
 
-        // Index 3 assumes a 4-method roster (as ObtainItemTest's LOGS gets, via a registered
-        // producer); this class's own LOGS has no producer, so its roster is only 3 long — the
-        // last method, whatever its index, is still TakeFromStore.
         List<Method> roster = new ObtainItem(LOGS, 4).methods();
         Method last = roster.get(roster.size() - 1);
         assertTrue(last.applicable(ctx), "the default is unchanged: any obtain may raid a store");
+    }
+
+    @Test
+    void aLookThatFindsNoneSendsTheBodyOnToTheKnownStore() {
+        Pos known = new Pos(10, 64, 0);
+        Pos unopened = new Pos(-5, 64, 0);
+        storeWithLogs(known, 0L);
+        claim(unopened);
+        ctx.containers.boxes.put(unopened,
+                new ArrayList<>(List.of(ItemStack.of("minecraft:cobblestone", 9, 64))));
+        ctx.containers.boxes.put(known,
+                new ArrayList<>(List.of(ItemStack.of("minecraft:oak_log", 9, 64))));
+        ctx.mover.setState(MoveState.ARRIVED);
+
+        TaskExecutor executor = new TaskExecutor();
+        executor.run(new ObtainItem(LOGS, 4, java.util.Set.of(), ObtainItem.Sources.STORES), ctx);
+        for (int tick = 0; tick < 400 && executor.isBusy(); tick++) {
+            ctx.percepts.time++;
+            executor.tick(ctx);
+        }
+
+        assertEquals(Optional.of(TaskStatus.SUCCESS), executor.lastStatus());
+        assertEquals(List.of(unopened, known), ctx.containers.opened,
+                "the near chest first, and on to the known one in the same errand");
+        assertEquals(4, ctx.percepts.inventory.count(LOGS.matcher()));
     }
 }

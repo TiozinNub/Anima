@@ -280,6 +280,8 @@
   "anima.config.aspect.stores.staleness_weight.desc": "Equivalente em blocos somado ao custo de um estoque a cada 100 ticks desde a última vez que foi olhado. O quanto esta mente desconfia de uma memória antiga: quanto maior, menos longe anda com base em informação pior.",
   "anima.config.aspect.stores.full_avoid_ticks": "Tempo de espera de estoque cheio",
   "anima.config.aspect.stores.full_avoid_ticks.desc": "Ticks que um estoque encontrado cheio é deixado de lado. Não é uma crença errada a corrigir — está cheio de coisas de verdade — então só um cronômetro o desembaça.",
+  "anima.config.aspect.stores.recheck_ticks": "Espera para olhar de novo um estoque",
+  "anima.config.aspect.stores.recheck_ticks.desc": "Ticks em que uma olhada num estoque que não tinha algo impede o corpo de olhar ali de novo. Depois disso o estoque vale como nunca aberto: alguém pode tê-lo enchido nesse meio-tempo.",
   "anima.config.expects.bool": "true ou false",
   "anima.config.expects.int": "um número inteiro em [%s, %s]",
   "anima.config.expects.double": "um número em [%s, %s]",

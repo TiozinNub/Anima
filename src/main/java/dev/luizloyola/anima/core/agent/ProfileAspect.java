@@ -329,6 +329,11 @@ public final class ProfileAspect {
             Kind.INT, 0, 24_000,
             "Ticks a store found FULL is left alone. Not a wrong belief to correct — it is full of "
                     + "real things — so only a timer un-blinds it.");
+    public static final ProfileAspect STORES_RECHECK_TICKS = register("stores.recheck_ticks",
+            Kind.INT, 0, 24_000,
+            "Ticks a look into a store that lacked something keeps a body from looking there "
+                    + "again. After that the store is as good as unopened: somebody may have "
+                    + "filled it since.");
 
     public static final ProfileAspect UNBURDEN_SLACK_SLOTS =
             register("instincts.unburden_slack_slots", Kind.INT, 0, 36,
