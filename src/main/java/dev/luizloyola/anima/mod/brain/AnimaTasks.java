@@ -296,6 +296,8 @@ public final class AnimaTasks {
         // stream those choices draw from belongs to the body and is saved there.
         TaskCodecs.register("anima:flee", FleeStep.class, MapCodec.unit(FleeStep::new));
         TaskCodecs.register("anima:eat", SatisfyHunger.class, MapCodec.unit(SatisfyHunger::new));
+        TaskCodecs.register("anima:eat_carried", dev.luizloyola.anima.core.brain.task.EatCarried.class,
+                MapCodec.unit(dev.luizloyola.anima.core.brain.task.EatCarried::new));
 
         TaskCodecs.register("anima:place", dev.luizloyola.anima.core.brain.task.PlaceBlock.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

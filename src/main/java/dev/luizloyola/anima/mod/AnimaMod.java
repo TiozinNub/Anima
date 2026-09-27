@@ -69,6 +69,7 @@ public final class AnimaMod implements ModInitializer {
                 server -> dev.luizloyola.anima.compat.inv.Lids.forget());
         // Teaches the plan-codec registry Anima's own tasks, before anything can load a plan.
         dev.luizloyola.anima.mod.brain.AnimaTasks.install();
+        dev.luizloyola.anima.mod.brain.ReadyFoods.install();
         // As the server finishes starting: refuses to run a world whose memory did not load,
         // which vanilla swallows and then overwrites.
         StoreGuard.install();

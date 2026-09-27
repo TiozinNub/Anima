@@ -28,6 +28,11 @@ final class EatSelection {
     private EatSelection() {
     }
 
+    /** Whether the bar has room for anything at all. */
+    static boolean hasRoom(BrainContext ctx) {
+        return ctx.percepts().metabolism().foodLevel() < Metabolism.MAX_FOOD;
+    }
+
     /** The best ready-tier entry to eat, or empty when there is none (includes {@code missing == 0}). */
     static Optional<Inventory.Entry> bestReady(BrainContext ctx) {
         return best(ctx, false);
