@@ -134,16 +134,23 @@ public final class SenseState {
                     Codec.DOUBLE.fieldOf("trendDistance")
                             .forGetter(BeingSensorCore.TrackState::trendDistance),
                     Codec.LONG.fieldOf("trendAt").forGetter(BeingSensorCore.TrackState::trendAt),
+                    // Optional: a track saved before the self anchor existed measures its first
+                    // window from the gap alone, then anchors properly.
+                    Codec.DOUBLE.optionalFieldOf("trendSelfX", Double.NaN)
+                            .forGetter(BeingSensorCore.TrackState::trendSelfX),
+                    Codec.DOUBLE.optionalFieldOf("trendSelfZ", Double.NaN)
+                            .forGetter(BeingSensorCore.TrackState::trendSelfZ),
                     Codec.BOOL.fieldOf("approaching")
                             .forGetter(BeingSensorCore.TrackState::approaching),
                     BEING_ID.optionalFieldOf("herd")
                             .forGetter(track -> Optional.ofNullable(track.herd())),
                     Codec.LONG.fieldOf("attackedAt").forGetter(BeingSensorCore.TrackState::attackedAt)
             ).apply(t, (last, awareness, tier, nextCheck, lastLive, heard, activityAt,
-                        trendDistance, trendAt, approaching, herd, attackedAt) ->
+                        trendDistance, trendAt, trendSelfX, trendSelfZ, approaching, herd,
+                        attackedAt) ->
                     new BeingSensorCore.TrackState(last, awareness, tier, nextCheck, lastLive,
-                            heard, activityAt, trendDistance, trendAt, approaching,
-                            herd.orElse(null), attackedAt)));
+                            heard, activityAt, trendDistance, trendAt, trendSelfX, trendSelfZ,
+                            approaching, herd.orElse(null), attackedAt)));
 
     private static final Codec<BeingSensorCore.HerdState> HERD =
             RecordCodecBuilder.create(h -> h.group(

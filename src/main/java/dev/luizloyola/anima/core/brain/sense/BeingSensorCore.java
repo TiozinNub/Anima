@@ -46,9 +46,9 @@ public final class BeingSensorCore {
 
     /** Ticks a distance anchor must age before the approach trend re-measures — noise floor. */
     private static final int APPROACH_WINDOW_TICKS = 4;
-    /** Blocks-per-tick of closing speed that reads as "moving towards me" (a chasing zombie
-     *  closes at ~0.2); once on, the flag holds until the trend actually stops closing —
-     *  hysteresis so an orbiting mob doesn't flicker events. */
+    /** Blocks-per-tick of the other body's own speed towards me that reads as "moving towards
+     *  me" (a chasing zombie comes at ~0.117); once on, the flag holds until it actually stops
+     *  coming — hysteresis so an orbiting mob doesn't flicker events. */
     private static final double APPROACH_ON_SPEED = 0.04;
 
     // Half-range sentinel: "never" must survive (now - stamp) without overflowing.
@@ -156,6 +156,9 @@ public final class BeingSensorCore {
         /** The approach trend's distance anchor (NaN = not yet measured). */
         double trendDistance = Double.NaN;
         long trendAt;
+        /** Where this body itself stood at {@link #trendAt}, to take its own motion back out. */
+        double trendSelfX = Double.NaN;
+        double trendSelfZ = Double.NaN;
         boolean approaching;
         /** The herd currently absorbing this body — null when reading out individually. */
         BeingId herd;
@@ -201,6 +204,9 @@ public final class BeingSensorCore {
      * frozen, the body asking is not.
      */
     private Pos lastFeet = new Pos(0, 0, 0);
+    /** This body's exact planar position this tick — cells are too coarse for a walking pace. */
+    private double selfX = Double.NaN;
+    private double selfZ = Double.NaN;
 
     /**
      * One perception tick: sweep on the discovery cadence, re-check whoever is due (rays metered),
@@ -209,7 +215,15 @@ public final class BeingSensorCore {
      */
     public List<BeingEvent> tick(Pos feet, double yawDegrees, double pitchDegrees, long now,
                                  BeingWorld world) {
+        return tick(feet, feet.x() + 0.5, feet.z() + 0.5, yawDegrees, pitchDegrees, now, world);
+    }
+
+    /** {@link #tick(Pos, double, double, long, BeingWorld)} with the body's exact position. */
+    public List<BeingEvent> tick(Pos feet, double exactX, double exactZ, double yawDegrees,
+                                 double pitchDegrees, long now, BeingWorld world) {
         this.lastFeet = feet;
+        this.selfX = exactX;
+        this.selfZ = exactZ;
         boolean sweepBeat = now - lastSweepAt >= SWEEP_INTERVAL_TICKS;
         if (sweepBeat) {
             lastSweepAt = now;
@@ -375,7 +389,7 @@ public final class BeingSensorCore {
         }
         track.heardAt = now;
         track.lastLiveAt = now;
-        updateTrend(track, who.distance(), now);
+        updateTrend(track, who.distance(), who.pos(), now);
         Being before = being(track);
         boolean recognizedNow = false;
         if (voice && track.tier == Being.Identified.NONE) {
@@ -470,7 +484,7 @@ public final class BeingSensorCore {
             if (seen || heardFresh) {
                 Being before = being(track);
                 boolean recognizedNow = false;
-                updateTrend(track, fresh.distance(), now);
+                updateTrend(track, fresh.distance(), fresh.pos(), now);
                 // Ears carry position (sound places its source) but not the visual reads: no
                 // gaze, no crouch, no gear through the back of a wall.
                 track.last = seen ? fresh : heardFacts(fresh, track.last);
@@ -784,24 +798,44 @@ public final class BeingSensorCore {
     }
 
     /**
-     * The approach trend: closing distance over time means approaching, so possibly targeting us.
-     * Windowed like the movement classifier (an irregular cadence would alias a raw delta), with
-     * an on-threshold and a stop-closing release so an orbiting mob doesn't flicker.
+     * The approach trend: the other body's own motion towards this one means approaching, so
+     * possibly targeting us. Windowed like the movement classifier (an irregular cadence would
+     * alias a raw delta), with an on-threshold and a stop-coming release so an orbiting mob
+     * doesn't flicker.
+     *
+     * <p>The gap alone mixes both bodies' motion: a threat following at the pace this body flees
+     * reads as one that stopped, and walking up to a still one reads as being charged. So what
+     * this body retreated along the line is added back, which leaves the other's own speed.
      */
-    private static void updateTrend(Track track, double distance, long now) {
+    private void updateTrend(Track track, double distance, Pos at, long now) {
         if (Double.isNaN(track.trendDistance)) {
-            track.trendDistance = distance;
-            track.trendAt = now;
+            anchorTrend(track, distance, now);
             return;
         }
         long dt = now - track.trendAt;
         if (dt < APPROACH_WINDOW_TICKS) {
             return;
         }
-        double closing = (track.trendDistance - distance) / dt;
-        track.approaching = closing >= APPROACH_ON_SPEED || (track.approaching && closing > 0.0);
+        double retreat = 0.0;
+        if (!Double.isNaN(track.trendSelfX) && !Double.isNaN(selfX)) {
+            double awayX = selfX - (at.x() + 0.5);
+            double awayZ = selfZ - (at.z() + 0.5);
+            double length = Math.hypot(awayX, awayZ);
+            if (length > 1e-6) {
+                retreat = ((selfX - track.trendSelfX) * awayX
+                        + (selfZ - track.trendSelfZ) * awayZ) / length;
+            }
+        }
+        double coming = (track.trendDistance - distance + retreat) / dt;
+        track.approaching = coming >= APPROACH_ON_SPEED || (track.approaching && coming > 0.0);
+        anchorTrend(track, distance, now);
+    }
+
+    private void anchorTrend(Track track, double distance, long now) {
         track.trendDistance = distance;
         track.trendAt = now;
+        track.trendSelfX = selfX;
+        track.trendSelfZ = selfZ;
     }
 
     /** The narrator's rule: if any rendered axis of the MASKED reading flipped, say so — once. */
@@ -942,8 +976,9 @@ public final class BeingSensorCore {
     /** One remembered body, as data. */
     public record TrackState(BeingReading last, Being.Awareness awareness, Being.Identified tier,
                              long nextCheckAt, long lastLiveAt, long heardAt, long activityAt,
-                             double trendDistance, long trendAt, boolean approaching,
-                             BeingId herd, long attackedAt) {
+                             double trendDistance, long trendAt, double trendSelfX,
+                             double trendSelfZ, boolean approaching, BeingId herd,
+                             long attackedAt) {
     }
 
     /** One herd: a stable id over a churning member set. */
@@ -960,8 +995,8 @@ public final class BeingSensorCore {
         List<TrackState> savedTracks = new ArrayList<>(tracks.size());
         tracks.forEach((id, track) -> savedTracks.add(new TrackState(track.last, track.awareness,
                 track.tier, track.nextCheckAt, track.lastLiveAt, track.heardAt, track.activityAt,
-                track.trendDistance, track.trendAt, track.approaching, track.herd,
-                track.attackedAt)));
+                track.trendDistance, track.trendAt, track.trendSelfX, track.trendSelfZ,
+                track.approaching, track.herd, track.attackedAt)));
         List<HerdState> savedHerds = new ArrayList<>(herds.size());
         herds.forEach((id, herd) -> savedHerds.add(
                 new HerdState(herd.id, herd.species, List.copyOf(herd.members))));
@@ -983,6 +1018,8 @@ public final class BeingSensorCore {
             track.activityAt = saved.activityAt();
             track.trendDistance = saved.trendDistance();
             track.trendAt = saved.trendAt();
+            track.trendSelfX = saved.trendSelfX();
+            track.trendSelfZ = saved.trendSelfZ();
             track.approaching = saved.approaching();
             track.herd = saved.herd();
             track.attackedAt = saved.attackedAt();

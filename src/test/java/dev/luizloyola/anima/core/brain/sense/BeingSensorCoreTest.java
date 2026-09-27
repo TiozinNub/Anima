@@ -491,6 +491,38 @@ class BeingSensorCoreTest {
                 "and the flip is an event the future flee hook consumes");
     }
 
+    /** One tick with the observer at an exact planar position, on the x = 0.5 line. */
+    private void tickFrom(double selfZ) {
+        world.newTick();
+        sensor.tick(new Pos(0, 64, (int) Math.floor(selfZ)), 0.5, selfZ, 0.0, 0.0, now++, world);
+    }
+
+    @Test
+    void aMonsterFollowingAtTheBodysOwnPaceStillReadsApproaching() {
+        BeingId zombie = world.addCreature(Being.Kind.MONSTER, "zombie", false, true,
+                new Pos(0, 64, 8), 8.0);
+        tickFrom(0.5);
+        for (int i = 1; i <= 40; i++) { // backs off at a zombie's pace; it keeps the gap at 8
+            double selfZ = 0.5 - 0.117 * i;
+            world.move(zombie, new Pos(0, 64, (int) Math.floor(selfZ + 8.0)), 8.0);
+            tickFrom(selfZ);
+        }
+        assertTrue(only().approaching(), "the gap held only because the body ran; it is coming");
+    }
+
+    @Test
+    void walkingUpToAStillMonsterIsNotItApproaching() {
+        BeingId zombie = world.addCreature(Being.Kind.MONSTER, "zombie", false, true,
+                new Pos(0, 64, 12), 12.0);
+        tickFrom(0.5);
+        for (int i = 1; i <= 30; i++) { // walks at it; the zombie never moves
+            double selfZ = 0.5 + 0.2 * i;
+            world.move(zombie, new Pos(0, 64, 12), 12.5 - selfZ);
+            tickFrom(selfZ);
+        }
+        assertFalse(only().approaching(), "the gap closed only because the body walked");
+    }
+
     @Test
     void aWanderingCowNeverFlagsApproaching() {
         BeingId cow = world.addCreature(Being.Kind.PASSIVE, "cow", true, false,

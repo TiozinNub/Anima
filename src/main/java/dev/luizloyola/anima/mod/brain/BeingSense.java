@@ -187,8 +187,9 @@ public final class BeingSense {
             sensor.forget(tracked.getKey());
             return true;
         });
-        List<BeingEvent> events = sensor.tick(feetPos, person.entity().getYHeadRot(),
-                person.entity().getXRot(), now, world);
+        List<BeingEvent> events = sensor.tick(feetPos, person.entity().getX(),
+                person.entity().getZ(), person.entity().getYHeadRot(), person.entity().getXRot(),
+                now, world);
         for (BeingEvent event : events) {
             if (!narratable(event)) {
                 continue;
