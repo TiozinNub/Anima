@@ -1,7 +1,9 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.Surplus;
 import dev.luizloyola.anima.core.store.Store;
 import java.util.List;
@@ -22,21 +24,28 @@ public final class PutAwaySurplus implements AchieveTask {
     private final @Nullable Pos hint;
 
     /**
-     * Cargo slots that make the walk worth taking. One for the standing stow, which hauls any cargo
-     * at all; a project hauling to a named yard sets it higher, so a settler fells several trees
-     * between trips instead of commuting after each one.
+     * Cargo, in full stacks, that makes the walk worth taking. Zero for the standing stow and
+     * unburden, which haul any cargo at all; a project hauling to a named yard sets it higher, so a
+     * settler fells several trees between trips instead of commuting after each one.
      */
     private final int haulLine;
+
+    /**
+     * Free slots above the unburden line at which a haul goes whatever the load: room for the new
+     * kinds one more tree brings in — its logs, sapling, sticks and litter. Below it unburden would
+     * take the pack to the NEAREST store, and the yard would stay empty.
+     */
+    static final int ROOM_MARGIN = 4;
 
     private final List<Method> methods = List.of(new StowAtAStore());
 
     public PutAwaySurplus() {
-        this(null, 1);
+        this(null, 0);
     }
 
     public PutAwaySurplus(@Nullable Pos hint, int haulLine) {
         this.hint = hint;
-        this.haulLine = Math.max(1, haulLine);
+        this.haulLine = Math.max(0, haulLine);
     }
 
     /** The yard this goal is feeding, for the codec; null for the nearest-store flavour. */
@@ -50,13 +59,23 @@ public final class PutAwaySurplus implements AchieveTask {
 
     /**
      * Below the line there is nothing to do — which is what makes "haul when laden" fall out of the
-     * achieve-loop re-asking, rather than anything scheduling it: a settler four slots into a box of
+     * achieve-loop re-asking, rather than anything scheduling it: a settler a stack into a box of
      * trees is already satisfied and simply takes the next one.
+     *
+     * <p>Laden is a load or a pack running out of room. Counted in slots, a mixed wood's logs,
+     * saplings, sticks and litter made three slots of one tree, and settlers walked to the yard with
+     * about fifteen items a trip (in-world, 2026-09-27).
      */
     @Override
     public boolean satisfied(BrainContext ctx) {
-        return Surplus.slots(ctx.percepts().inventory(), ctx.reserved(),
-                stack -> ctx.percepts().foods().of(stack).isPresent()).size() < haulLine;
+        Inventory pack = ctx.percepts().inventory();
+        List<Integer> cargo = Surplus.slots(pack, ctx.reserved(),
+                stack -> ctx.percepts().foods().of(stack).isPresent());
+        if (cargo.isEmpty()) {
+            return true;
+        }
+        int roomLine = ctx.profile().i(ProfileAspect.UNBURDEN_SLACK_SLOTS) + ROOM_MARGIN;
+        return Surplus.stacks(pack, cargo) < haulLine && Surplus.emptySlots(pack) > roomLine;
     }
 
     @Override

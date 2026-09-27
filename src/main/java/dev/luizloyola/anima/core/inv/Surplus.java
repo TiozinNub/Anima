@@ -75,6 +75,19 @@ public final class Surplus {
         return false;
     }
 
+    /**
+     * What those slots carry in full stacks: sixty-four logs is one, and so is sixteen of an item
+     * that stacks to sixteen. The load, where a slot count is only how many kinds.
+     */
+    public static double stacks(Inventory pack, List<Integer> slots) {
+        double load = 0.0;
+        for (int slot : slots) {
+            ItemStack held = pack.get(slot);
+            load += (double) held.count() / held.maxStackSize();
+        }
+        return load;
+    }
+
     /** Empty STORAGE slots — the room a settler actually has for what they are about to pick up. */
     public static int emptySlots(Inventory pack) {
         int empty = 0;

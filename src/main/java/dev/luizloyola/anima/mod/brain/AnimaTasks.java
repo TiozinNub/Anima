@@ -412,7 +412,7 @@ public final class AnimaTasks {
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         POS.optionalFieldOf("hint").forGetter(
                                 task -> java.util.Optional.ofNullable(task.hint())),
-                        Codec.INT.optionalFieldOf("haul_line", 1).forGetter(
+                        Codec.INT.optionalFieldOf("haul_line", 0).forGetter(
                                 dev.luizloyola.anima.core.brain.task.PutAwaySurplus::haulLine)
                 ).apply(t, (hint, line) ->
                         new dev.luizloyola.anima.core.brain.task.PutAwaySurplus(

@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.brain.instinct.UnburdenInstinct;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
@@ -41,7 +43,7 @@ class HaulToYardTest {
         FakeContext ctx = packWithCargo(4);
 
         assertTrue(new PutAwaySurplus(HINT, 12).satisfied(ctx),
-                "four slots with a line of twelve: take the next tree, do not walk");
+                "four stacks with a line of twelve: take the next tree, do not walk");
         assertFalse(new PutAwaySurplus().satisfied(ctx),
                 "2b's flavour still hauls any cargo at all");
     }
@@ -114,5 +116,53 @@ class HaulToYardTest {
         assertFalse(new EnsureStore(HINT).satisfied(ctx),
                 "standing in a chest that is not the yard is not being at the yard");
         assertTrue(new EnsureStore().satisfied(ctx), "2b's flavour is satisfied anywhere");
+    }
+
+    /** One tree in a mixed wood, as the pack held it on 2026-09-27: five kinds, sixteen items. */
+    private static FakeContext packAfterOneTree() {
+        FakeContext ctx = new FakeContext();
+        Inventory pack = ctx.percepts.inventory();
+        pack.set(0, ItemStack.of("minecraft:oak_log", 5, 64));
+        pack.set(1, ItemStack.of("minecraft:birch_log", 4, 64));
+        pack.set(2, ItemStack.of("minecraft:oak_sapling", 2, 64));
+        pack.set(3, ItemStack.of("minecraft:stick", 3, 64));
+        pack.set(4, ItemStack.of("minecraft:leaf_litter", 2, 64));
+        return ctx;
+    }
+
+    @Test
+    void aSlotIsNotAStack() {
+        assertTrue(new PutAwaySurplus(HINT, 3).satisfied(packAfterOneTree()),
+                "five kinds of one tree are a quarter of a stack, not five slots over a line of three");
+    }
+
+    /** {@code empty} storage slots free, every other one holding a single item. */
+    private static FakeContext packOfOnes(int empty) {
+        FakeContext ctx = new FakeContext();
+        Inventory pack = ctx.percepts.inventory();
+        for (int slot = 0; slot < Inventory.ARMOR_START - empty; slot++) {
+            pack.set(slot, ItemStack.of("minecraft:kind_" + slot, 1, 64));
+        }
+        return ctx;
+    }
+
+    @Test
+    void aPackRunningOutOfRoomGoesWhateverTheLoad() {
+        int roomLine = new FakeContext().profile.i(ProfileAspect.UNBURDEN_SLACK_SLOTS)
+                + PutAwaySurplus.ROOM_MARGIN;
+        assertTrue(new PutAwaySurplus(HINT, 3).satisfied(packOfOnes(roomLine + 1)));
+        assertFalse(new PutAwaySurplus(HINT, 3).satisfied(packOfOnes(roomLine)),
+                "a pack of odds and ends is laden by room, not by weight");
+    }
+
+    @Test
+    void wheneverUnburdenWouldBidTheYardHaulIsAlreadyDue() {
+        // Unburden stows at the NEAREST store; the yard haul has to have gone first.
+        for (int empty = 0; empty <= Inventory.ARMOR_START; empty++) {
+            FakeContext ctx = packOfOnes(empty);
+            if (new UnburdenInstinct().pressure(ctx) > 0.0) {
+                assertFalse(new PutAwaySurplus(HINT, 3).satisfied(ctx), "empty=" + empty);
+            }
+        }
     }
 }
