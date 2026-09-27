@@ -62,7 +62,13 @@ public final class BeingViewer {
     /** Stops narrating; false when the person wasn't being watched. */
     public static boolean unwatch(MinecraftServer server, AgentId person) {
         Map<AgentId, UUID> watched = WATCHERS.get(server);
-        return watched != null && watched.remove(person) != null;
+        if (watched == null || watched.remove(person) == null) {
+            return false;
+        }
+        if (watched.isEmpty()) {
+            WATCHERS.remove(server); // keeps onEvent's empty check exact
+        }
+        return true;
     }
 
     /**
@@ -72,6 +78,10 @@ public final class BeingViewer {
      */
     static void onEvent(MinecraftServer server, AgentId person, String personName,
                         Pronouns gender, BeingEvent event) {
+        // Nearly always nobody. The lookups alone were 1.6% of the tick with 90 bodies.
+        if (WATCHERS.isEmpty()) {
+            return;
+        }
         Map<AgentId, UUID> watched = WATCHERS.get(server);
         UUID viewer = watched == null ? null : watched.get(person);
         if (viewer == null) {
