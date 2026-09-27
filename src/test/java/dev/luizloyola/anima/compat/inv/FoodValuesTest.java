@@ -7,9 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.HolderLookup;
+//? if >=26.1 {
 import net.minecraft.core.component.DataComponentInitializers;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+//?}
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.food.FoodProperties;
@@ -29,13 +31,20 @@ class FoodValuesTest {
     static void bootstrapMinecraft() {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
+        //? if >=26.3 {
+        /*registries = VanillaRegistries.createWorldLookup();
+        *///?} else {
         registries = VanillaRegistries.createLookup();
+        //?}
         // Item defaults are bound by a server's resource load, not by Bootstrap. This is how
-        // vanilla's own components report binds them without one.
+        // vanilla's own components report binds them without one. Before 26.1 an item carries
+        // its defaults from construction.
+        //? if >=26.1 {
         if (!Items.APPLE.builtInRegistryHolder().areComponentsBound()) {
             BuiltInRegistries.DATA_COMPONENT_INITIALIZERS.build(registries)
                     .forEach(DataComponentInitializers.PendingComponents::apply);
         }
+        //?}
     }
 
     private static ItemStack core(net.minecraft.world.item.ItemStack stack) {
