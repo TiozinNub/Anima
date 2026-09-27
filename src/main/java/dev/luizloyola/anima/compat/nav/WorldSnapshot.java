@@ -249,6 +249,11 @@ public final class WorldSnapshot implements NavGrid {
     private void bakeSection(Level level, LevelChunkSection section, BlockPos.MutableBlockPos pos,
             int x0, int x1, int z0, int z1, int y0, int y1) {
         boolean onlyAir = section.hasOnlyAir();
+        // Most of what is not air comes in runs of one state, and blockstates are interned, so the
+        // last state's verdict answers the next cell without the table's id lookup (1.8 s of a
+        // 60 s crowd profile, 2026-09-27). A positional verdict is about its cell, so never reused.
+        BlockState last = null;
+        int lastVerdict = 0;
         for (int y = y0; y <= y1; y++) {
             for (int z = z0; z <= z1; z++) {
                 // Index of x = 0 in this row, so a cell is row + x with no per-cell arithmetic.
@@ -265,7 +270,14 @@ public final class WorldSnapshot implements NavGrid {
                         continue;
                     }
                     pos.set(x, y, z);
-                    int verdict = verdictAt(state, level, pos);
+                    int verdict;
+                    if (state == last) {
+                        verdict = lastVerdict;
+                    } else {
+                        verdict = verdictAt(state, level, pos);
+                        last = (verdict & POSITIONAL) != 0 ? null : state;
+                        lastVerdict = verdict;
+                    }
                     byte packed = placed(verdict, state, level, pos);
                     this.cells[row + x] = packed;
                     if ((packed & TYPE_MASK) == DOOR_ORDINAL) {
