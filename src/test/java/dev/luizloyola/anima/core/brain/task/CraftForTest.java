@@ -249,6 +249,38 @@ class CraftForTest {
     }
 
     @Test
+    void anUnopenedChestIsNotStoneThatCanBeHadNow() {
+        // As above, with one of the party's chests nearby that nobody has opened. Worth a look,
+        // but no evidence of stone: counted as a way, both bills would tie and stone would win.
+        book(stoneAxeNeedingTable(), axeNeedingTable(), planksFromLog());
+        Producers.register(LOGS, wanted -> new Way(true));
+        Producers.register(COBBLE, wanted -> new Way(false));
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:stick", 2, 64));
+        dev.luizloyola.anima.core.social.Places places = new dev.luizloyola.anima.core.social.Places();
+        dev.luizloyola.anima.core.social.PartyId party = dev.luizloyola.anima.core.social.PartyId.random();
+        places.asks(new dev.luizloyola.anima.core.social.Places.Parties() {
+            @Override
+            public Optional<dev.luizloyola.anima.core.social.PartyId> current(AgentId who) {
+                return Optional.of(party);
+            }
+
+            @Override
+            public dev.luizloyola.anima.core.social.PartyId of(AgentId who) {
+                return party;
+            }
+        });
+        ctx.knowledge.sees(places.viewFor(ctx.self), () -> ctx.percepts.time);
+        places.viewFor(ctx.self).foundCommunal(dev.luizloyola.anima.core.store.Store.POI,
+                new dev.luizloyola.anima.core.brain.sense.Pos(4, 64, 0), 0L);
+        ItemSpec anyAxe = ItemSpec.anyOf(Set.of("minecraft:wooden_axe", "minecraft:stone_axe"));
+
+        List<Task> plan = new CraftFor(anyAxe, 1, Set.of()).decompose(ctx);
+
+        assertEquals("minecraft:wooden_axe",
+                ((CraftStep) plan.get(plan.size() - 1)).recipe().outputId());
+    }
+
+    @Test
     void notApplicableWithoutAnyRecipe() {
         assertFalse(new CraftFor(PLANKS, 4, Set.of()).applicable(ctx), "empty book");
     }
