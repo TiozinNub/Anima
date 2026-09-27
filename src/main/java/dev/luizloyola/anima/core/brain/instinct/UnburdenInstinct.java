@@ -35,21 +35,23 @@ public final class UnburdenInstinct implements Instinct {
 
     @Override
     public double pressure(BrainContext ctx) {
+        // Room first. Surplus walks every stack, and asked of every body on every tick it was 5.8%
+        // of a 90-body tick (2026-09-27), for packs that had room and would have bid zero anyway.
+        int empty = Surplus.emptySlots(ctx.percepts().inventory());
+        // A pack with no empty slots can still absorb more of a kind it part-holds, so "0 empty"
+        // is not literally "cannot lift anything" — this fires slightly early on purpose. Being
+        // early costs one trip; being late strands a settler beside a log they cannot pick up.
+        int slack = ctx.profile().i(ProfileAspect.UNBURDEN_SLACK_SLOTS);
+        if (empty > 0 && (empty > TIGHT.length || empty > slack)) {
+            return 0.0;
+        }
         if (Surplus.slots(ctx.percepts().inventory(), ctx.reserved(),
                 stack -> ctx.percepts().foods().of(stack).isPresent()).isEmpty()) {
             // Nothing to shed. Bidding here would win the wheel to run a goal that is already
             // satisfied, fail, and burn a cooldown on a body that is merely carrying a lot.
             return 0.0;
         }
-        int empty = Surplus.emptySlots(ctx.percepts().inventory());
-        if (empty == 0) {
-            return STUCK;
-        }
-        // A pack with no empty slots can still absorb more of a kind it part-holds, so "0 empty"
-        // is not literally "cannot lift anything" — this fires slightly early on purpose. Being
-        // early costs one trip; being late strands a settler beside a log they cannot pick up.
-        int slack = ctx.profile().i(ProfileAspect.UNBURDEN_SLACK_SLOTS);
-        return empty <= TIGHT.length && empty <= slack ? TIGHT[empty - 1] : 0.0;
+        return empty == 0 ? STUCK : TIGHT[empty - 1];
     }
 
     @Override
