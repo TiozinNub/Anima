@@ -84,6 +84,17 @@ public final class PoiSensorCore {
     private RegionCache.Key activeKey;
     /** Ray-blocked columns awaiting another look: when each is due, and its attempt count. */
     private final java.util.Map<Column, long[]> rayRetries = new java.util.HashMap<>();
+    /**
+     * The same retries in the order they fall due. Every one waits {@link #RAY_RETRY_DELAY_TICKS},
+     * so booking order is due order and a plain queue needs no sorting. A booking whose entry was
+     * since cleared or re-booked is stale, and skipped when it comes up.
+     */
+    private final Deque<Booked> retryQueue = new ArrayDeque<>();
+    /** When {@link #dropSpentRetries} next runs. */
+    private long retrySweepAt;
+
+    private record Booked(Column column, long due) {
+    }
 
     /** A sensor that shares nothing — its own scans, its own shapes. Tests, and any lone body. */
     public PoiSensorCore(AgentKnowledge knowledge, AgentProfile profile) {
@@ -138,22 +149,19 @@ public final class PoiSensorCore {
             }
             pending.addLast(column);
         }
-        // Due retries jump the queue — near, and already half-investigated. A spent entry
-        // (attempts at cap) stays PARKED in the map, blocking a fresh cycle until they leave and
-        // re-enter range; once out of range it is dropped, since re-entering clears it anyway.
-        // Kept, they piled up behind a wanderer for as long as it was loaded, and this loop
-        // walked every one of them each tick.
-        long rangeSq = (long) CrescentSampler.radius(profile) * CrescentSampler.radius(profile);
-        for (var it = rayRetries.entrySet().iterator(); it.hasNext(); ) {
-            var entry = it.next();
-            long[] retry = entry.getValue();
-            if (retry[0] <= now) {
-                pending.addFirst(entry.getKey());
+        // Due retries jump the queue — near, and already half-investigated. Only what is due is
+        // touched: walking every retry each tick was 2.4% of a 59-body tick (2026-09-27).
+        while (!retryQueue.isEmpty() && retryQueue.peekFirst().due() <= now) {
+            Booked booked = retryQueue.pollFirst();
+            long[] retry = rayRetries.get(booked.column());
+            if (retry != null && retry[0] == booked.due()) {
+                pending.addFirst(booked.column());
                 retry[0] = Long.MAX_VALUE; // rescheduled only if the ray fails again
-            } else if (retry[0] == Long.MAX_VALUE && retry[1] >= RAY_RETRY_MAX
-                    && horizontalDistSq(entry.getKey(), feet) > rangeSq) {
-                it.remove();
             }
+        }
+        if (now >= retrySweepAt) {
+            dropSpentRetries(feet);
+            retrySweepAt = now + RAY_RETRY_DELAY_TICKS;
         }
         List<SenseEvent> events = new ArrayList<>();
         // One wallet for the whole tick, read once — a reload mid-tick must not let a Person
@@ -224,6 +232,18 @@ public final class PoiSensorCore {
         return rayRetries.size();
     }
 
+    /**
+     * A spent entry (attempts at cap) stays PARKED in the map, blocking a fresh cycle until they
+     * leave and re-enter range; once out of range it goes, since re-entering clears it anyway.
+     * Kept, they piled up behind a wanderer for as long as it was loaded.
+     */
+    private void dropSpentRetries(Pos feet) {
+        long rangeSq = (long) CrescentSampler.radius(profile) * CrescentSampler.radius(profile);
+        rayRetries.entrySet().removeIf(entry -> entry.getValue()[0] == Long.MAX_VALUE
+                && entry.getValue()[1] >= RAY_RETRY_MAX
+                && horizontalDistSq(entry.getKey(), feet) > rangeSq);
+    }
+
     private static long horizontalDistSq(Column column, Pos feet) {
         long dx = (long) column.x() - feet.x();
         long dz = (long) column.z() - feet.z();
@@ -284,6 +304,7 @@ public final class PoiSensorCore {
             if (retry[1] < RAY_RETRY_MAX) {
                 retry[0] = now + RAY_RETRY_DELAY_TICKS;
                 retry[1]++;
+                retryQueue.addLast(new Booked(column, retry[0]));
             }
             return reads;
         }

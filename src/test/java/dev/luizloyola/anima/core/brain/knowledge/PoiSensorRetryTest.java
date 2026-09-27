@@ -8,6 +8,8 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.SpeciesProfile;
 import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,8 +70,31 @@ class PoiSensorRetryTest {
         }
         assertTrue(sensor.retriesHeld() > 0, "spent retries stay parked while still in range");
 
-        sensor.tick(FAR, 0.0, SPENT + 1, probe);
+        for (int tick = SPENT + 1; tick <= SPENT + PoiSensorCore.RAY_RETRY_DELAY_TICKS; tick++) {
+            sensor.tick(FAR, 0.0, tick, probe);
+        }
         assertEquals(0, sensor.retriesHeld(), "and go once the body has left them behind");
+    }
+
+    /** The queue that replaced the per-tick walk has to keep the schedule the walk kept. */
+    @Test
+    void anOverlookedSeedIsLookedAtAgainOnScheduleAndThenLeftAlone() {
+        FakeProbe probe = hiddenOak();
+        PoiSensorCore sensor = new PoiSensorCore(new AgentKnowledge(), EYED);
+        Pos crownTop = new Pos(3, 68, 0);
+        List<Integer> looks = new ArrayList<>();
+        for (int tick = 1; tick <= SPENT * 2; tick++) {
+            for (SenseEvent event : sensor.tick(HERE, 0.0, tick, probe)) {
+                if (event.type() == SenseEvent.Type.OVERLOOKED && event.anchor().equals(crownTop)) {
+                    looks.add(tick);
+                }
+            }
+        }
+        assertEquals(1 + PoiSensorCore.RAY_RETRY_MAX, looks.size(), "first look, then every retry: " + looks);
+        for (int i = 1; i < looks.size(); i++) {
+            assertEquals(PoiSensorCore.RAY_RETRY_DELAY_TICKS, looks.get(i) - looks.get(i - 1),
+                    "retries a delay apart: " + looks);
+        }
     }
 
     @Test
