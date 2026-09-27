@@ -34,7 +34,7 @@ class EnsureStoreTest {
     void walkingIsPricedAtTheDistanceAndBuildingIsFlat() {
         FakeContext ctx = new FakeContext();
         ctx.percepts.position = new Pos(0, 64, 0);
-        remember(ctx, Store.POI, new Pos(50, 64, 0));
+        ctx.claim(Store.POI, new Pos(50, 64, 0));
 
         EnsureStore goal = new EnsureStore();
         Method walk = goal.methods().get(0);
@@ -136,7 +136,7 @@ class EnsureStoreTest {
         ctx.percepts.position = new Pos(0, 64, 0);
         ctx.percepts.time = 1_000L;
         Pos stuffed = new Pos(5, 64, 0);
-        remember(ctx, Store.POI, stuffed);
+        ctx.claim(Store.POI, stuffed);
         ctx.knowledge.avoid(Store.POI, stuffed, 2_000L);
 
         EnsureStore goal = new EnsureStore();
@@ -153,7 +153,7 @@ class EnsureStoreTest {
         ctx.percepts.position = new Pos(0, 64, 0);
         ctx.percepts.time = 3_000L;
         Pos stuffed = new Pos(5, 64, 0);
-        remember(ctx, Store.POI, stuffed);
+        ctx.claim(Store.POI, stuffed);
         ctx.knowledge.avoid(Store.POI, stuffed, 2_000L);
 
         assertTrue(new EnsureStore().methods().get(0).applicable(ctx),
@@ -202,7 +202,7 @@ class EnsureStoreTest {
         ctx.percepts.time = 1_000L;
         Pos yard = new Pos(10, 64, 10);
         ctx.percepts.blocks.set(yard.x(), yard.y(), yard.z(), Store.BLOCK);
-        remember(ctx, Store.POI, yard);
+        ctx.claim(Store.POI, yard);
         ctx.knowledge.avoid(Store.POI, yard, 2_000L); // found full: a second one IS wanted here
 
         Pos spot = placedAt(new EnsureStore(yard).methods().get(1).decompose(ctx));
@@ -221,7 +221,7 @@ class EnsureStoreTest {
         ctx.percepts.position = new Pos(0, 64, 0);
         Pos yard = new Pos(10, 64, 10);
         ctx.percepts.blocks.set(yard.x(), yard.y(), yard.z(), Store.BLOCK);
-        remember(ctx, Store.POI, yard);
+        ctx.claim(Store.POI, yard);
 
         EnsureStore goal = new EnsureStore(yard);
 
@@ -233,6 +233,20 @@ class EnsureStoreTest {
     }
 
     @Test
+    void somebodyElsesChestAtTheYardIsNotTheYard() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(0, 64, 0);
+        Pos yard = new Pos(10, 64, 10);
+        ctx.percepts.blocks.set(yard.x(), yard.y(), yard.z(), Store.BLOCK);
+        remember(ctx, Store.POI, yard);
+
+        EnsureStore goal = new EnsureStore(yard);
+
+        assertFalse(goal.methods().get(0).applicable(ctx), "not theirs to fill");
+        assertTrue(goal.methods().get(1).applicable(ctx), "so the party opens its own");
+    }
+
+    @Test
     void aHintedYardAlwaysHasExactlyOneWayOpen() {
         Pos yard = new Pos(10, 64, 10);
         for (boolean chestThere : new boolean[]{false, true}) {
@@ -240,7 +254,7 @@ class EnsureStoreTest {
             ctx.percepts.position = new Pos(0, 64, 0);
             if (chestThere) {
                 ctx.percepts.blocks.set(yard.x(), yard.y(), yard.z(), Store.BLOCK);
-                remember(ctx, Store.POI, yard);
+                ctx.claim(Store.POI, yard);
             }
             EnsureStore goal = new EnsureStore(yard);
 

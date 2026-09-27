@@ -7,9 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
-import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.inv.ItemCall;
-import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.ArmorType;
 import dev.luizloyola.anima.core.inv.Inventory;
@@ -48,7 +46,7 @@ class TransferTest {
     private FakeContext ctxStandingAtBox() {
         FakeContext ctx = ctxWithBox(List.of());
         ctx.percepts.position = new Pos(AT.x(), AT.y(), AT.z());
-        ctx.knowledge.note(new PoiMemory(Store.POI, AT, Region.of(AT), 1, false, 0L), 64);
+        ctx.claim(Store.POI, AT);
         return ctx;
     }
 
@@ -112,7 +110,7 @@ class TransferTest {
     void stowingOutOfReachOfAnyStoreFailsWithoutTouchingTheBelief() {
         FakeContext ctx = ctxWithBox(List.of());
         ctx.percepts.position = new Pos(100, 64, 100);
-        ctx.knowledge.note(new PoiMemory(Store.POI, AT, Region.of(AT), 1, false, 0L), 64);
+        ctx.claim(Store.POI, AT);
         ctx.percepts.inventory().set(0, ItemStack.of("minecraft:oak_log", 64, 64));
 
         assertEquals(TaskStatus.FAILED, run(PutItems.stow(), ctx, 4000));
@@ -599,7 +597,7 @@ class TransferTest {
         FakeContext ctx = new FakeContext(); // no box at AT — somebody mined it
         ctx.percepts.position = new Pos(AT.x() + 1, AT.y(), AT.z());
         int cap = AgentKnowledge.maxPerKind(ctx.profile());
-        ctx.knowledge.note(new PoiMemory(Store.POI, AT, Region.of(AT), 1, false, 0L), cap);
+        ctx.claim(Store.POI, AT);
         ctx.knowledge.sawInside(AT, List.of(ItemStack.of("minecraft:oak_log", 9, 64)), 0L, cap);
         return ctx;
     }

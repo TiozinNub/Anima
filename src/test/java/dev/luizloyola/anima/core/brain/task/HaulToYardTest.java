@@ -6,8 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.instinct.UnburdenInstinct;
-import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
-import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.ItemStack;
@@ -34,7 +32,7 @@ class HaulToYardTest {
 
     /** A chest the body remembers AND the world backs — `standingAtOne` re-probes and disproves. */
     private static void remember(FakeContext ctx, Pos at) {
-        ctx.knowledge.note(new PoiMemory(Store.POI, at, Region.of(at), 1, false, 0L), 64);
+        ctx.claim(Store.POI, at);
         ctx.percepts.blocks.set(at.x(), at.y(), at.z(), Store.BLOCK);
     }
 

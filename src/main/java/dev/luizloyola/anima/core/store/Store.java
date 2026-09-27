@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.knowledge.GrowthRule;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.social.PlaceRow;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -93,7 +94,21 @@ public final class Store {
     }
 
     /**
-     * Whether a store this body KNOWS about stands within reach right now. The remembered anchor
+     * The stores this body may open, to fill or to empty: its party's claims, never a chest it has
+     * only seen — somebody else's chest is not theirs to use (decision 15,
+     * {@code 2026-09-24-directions-design.md}).
+     */
+    public static List<PoiMemory> ours(BrainContext ctx) {
+        long now = ctx.percepts().time();
+        List<PoiMemory> out = new ArrayList<>();
+        for (PlaceRow row : ctx.knowledge().places().all(POI)) {
+            out.add(row.toMemory(now));
+        }
+        return out;
+    }
+
+    /**
+     * Whether one of {@link #ours} stands within reach right now. The remembered anchor
      * is re-read through the probe, and a claim the world no longer backs (broken, burned) is
      * disproven on the spot — dropped from the party's claims, not just this body's sighting,
      * since a placed chest belongs to the party. One probe read on the happy path; no memory, no
@@ -101,7 +116,8 @@ public final class Store {
      */
     public static boolean standingAtOne(BrainContext ctx) {
         Pos here = ctx.percepts().position();
-        Optional<PoiMemory> known = ctx.knowledge().nearest(POI, here);
+        Optional<PoiMemory> known = ours(ctx).stream()
+                .min(java.util.Comparator.comparingDouble(memory -> distance(memory.anchor(), here)));
         if (known.isEmpty() || distance(known.get().anchor(), here) > REACH) {
             return false;
         }
@@ -137,7 +153,7 @@ public final class Store {
         }
     }
 
-    /** The nearest remembered store, wherever it stands. */
+    /** The nearest of {@link #ours}, wherever it stands. */
     public static Optional<PoiMemory> nearestKnown(BrainContext ctx) {
         // Avoided stores are skipped, which is what makes a full chest self-correcting: the
         // deposit marks it, the next round of the achieve-goal cannot see it, and the body either
@@ -149,7 +165,7 @@ public final class Store {
         // avoid-mark is a preference about where to go next.
         long now = ctx.percepts().time();
         Pos here = ctx.percepts().position();
-        return ctx.knowledge().all(POI).stream()
+        return ours(ctx).stream()
                 .filter(memory -> !ctx.knowledge().isAvoided(POI, memory.anchor(), now))
                 .min(java.util.Comparator.comparingDouble(
                         memory -> distance(memory.anchor(), here)));

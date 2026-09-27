@@ -2,8 +2,6 @@ package dev.luizloyola.anima.core.brain.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
-import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.ItemCall;
 import dev.luizloyola.anima.core.inv.ItemSpec;
@@ -29,7 +27,7 @@ class PutItemsTest {
         Pos chest = new Pos(2, 64, 0);
         ctx.percepts.position = new Pos(2, 64, 1);
         ctx.containers.boxes.put(chest, new java.util.ArrayList<>());
-        ctx.knowledge.note(new PoiMemory(Store.POI, chest, Region.of(chest), 1, false, 0L), 64);
+        ctx.claim(Store.POI, chest);
         ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 12, 64));
 
         PutItems deposit = PutItems.deposit(LOGS, 12);
@@ -48,7 +46,7 @@ class PutItemsTest {
         Pos chest = new Pos(2, 64, 0);
         ctx.percepts.position = new Pos(2, 64, 1);
         ctx.containers.boxes.put(chest, new java.util.ArrayList<>());
-        ctx.knowledge.note(new PoiMemory(Store.POI, chest, Region.of(chest), 1, false, 0L), 64);
+        ctx.claim(Store.POI, chest);
         ctx.percepts.inventory().add(ItemStack.of("minecraft:oak_log", 12, 64));
         ctx.reserved.add(ItemCall.need(LOGS, 12));
 

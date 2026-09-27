@@ -76,6 +76,32 @@ public final class FakeContext implements BrainContext {
      * context has no executor to derive it from.
      */
     public boolean reshapingGround = false;
+    /** This body's party's claims, made on first {@link #claim}; a test wiring its own leaves it null. */
+    private dev.luizloyola.anima.core.social.Places places;
+
+    /** Claims {@code at} for this body's party — a store it may then open, as a placed chest is. */
+    public void claim(dev.luizloyola.anima.core.brain.knowledge.PoiKind kind,
+                      dev.luizloyola.anima.core.brain.sense.Pos at) {
+        if (places == null) {
+            places = new dev.luizloyola.anima.core.social.Places();
+            dev.luizloyola.anima.core.social.PartyId party =
+                    dev.luizloyola.anima.core.social.PartyId.random();
+            places.asks(new dev.luizloyola.anima.core.social.Places.Parties() {
+                @Override
+                public java.util.Optional<dev.luizloyola.anima.core.social.PartyId> current(AgentId who) {
+                    return java.util.Optional.of(party);
+                }
+
+                @Override
+                public dev.luizloyola.anima.core.social.PartyId of(AgentId who) {
+                    return party;
+                }
+            });
+            knowledge.sees(places.viewFor(self), () -> percepts.time);
+        }
+        places.viewFor(self).foundCommunal(kind, at, percepts.time);
+    }
+
     private final ActuatorAccess actuators = new ActuatorAccess() {
         @Override
         public Mover mover() {

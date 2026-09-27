@@ -74,7 +74,7 @@ public final class EnsureStore implements AchieveTask {
      */
     private static Optional<PoiMemory> yardNear(BrainContext ctx, Pos where) {
         double radius = ctx.profile().i(ProfileAspect.STORES_FOUND_RADIUS);
-        return ctx.knowledge().all(Store.POI).stream()
+        return Store.ours(ctx).stream()
                 .filter(memory -> !ctx.knowledge().isAvoided(Store.POI, memory.anchor(),
                         ctx.percepts().time()))
                 .filter(memory -> Store.distance(memory.anchor(), where) <= radius)

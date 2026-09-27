@@ -57,8 +57,7 @@ class StoreTest {
     private static FakeContext ctxBeside() {
         FakeContext ctx = new FakeContext();
         ctx.percepts.position = new Pos(CHEST.x() + 1, CHEST.y(), CHEST.z());
-        ctx.knowledge.note(new PoiMemory(Store.POI, CHEST, Region.of(CHEST), 1, false, 0L),
-                AgentKnowledge.maxPerKind(ctx.profile()));
+        ctx.claim(Store.POI, CHEST);
         return ctx;
     }
 
@@ -83,6 +82,18 @@ class StoreTest {
         assertFalse(Store.standingAtOne(ctx));
         assertFalse(ctx.knowledge.all(Store.POI).isEmpty(),
                 "too far to touch is no evidence at all — the memory must survive the walk away");
+    }
+
+    @Test
+    void aChestOnlySeenIsNotOneToUse() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(CHEST.x() + 1, CHEST.y(), CHEST.z());
+        ctx.percepts.blocks.set(CHEST.x(), CHEST.y(), CHEST.z(), Store.BLOCK);
+        ctx.knowledge.note(new PoiMemory(Store.POI, CHEST, Region.of(CHEST), 1, false, 0L),
+                AgentKnowledge.maxPerKind(ctx.profile()));
+
+        assertTrue(Store.nearestKnown(ctx).isEmpty(), "somebody else's chest is not theirs to fill");
+        assertFalse(Store.standingAtOne(ctx), "so standing beside it is not standing at a store");
     }
 
     @Test

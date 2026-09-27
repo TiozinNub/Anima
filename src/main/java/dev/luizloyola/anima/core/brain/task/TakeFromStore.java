@@ -3,17 +3,16 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge.Seen;
+import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.ItemSpec;
-import dev.luizloyola.anima.core.social.PlaceRow;
 import dev.luizloyola.anima.core.store.Store;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Take it out of one of the party's stores — the cheapest way to have a thing when a party has
- * been putting things away. Only the party's: a chest somebody else placed is not this body's to
- * empty.
+ * Take it out of one of the party's stores ({@link Store#ours}) — the cheapest way to have a thing
+ * when a party has been putting things away.
  *
  * <p>A store this body looked into and saw the thing in costs its distance plus the look's age. One
  * it never opened costs {@link #UNOPENED_FACTOR} × its distance: opening it may end the trip sooner,
@@ -74,9 +73,9 @@ public final class TakeFromStore implements Method {
      */
     static boolean seenHolding(BrainContext ctx, ItemSpec spec) {
         long now = ctx.percepts().time();
-        for (PlaceRow row : ctx.knowledge().places().all(Store.POI)) {
-            if (!ctx.knowledge().isAvoided(Store.POI, row.at(), now)
-                    && ctx.knowledge().insideOf(row.at()).map(seen -> seen.count(spec) > 0)
+        for (PoiMemory store : Store.ours(ctx)) {
+            if (!ctx.knowledge().isAvoided(Store.POI, store.anchor(), now)
+                    && ctx.knowledge().insideOf(store.anchor()).map(seen -> seen.count(spec) > 0)
                     .orElse(false)) {
                 return true;
             }
@@ -93,8 +92,8 @@ public final class TakeFromStore implements Method {
         double weight = ctx.profile().d(ProfileAspect.STORES_STALENESS_WEIGHT);
         long recheck = ctx.profile().i(ProfileAspect.STORES_RECHECK_TICKS);
         Candidate best = null;
-        for (PlaceRow row : ctx.knowledge().places().all(Store.POI)) {
-            Pos at = row.at();
+        for (PoiMemory store : Store.ours(ctx)) {
+            Pos at = store.anchor();
             // A chest shut to us stays unopened however often it is tried, so without this it
             // would be the cheapest way every round until the cap.
             if (ctx.knowledge().isAvoided(Store.POI, at, now)) {
