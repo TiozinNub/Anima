@@ -140,11 +140,19 @@ public final class PoiSensorCore {
         }
         // Due retries jump the queue — near, and already half-investigated. A spent entry
         // (attempts at cap) stays PARKED in the map, blocking a fresh cycle until they leave and
-        // re-enter range.
-        for (var entry : rayRetries.entrySet()) {
-            if (entry.getValue()[0] <= now) {
+        // re-enter range; once out of range it is dropped, since re-entering clears it anyway.
+        // Kept, they piled up behind a wanderer for as long as it was loaded, and this loop
+        // walked every one of them each tick.
+        long rangeSq = (long) CrescentSampler.radius(profile) * CrescentSampler.radius(profile);
+        for (var it = rayRetries.entrySet().iterator(); it.hasNext(); ) {
+            var entry = it.next();
+            long[] retry = entry.getValue();
+            if (retry[0] <= now) {
                 pending.addFirst(entry.getKey());
-                entry.getValue()[0] = Long.MAX_VALUE; // rescheduled only if the ray fails again
+                retry[0] = Long.MAX_VALUE; // rescheduled only if the ray fails again
+            } else if (retry[0] == Long.MAX_VALUE && retry[1] >= RAY_RETRY_MAX
+                    && horizontalDistSq(entry.getKey(), feet) > rangeSq) {
+                it.remove();
             }
         }
         List<SenseEvent> events = new ArrayList<>();
@@ -209,6 +217,17 @@ public final class PoiSensorCore {
     /** The person's transient claims — exposed for the debug command's "how full" line. */
     public int claimCount() {
         return claims.size();
+    }
+
+    /** Ray retries held, spent ones included — for tests. */
+    int retriesHeld() {
+        return rayRetries.size();
+    }
+
+    private static long horizontalDistSq(Column column, Pos feet) {
+        long dx = (long) column.x() - feet.x();
+        long dz = (long) column.z() - feet.z();
+        return dx * dx + dz * dz;
     }
 
     private int probeColumn(Column column, long now, BlockProbe probe, List<SenseEvent> events) {
