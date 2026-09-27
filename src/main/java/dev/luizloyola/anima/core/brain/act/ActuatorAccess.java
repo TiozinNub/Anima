@@ -49,4 +49,12 @@ public interface ActuatorAccess {
     default Voice voice() {
         return Voice.NONE;
     }
+
+    /**
+     * The fighting arm — see {@link Striker}. Defaults to {@link Striker#NONE}: a body that cannot
+     * fight is only a peaceful one.
+     */
+    default Striker striker() {
+        return Striker.NONE;
+    }
 }

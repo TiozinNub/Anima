@@ -13,6 +13,7 @@ import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.log.AgentJournal;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.mod.brain.AgentBlockBreaker;
+import dev.luizloyola.anima.mod.brain.AgentStriker;
 import dev.luizloyola.anima.mod.brain.AgentLeaner;
 import dev.luizloyola.anima.mod.brain.AgentRiser;
 import dev.luizloyola.anima.mod.brain.BrainDriver;
@@ -149,6 +150,12 @@ public interface AgentBody {
 
     /** The body's rise-one actuator, which it owns and ticks (centring, jump, place). */
     AgentRiser riser();
+
+    /**
+     * The body's fighting arm, which it owns and ticks before the brain every tick: the charge
+     * counts whether or not anything is fighting.
+     */
+    AgentStriker striker();
 
     /**
      * The body's lean actuator, which it owns and ticks (the creep out and back), and whose

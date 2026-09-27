@@ -48,7 +48,8 @@ public final class AgentAttributes {
     }
 
     /**
-     * Adds the player's combat attributes, at the player's own values.
+     * Adds the player's combat attributes, at the player's own values. The fighting arm
+     * ({@code AgentStriker}) reads them the way a player's attack does.
      *
      * <ul>
      *   <li>{@code attack_damage} (1, a fist — <b>not</b> the attribute's own default of 2) —
@@ -56,16 +57,15 @@ public final class AgentAttributes {
      *   <li>{@code attack_speed} (4) — where a weapon's swing rate lands, and the half of Haste
      *       and Mining Fatigue that is not about mining
      *   <li>{@code sweeping_damage_ratio} (0) — where Sweeping Edge lands
+     *   <li>{@code entity_interaction_range} (3) — arm's length for a blow. Every living body has
+     *       it from 26.1 on; on 1.21.11 only a player does, so it is declared here for all of them
      * </ul>
-     *
-     * <p>Nothing reads these yet; they are declared because the alternative is a hole, not a
-     * default (see the class note). Vanilla reads {@code attack_damage} only off a {@code Mob} (its
-     * own) or a {@code Player}, so declaring them changes no behaviour today.
      */
     public static AttributeSupplier.Builder combat(AttributeSupplier.Builder builder) {
         return builder
                 .add(Attributes.ATTACK_DAMAGE, 1.0)
                 .add(Attributes.ATTACK_SPEED)
-                .add(Attributes.SWEEPING_DAMAGE_RATIO);
+                .add(Attributes.SWEEPING_DAMAGE_RATIO)
+                .add(Attributes.ENTITY_INTERACTION_RANGE, 3.0);
     }
 }

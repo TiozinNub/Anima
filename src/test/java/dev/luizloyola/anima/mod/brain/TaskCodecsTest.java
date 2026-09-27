@@ -342,6 +342,24 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aFightComesBackWithItsTargetAndTheChaseWithItsCount() {
+        BeingId zombie = BeingId.of(UUID.randomUUID());
+        dev.luizloyola.anima.core.brain.task.Fight fight = assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.Fight.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.Fight(zombie, new Pos(3, 64, -2))));
+        assertEquals(zombie, fight.target());
+        assertEquals(new Pos(3, 64, -2), fight.where());
+
+        dev.luizloyola.anima.core.brain.task.Engage engage = assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.Engage.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.Engage(zombie, new Pos(5, 64, 1))
+                        .resume(2)));
+        assertEquals(zombie, engage.target());
+        assertEquals(new Pos(5, 64, 1), engage.lastKnown());
+        assertEquals(2, engage.fruitless(), "a chase one leg from giving up must not get three more");
+    }
+
+    @Test
     void aConverseComesBackKnowingWhoAndHowItWouldOpen() {
         // The live Encounter is deliberately not part of this: it is world state owned by the
         // shared roster, not the task's own — see Converse's class doc — so only what it was

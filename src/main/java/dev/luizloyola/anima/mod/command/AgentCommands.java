@@ -42,10 +42,12 @@ import dev.luizloyola.anima.core.brain.knowledge.RegionCache;
 import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.brain.knowledge.SenseEvent;
 import dev.luizloyola.anima.core.brain.knowledge.Sighting;
+import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.knowledge.Survey;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.task.BreakBlock;
+import dev.luizloyola.anima.core.brain.task.Fight;
 import dev.luizloyola.anima.core.brain.task.GoTo;
 import dev.luizloyola.anima.core.brain.task.ObtainItem;
 import dev.luizloyola.anima.core.brain.task.PutItems;
@@ -685,6 +687,10 @@ public final class AgentCommands {
                                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                                 .executes(ctx -> brainBreak(ctx,
                                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                                .then(Commands.literal("attack")
+                                        .then(Commands.argument("target", EntityArgument.entity())
+                                                .executes(ctx -> brainAttack(ctx,
+                                                        EntityArgument.getEntity(ctx, "target")))))
                                 .then(Commands.literal("cancel")
                                         .executes(ctx -> brainCancel(ctx)))
                                 // The autonomy switch — spawns start ON. Bare, it READS the
@@ -1426,6 +1432,45 @@ public final class AgentCommands {
         boolean autoDisabled = person.brain().run(new GoTo(pos.getX(), pos.getY(), pos.getZ()));
         Component suffix = autoDisabledNote(autoDisabled);
         OpJournal.record(source, person.agentId(), "given a walk to " + pos.toShortString()
+                + (autoDisabled ? ", autonomy off" : ""));
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                person.entity().getName(), person.brain().describe())
+                .append(suffix).withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
+    /**
+     * Runs a {@link Fight} on the resolved agent against {@code target} — the fighting arm's debug
+     * order: chase, wait out the charge, swing, until the target is down or out of reach.
+     */
+    private static int brainAttack(CommandContext<CommandSourceStack> ctx, Entity target) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        if (target == person.entity()) {
+            Replies.fail(source, Component.translatable("anima.command.attack.self",
+                    person.entity().getName()));
+            return 0;
+        }
+        if (!(target instanceof LivingEntity living)) {
+            Replies.fail(source, Component.translatable("anima.command.attack.not_alive",
+                    target.getName()));
+            return 0;
+        }
+        if (target.level() != person.entity().level()) {
+            Replies.fail(source, Component.translatable("anima.command.attack.elsewhere",
+                    target.getName()));
+            return 0;
+        }
+        // An agent is perceived under its agent id, everything else under its entity's own uuid.
+        BeingId id = living instanceof AgentBody other && other.agentId() != null
+                ? BeingId.of(other.agentId())
+                : BeingId.of(living.getUUID());
+        BlockPos at = living.blockPosition();
+        boolean autoDisabled = person.brain().run(
+                new Fight(id, new Pos(at.getX(), at.getY(), at.getZ())));
+        Component suffix = autoDisabledNote(autoDisabled);
+        OpJournal.record(source, person.agentId(), "sent to fight " + target.getName().getString()
                 + (autoDisabled ? ", autonomy off" : ""));
         Replies.send(source, () -> Component.translatable("anima.command.state",
                 person.entity().getName(), person.brain().describe())

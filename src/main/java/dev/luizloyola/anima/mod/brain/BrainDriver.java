@@ -191,6 +191,11 @@ public final class BrainDriver {
             }
 
             @Override
+            public dev.luizloyola.anima.core.brain.act.Striker striker() {
+                return person.striker(); // body-owned and body-ticked, like the breaker
+            }
+
+            @Override
             public Gazer gazer() {
                 return person.gaze(); // body-owned and body-ticked, like the breaker
             }

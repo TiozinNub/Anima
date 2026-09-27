@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.compat.agent;
 
+import dev.luizloyola.anima.mixin.LivingEntityAttackStrengthAccessor;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
@@ -14,6 +15,9 @@ import net.minecraft.world.item.component.SwingAnimation;
  * <p>The two swings are vanilla's own split: {@link #swingToAttack} is what a left click does,
  * {@link #swingToInteract} a right click. Neither echoes the swing back to the body itself,
  * which is what the old one-argument {@code swing} did too.
+ *
+ * <p>Both start the attack charge over, as {@code ServerPlayer.swing} does for a player: a body
+ * mining with a sword in hand swings at no better than a player mining with one.
  */
 public final class Arms {
 
@@ -27,6 +31,7 @@ public final class Arms {
         *///?} else {
         body.swing(hand);
         //?}
+        ((LivingEntityAttackStrengthAccessor) body).anima$setAttackStrengthTicker(0);
     }
 
     /** The swing of a placed block or a used container. */
@@ -36,6 +41,7 @@ public final class Arms {
         *///?} else {
         body.swing(hand);
         //?}
+        ((LivingEntityAttackStrengthAccessor) body).anima$setAttackStrengthTicker(0);
     }
 
     /** Whether the arm is mid-swing right now. */

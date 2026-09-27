@@ -34,6 +34,7 @@ public final class FakeContext implements BrainContext {
     public final FakeLeaner leaner = new FakeLeaner();
     public final FakeContainers containers = new FakeContainers();
     public final FakeGazer gazer = new FakeGazer();
+    public final FakeStriker striker = new FakeStriker();
     public final FakePercepts percepts = new FakePercepts();
     /** The throat, marking into the percepts' own {@code called} set exactly as a live one does. */
     public final FakeVoice voice = new FakeVoice(percepts.called);
@@ -146,6 +147,11 @@ public final class FakeContext implements BrainContext {
         @Override
         public dev.luizloyola.anima.core.brain.act.Voice voice() {
             return voice;
+        }
+
+        @Override
+        public dev.luizloyola.anima.core.brain.act.Striker striker() {
+            return striker;
         }
     };
 

@@ -465,6 +465,28 @@ public final class AnimaTasks {
                         new dev.luizloyola.anima.core.brain.task.Face(who, where, ticks)
                                 .resume(remaining))));
 
+        // A fight and its loop. The chase leg inside Engage is not written: the first tick after a
+        // load orders a fresh one at the target's cell, which is where the saved one was going.
+        TaskCodecs.register("anima:fight", dev.luizloyola.anima.core.brain.task.Fight.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        BEING_ID.fieldOf("target")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Fight::target),
+                        POS.fieldOf("where")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Fight::where)
+                ).apply(t, dev.luizloyola.anima.core.brain.task.Fight::new)));
+
+        TaskCodecs.register("anima:engage", dev.luizloyola.anima.core.brain.task.Engage.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        BEING_ID.fieldOf("target")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Engage::target),
+                        POS.fieldOf("lastKnown")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Engage::lastKnown),
+                        Codec.INT.fieldOf("fruitless")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Engage::fruitless)
+                ).apply(t, (target, lastKnown, fruitless) ->
+                        new dev.luizloyola.anima.core.brain.task.Engage(target, lastKnown)
+                                .resume(fruitless))));
+
         // The rung 5 root: what this body would say to OPEN the encounter if speech.current()
         // finds nothing already there. The live Encounter itself is not here — it is world state
         // owned by the shared roster, not this task's — a restored Converse re-resolves it through
