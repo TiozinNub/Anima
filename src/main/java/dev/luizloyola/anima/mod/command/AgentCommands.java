@@ -6,6 +6,8 @@ import dev.luizloyola.anima.core.brain.history.History;
 import dev.luizloyola.anima.core.brain.history.When;
 import dev.luizloyola.anima.core.social.speech.Recounting;
 import dev.luizloyola.anima.core.agent.AgentModifiers;
+import dev.luizloyola.anima.core.nav.Path;
+import dev.luizloyola.anima.core.nav.Waypoint;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.agent.AspectModifier;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
@@ -491,6 +493,8 @@ public final class AgentCommands {
                                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                                 .then(Commands.literal("stop")
                                         .executes(ctx -> navStop(ctx)))
+                                .then(Commands.literal("route")
+                                        .executes(AgentCommands::navRoute))
                                 .then(NavDump.node());
     }
 
@@ -1237,6 +1241,34 @@ public final class AgentCommands {
                 person.entity().getName(),
                 person.navigator().describe() + water + escort + looking)
                 .withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
+    /**
+     * The route being walked, waypoint by waypoint with the move into each — what a staircase
+     * walked or hopped, a ladder climbed or a door gone round, look like from outside the body.
+     * The one already reached is bracketed.
+     */
+    private static int navRoute(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        Path path = person.navigator().path();
+        StringBuilder route = new StringBuilder();
+        if (path == null) {
+            route.append("no route");
+        } else {
+            int at = person.navigator().pathIndex();
+            for (int i = 0; i < path.waypoints().size(); i++) {
+                Waypoint w = path.waypoints().get(i);
+                route.append(i == 0 ? "" : " ").append(i == at ? "[" : "")
+                        .append(w.move().name().toLowerCase(java.util.Locale.ROOT)).append(' ')
+                        .append(w.x()).append(',').append(w.y()).append(',').append(w.z())
+                        .append(i == at ? "]" : "");
+            }
+        }
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                person.entity().getName(), route.toString()).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 
