@@ -29,7 +29,7 @@ import org.jspecify.annotations.Nullable;
  * <h2>Per-tick arbitration ({@link #tick})</h2>
  * <ol>
  *   <li>Pressures read once; a drive serving the cooldown {@link Instinct#failCooldown()} set after
- *       a FAILED root is INELIGIBLE this tick, then counts down.</li>
+ *       a FAILED or cut-off root is INELIGIBLE this tick, then counts down.</li>
  *   <li>Top eligible bidder by EFFECTIVE pressure — incumbent plus
  *       {@link #stickiness(AgentProfile)}, ties to the earlier instinct in the constructor list.
  *       <b>Zero raw pressure is not a bid</b>: all-zero idles rather than granting by default
@@ -40,7 +40,9 @@ import org.jspecify.annotations.Nullable;
  *   <li>Busy → switch only if the challenger beats the incumbent on effective pressure and its RAW
  *       pressure reaches {@link #preempt(AgentProfile)} — or the incumbent {@link Instinct#yields
  *       yields}, as idling does; below that it waits for the task boundary, and switching cancels
- *       the incumbent's task.</li>
+ *       the incumbent's task. A drive cut off that way serves its fail cooldown, unless it
+ *       yields — idling has nothing to finish. A suspended errand does not: its pacing is the
+ *       board's.</li>
  *   <li>The executor ticks once; across a boundary a FAILED root goes on cooldown and
  *       {@code active} clears either way, re-arbitrating next tick.</li>
  * </ol>
@@ -292,6 +294,12 @@ public final class Arbiter {
                 // so it lost nothing here. Naming it claimed a contest that never ran — and, since
                 // an unconsidered offer may outrank the winner, printed "beat work 0.90" under a
                 // 0.55 grant, contradicting the strict > this whole line exists to make legible.
+                if (activeIndex >= 0 && !incumbentYields) {
+                    // Cut off is failed, and pays the same cooldown. Without it the loser bids
+                    // straight back in: a hungry settler walking from a zombie stopped to eat
+                    // every few ticks and never finished a bite (2026-09-26).
+                    cooldowns[activeIndex] = instincts.get(activeIndex).failCooldown();
+                }
                 grant(topIndex, secondDrive, ctx);
             }
         }

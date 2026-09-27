@@ -85,7 +85,8 @@ public interface Instinct {
     }
 
     /**
-     * Ticks this instinct sits out after its root FAILED. Most drives use the default; an
+     * Ticks this instinct sits out after its root FAILED, or was cut off mid-task by a drive that
+     * preempted it — unless it {@link #yields}. Most drives use the default; an
      * emergency drive (Flee) overrides it small — a cornered Person must retry immediately, not
      * stand still being eaten.
      */

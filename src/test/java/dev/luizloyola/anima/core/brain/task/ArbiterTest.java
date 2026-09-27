@@ -579,6 +579,44 @@ class ArbiterTest {
                 "A re-bids after exactly its own failCooldown (10), far short of the 100 default");
     }
 
+    @Test
+    void aDriveCutOffByAPreemptSitsOutItsFailCooldown() {
+        FakeInstinct a = new FakeInstinct("a", 0.7, forever("aRoot"));
+        FakeInstinct b = new FakeInstinct("b", 0.0, succeedsImmediately("bRoot"));
+        Arbiter arbiter = new Arbiter(List.of(a, b));
+
+        arbiter.tick(ctx); // t1: A granted
+        b.pressure = 0.9;
+        arbiter.tick(ctx); // t2: B preempts A, runs its one tick and finishes
+        assertEquals(1, step(a.grantedRoots.get(0)).cancels);
+        b.pressure = 0.0;
+
+        // t3..t102: A is the only bidder and still sits out, as if its root had failed.
+        for (int t = 3; t <= 2 + Instinct.DEFAULT_FAIL_COOLDOWN; t++) {
+            arbiter.tick(ctx);
+            assertEquals(1, a.grantedRoots.size(), "A still cooling at tick " + t);
+        }
+        arbiter.tick(ctx); // t103
+        assertEquals(2, a.grantedRoots.size(), "A re-bids once the cooldown is served");
+    }
+
+    @Test
+    void aYieldingDriveCutIntoPaysNoCooldownEvenPastThePreemptBar() {
+        FakeInstinct idle = new FakeInstinct("idle", 0.15, forever("idleRoot"));
+        idle.yields = true;
+        FakeInstinct b = new FakeInstinct("b", 0.0, succeedsImmediately("bRoot"));
+        Arbiter arbiter = new Arbiter(List.of(idle, b));
+
+        arbiter.tick(ctx); // t1: grant idle
+        b.pressure = 0.9;
+        arbiter.tick(ctx); // t2: B cuts in and finishes
+        b.pressure = 0.0;
+        assertTrue(arbiter.cooldowns().isEmpty(), "idling had nothing to finish");
+
+        arbiter.tick(ctx); // t3
+        assertEquals(2, idle.grantedRoots.size(), "idle picks up again at once");
+    }
+
     // --- manual task under an all-cooling / empty arbiter ----------------------------------------
 
     @Test
@@ -698,10 +736,10 @@ class ArbiterTest {
      * Mid-bite, a threat blows past both {@link Arbiter#stickiness()} and
      * {@link Arbiter#preempt()}: Flee cuts the chew off ({@code ConsumeItem}'s cancel aborts the
      * consumer) and takes the legs. Once it clears, the running leg still finishes — Eat is under
-     * PREEMPT — and the runner-up resumes only at the next boundary.
+     * PREEMPT — and the meal it cut off sits out its fail cooldown before the next bite.
      */
     @Test
-    void aCloseThreatPreemptsAMidChewEatThenClearsAndTheRunnerUpResumesAtTheNextBoundary() {
+    void aCloseThreatPreemptsAMidChewEatWhichSitsOutItsCooldownBeforeTheNextBite() {
         Arbiter arbiter = new Arbiter(List.of(
                 Drives.EAT, new WanderInstinct(), new FleeInstinct()));
 
@@ -731,9 +769,59 @@ class ArbiterTest {
         assertFalse(arbiter.executor().isBusy(),
                 "the leg finished this tick, but nothing is re-granted until the NEXT boundary");
 
-        arbiter.tick(ctx); // t4: idle -> Eat (0.4) again tops Wander (0.15), with Flee now at 0.0
-        assertEquals(2, ctx.consumer.beginCalls, "eat resumes at the next boundary");
+        // t4..t102: Eat, cut off at t2, is out for exactly its 100 ticks although it tops Wander.
+        for (int t = 4; t <= 2 + Instinct.DEFAULT_FAIL_COOLDOWN; t++) {
+            arbiter.tick(ctx);
+            assertEquals(1, ctx.consumer.beginCalls, "eat still cooling at tick " + t);
+        }
+        arbiter.tick(ctx); // t103: eligible again
+        assertEquals(2, ctx.consumer.beginCalls, "eat bites again once its cooldown is served");
         assertTrue(arbiter.describe().contains("eat") && arbiter.describe().contains("(active)"), arbiter.describe());
+    }
+
+    /**
+     * The loop this cooldown exists for, at the food level where a Person can no longer sprint
+     * (6, so Eat bids 0.70). Walking away, the zombie stops closing and fear falls under Eat's
+     * bid; stopping to eat, it closes again and fear jumps past it. Before, the two traded the
+     * wheel every few ticks and neither a bite nor the flight ever finished (2026-09-26).
+     */
+    @Test
+    void aHungryWalkerCutOffMidBiteKeepsFleeingInsteadOfStoppingToEatAgain() {
+        Arbiter arbiter = new Arbiter(List.of(
+                Drives.EAT, new WanderInstinct(), new FleeInstinct()));
+        ctx.percepts.food("minecraft:bread", new FoodValue(5, 6.0F, false));
+        ctx.percepts.inventory.set(0, ItemStack.of("minecraft:bread", 10, 64));
+        ctx.percepts.metabolism.setFoodLevel(6);
+        Pos behind = new Pos(8, 64, 0);
+
+        ctx.percepts.beings = List.of(FakePercepts.monsterAt(behind, 7.0, true)); // 1.3 * 9/12 = 0.98
+        arbiter.tick(ctx); // t1: Flee takes the wheel
+        ctx.mover.setState(MoveState.MOVING);
+
+        ctx.percepts.beings = List.of(FakePercepts.monsterAt(behind, 9.0, false)); // 7/12 = 0.58
+        arbiter.tick(ctx); // t2: Eat's 0.70 beats Flee's 0.68 and preempts — Flee serves its 10
+        assertEquals(1, ctx.consumer.beginCalls);
+        ctx.consumer.setState(ConsumeState.CONSUMING);
+
+        ctx.percepts.beings = List.of(FakePercepts.monsterAt(behind, 8.0, true)); // 1.3 * 8/12 = 0.87
+        for (int t = 3; t <= 2 + FleeInstinct.FAIL_COOLDOWN; t++) {
+            arbiter.tick(ctx);
+            assertEquals(0, ctx.consumer.abortCalls, "flee still cooling at tick " + t);
+        }
+        arbiter.tick(ctx); // t13: Flee's 0.87 beats Eat's 0.80 and cuts the bite off
+        assertEquals(1, ctx.consumer.abortCalls);
+        ctx.mover.setState(MoveState.MOVING);
+
+        // Walking away again: Eat outbids Flee exactly as it did at t2, but it is cooling now.
+        ctx.percepts.beings = List.of(FakePercepts.monsterAt(behind, 9.0, false));
+        for (int t = 14; t <= 13 + Instinct.DEFAULT_FAIL_COOLDOWN; t++) {
+            arbiter.tick(ctx);
+            assertEquals(1, ctx.consumer.beginCalls, "no second bite at tick " + t);
+        }
+        assertTrue(arbiter.describe().contains("flee 0.58 (active)"), arbiter.describe());
+
+        arbiter.tick(ctx); // t114
+        assertEquals(2, ctx.consumer.beginCalls, "hunger gets its turn once the cooldown is served");
     }
 
     /**
