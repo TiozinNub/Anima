@@ -26,6 +26,7 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.sense.Setbacks;
 import dev.luizloyola.anima.core.nav.MoveType;
 import dev.luizloyola.anima.core.nav.Waypoint;
+import dev.luizloyola.anima.mod.nav.Doorways;
 import dev.luizloyola.anima.mod.nav.Navigator;
 import net.minecraft.core.BlockPos;
 import java.util.Map;
@@ -182,6 +183,12 @@ public final class BrainState {
             Codec.INT.optionalFieldOf("surface", 0).forGetter(Waypoint::surface16)
     ).apply(w, (x, y, z, move, surface) -> new Waypoint(x, y, z, MoveType.valueOf(move), surface)));
 
+    /** A door a walking body went through and has yet to settle, and how it was found. */
+    private static final Codec<Doorways.Passed> PASSED_DOOR = RecordCodecBuilder.create(d -> d.group(
+            BlockPos.CODEC.fieldOf("pos").forGetter(Doorways.Passed::pos),
+            Codec.BOOL.optionalFieldOf("foundOpen", false).forGetter(Doorways.Passed::foundOpen)
+    ).apply(d, Doorways.Passed::new));
+
     /**
      * A walk in progress. The route is carried rather than re-pathed: paths of similar cost are
      * chosen among, so asking again gives <em>a</em> route rather than <em>the</em> route, and the
@@ -206,11 +213,14 @@ public final class BrainState {
             // Optional with a none default so walks saved before the reason channel existed load
             // as what they actually were: a failure nobody had recorded a cause for.
             Codec.STRING.optionalFieldOf("failure", MoveFailure.NONE.name())
-                    .forGetter(Navigator.Walk::failure)
+                    .forGetter(Navigator.Walk::failure),
+            // Optional and empty by default: a walk saved before bodies swung doors had none.
+            PASSED_DOOR.listOf().optionalFieldOf("doors", List.of())
+                    .forGetter(Navigator.Walk::doors)
     ).apply(n, (state, goal, waypoints, reached, index, gait, stuck, noMove, grounded, lastLeap,
-                repaths, integrity, cooldown, failure) -> new Navigator.Walk(state,
+                repaths, integrity, cooldown, failure, doors) -> new Navigator.Walk(state,
                     goal.orElse(null), waypoints, reached, index, gait, stuck, noMove, grounded,
-                    lastLeap, repaths, integrity, cooldown, failure)));
+                    lastLeap, repaths, integrity, cooldown, failure, doors)));
 
     /** One journal line. Categories round-trip by name; an unknown one errors rather than
      *  silently re-filing a line under the wrong subsystem. */

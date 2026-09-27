@@ -36,6 +36,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -134,6 +135,24 @@ public final class Navigator {
     private static final int NO_MOVE_LIMIT = 15;
     private static final double NO_MOVE_EPSILON = 0.01;
     /**
+     * How near the middle of its column a climbing body counts as in it, and stops steering. Under
+     * the slack a 0.6-wide body has in a one-wide shaft, so centring never presses it into a wall
+     * — which on a ladder is a climb, not a stop.
+     */
+    private static final double CLIMB_CENTRED = 0.12;
+    /**
+     * How far under a climb waypoint's feet height the body must be to keep climbing. Jump stays
+     * held until the feet are all but there, and not after: held on the ground, it is a hop.
+     */
+    private static final double CLIMB_LEVEL = 0.05;
+    /**
+     * How near the middle of a shaft's free room a body must be before it stops easing toward it —
+     * well inside the slack a 0.6 body has in the 0.8125 a panel leaves.
+     */
+    private static final double SETTLE_IN_GAP = 0.03;
+    /** The creep a body keeps up toward that middle once nearly there: too slow to carry across. */
+    private static final float EASE_THROTTLE = 0.15F;
+    /**
      * Ticks of air one submerged cell costs: the breath gauge's ticks converted into the cells the
      * search counts. A stroke is appreciably slower than a walking step.
      */
@@ -159,6 +178,8 @@ public final class Navigator {
     private static final int PROACTIVE_REPATH_COOLDOWN = 20;
 
     private final AgentBody person;
+    /** The hand that swings the doors a route crosses, and swings them back. */
+    private final Doorways doorways;
     private State state = State.IDLE;
     private @Nullable BlockPos goal;
     private @Nullable Path path;
@@ -219,6 +240,7 @@ public final class Navigator {
 
     public Navigator(AgentBody person) {
         this.person = person;
+        this.doorways = new Doorways(person);
     }
 
     /** Begin navigating toward {@code goal}, replacing any navigation already in progress. */
@@ -486,6 +508,7 @@ public final class Navigator {
         // tick's decision. See careful() / arrivalRadius().
         this.careful = false;
         this.arrivalRadius = 0.0;
+        this.person.driveSneak(false); // held only by the climb branch, into scaffolding
         if (this.state == State.PATHING) {
             tickPathing(); // halts the legs itself, and may leave us FOLLOWING/ARRIVED/FAILED
         }
@@ -495,6 +518,10 @@ public final class Navigator {
             case PATHING -> { }
             default -> this.person.stopMoving();
         }
+        // After the legs, whatever the state: a body that arrived just inside a house still shuts
+        // the door behind it.
+        this.doorways.tick(this.state == State.FOLLOWING ? this.path : null, this.index,
+                this.routeFrom, capabilities().canOpenDoors());
     }
 
     /**
@@ -702,6 +729,12 @@ public final class Navigator {
         // grounded branch called the water below a stray and re-planned the identical route.
         if (isWet() || waypoint.move().inWater()) {
             tickSwim(waypoint, isLast, pos, dx, dz, horizontalSq, dy);
+            return;
+        }
+        // On a ladder, or on the way onto or off one: held up by the climbable, not by a floor, so
+        // none of the footed edge logic below applies.
+        if (waypoint.move() == MoveType.CLIMB) {
+            tickClimb(waypoint, isLast, pos, dx, dz, horizontalSq, dy);
             return;
         }
 
@@ -1001,6 +1034,108 @@ public final class Navigator {
         }
         // The climb-out's lift is not pressed here: every vertical press while wet belongs to the
         // Swimmer (ticked after this), so narrowing one press cannot silently remove another.
+    }
+
+    /**
+     * One tick of a {@link MoveType#CLIMB} leg. Up holds the jump input — all vanilla asks of any
+     * living thing on a climbable — and steers only as much as it takes to stay in the column, or
+     * to reach the ledge a climb ends on. Down lets go and steers for the middle of the column, and
+     * the way in from a floor is walked slowly: at a walk, a body carries across a one-wide shaft
+     * onto the far rim instead of dropping into it.
+     *
+     * <p>Arrival is the footed test, band and all. No landing brake, no careful throttle and no
+     * crowd: nobody is jostled off a ladder. Progress is measured in three dimensions, as in water,
+     * since climbing moves a body up and not along.
+     */
+    private void tickClimb(Waypoint waypoint, boolean isLast, Vec3 pos,
+                           double dx, double dz, double horizontalSq, double dy) {
+        double radius = isLast ? FINAL_RADIUS : WAYPOINT_RADIUS;
+        this.arrivalRadius = radius;
+        double vertical = verticalGap(dy);
+        if (horizontalSq + vertical * vertical <= radius * radius
+                && (!isLast || this.person.onGround())) {
+            if (isLast && !isSettled()) {
+                this.person.stopMoving();
+                return;
+            }
+            advance(isLast);
+            return;
+        }
+        if (++this.stuckTicks > STUCK_LIMIT) {
+            log("stuck", "climb timeout at " + this.person.blockPosition().toShortString());
+            retryOrFail(MoveFailure.STALLED);
+            return;
+        }
+        double movedSq = (pos.x - this.lastTickX) * (pos.x - this.lastTickX)
+                + (pos.y - this.lastTickY) * (pos.y - this.lastTickY)
+                + (pos.z - this.lastTickZ) * (pos.z - this.lastTickZ);
+        this.lastTickX = pos.x;
+        this.lastTickY = pos.y;
+        this.lastTickZ = pos.z;
+        if (movedSq < NO_MOVE_EPSILON * NO_MOVE_EPSILON) {
+            if (++this.noMoveTicks > NO_MOVE_LIMIT) {
+                log("stuck", "not climbing at " + this.person.blockPosition().toShortString());
+                retryOrFail(MoveFailure.WEDGED);
+                return;
+            }
+        } else {
+            this.noMoveTicks = 0;
+        }
+        // Standing on the ground well under a rung it is not holding: it fell off, or was pulled
+        // off. Plan again from the ground rather than jump at a ladder out of reach.
+        if (this.person.onGround() && !this.person.entity().onClimbable() && dy < -STRAY_VERTICAL) {
+            log("stray", "off the climb at " + this.person.blockPosition().toShortString());
+            retryOrFail(MoveFailure.STRAYED);
+            return;
+        }
+        float heading = horizontalSq > CLIMB_CENTRED * CLIMB_CENTRED
+                ? (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F
+                : this.person.entity().getYRot();
+        boolean centred = horizontalSq <= CLIMB_CENTRED * CLIMB_CENTRED;
+        if (dy < -CLIMB_LEVEL) {
+            // Up. Full input toward a ledge — pushing against its face climbs too — and none once
+            // over the column, where input would only press the body off the rungs.
+            this.person.driveForward(heading, centred ? 0.0F : 1.0F);
+            this.person.driveJump();
+        } else {
+            // Down, or in from the side. A ladder's or a trapdoor's panel takes 3/16 of the shaft,
+            // so a body stopped over the cell's middle can rest on the panel's top edge by a hair
+            // (0.005 of a block, on the gauntlet's hatch): it aims for the middle of what is left,
+            // and eases on toward it until it drops.
+            Vec3 gap = gapCentre(waypoint);
+            double gx = gap.x - pos.x;
+            double gz = gap.z - pos.z;
+            double gapSq = gx * gx + gz * gz;
+            float toward = (float) (Mth.atan2(gz, gx) * Mth.RAD_TO_DEG) - 90.0F;
+            float throttle = gapSq <= SETTLE_IN_GAP * SETTLE_IN_GAP ? 0.0F
+                    : gapSq <= CLIMB_CENTRED * CLIMB_CENTRED ? EASE_THROTTLE : CAREFUL_THROTTLE;
+            this.person.driveForward(gapSq > SETTLE_IN_GAP * SETTLE_IN_GAP ? toward : heading, throttle);
+            // Scaffolding holds up whatever stands on it unless it sneaks, and then lets it sink.
+            BlockPos feet = this.person.blockPosition();
+            if (centred && (WorldSnapshot.climbFloorAt(level(), feet)
+                    || WorldSnapshot.climbFloorAt(level(), feet.below()))) {
+                this.person.driveSneak(true);
+            }
+        }
+    }
+
+    /**
+     * The middle of the room a climbable column leaves a body: the cell's middle, moved off any
+     * panel on one side of it — a ladder, an open trapdoor — by half the panel's thickness.
+     */
+    private Vec3 gapCentre(Waypoint waypoint) {
+        BlockPos cell = new BlockPos(waypoint.x(), waypoint.y(), waypoint.z());
+        double x = cell.getX() + 0.5;
+        double z = cell.getZ() + 0.5;
+        VoxelShape shape = level().getBlockState(cell).getCollisionShape(level(), cell);
+        if (!shape.isEmpty()) {
+            AABB panel = shape.bounds();
+            if (panel.maxX < 0.5) x += panel.maxX / 2.0;
+            else if (panel.minX > 0.5) x -= (1.0 - panel.minX) / 2.0;
+            if (panel.maxZ < 0.5) z += panel.maxZ / 2.0;
+            else if (panel.minZ > 0.5) z -= (1.0 - panel.minZ) / 2.0;
+        }
+        return new Vec3(x, waypoint.y(), z);
     }
 
     /**
@@ -1469,7 +1604,7 @@ public final class Navigator {
                         boolean reachedGoal, int index, String gait, int stuckTicks,
                         int noMoveTicks, int groundedTicks, int lastLeapPressIndex,
                         int repathsLeft, int integrityCheckedIndex, int proactiveRepathCooldown,
-                        String failure) {
+                        String failure, List<Doorways.Passed> doors) {
     }
 
     /** What this navigator would need to carry on the same walk. */
@@ -1479,7 +1614,8 @@ public final class Navigator {
                 this.path != null && this.path.reachedGoal(),
                 this.index, this.gait.name(), this.stuckTicks, this.noMoveTicks,
                 this.groundedTicks, this.lastLeapPressIndex, this.repathsLeft,
-                this.integrityCheckedIndex, this.proactiveRepathCooldown, this.failure.name());
+                this.integrityCheckedIndex, this.proactiveRepathCooldown, this.failure.name(),
+                this.doorways.held());
     }
 
     /**
@@ -1502,6 +1638,7 @@ public final class Navigator {
         this.integrityCheckedIndex = saved.integrityCheckedIndex();
         this.proactiveRepathCooldown = saved.proactiveRepathCooldown();
         this.failure = MoveFailure.valueOf(saved.failure());
+        this.doorways.restore(saved.doors());
         this.pending = null;
         this.grid = this.state == State.FOLLOWING && this.goal != null
                 ? PathfinderService.snapshotFor(level(), startCell(), this.goal)

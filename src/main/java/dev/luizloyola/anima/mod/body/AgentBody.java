@@ -209,6 +209,14 @@ public interface AgentBody {
     void driveDown(float throttle);
 
     /**
+     * Movement control: sneak this tick, or not. What sinks a body through scaffolding it stands on
+     * — vanilla drops anything whose shift is held — and nothing else asks for it.
+     */
+    default void driveSneak(boolean sneak) {
+        entity().setShiftKeyDown(sneak);
+    }
+
+    /**
      * Look at the centre of {@code cell} — the arm's form of a gaze claim, shared by every arm
      * actuator.
      *
