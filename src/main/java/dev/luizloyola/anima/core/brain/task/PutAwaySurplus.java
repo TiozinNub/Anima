@@ -7,6 +7,7 @@ import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.Surplus;
 import dev.luizloyola.anima.core.store.Store;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -37,15 +38,32 @@ public final class PutAwaySurplus implements AchieveTask {
      */
     static final int ROOM_MARGIN = 4;
 
+    /**
+     * Whether the job this haul breaks off has more to give. The line prices a walk taken mid-job;
+     * once there is nothing left, whatever is carried goes now — the end-of-job haul (decision:
+     * Luiz, 2026-09-27). Without it a crew of twelve cleared a box and kept every log: nobody's
+     * share reached the line.
+     */
+    private final BooleanSupplier workLeft;
+
     private final List<Method> methods = List.of(new StowAtAStore());
 
     public PutAwaySurplus() {
         this(null, 0);
     }
 
+    /**
+     * A haul whose job never ends, as far as it knows — also what a save restores, until the
+     * project re-grants the errand with the live answer. Worst case, one load waits for the line.
+     */
     public PutAwaySurplus(@Nullable Pos hint, int haulLine) {
+        this(hint, haulLine, () -> true);
+    }
+
+    public PutAwaySurplus(@Nullable Pos hint, int haulLine, BooleanSupplier workLeft) {
         this.hint = hint;
         this.haulLine = Math.max(0, haulLine);
+        this.workLeft = workLeft;
     }
 
     /** The yard this goal is feeding, for the codec; null for the nearest-store flavour. */
@@ -62,9 +80,9 @@ public final class PutAwaySurplus implements AchieveTask {
      * achieve-loop re-asking, rather than anything scheduling it: a settler a stack into a box of
      * trees is already satisfied and simply takes the next one.
      *
-     * <p>Laden is a load or a pack running out of room. Counted in slots, a mixed wood's logs,
-     * saplings, sticks and litter made three slots of one tree, and settlers walked to the yard with
-     * about fifteen items a trip (in-world, 2026-09-27).
+     * <p>Laden is a load, a pack running out of room, or a job with nothing left. Counted in slots,
+     * a mixed wood's logs, saplings, sticks and litter made three slots of one tree, and settlers
+     * walked to the yard with about fifteen items a trip (in-world, 2026-09-27).
      */
     @Override
     public boolean satisfied(BrainContext ctx) {
@@ -73,6 +91,9 @@ public final class PutAwaySurplus implements AchieveTask {
                 stack -> ctx.percepts().foods().of(stack).isPresent());
         if (cargo.isEmpty()) {
             return true;
+        }
+        if (!workLeft.getAsBoolean()) {
+            return false;
         }
         int roomLine = ctx.profile().i(ProfileAspect.UNBURDEN_SLACK_SLOTS) + ROOM_MARGIN;
         return Surplus.stacks(pack, cargo) < haulLine && Surplus.emptySlots(pack) > roomLine;

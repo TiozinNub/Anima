@@ -136,6 +136,16 @@ class HaulToYardTest {
                 "five kinds of one tree are a quarter of a stack, not five slots over a line of three");
     }
 
+    @Test
+    void whenTheJobHasNothingLeftEverythingGoes() {
+        assertTrue(new PutAwaySurplus(HINT, 3, () -> true).satisfied(packAfterOneTree()),
+                "mid-job, a tree's worth waits for the line");
+        assertFalse(new PutAwaySurplus(HINT, 3, () -> false).satisfied(packAfterOneTree()),
+                "the last tree: take it all to the yard");
+        assertTrue(new PutAwaySurplus(HINT, 3, () -> false).satisfied(new FakeContext()),
+                "and an empty pack has nothing to take");
+    }
+
     /** {@code empty} storage slots free, every other one holding a single item. */
     private static FakeContext packOfOnes(int empty) {
         FakeContext ctx = new FakeContext();
