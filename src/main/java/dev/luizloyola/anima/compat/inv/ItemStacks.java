@@ -5,6 +5,7 @@ import dev.luizloyola.anima.core.inv.ItemStack;
 import net.minecraft.commands.arguments.item.ItemInput;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -52,6 +53,17 @@ public final class ItemStacks {
             vanilla.applyComponents(decodeComponents(stack.components(), registries));
         }
         return vanilla;
+    }
+
+    /**
+     * Whether {@code stack}'s own patch could make {@code type} differ from the item's default. Read
+     * off the stored text, which names every component the patch sets or removes by id: false is
+     * exact, and true only means the patch has to be decoded to know.
+     */
+    public static boolean patchMentions(ItemStack stack, DataComponentType<?> type) {
+        if (stack.components().isEmpty()) return false;
+        Identifier key = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type);
+        return key == null || stack.components().contains(key.toString());
     }
 
     /**
@@ -117,7 +129,7 @@ public final class ItemStacks {
     }
 
     /** Resolves an item by id, or {@code null} for a malformed or unregistered id. */
-    private static @Nullable Item itemOrNull(String id) {
+    static @Nullable Item itemOrNull(String id) {
         Identifier key = Identifier.tryParse(id);
         if (key == null) return null;
         Item item = BuiltInRegistries.ITEM.getValue(key);

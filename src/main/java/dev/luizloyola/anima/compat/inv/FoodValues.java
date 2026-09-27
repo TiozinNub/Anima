@@ -6,6 +6,8 @@ import java.util.Optional;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.food.FoodProperties;
+import net.minecraft.world.item.Item;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Reads an item's food payload into the core {@link FoodValue} from the item's own {@code FOOD}
@@ -20,14 +22,23 @@ public final class FoodValues {
 
     /**
      * The food payload of {@code stack}'s underlying item, or empty for a non-food (or empty)
-     * stack. Registry-aware like {@link ItemStacks#toVanilla}: a component patch can override the
-     * item's default {@code FOOD}, so the question is asked of the reconstructed stack.
+     * stack. A component patch can add, change or remove {@code FOOD}, so a patch that names it is
+     * decoded; one that does not cannot change it, and the item's default answers.
+     *
+     * <p>Decoding every patch was 3.9% of a 90-body tick (2026-09-27): each settler's damaged axe,
+     * asked every tick whether it was food.
      */
     public static Optional<FoodValue> of(ItemStack stack, HolderLookup.Provider registries) {
         if (stack.isEmpty()) return Optional.empty();
-        net.minecraft.world.item.ItemStack vanilla = ItemStacks.toVanilla(stack, registries);
-        FoodProperties food = vanilla.get(DataComponents.FOOD);
+        FoodProperties food = ItemStacks.patchMentions(stack, DataComponents.FOOD)
+                ? ItemStacks.toVanilla(stack, registries).get(DataComponents.FOOD)
+                : defaultFood(stack);
         if (food == null) return Optional.empty();
         return Optional.of(new FoodValue(food.nutrition(), food.saturation(), food.canAlwaysEat()));
+    }
+
+    private static @Nullable FoodProperties defaultFood(ItemStack stack) {
+        Item item = ItemStacks.itemOrNull(stack.id());
+        return item == null ? null : item.components().get(DataComponents.FOOD);
     }
 }
