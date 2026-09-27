@@ -94,6 +94,11 @@ public final class Navigator {
      */
     private static final double JUMP_RANGE = 1.0;
     /**
+     * How far short of the span a leap still turning takes off anyway ({@link #pressLeap}): 0.1
+     * past the takeoff rim, where the body has 0.2 of footing left — a tick at takeoff speed.
+     */
+    private static final double LEAP_LAST_CHANCE = 0.6;
+    /**
      * How many waypoints ahead the passed-node check may claim. Overshoots (a jump carries
      * ~1.5 blocks, knockback a couple more) land at most a few cells down the path, so a short
      * window catches every real case in O(1) instead of scanning the whole path each tick.
@@ -932,21 +937,43 @@ public final class Navigator {
             // fires it the moment we are grounded and close. The dy guard keeps the press to while
             // we are still BELOW the ledge — a re-press from on top would launch us off the far side.
             this.person.driveJump();
-        } else if (waypoint.move() == MoveType.LEAP && this.person.onGround()) {
-            // Leap: run at the gap and press jump right at the edge. The takeoff cell's far rim is
-            // span−0.5 from the landing centre, so pressing inside span−0.2 launches within a step
-            // of it; the FLOOR (span−1.2) confines the press to the takeoff side, since a plain <=
-            // stayed true after touchdown and hopped them in place. The once-per-index guard
-            // replaces a "wait ≥3 grounded ticks" gate — a chained span-3 leap is grounded on the
-            // far rim for barely a tick, so a settle-first gate never fired and the body walked in.
-            double press = leapSpan - 0.2;
-            double pressFloor = leapSpan - 1.2;
-            if (horizontalSq <= press * press && horizontalSq > pressFloor * pressFloor
-                    && this.index != this.lastLeapPressIndex) {
-                this.person.driveJump();
-                this.lastLeapPressIndex = this.index;
-            }
+        } else if (waypoint.move() == MoveType.LEAP && this.person.onGround()
+                // Once per index, not "after ≥3 grounded ticks": a chained span-3 leap is grounded
+                // on the far rim for barely a tick, so a settle-first gate never fired.
+                && this.index != this.lastLeapPressIndex
+                && pressLeap(dx, dz, velocity.x, velocity.z, leapSpan)) {
+            this.person.driveJump();
+            this.lastLeapPressIndex = this.index;
         }
+    }
+
+    /**
+     * Whether a grounded body presses a leap's jump this tick, {@code (dx, dz)} short of the landing
+     * centre and moving at {@code (vx, vz)}.
+     *
+     * <p>Run at the gap and press at the edge: the takeoff cell's far rim is span−0.5 from the
+     * landing centre, so inside span−0.2 launches within a step of it. The floor (span−1.2) keeps
+     * the press on the takeoff side; a plain {@code <=} stayed true after touchdown and hopped the
+     * body in place.
+     *
+     * <p>Not while the leap before still carries the body sideways. A right-angle chain lands moving
+     * across the gap, and pressing then launched gauntlet A12's runner at 0.16 blocks a tick
+     * instead of 0.23, into the side of its landing block (2026-09-26). It turns on the ground
+     * first, until {@link #LEAP_LAST_CHANCE}. A straight chain lands moving at the gap and presses
+     * at once.
+     */
+    static boolean pressLeap(double dx, double dz, double vx, double vz, double span) {
+        double distanceSq = dx * dx + dz * dz;
+        double press = span - 0.2;
+        double floor = span - 1.2;
+        if (distanceSq > press * press || distanceSq <= floor * floor) {
+            return false;
+        }
+        double distance = Math.sqrt(distanceSq);
+        double toward = (vx * dx + vz * dz) / distance;
+        double across = Math.abs(vx * dz - vz * dx) / distance;
+        double lastChance = span - LEAP_LAST_CHANCE;
+        return across <= Math.max(toward, 0.0) || distanceSq <= lastChance * lastChance;
     }
 
     /**
