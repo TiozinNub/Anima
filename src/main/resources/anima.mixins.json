@@ -4,7 +4,8 @@
   "compatibilityLevel": "${java}",
   "mixins": [
     "LevelSetBlockMixin",
-    "SavedDataStorageAccessor"
+    "SavedDataStorageAccessor",
+    "ServerLevelGameEventMixin"
   ],
   "injectors": {
     "defaultRequire": 1

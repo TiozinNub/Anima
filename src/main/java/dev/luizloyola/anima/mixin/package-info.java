@@ -4,7 +4,6 @@
  * {@link dev.luizloyola.anima.compat} facade wherever possible (also keeps Sinytra
  * Connector compatibility safe).
  *
- * <p>A library earns one only when the game offers no event for something it must not miss;
- * there is exactly one so far.
+ * <p>A library earns one only when the game offers no event for something it must not miss.
  */
 package dev.luizloyola.anima.mixin;
