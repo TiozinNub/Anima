@@ -2,9 +2,10 @@
 # `plans` is what the PLANNER does today - measured, not predicted: does A* reach
 # the goal at all. It is a regression lock. A change here is a change in what an
 # agent will even ATTEMPT, and should always be a deliberate one.
-# `expect` is what a vanilla player could do with MOVEMENT ALONE - no opening
-# doors, no building. It is design intent, not a measurement, and nothing
-# asserts against it; the report scores `plans` against it to say which
+# `expect` is what a vanilla player could do with MOVEMENT AND A HAND - doors,
+# gates, hatches, what is beside an iron door; no building. It is design intent, not a
+# measurement, and nothing asserts against it; the report scores `plans`
+# against it to say which
 # refusals are correct and which are gaps.
 # The stations below marked headless-only are never walked in-world: they share a
 # lane's goal pad with the station they are named after, and the in-world score asks
@@ -52,6 +53,9 @@ B16	625	-49	184	642	-48	184	false	block	block topped with a SLAB (1.5 - too high
 B17	625	-49	196	642	-48	196	true	reach	block topped with a CARPET (1.06 - clears)
 B18	625	-49	208	642	-49	208	false	block	wall 2 high, CARPET on top
 B19	625	-49	220	642	-49	220	false	block	SLAB floor under a SLAB ceiling
+B20	625	-49	232	642	-45	232	true	reach	STAIRS up x4 under a roof, 3 clear over every tread
+B21	625	-49	244	642	-48	244	false	block	STAIR up into a 1-high gap
+B22	625	-49	256	642	-53	256	true	reach	STAIRS down x4 under a roof, 3 clear over every tread
 C1	649	-49	4	666	-49	4	true	reach	1-wide bridge, 14 long
 C2	649	-49	16	666	-49	16	true	reach	1-wide bridge + gap 1
 C3	649	-49	28	666	-49	28	true	reach	2-wide bridge
@@ -61,14 +65,22 @@ C6	649	-49	64	666	-49	64	true	reach	RAILED 1-wide bridge
 C7	649	-49	76	666	-49	76	true	reach	1-wide bridge with a DIAGONAL dogleg
 C8	649	-49	88	666	-45	88	true	reach	1-wide ASCENDING bridge
 C9	649	-49	100	666	-49	100	true	reach	1-wide bridge, 90 deg corner
-D1	673	-49	4	690	-43	4	false	reach	LADDER up 6
-D2	673	-49	16	690	-49	16	false	reach	LADDER down 6 & up 6 (pit)
-D3	673	-49	28	690	-43	28	false	reach	VINES up 6
-D4	673	-49	40	690	-43	40	false	reach	SCAFFOLDING tower up 6
-D5	673	-49	52	690	-43	52	false	reach	OPEN-TRAPDOOR ladder up 6
+D1	673	-49	4	690	-43	4	true	reach	LADDER up 6
+D2	673	-49	16	690	-49	16	true	reach	LADDER down 6 & up 6 (pit)
+D3	673	-49	28	690	-43	28	true	reach	VINES up 6
+D4	673	-49	40	690	-43	40	true	reach	SCAFFOLDING tower up 6
+D5	673	-49	52	690	-43	52	false	block	OPEN-TRAPDOOR ladder up 6
 D6	673	-49	64	690	-49	64	false	reach	1-tall CRAWL tunnel
 D7	673	-49	76	690	-47	76	true	reach	up 2 via helper block
 D8	673	-49	88	690	-49	88	false	block	wall 3 high, no aid
+D9	673	-49	100	690	-43	100	true	reach	LADDER up a shaft through a floor
+D10	673	-49	112	690	-43	112	false	block	LADDER two rungs short of the top
+D11	673	-49	124	690	-43	124	false	block	LADDER up 6, a block over the top rung
+D12	673	-49	136	690	-43	136	true	reach	LADDER up through a shut TRAPDOOR hatch
+D13	673	-49	148	690	-55	148	true	reach	LADDER down through a shut TRAPDOOR hatch
+D14	673	-49	160	690	-55	160	true	reach	SCAFFOLDING down a tower
+D15	673	-49	172	690	-43	172	false	block	IRON TRAPDOOR over a ladder
+D16	673	-49	184	690	-43	184	false	block	TRAPDOOR over a ladder facing ANOTHER way
 E1	697	-49	4	714	-49	4	true	reach	wade: water 1 deep, 8 long
 E2	697	-49	16	714	-49	16	true	reach	deep water, 9 long
 E3	697	-49	28	714	-49	28	true	reach	water gap 2
@@ -79,19 +91,25 @@ E7	697	-49	76	714	-44	76	true	reach	WATERFALL climb 5
 E8	697	-49	88	714	-44	88	false	reach	swim UP a still 5-block column
 E9	697	-49	100	714	-49	100	true	reach	BLUE ICE run, 12 long
 E10	697	-49	112	714	-49	112	true	reach	LILY PADS across 8 of water
-F1	721	-49	4	738	-49	4	false	block	CLOSED oak door (blocks)
-F2	721	-49	16	738	-49	16	false	reach	OPEN oak door (clear)
-F3	721	-49	28	738	-49	28	false	block	CLOSED fence gate
+F1	721	-49	4	738	-49	4	true	reach	CLOSED oak door (blocks)
+F2	721	-49	16	738	-49	16	true	reach	OPEN oak door (clear)
+F3	721	-49	28	738	-49	28	true	reach	CLOSED fence gate
 F4	721	-49	40	738	-49	40	true	reach	OPEN fence gate
 F5	721	-49	52	738	-49	52	false	block	fence line
 F6	721	-49	64	738	-49	64	false	block	cobblestone wall line
 F7	721	-49	76	738	-49	76	true	reach	iron bars line
-F8	721	-49	88	738	-49	88	false	block	iron door + button
+F8	721	-49	88	738	-49	88	true	reach	iron door + button
 F9	721	-49	100	738	-49	100	true	reach	carpet floor, 8 long
 F10	721	-49	112	738	-49	112	true	reach	plates / rails / string
 F11	721	-49	124	738	-49	124	true	reach	cobweb, 4 long
-F12	721	-49	136	738	-49	136	false	block	OPEN door that LOOKS CLOSED
-F13	721	-49	148	738	-49	148	false	reach	CLOSED door that LOOKS OPEN
+F12	721	-49	136	738	-49	136	true	reach	OPEN door that LOOKS CLOSED
+F13	721	-49	148	738	-49	148	true	reach	CLOSED door that LOOKS OPEN
+F14	721	-49	160	738	-48	160	true	reach	CLOSED door up a step
+F15	721	-49	172	738	-49	172	true	reach	CLOSED double door
+F16	721	-49	184	738	-49	184	true	reach	iron door + LEVER
+F17	721	-49	196	738	-49	196	true	reach	iron door + PRESSURE PLATES
+F18	721	-49	208	738	-49	208	false	block	iron door, BUTTON on the FAR side only
+F19	721	-49	220	738	-49	220	true	reach	door in the CORNER of an L
 G1	745	-49	4	762	-49	4	false	block	lava pool 6 wide
 G2	745	-49	16	762	-49	16	true	reach	lava + 1-wide obsidian bridge
 G3	745	-49	28	762	-49	28	true	reach	lava gap 2 (leap it)
@@ -170,9 +188,9 @@ I2.3	811	-49	14	817	-49	14	false	block	WALK THROUGH IT: cobblestone_wall[up=true
 I2.4	811	-49	19	817	-49	19	true	reach	WALK THROUGH IT: iron_bars
 I2.5	811	-49	24	817	-49	24	true	reach	WALK THROUGH IT: glass_pane
 I2.6	811	-49	29	817	-49	29	true	reach	WALK THROUGH IT: oak_fence_gate[facing=east,open=true]
-I2.7	811	-49	34	817	-49	34	false	block	WALK THROUGH IT: oak_fence_gate[facing=east,open=false]
-I2.8	811	-49	39	817	-49	39	false	reach	WALK THROUGH IT: oak_trapdoor[facing=west,half=bottom,open=true]
-I2.9	811	-49	44	817	-49	44	false	reach	WALK THROUGH IT: ladder[facing=south]
+I2.7	811	-49	34	817	-49	34	true	reach	WALK THROUGH IT: oak_fence_gate[facing=east,open=false]
+I2.8	811	-49	39	817	-49	39	false	block	WALK THROUGH IT: oak_trapdoor[facing=west,half=bottom,open=true]
+I2.9	811	-49	44	817	-49	44	true	reach	WALK THROUGH IT: ladder[facing=south]
 I2.10	811	-49	49	817	-49	49	true	reach	WALK THROUGH IT: vine[north=true]
 I2.11	811	-49	54	817	-49	54	true	reach	WALK THROUGH IT: cobweb
 I2.12	811	-49	59	817	-49	59	true	reach	WALK THROUGH IT: white_carpet

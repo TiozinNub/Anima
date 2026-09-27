@@ -330,6 +330,49 @@ class GauntletPathTest {
      * as a course, not as one line per failed assertion. Also how the {@code plans} column gets
      * (re-)recorded after a deliberate change.
      */
+    /**
+     * Stations whose whole subject is a climb: reached without a {@link MoveType#CLIMB} would mean
+     * a jump or a leap found another way up, and the row would be about that instead.
+     */
+    private static final List<String> MUST_CLIMB =
+            List.of("D1", "D2", "D3", "D4", "D9", "D12", "D13", "D14", "I2.9");
+    /** Stations whose whole subject is a door or a gate: the route must stand in its doorway. */
+    private static final List<String> MUST_USE_THE_DOOR =
+            List.of("F1", "F2", "F3", "F8", "F12", "F13", "F14", "F15", "F16", "F17", "F19", "I2.7");
+    /**
+     * Staircases: walked by their treads, so neither jumped up nor dropped down. They were both
+     * until 2026-09-26, and reached the goal all the same, so reaching it proves nothing here.
+     */
+    private static final List<String> MUST_WALK_THE_STAIRS = List.of("B5", "B6", "B20", "B22");
+
+    @Test
+    void climbDoorAndStairStationsAreNotQuietlySolvedAnotherWay() {
+        for (String id : MUST_CLIMB) {
+            List<Waypoint> route = routeOf(id);
+            assertTrue(route.stream().anyMatch(w -> world.cell(w.x(), w.y(), w.z()) == CellType.CLIMB),
+                    id + " is reached without ever holding the climbable: " + route);
+        }
+        for (String id : MUST_USE_THE_DOOR) {
+            List<Waypoint> route = routeOf(id);
+            assertTrue(route.stream().anyMatch(w -> world.cell(w.x(), w.y(), w.z()) == CellType.DOOR),
+                    id + " is reached without ever standing in the doorway: " + route);
+        }
+        for (String id : MUST_WALK_THE_STAIRS) {
+            List<Waypoint> route = routeOf(id);
+            assertTrue(route.stream().noneMatch(w -> w.move() == MoveType.JUMP || w.move() == MoveType.DROP),
+                    id + " hops or drops down a staircase it should walk: " + route);
+        }
+    }
+
+    private static List<Waypoint> routeOf(String id) {
+        Station s = stations.stream().filter(st -> st.id().equals(id)).findFirst()
+                .orElseThrow(() -> new AssertionError("no station " + id));
+        dev.luizloyola.anima.core.nav.Path path = Pathfinder.find(world,
+                PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY));
+        assertTrue(path.reachedGoal(), id + " (" + s.title() + ") is not reached at all");
+        return path.waypoints();
+    }
+
     @Test
     void report() throws IOException {
         StringBuilder out = new StringBuilder("# id\tplans\trecorded\ttitle\n");
