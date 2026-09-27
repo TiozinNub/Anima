@@ -87,6 +87,14 @@ public final class Pathfinder {
      */
     private static final int[] LEAP_TURN_CAP = {3, 3, 3, 3, 2};
     /**
+     * The widest gap a body leaps off a DIAGONAL step onto its takeoff. The step keeps most of its
+     * speed through the 45°, which carries a 2-cell gap, but one step is all the run-up there is.
+     * Gauntlet A8's runner leapt the 3-cell gap off the fourth block of its corner diagonal with
+     * 0.48 of a block to spare, and the station failed about one walk in four. The fifth block's
+     * 2-cell gap is the line a player takes, and lands with 0.63 (Luiz, 2026-09-27).
+     */
+    private static final int DIAGONAL_STEP_LEAP = 2;
+    /**
      * Cost multiplier for unit moves whose either endpoint is careful ground (bordering a chasm,
      * lava, or water — {@link NavGrids#isNearDeepDrop}): the follower walks such steps at the
      * careful throttle (0.45 → this is 1/0.45), so this is the real time cost, and it doubles as
@@ -848,7 +856,8 @@ public final class Pathfinder {
         //
         //  - it arrives ON FOOT, travelling somewhat the way it is about to jump. A diagonal step
         //    in counts, keeping most of its speed through a 45°, and that is how a pillar reached
-        //    from the pillar beside it (gauntlet A8, A12) is leapt off at all. A quarter turn does
+        //    from the pillar beside it (gauntlet A8, A12) is leapt off at all — up to a 2-cell gap,
+        //    since one step is all the run-up it is (DIAGONAL_STEP_LEAP). A quarter turn does
         //    not, so this is a dot product rather than "did it come from anywhere":
         //    station A2.R found it cheaper to step SIDEWAYS one cell (1.0) and leap perpendicular
         //    to that step (5.4) than to back up and run at the gap properly (7.4) — a standing
@@ -879,7 +888,9 @@ public final class Pathfinder {
             int ax = Integer.signum(x - unpackX(arrival));
             int az = Integer.signum(z - unpackZ(arrival));
             if (ax * dx + az * dz > 0 && node.move != MoveType.DROP) {
-                leapFrom(current, node, x, y, z, from, dx, dz, maxLeap, 1, 0.0);
+                boolean diagonal = ax != 0 && az != 0;
+                leapFrom(current, node, x, y, z, from, dx, dz,
+                        diagonal ? Math.min(maxLeap, DIAGONAL_STEP_LEAP) : maxLeap, 1, 0.0);
             } else if (node.move == MoveType.LEAP) {
                 int arrived = Math.max(Math.abs(x - unpackX(arrival)),
                         Math.abs(z - unpackZ(arrival)));

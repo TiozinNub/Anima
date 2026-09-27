@@ -146,4 +146,18 @@ class PathfinderDiagonalTest {
         assertTrue(path.reachedGoal(), "a chain of corners is still a route");
         assertEquals(4, path.waypoints().size(), "and it is four diagonal steps, not a detour");
     }
+
+    @Test
+    void aDiagonalStepRunsUpToATwoCellGapButNotAThreeCellOne() {
+        // The only way across is a leap east off a block stepped onto diagonally. One diagonal
+        // step is no run-up for the widest gap (gauntlet A8, Luiz, 2026-09-27).
+        AsciiWorld three = AsciiWorld.of(
+                "1      ",
+                " 1   11");
+        AsciiWorld two = AsciiWorld.of(
+                "1     ",
+                " 1  11");
+        assertFalse(find(three, 0, 1, 0, 6, 1, 1).reachedGoal(), "a 3-cell gap off a diagonal step");
+        assertTrue(find(two, 0, 1, 0, 5, 1, 1).reachedGoal(), "a 2-cell gap off a diagonal step");
+    }
 }

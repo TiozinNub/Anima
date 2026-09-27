@@ -364,6 +364,26 @@ class GauntletPathTest {
         }
     }
 
+    /**
+     * A8's corner diagonal: a 3-cell gap off its fourth block, a 2-cell gap off its fifth. The
+     * fourth has one diagonal step of run-up and landed with 0.48 of a block to spare; the fifth is
+     * the line a player takes and lands with 0.63 (Luiz, 2026-09-27).
+     */
+    @Test
+    void theCornerDiagonalIsLeaptFromItsLastBlock() {
+        List<Waypoint> route = routeOf("A8");
+        int leap = -1;
+        for (int i = 1; i < route.size(); i++) {
+            if (route.get(i).move() == MoveType.LEAP) {
+                leap = i;
+            }
+        }
+        assertTrue(leap > 0, "A8 crosses without a leap: " + route);
+        Waypoint takeoff = route.get(leap - 1);
+        assertEquals(List.of(612, 90), List.of(takeoff.x(), takeoff.z()),
+                "A8 leaps from short of its last block: " + route);
+    }
+
     private static List<Waypoint> routeOf(String id) {
         Station s = stations.stream().filter(st -> st.id().equals(id)).findFirst()
                 .orElseThrow(() -> new AssertionError("no station " + id));
