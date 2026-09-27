@@ -137,41 +137,115 @@ class CraftForTest {
                 List.of(new CraftRecipe.Ingredient(Set.of("minecraft:" + wood + "_log"), 1)), false);
     }
 
+    /** A way a consumer registered: reachability asks that it exists, "now" that it applies. */
+    private record Way(boolean applies) implements Method {
+        @Override
+        public boolean applicable(BrainContext c) {
+            return applies;
+        }
+
+        @Override
+        public double estimateCost(BrainContext c) {
+            return 1.0;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext c) {
+            return List.of();
+        }
+
+        @Override
+        public String describe() {
+            return "a registered way";
+        }
+    }
+
+    private static final ItemSpec LOGS =
+            ItemSpec.register(new ItemSpec("craft-test-logs", id -> id.endsWith("_log")));
+    private static final ItemSpec COBBLE = ItemSpec.register(
+            new ItemSpec("craft-test-cobble", id -> id.equals("minecraft:cobblestone")));
+    private static final ItemSpec FUEL =
+            ItemSpec.register(new ItemSpec("craft-test-fuel", id -> id.endsWith("coal")));
+
+    private static final ItemSpec THREE_PLANKS = ItemSpec.anyOf(Set.of("minecraft:acacia_planks",
+            "minecraft:birch_planks", "minecraft:oak_planks"));
+
     @Test
-    void aTieGoesToTheRecipeWhoseShortfallCanBeHadNow() {
-        // Every plank recipe is one log short and the book lists acacia first; the only tree this
-        // body remembers is an oak. Registered for any log, applicable only to the species it knows.
-        book(planks("acacia"), planks("oak"));
-        ItemSpec anyLog = ItemSpec.register(new ItemSpec("craft-test-any-log",
-                id -> id.endsWith("_log")));
-        Producers.register(anyLog, wanted -> new Method() {
-            @Override
-            public boolean applicable(BrainContext c) {
-                return wanted.matches("minecraft:oak_log");
-            }
+    void anEmptyPackLeavesTheSpeciesToTheObtain() {
+        // Birch is earlier in the book than oak: choosing the recipe first sent an oak wood's
+        // settlers to far birches (in-world, 2026-09-27). The obtain carries every log instead.
+        book(planks("acacia"), planks("birch"), planks("oak"));
+        Producers.register(LOGS, wanted -> new Way(true));
 
-            @Override
-            public double estimateCost(BrainContext c) {
-                return 1.0;
-            }
+        List<Task> plan = new CraftFor(THREE_PLANKS, 4, Set.of()).decompose(ctx);
 
-            @Override
-            public List<Task> decompose(BrainContext c) {
-                return List.of();
-            }
+        assertEquals(1, plan.size(), "no craft yet: which one waits on the log that comes");
+        ObtainItem logs = assertInstanceOf(ObtainItem.class, plan.get(0));
+        assertEquals(1, logs.count());
+        for (String wood : List.of("acacia", "birch", "oak")) {
+            assertTrue(logs.spec().matches("minecraft:" + wood + "_log"), wood);
+            assertTrue(logs.pursued().contains("minecraft:" + wood + "_planks"), wood);
+        }
 
-            @Override
-            public String describe() {
-                return "fell a remembered oak";
-            }
-        });
-        ItemSpec anyPlanks = ItemSpec.anyOf(Set.of("minecraft:acacia_planks", "minecraft:oak_planks"));
-
-        List<Task> plan = new CraftFor(anyPlanks, 4, Set.of()).decompose(ctx);
-
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_log", 1, 64));
+        List<Task> next = new CraftFor(THREE_PLANKS, 4, Set.of()).decompose(ctx);
         assertEquals("minecraft:oak_planks",
-                ((CraftStep) plan.get(plan.size() - 1)).recipe().outputId(),
-                "an empty-handed settler in an oak forest makes oak planks, not the book's first");
+                ((CraftStep) next.get(next.size() - 1)).recipe().outputId(),
+                "the next round makes what the log that came makes");
+    }
+
+    @Test
+    void theRecipeThePackRunsMostOfGoesFirst() {
+        book(planks("birch"), planks("oak"));
+        Producers.register(LOGS, wanted -> new Way(true));
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:birch_log", 1, 64));
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_log", 2, 64));
+
+        List<Task> plan = new CraftFor(THREE_PLANKS, 12, Set.of()).decompose(ctx);
+
+        CraftStep step = (CraftStep) plan.get(plan.size() - 1);
+        assertEquals("minecraft:oak_planks", step.recipe().outputId());
+        assertEquals(2, step.times(), "both oak logs now; the birch log is the next round's");
+    }
+
+    private static CraftRecipe torch(String fuel) {
+        return new CraftRecipe(fuel + "-torch", ItemStack.of("minecraft:torch", 4, 64),
+                List.of(new CraftRecipe.Ingredient(Set.of(fuel), 1),
+                        new CraftRecipe.Ingredient(Set.of("minecraft:stick"), 1)), false);
+    }
+
+    @Test
+    void aSharedLineIsGatheredBesideTheOpenOne() {
+        book(torch("minecraft:coal"), torch("minecraft:charcoal"));
+        Producers.register(FUEL, wanted -> new Way(true));
+        Producers.register(STICKS, wanted -> new Way(true));
+
+        List<Task> plan = new CraftFor(ItemSpec.anyOf(Set.of("minecraft:torch")), 8, Set.of())
+                .decompose(ctx);
+
+        assertEquals(2, plan.size());
+        ObtainItem sticks = assertInstanceOf(ObtainItem.class, plan.get(0));
+        assertTrue(sticks.spec().matches("minecraft:stick"));
+        assertEquals(2, sticks.count(), "two runs of four torches");
+        ObtainItem fuel = assertInstanceOf(ObtainItem.class, plan.get(1));
+        assertTrue(fuel.spec().matches("minecraft:coal") && fuel.spec().matches("minecraft:charcoal"));
+        assertEquals(2, fuel.count());
+    }
+
+    @Test
+    void billsThatCannotMixStillGoToTheOneThatCanBeHadNow() {
+        // Three planks or three cobblestone: gathered as a mix they make no axe, so these do not
+        // merge. Stone is first in the book, but no stone is known and a tree is.
+        book(stoneAxeNeedingTable(), axeNeedingTable(), planksFromLog());
+        Producers.register(LOGS, wanted -> new Way(true));
+        Producers.register(COBBLE, wanted -> new Way(false));
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:stick", 2, 64));
+        ItemSpec anyAxe = ItemSpec.anyOf(Set.of("minecraft:wooden_axe", "minecraft:stone_axe"));
+
+        List<Task> plan = new CraftFor(anyAxe, 1, Set.of()).decompose(ctx);
+
+        assertEquals("minecraft:wooden_axe",
+                ((CraftStep) plan.get(plan.size() - 1)).recipe().outputId());
     }
 
     @Test
@@ -306,35 +380,11 @@ class CraftForTest {
     private static final Set<String> BIRCH_LOGS = Set.of("minecraft:birch_log",
             "minecraft:birch_wood", "minecraft:stripped_birch_log", "minecraft:stripped_birch_wood");
 
-    /** A chop the consumer registered that has no tree right now — the round it failed in. */
-    private static final class NoTreeFree implements Method {
-        @Override
-        public boolean applicable(BrainContext c) {
-            return false;
-        }
-
-        @Override
-        public double estimateCost(BrainContext c) {
-            return Double.POSITIVE_INFINITY;
-        }
-
-        @Override
-        public List<Task> decompose(BrainContext c) {
-            return List.of();
-        }
-
-        @Override
-        public String describe() {
-            return "fell a tree";
-        }
-    }
-
     @Test
     void barkIsNoWayToTheLogsItIsMadeOf() {
         book(new CraftRecipe("minecraft:birch_wood", ItemStack.of("minecraft:birch_wood", 3, 64),
                 List.of(new CraftRecipe.Ingredient(Set.of("minecraft:birch_log"), 4)), false));
-        Producers.register(ItemSpec.register(new ItemSpec("craft-test-bark-logs",
-                id -> id.endsWith("_log"))), wanted -> new NoTreeFree());
+        Producers.register(LOGS, wanted -> new Way(false)); // the chop whose tree just failed
         ItemSpec planksLine = ItemSpec.anyOf(BIRCH_LOGS);
 
         assertFalse(new CraftFor(planksLine, 1, Set.of("minecraft:birch_planks")).applicable(ctx),

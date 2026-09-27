@@ -22,6 +22,14 @@ import java.util.Set;
  * specs are {@link ItemSpec#anyOf literal} — "any plank", straight from the ingredient — so they
  * persist by content and a reload rebuilds them with no mod having declared a planks class.
  *
+ * <p><b>What the pack can make, it makes; otherwise the material stays open.</b> A recipe the pack
+ * affords a run of is crafted now, as many runs as it affords. When none is, and the recipes
+ * differ only in one line taken once a craft — planks from any log, a torch from coal or charcoal
+ * — the plan is the obtain alone, over every recipe's material, and the next round crafts
+ * whichever arrived. Choosing the recipe first sent an oak wood's settlers to birches seventy
+ * blocks off, birch being earlier in the book (in-world, 2026-09-27); the obtain's own ways price
+ * every tree, store and drop by distance.
+ *
  * <p><b>The occurs-check is ancestor-based</b>, carried as {@code pursued}: the output ids this
  * branch of the goal stack is already obtaining. A recipe whose output is already pursued is not
  * offered (the gold-ingot ⇄ gold-nugget cycle refusing to loop) while a SIBLING obtain of the
@@ -32,7 +40,7 @@ import java.util.Set;
 public final class CraftFor implements Method {
 
     /**
-     * Cost when the pack already covers the whole bill — cheaper than walking anywhere that is
+     * Cost when the pack already covers a run of the bill — cheaper than walking anywhere that is
      * not next to your feet, pricier than drops already in reach. On the same blocks-flavoured
      * scale every other method prices in.
      */
@@ -64,7 +72,7 @@ public final class CraftFor implements Method {
     public double estimateCost(BrainContext ctx) {
         Inventory pack = ctx.percepts().inventory();
         for (CraftRecipe recipe : usable(ctx)) {
-            if (coverable(recipe, craftsNeeded(recipe, pack), pack)) {
+            if (runsAfforded(recipe, pack) > 0) {
                 return COVERED_COST;
             }
         }
@@ -74,8 +82,19 @@ public final class CraftFor implements Method {
     @Override
     public List<Task> decompose(BrainContext ctx) {
         Inventory pack = ctx.percepts().inventory();
-        CraftRecipe recipe = pick(ctx);
-        int crafts = craftsNeeded(recipe, pack);
+        List<CraftRecipe> usable = usable(ctx);
+        CraftRecipe recipe = ready(usable, pack);
+        int crafts;
+        if (recipe != null) {
+            crafts = Math.min(craftsNeeded(recipe, pack), runsAfforded(recipe, pack));
+        } else {
+            List<CraftRecipe.Ingredient> open = wildcard(usable);
+            if (open != null) {
+                return obtainAny(usable, open, pack);
+            }
+            recipe = pick(usable, ctx);
+            crafts = craftsNeeded(recipe, pack);
+        }
         Set<String> nowPursued = new HashSet<>(pursued);
         nowPursued.add(recipe.outputId());
         List<Task> plan = new ArrayList<>();
@@ -216,24 +235,91 @@ public final class CraftFor implements Method {
     }
 
     /**
-     * The recipe to expand: covered-from-the-pack beats everything, then one whose shortfall can be
-     * had right now, then the fewest missing items, then in-hand over table (no walk beats a walk),
-     * then source order — so the same pack always plans the same craft.
+     * The recipe the pack runs now: most runs (up to what is wanted), then in-hand over table (no
+     * walk beats a walk), then source order. Null when the pack runs none.
+     */
+    private CraftRecipe ready(List<CraftRecipe> usable, Inventory pack) {
+        CraftRecipe best = null;
+        int bestRuns = 0;
+        for (CraftRecipe recipe : usable) {
+            int runs = Math.min(runsAfforded(recipe, pack), craftsNeeded(recipe, pack));
+            if (runs > bestRuns || (runs == bestRuns && best != null
+                    && best.needsTable() && !recipe.needsTable())) {
+                best = recipe;
+                bestRuns = runs;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * The recipes as one bill with the material left open, or null when they cannot be: the lines
+     * all of them share, plus one line joining what each takes in its only other line, one a craft.
+     * One a craft is what makes a mixed pile safe — an oak log and a birch log are a run of each —
+     * where three planks and three cobblestone gathered for an axe make no axe at all.
+     */
+    private static List<CraftRecipe.Ingredient> wildcard(List<CraftRecipe> recipes) {
+        if (recipes.size() < 2) {
+            return null;
+        }
+        List<CraftRecipe.Ingredient> shared = new ArrayList<>();
+        for (CraftRecipe.Ingredient line : recipes.get(0).ingredients()) {
+            if (recipes.stream().allMatch(recipe -> recipe.ingredients().contains(line))) {
+                shared.add(line);
+            }
+        }
+        Set<String> open = new HashSet<>();
+        for (CraftRecipe recipe : recipes) {
+            List<CraftRecipe.Ingredient> own = new ArrayList<>(recipe.ingredients());
+            own.removeAll(shared);
+            if (own.size() != 1 || own.get(0).count() != 1) {
+                return null;
+            }
+            open.addAll(own.get(0).acceptedIds());
+        }
+        shared.add(new CraftRecipe.Ingredient(open, 1));
+        return shared;
+    }
+
+    /**
+     * The obtains alone, for the fewest runs any recipe needs. They leave the goal unmet on
+     * purpose: the next round finds a recipe the pack now runs, and a short one asks again.
+     */
+    private List<Task> obtainAny(List<CraftRecipe> recipes, List<CraftRecipe.Ingredient> bill,
+                                 Inventory pack) {
+        int runs = Integer.MAX_VALUE;
+        Set<String> nowPursued = new HashSet<>(pursued);
+        for (CraftRecipe recipe : recipes) {
+            runs = Math.min(runs, craftsNeeded(recipe, pack));
+            nowPursued.add(recipe.outputId());
+        }
+        List<Task> plan = new ArrayList<>();
+        for (CraftRecipe.Ingredient line : bill) {
+            plan.add(new ObtainItem(ItemSpec.anyOf(line.acceptedIds()), line.count() * runs,
+                    nowPursued));
+        }
+        return plan;
+    }
+
+    /**
+     * The recipe to expand when the pack runs none and the recipes do not merge: one whose
+     * shortfall can be had right now, then the fewest missing items, then in-hand over table, then
+     * source order — so the same pack always plans the same craft.
      *
      * <p>"Right now" is what stopped an empty-handed settler in an oak forest choosing acacia
-     * planks: every plank recipe is one log short, the book's first is acacia, and no tree it knew
-     * could give an acacia log (in-world, 2026-09-24). Reachability still only asks whether a way
-     * could exist; this asks which one does.
+     * planks (in-world, 2026-09-24). Planks merge now; what it still decides between is bills that
+     * cannot be gathered as a mix. Reachability only asks whether a way could exist; this asks
+     * which one does.
      */
-    private CraftRecipe pick(BrainContext ctx) {
+    private CraftRecipe pick(List<CraftRecipe> usable, BrainContext ctx) {
         Inventory pack = ctx.percepts().inventory();
         CraftRecipe best = null;
         int bestMissing = Integer.MAX_VALUE;
         boolean bestNow = false;
-        for (CraftRecipe recipe : usable(ctx)) {
+        for (CraftRecipe recipe : usable) {
             int crafts = craftsNeeded(recipe, pack);
             int missing = missingFor(recipe, crafts, pack);
-            boolean now = missing == 0 || shortfallHadNow(recipe, crafts, ctx, NOW_DEPTH);
+            boolean now = shortfallHadNow(recipe, crafts, ctx, NOW_DEPTH);
             boolean wins = best == null
                     || (now && !bestNow)
                     || (now == bestNow && (missing < bestMissing
@@ -303,8 +389,13 @@ public final class CraftFor implements Method {
         return (shortfall + recipe.outputCount() - 1) / recipe.outputCount();
     }
 
-    private static boolean coverable(CraftRecipe recipe, int crafts, Inventory pack) {
-        return missingFor(recipe, crafts, pack) == 0;
+    /** Runs of the recipe the pack holds the whole bill for. */
+    private static int runsAfforded(CraftRecipe recipe, Inventory pack) {
+        int runs = Integer.MAX_VALUE;
+        for (CraftRecipe.Ingredient line : recipe.ingredients()) {
+            runs = Math.min(runs, pack.count(line.acceptedIds()::contains) / line.count());
+        }
+        return runs;
     }
 
     /** Items the pack is short of for {@code crafts} runs of this recipe, summed over the bill. */
