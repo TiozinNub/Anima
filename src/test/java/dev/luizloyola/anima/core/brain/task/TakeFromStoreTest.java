@@ -11,6 +11,7 @@ import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
+import dev.luizloyola.anima.core.brain.sense.Drop;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.inv.ItemStack;
@@ -283,5 +284,33 @@ class TakeFromStoreTest {
         assertEquals(List.of(unopened, known), ctx.containers.opened,
                 "the near chest first, and on to the known one in the same errand");
         assertEquals(4, ctx.percepts.inventory.count(LOGS.matcher()));
+    }
+
+    @Test
+    void anEmptyLookKeepsTheKnownStoreInTheRunning() {
+        // Were the look a failure, taking from stores would sit out the rest of the round and the
+        // drop, dearer than the known store, would be walked to instead.
+        Pos known = new Pos(10, 64, 0);
+        Pos unopened = new Pos(-5, 64, 0);
+        Pos drop = new Pos(0, 64, 12);
+        storeWithLogs(known, 0L);
+        claim(unopened);
+        ctx.containers.boxes.put(unopened, new ArrayList<>());
+        ctx.containers.boxes.put(known,
+                new ArrayList<>(List.of(ItemStack.of("minecraft:oak_log", 9, 64))));
+        ctx.percepts.drops = List.of(new Drop(drop, "minecraft:oak_log", Region.of(drop)));
+        assertTrue(new PickUpNearby(LOGS).applicable(ctx), "the drop is a way, or this proves nothing");
+        ctx.mover.setState(MoveState.ARRIVED);
+
+        TaskExecutor executor = new TaskExecutor();
+        executor.run(new ObtainItem(LOGS, 4), ctx);
+        for (int tick = 0; tick < 400 && ctx.containers.opened.size() < 2 && executor.isBusy(); tick++) {
+            ctx.percepts.time++;
+            executor.tick(ctx);
+        }
+
+        assertEquals(List.of(unopened, known), ctx.containers.opened);
+        assertTrue(ctx.mover.events.stream().noneMatch(event -> event.contains(", 12)")),
+                "nobody walked to the drop: " + ctx.mover.events);
     }
 }
