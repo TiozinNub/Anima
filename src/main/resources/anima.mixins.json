@@ -4,6 +4,8 @@
   "compatibilityLevel": "${java}",
   "mixins": [
     "LevelSetBlockMixin",
+    "LivingEntityHurtSoundMixin",
+    "MobAmbientSoundMixin",
     "SavedDataStorageAccessor",
     "ServerLevelGameEventMixin"
   ],

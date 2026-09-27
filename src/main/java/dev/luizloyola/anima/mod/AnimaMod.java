@@ -98,10 +98,11 @@ public final class AnimaMod implements ModInitializer {
         // A player's half of a conversation: the seat that ticks for them, and the right-click
         // that opens one. Anima's, not a consumer's — a wolf can be hailed by a player too.
         dev.luizloyola.anima.mod.social.Talkers.init();
-        // Who hit whom and who placed what: the being sense reads both, so a bare install must
+        // Hits, placements and voices: the being sense reads all three, so a bare install must
         // feed them — a wolf needs to know it was bitten.
         dev.luizloyola.anima.mod.brain.DamageMarks.init();
         dev.luizloyola.anima.mod.brain.PlaceMarks.init();
+        dev.luizloyola.anima.mod.brain.BeingVoices.init();
         dev.luizloyola.anima.mod.brain.ThunderMarks.init();
         dev.luizloyola.anima.mod.nav.Falls.init();
         dev.luizloyola.anima.mod.social.PlayerTaps.init();
