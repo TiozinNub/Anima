@@ -153,8 +153,8 @@ class TakeFromStoreTest {
     void ageNeverPricesALookAboveNotHavingLooked() {
         Pos known = new Pos(10, 64, 0);
         Pos unopened = new Pos(-10, 64, 0);
+        claim(unopened); // first, so the tie is not won by insertion order
         storeWithLogs(known, 0L);
-        claim(unopened);
         ctx.percepts.time = 1_000_000L;
 
         assertEquals(15.0, cost(), 1e-9, "capped at the unopened price, not 10 + 5000");
