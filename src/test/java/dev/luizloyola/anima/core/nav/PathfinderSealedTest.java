@@ -232,6 +232,19 @@ class PathfinderSealedTest {
     }
 
     /**
+     * Every body asks this on a cadence, and nearly all of them stand in the open: the first pass
+     * heads for the nearest side, so the rim six cells out costs about six cells, not a wavefront.
+     */
+    @Test
+    void openGroundIsSettledByHeadingForTheRim() {
+        Confinement verdict = Pathfinder.survey(surveyBox(flatGround()),
+                PathRequest.of(0, 1, 0, 0, 1, 0, TestBodies.BIPED));
+
+        assertFalse(verdict.sealed());
+        assertTrue(verdict.cells() <= 12, "headed straight out; expanded " + verdict.cells());
+    }
+
+    /**
      * The size of the capture is the size of the claim. A room that fits clear of the rim is still
      * proved a prison — this is the case {@code SURVEY_MARGIN} is chosen to keep.
      */

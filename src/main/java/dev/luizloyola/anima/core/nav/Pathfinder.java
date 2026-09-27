@@ -170,6 +170,10 @@ public final class Pathfinder {
     /** Longest stride radius (Chebyshev). Raising it widens the heading fan and lengthens steps,
      *  at more probe cost per expansion — and the follower's stray radius must stay above it. */
     private static final int MAX_STRIDE = 3;
+
+    /** How far a headed survey looks for the capture's edge; surveys capture ten either side. */
+    private static final int SIDE_REACH = 64;
+
     /**
      * Strides: longer flat steps — every offset with Chebyshev radius 2..{@link #MAX_STRIDE}. They
      * replace the 45°-then-90° zigzag with headings every ~12° <em>and</em> cover up to 3 cells per
@@ -343,6 +347,13 @@ public final class Pathfinder {
     private boolean leavingDoorway;
     /** {@link NavGrid#hasDoors}, read once: when false, no move asks about doors at all. */
     private final boolean doors;
+    /** A survey's first pass: the open list is ordered by {@link #toNearestSide}, not by cost. */
+    private boolean headed;
+    /** The capture's edges around a headed survey's start — see {@link #findSides}. */
+    private int westSide;
+    private int eastSide;
+    private int northSide;
+    private int southSide;
 
     private Pathfinder(NavGrid grid, PathRequest request) {
         this.grid = grid;
@@ -377,20 +388,28 @@ public final class Pathfinder {
      * cell at a time inside its own prison, and every one of those searches reaches its goal in a
      * step or two without ever trying to leave.
      *
-     * <p>Cheap and rare: a body that is shut in has a tiny region by definition, so the expansion
-     * ends almost immediately, and a body that is not is not asking. See
-     * {@code AgentPercepts.confinement} for the gate and the cache.
+     * <p><b>Two passes, and the second is rare.</b> Every body asks on a cadence, and nearly all of
+     * them stand in the open, where one cell at the rim settles it. So the first pass heads for the
+     * nearest side of the capture instead of spreading by cost: a handful of cells on flat ground,
+     * where the cost-ordered wavefront closed ~150 (3.5% of a 90-body tick, 2026-09-27). Only a
+     * first pass that runs dry is re-asked in cost order, because heading closes a cell by
+     * whichever route got there first, and the state a route carries (breath, a leap's takeoff)
+     * decides what the body may do next — so "sealed" is always the canonical search's verdict.
      */
     public static Confinement survey(NavGrid grid, PathRequest request) {
-        return new Pathfinder(grid, request).surveyFrom(request);
+        Confinement headed = new Pathfinder(grid, request).surveyFrom(request, true);
+        return headed.sealed() ? new Pathfinder(grid, request).surveyFrom(request, false) : headed;
     }
 
-    private Confinement surveyFrom(PathRequest request) {
+    private Confinement surveyFrom(PathRequest request, boolean headed) {
         long start = pack(request.startX(), request.startY(), request.startZ());
         Node origin = new Node();
         origin.surface16 = surface16At(request.startX(), request.startY(), request.startZ());
         this.nodes.put(start, origin);
         this.open.push(start, 0.0);
+        if (headed) {
+            findSides(request.startX(), request.startY(), request.startZ());
+        }
 
         int margin = rimMargin();
         int expanded = 0;
@@ -551,6 +570,32 @@ public final class Pathfinder {
             }
         }
         return true;
+    }
+
+    /**
+     * Where the capture ends on each side of the start, walked out to rather than asked: a grid
+     * knows only whether a cell is inside it. A grid with no edge within {@link #SIDE_REACH} (a
+     * test world) leaves every side that far out, and the heading then guides nothing.
+     */
+    private void findSides(int x, int y, int z) {
+        this.headed = true;
+        this.westSide = x - sideReach(x, y, z, -1, 0);
+        this.eastSide = x + sideReach(x, y, z, 1, 0);
+        this.northSide = z - sideReach(x, y, z, 0, -1);
+        this.southSide = z + sideReach(x, y, z, 0, 1);
+    }
+
+    private int sideReach(int x, int y, int z, int dx, int dz) {
+        int d = 1;
+        while (d < SIDE_REACH && this.grid.inBounds(x + dx * d, y, z + dz * d)) {
+            d++;
+        }
+        return d;
+    }
+
+    private double toNearestSide(int x, int z) {
+        return Math.min(Math.min(x - this.westSide, this.eastSide - x),
+                Math.min(z - this.northSide, this.southSide - z));
     }
 
     /**
@@ -1688,7 +1733,9 @@ public final class Pathfinder {
         } else {
             return;
         }
-        this.open.push(neighbor, g + heuristic(unpackX(neighbor), ny, unpackZ(neighbor)));
+        this.open.push(neighbor, this.headed
+                ? toNearestSide(unpackX(neighbor), unpackZ(neighbor))
+                : g + heuristic(unpackX(neighbor), ny, unpackZ(neighbor)));
     }
 
     /**
