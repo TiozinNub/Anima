@@ -1,7 +1,5 @@
 package dev.luizloyola.anima.core.brain.knowledge;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -18,9 +16,6 @@ import java.util.Optional;
  */
 public final class GrowthRules {
 
-    /** Keyed on the canonical instances, so a plain map is an identity map in practice. */
-    private static final Map<BlockKind, GrowthRule> REGISTERED = new LinkedHashMap<>();
-
     private GrowthRules() {
     }
 
@@ -30,21 +25,23 @@ public final class GrowthRules {
      * wins, so a consumer may override the meaning of a block another mod claimed.
      */
     public static void register(BlockKind seed, GrowthRule rule) {
-        REGISTERED.put(seed, rule);
+        seed.growth = rule;
     }
 
     /** The rule {@code seed} grows, or empty when nothing has claimed that block. */
     public static Optional<GrowthRule> forSeed(BlockKind seed) {
-        return Optional.ofNullable(REGISTERED.get(seed));
+        return Optional.ofNullable(seed.growth);
     }
 
     /** Whether any rule would grow from this seed — the sampler's cheap pre-check. */
     public static boolean grows(BlockKind seed) {
-        return REGISTERED.containsKey(seed);
+        return seed.growth != null;
     }
 
     /** Forgets every registration — test teardown only. */
     public static void reset() {
-        REGISTERED.clear();
+        for (BlockKind kind : BlockKind.all()) {
+            kind.growth = null;
+        }
     }
 }

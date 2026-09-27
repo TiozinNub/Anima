@@ -54,6 +54,9 @@ public final class BlockKind {
 
     private final String key;
 
+    /** Owned by {@link GrowthRules}: a field, not a map, because every probed column asks it. */
+    GrowthRule growth;
+
     private BlockKind(String key) {
         this.key = key;
     }
