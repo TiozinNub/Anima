@@ -106,6 +106,11 @@ public final class EnsureStore implements AchieveTask {
 
         @Override
         public double estimateCost(BrainContext ctx) {
+            if (hint != null) {
+                // To a yard, walking is not weighed against building — building there is only on
+                // offer while no chest is known — so the distance would only price the haul out.
+                return usable(ctx).isPresent() ? 0.0 : Double.MAX_VALUE;
+            }
             return usable(ctx)
                     .map(known -> Store.distance(known.anchor(), ctx.percepts().position()))
                     .orElse(Double.MAX_VALUE);

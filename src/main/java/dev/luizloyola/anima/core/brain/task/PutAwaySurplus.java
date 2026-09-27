@@ -122,9 +122,11 @@ public final class PutAwaySurplus implements AchieveTask {
         public double estimateCost(BrainContext ctx) {
             Pos here = ctx.percepts().position();
             if (hint != null) {
-                // Priced at the yard, not at the nearest chest: this errand is already claimed,
-                // so the number only decides walk-versus-build inside it.
-                return Store.distance(hint, here);
+                // Free: a yard haul is part of a job already claimed, and the walk is where the
+                // job said the load goes. Priced by distance it cleared no box more than 80 blocks
+                // from its yard (a job's budget), and failed the tree it had just felled
+                // (in-world, 2026-09-27).
+                return 0.0;
             }
             return Store.nearestKnown(ctx)
                     .map(known -> Store.distance(known.anchor(), here))

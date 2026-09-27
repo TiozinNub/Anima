@@ -146,6 +146,18 @@ class HaulToYardTest {
                 "and an empty pack has nothing to take");
     }
 
+    @Test
+    void aFarYardIsNotPricedOutOfAJob() {
+        FakeContext ctx = packWithCargo(3);
+        ctx.percepts.position = new Pos(-140, 64, 0);   // 200 blocks off, past any job's budget
+        remember(ctx, new Pos(62, 64, 60));
+        double budget = dev.luizloyola.anima.core.brain.WorkToleranceCurve.tolerance(1.0);
+
+        assertTrue(new PutAwaySurplus(HINT, 3).methods().get(0).estimateCost(ctx) <= budget,
+                "the walk to the yard is the job, not a choice within it");
+        assertTrue(new EnsureStore(HINT).methods().get(0).estimateCost(ctx) <= budget);
+    }
+
     /** {@code empty} storage slots free, every other one holding a single item. */
     private static FakeContext packOfOnes(int empty) {
         FakeContext ctx = new FakeContext();
