@@ -2,8 +2,11 @@ package dev.luizloyola.anima.mod.body;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.act.Gazer;
+import dev.luizloyola.anima.core.brain.act.LeanState;
+import dev.luizloyola.anima.core.brain.act.RiseState;
 import dev.luizloyola.anima.core.brain.attention.Aim;
 import dev.luizloyola.anima.core.brain.attention.Attention;
+import dev.luizloyola.anima.mod.nav.Navigator;
 import dev.luizloyola.anima.mod.nav.Swimmer;
 import java.util.Locale;
 import java.util.Random;
@@ -26,8 +29,9 @@ import net.minecraft.world.phys.Vec3;
  * <p>The ownership rule that keeps this from becoming a fourth writer:
  *
  * <ul>
- *   <li>{@code yRot}, the STEERING yaw, is the legs' while they drive: vanilla's {@code travel}
- *       rotates the movement input by it, so writing it steers the body.
+ *   <li>{@code yRot}, the STEERING yaw, is the legs' while anything has the body in hand
+ *       ({@link #inControl}): vanilla's {@code travel} rotates the movement input by it, so
+ *       writing it steers the body. A look then turns the head as far as the neck goes, no more.
  *   <li>{@code yHeadRot} and {@code xRot} are this organ's alone. Pitch is render-only for a walking
  *       body, and vanilla never touches an {@code Avatar}'s head (only {@code Mob} overrides
  *       {@code tickHeadTurn}).
@@ -141,10 +145,8 @@ public final class Gaze implements Gazer {
                 break;
             }
         }
-        // A live claim from the legs is the question "is this body being driven": while it
-        // is, the steering yaw is not ours to move.
-        Claim driving = this.claims[Priority.NAV.ordinal()];
-        boolean bodyFree = driving == null || driving.until() <= now;
+        boolean bodyFree = !inControl(this.body.navigator().state(), this.body.riser().state(),
+                this.body.leaner().state());
         if (winner != null && rank != Priority.IDLE) {
             // What the body had chosen to look at was chosen from where it used to be standing, so
             // it does not survive the interruption.
@@ -166,6 +168,20 @@ public final class Gaze implements Gazer {
             // staring at the twist limit until it expired. Choose again next tick.
             this.attention.clear();
         }
+    }
+
+    /**
+     * Whether something has this body in hand, so its facing is not the gaze's to turn and a look
+     * stays within the neck: the navigator with an order, the riser mid-rise, the leaner out or on
+     * its way. Asked of the organs, not read off a look claim's age: a follower tick that only moved
+     * on to the next waypoint claimed nothing, and the gaze turned a runner mid-leap toward whoever
+     * walked the next lane (gauntlet A12, 2026-09-26).
+     */
+    static boolean inControl(Navigator.State legs, RiseState rise, LeanState lean) {
+        return legs == Navigator.State.PATHING || legs == Navigator.State.FOLLOWING
+                || rise == RiseState.RISING
+                || lean == LeanState.LEANING || lean == LeanState.LEANT
+                || lean == LeanState.RELEASING;
     }
 
     /**
