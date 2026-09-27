@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 /**
  * The being sense, assembled — one per person, pure core; the peer sensor widened to every living
@@ -411,6 +412,22 @@ public final class BeingSensorCore {
             out.add(herdBeing(herd));
         }
         return List.copyOf(out);
+    }
+
+    /**
+     * How many peers {@link #beings()} holds, told apart as individuals, that {@code who} accepts
+     * — without building a {@link Being} per track, which a per-tick count made the costliest
+     * thing in a crowd's needs.
+     */
+    public int countPeers(Predicate<BeingId> who) {
+        int count = 0;
+        for (Track track : tracks.values()) {
+            if (track.herd == null && track.tier == Being.Identified.INDIVIDUAL
+                    && track.last.kind().minded() && who.test(track.last.id())) {
+                count++;
+            }
+        }
+        return count;
     }
 
     // --- the attention loop ----------------------------------------------------------------

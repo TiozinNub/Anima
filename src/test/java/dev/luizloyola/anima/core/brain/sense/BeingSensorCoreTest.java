@@ -678,4 +678,23 @@ class BeingSensorCoreTest {
                 "the ending is announced like any other, so a journal reads 'lost'");
         assertFalse(sensor.forget(ghost), "forgetting twice is a no-op, not a second LOST");
     }
+
+    /** The count a crowd's needs take every tick has to agree with the list it no longer builds. */
+    @Test
+    void countingPeersAgreesWithTheList() {
+        BeingId ann = world.addPerson("Ann", new Pos(0, 64, 5), 5.0, Being.Activity.IDLE);
+        world.addPerson("Bo", new Pos(2, 64, 6), 6.3, Being.Activity.IDLE);
+        BeingId voice = world.addPerson("Voice", new Pos(-2, 64, 6), 6.3, Being.Activity.IDLE);
+        world.hidden.add(voice);
+        sensor.heard(world.bodies.get(voice), now, true); // a kind, never a face
+        world.addCreature(Being.Kind.MONSTER, "zombie", false, true, new Pos(0, 64, 8), 8.0);
+        tickN(3);
+
+        long listed = sensor.beings().stream()
+                .filter(b -> b.kind().minded() && b.identified() == Being.Identified.INDIVIDUAL)
+                .count();
+        assertEquals(2, listed, "the fixture: two faces, a voice and a zombie");
+        assertEquals(listed, sensor.countPeers(id -> true));
+        assertEquals(1, sensor.countPeers(ann::equals), "and the filter is the caller's");
+    }
 }

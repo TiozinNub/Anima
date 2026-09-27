@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -205,6 +206,11 @@ public final class BeingSense {
     /** Everything currently perceived — what {@code Percepts.beings()} hands the brain. */
     public List<Being> beings() {
         return sensor.beings();
+    }
+
+    /** A count over {@link #beings()} that does not build it — see {@link BeingSensorCore#countPeers}. */
+    public int countPeers(Predicate<BeingId> who) {
+        return sensor.countPeers(who);
     }
 
     /** Whether calling {@code whom} again would just be shouting twice. */
