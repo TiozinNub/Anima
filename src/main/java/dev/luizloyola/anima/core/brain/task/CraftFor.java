@@ -106,8 +106,8 @@ public final class CraftFor implements Method {
     }
 
     /**
-     * Recipes this method may use: producing the spec, not already pursued, allowed this body by
-     * the gate, and <b>reachable</b> — every bill line must have some way to be had from here.
+     * Recipes this method may use: producing the spec, not already pursued, not fed by the spec
+     * itself, allowed this body by the gate, and <b>reachable</b> — every bill line must have some way to be had from here.
      * Without that filter "any axe"
      * resolved to the book's first entry (the copper axe) and, one method attempt per round, a
      * settler with a forest at their back shrugged the want off over copper ingots.
@@ -115,7 +115,8 @@ public final class CraftFor implements Method {
     private List<CraftRecipe> usable(BrainContext ctx) {
         List<CraftRecipe> fit = new ArrayList<>();
         for (CraftRecipe recipe : Recipes.producing(spec)) {
-            if (pursued.contains(recipe.outputId()) || !ctx.gate().mayMake(recipe.outputId())) {
+            if (pursued.contains(recipe.outputId()) || !ctx.gate().mayMake(recipe.outputId())
+                    || eatsWhatItMakes(recipe, spec)) {
                 continue;
             }
             Set<String> guard = new HashSet<>(pursued);
@@ -134,7 +135,7 @@ public final class CraftFor implements Method {
      */
     public static boolean anyReachable(ItemSpec spec, BrainContext ctx) {
         for (CraftRecipe recipe : Recipes.producing(spec)) {
-            if (!ctx.gate().mayMake(recipe.outputId())) {
+            if (!ctx.gate().mayMake(recipe.outputId()) || eatsWhatItMakes(recipe, spec)) {
                 continue;
             }
             Set<String> guard = new HashSet<>();
@@ -144,6 +145,23 @@ public final class CraftFor implements Method {
             }
         }
         return false;
+    }
+
+    /**
+     * Whether a recipe eats at least as many of {@code wanted} as it makes, so running it can never
+     * raise the count. Vanilla's planks take {@code #birch_logs}, which holds birch wood, and birch
+     * wood is 4 birch logs for 3: offered as a way to "any birch log", it was the fallback whenever
+     * a chop failed, and settlers stacked bark blocks nobody used (in-world, 2026-09-27). A line
+     * that merely could take a wanted item counts as eating it.
+     */
+    private static boolean eatsWhatItMakes(CraftRecipe recipe, ItemSpec wanted) {
+        int eaten = 0;
+        for (CraftRecipe.Ingredient line : recipe.ingredients()) {
+            if (line.acceptedIds().stream().anyMatch(wanted::matches)) {
+                eaten += line.count();
+            }
+        }
+        return eaten >= recipe.outputCount();
     }
 
     /** Recursion bound for pathological (modded) books; vanilla chains are three deep at most. */
@@ -184,7 +202,8 @@ public final class CraftFor implements Method {
         // Deliberately UNREGISTERED: a throwaway lens for one question, not a name to persist.
         ItemSpec lineSpec = new ItemSpec("(reachable?)", line.acceptedIds()::contains);
         for (CraftRecipe making : Recipes.producing(lineSpec)) {
-            if (guard.contains(making.outputId()) || !ctx.gate().mayMake(making.outputId())) {
+            if (guard.contains(making.outputId()) || !ctx.gate().mayMake(making.outputId())
+                    || eatsWhatItMakes(making, lineSpec)) {
                 continue;
             }
             Set<String> deeper = new HashSet<>(guard);
@@ -270,7 +289,7 @@ public final class CraftFor implements Method {
             return false;
         }
         for (CraftRecipe making : Recipes.producing(lineSpec)) {
-            if (ctx.gate().mayMake(making.outputId())
+            if (ctx.gate().mayMake(making.outputId()) && !eatsWhatItMakes(making, lineSpec)
                     && shortfallHadNow(making, 1, ctx, depth - 1)) {
                 return true;
             }

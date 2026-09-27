@@ -302,6 +302,57 @@ class CraftForTest {
                 "two logs and a book: the wooden axe is the one with a floor under it");
     }
 
+    /** Vanilla's {@code #birch_logs}: what one birch-planks craft accepts. */
+    private static final Set<String> BIRCH_LOGS = Set.of("minecraft:birch_log",
+            "minecraft:birch_wood", "minecraft:stripped_birch_log", "minecraft:stripped_birch_wood");
+
+    /** A chop the consumer registered that has no tree right now — the round it failed in. */
+    private static final class NoTreeFree implements Method {
+        @Override
+        public boolean applicable(BrainContext c) {
+            return false;
+        }
+
+        @Override
+        public double estimateCost(BrainContext c) {
+            return Double.POSITIVE_INFINITY;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext c) {
+            return List.of();
+        }
+
+        @Override
+        public String describe() {
+            return "fell a tree";
+        }
+    }
+
+    @Test
+    void barkIsNoWayToTheLogsItIsMadeOf() {
+        book(new CraftRecipe("minecraft:birch_wood", ItemStack.of("minecraft:birch_wood", 3, 64),
+                List.of(new CraftRecipe.Ingredient(Set.of("minecraft:birch_log"), 4)), false));
+        Producers.register(ItemSpec.register(new ItemSpec("craft-test-bark-logs",
+                id -> id.endsWith("_log"))), wanted -> new NoTreeFree());
+        ItemSpec planksLine = ItemSpec.anyOf(BIRCH_LOGS);
+
+        assertFalse(new CraftFor(planksLine, 1, Set.of("minecraft:birch_planks")).applicable(ctx),
+                "a failed chop falls through to the next way, and bark must not be it");
+        assertFalse(CraftFor.anyReachable(planksLine, ctx));
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:birch_log", 4, 64));
+        assertFalse(new CraftFor(planksLine, 5, Set.of("minecraft:birch_planks")).applicable(ctx),
+                "four logs cover the bark bill, and leave three of the five wanted, not more");
+    }
+
+    @Test
+    void aRecipeThatMakesMoreThanItEatsStillCounts() {
+        book(nuggetsFromIngot());
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:gold_ingot", 1, 64));
+        ItemSpec gold = ItemSpec.anyOf(Set.of("minecraft:gold_ingot", "minecraft:gold_nugget"));
+        assertTrue(new CraftFor(gold, 5, Set.of()).applicable(ctx), "one ingot in, nine nuggets out");
+    }
+
     @Test
     void craftForIsImmediatelyFollowedByTakeFromStore() {
         // This pins only the RELATIVE order of the tail pair, so it survives future appends past
