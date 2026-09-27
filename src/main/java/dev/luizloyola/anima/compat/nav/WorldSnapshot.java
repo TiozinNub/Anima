@@ -7,6 +7,7 @@ import dev.luizloyola.anima.core.nav.NavGrid;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import java.util.Arrays;
+import java.util.BitSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -31,6 +32,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.BooleanOp;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import org.jspecify.annotations.Nullable;
 
 /**
  * An immutable box of {@link CellType} classifications baked from real blockstates, and the
@@ -163,6 +165,10 @@ public final class WorldSnapshot implements NavGrid {
     private Int2IntOpenHashMap doorCodes;
     /** Every hatch ({@link NavGrid#hatch}), by cell index. Null until the first. */
     private IntOpenHashSet hatches;
+    /** The level a {@link #lazy} snapshot reads its cells from on first touch; null for a baked one. */
+    private @Nullable Level live;
+    /** Which cells a {@link #lazy} snapshot has read so far. */
+    private @Nullable BitSet read;
 
     private WorldSnapshot(int minX, int minY, int minZ, int sizeX, int sizeY, int sizeZ,
             int worldMinY, int worldMaxY, byte[] cells) {
@@ -183,6 +189,27 @@ public final class WorldSnapshot implements NavGrid {
      * classify as {@link CellType#OBSTACLE} (checked per chunk, so no chunk loads are triggered).
      */
     public static WorldSnapshot capture(Level level, BlockPos min, BlockPos max) {
+        WorldSnapshot snapshot = unread(level, min, max);
+        snapshot.bake(level, min, max);
+        return snapshot;
+    }
+
+    /**
+     * The same box, read from the world only cell by cell as it is asked about — for a search that
+     * touches a few dozen of the thousands of cells it spans. The confinement survey heads straight
+     * for the rim, and baking its whole box was 2.5 s of an 83 s crowd profile (2026-09-27).
+     *
+     * <p><b>Server thread, and this tick only.</b> Every first touch reads the live level, so it is
+     * never handed to the pathfinder threads, shared, or kept past the question it was made for.
+     */
+    public static WorldSnapshot lazy(Level level, BlockPos min, BlockPos max) {
+        WorldSnapshot snapshot = unread(level, min, max);
+        snapshot.live = level;
+        snapshot.read = new BitSet(snapshot.cells.length);
+        return snapshot;
+    }
+
+    private static WorldSnapshot unread(Level level, BlockPos min, BlockPos max) {
         int minY = Math.max(min.getY(), level.getMinY());
         int maxY = Math.min(max.getY(), level.getMaxY());
         int sizeX = max.getX() - min.getX() + 1;
@@ -195,10 +222,8 @@ public final class WorldSnapshot implements NavGrid {
         // fresh array would read PASSABLE, the one thing unknown space must never be.
         Arrays.fill(cells, pack(CellType.OBSTACLE, 0));
 
-        WorldSnapshot snapshot = new WorldSnapshot(min.getX(), minY, min.getZ(),
+        return new WorldSnapshot(min.getX(), minY, min.getZ(),
                 sizeX, sizeY, sizeZ, level.getMinY(), level.getMaxY(), cells);
-        snapshot.bake(level, min, max);
-        return snapshot;
     }
 
     /**
@@ -278,19 +303,45 @@ public final class WorldSnapshot implements NavGrid {
                         last = (verdict & POSITIONAL) != 0 ? null : state;
                         lastVerdict = verdict;
                     }
-                    byte packed = placed(verdict, state, level, pos);
-                    this.cells[row + x] = packed;
-                    if ((packed & TYPE_MASK) == DOOR_ORDINAL) {
-                        this.doors = true;
-                        if (this.doorCodes == null) this.doorCodes = new Int2IntOpenHashMap();
-                        this.doorCodes.put(row + x, doorCodeAt(state, level, pos));
-                    } else if ((verdict & TRAPDOOR) != 0 && isHatch(state, level, pos)) {
-                        if (this.hatches == null) this.hatches = new IntOpenHashSet();
-                        this.hatches.add(row + x);
-                    }
+                    store(row + x, verdict, state, level, pos);
                 }
             }
         }
+    }
+
+    /** One non-air cell, as {@link #bakeSection} and {@link #readCell} both write it. */
+    private void store(int index, int verdict, BlockState state, Level level, BlockPos pos) {
+        byte packed = placed(verdict, state, level, pos);
+        this.cells[index] = packed;
+        if ((packed & TYPE_MASK) == DOOR_ORDINAL) {
+            this.doors = true;
+            if (this.doorCodes == null) this.doorCodes = new Int2IntOpenHashMap();
+            this.doorCodes.put(index, doorCodeAt(state, level, pos));
+        } else if ((verdict & TRAPDOOR) != 0 && isHatch(state, level, pos)) {
+            if (this.hatches == null) this.hatches = new IntOpenHashSet();
+            this.hatches.add(index);
+        }
+    }
+
+    /** A {@link #lazy} snapshot's first look at one cell — {@link #bake}'s rules, one cell wide. */
+    private void readCell(Level level, int x, int y, int z, int index) {
+        this.read.set(index);
+        ChunkAccess chunk = level.getChunk(x >> 4, z >> 4, ChunkStatus.FULL, false);
+        if (chunk == null) {
+            return; // never force a load: the painted OBSTACLE stands
+        }
+        LevelChunkSection[] sections = chunk.getSections();
+        int section = level.getSectionIndex(y);
+        if (section < 0 || section >= sections.length) {
+            return;
+        }
+        BlockState state = sections[section].getBlockState(x & 15, y & 15, z & 15);
+        if (state.isAir()) {
+            this.cells[index] = pack(CellType.PASSABLE, 0);
+            return;
+        }
+        BlockPos pos = new BlockPos(x, y, z);
+        store(index, verdictAt(state, level, pos), state, level, pos);
     }
 
     /**
@@ -686,42 +737,43 @@ public final class WorldSnapshot implements NavGrid {
 
     @Override
     public CellType cell(int x, int y, int z) {
-        int index = index(x, y, z);
+        int index = slot(x, y, z);
         return index < 0 ? CellType.OBSTACLE : type(this.cells[index]);
     }
 
     @Override
     public double surface(int x, int y, int z) {
-        int index = index(x, y, z);
+        int index = slot(x, y, z);
         return index < 0 ? 0.0 : surface(this.cells[index]);
     }
 
     @Override
     public boolean hasDoors() {
-        return this.doors;
+        // Unread cells may hold one, and saying no would switch the door rules off for them.
+        return this.doors || this.live != null;
     }
 
     @Override
     public int ramps(int x, int y, int z) {
-        int index = index(x, y, z);
+        int index = slot(x, y, z);
         return index < 0 ? 0 : ramps(this.cells[index]);
     }
 
     @Override
     public int doorway(int x, int y, int z) {
-        int index = index(x, y, z);
+        int index = slot(x, y, z);
         return index < 0 || this.doorCodes == null ? 0 : this.doorCodes.get(index);
     }
 
     @Override
     public boolean hatch(int x, int y, int z) {
-        int index = index(x, y, z);
+        int index = slot(x, y, z);
         return index >= 0 && this.hatches != null && this.hatches.contains(index);
     }
 
     @Override
     public boolean climbFloor(int x, int y, int z) {
-        int index = index(x, y, z);
+        int index = slot(x, y, z);
         return index >= 0 && climbFloor(this.cells[index]);
     }
 
@@ -740,6 +792,15 @@ public final class WorldSnapshot implements NavGrid {
     @Override
     public boolean inBounds(int x, int y, int z) {
         return index(x, Mth.clamp(y, this.worldMinY, this.worldMaxY), z) >= 0;
+    }
+
+    /** {@link #index}, with the cell read first when this is a {@link #lazy} snapshot. */
+    private int slot(int x, int y, int z) {
+        int index = index(x, y, z);
+        if (index >= 0 && this.live != null && !this.read.get(index)) {
+            readCell(this.live, x, y, z, index);
+        }
+        return index;
     }
 
     /** The cell's slot in {@link #cells}, or {@code -1} for anything outside the box. */

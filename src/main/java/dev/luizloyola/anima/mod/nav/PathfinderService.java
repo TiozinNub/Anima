@@ -51,8 +51,9 @@ public final class PathfinderService {
      *
      * <p>It sets what can still be PROVED a prison: the verdict is void once the reached region
      * comes within a body's own reach of the rim (~5 cells for a Person), so this half-extent
-     * proves an enclosure up to about 11×11 and calls anything larger open. That is the trade —
-     * the box is also what the survey costs, since a free body expands until it touches the rim.
+     * proves an enclosure up to about 11×11 and calls anything larger open. The box is read only
+     * where the search touches it, so widening it costs a free body nothing and a shut-in one the
+     * cells of its prison.
      */
     private static final int SURVEY_MARGIN = 10;
     private static final int UP_MARGIN = 6;
@@ -151,7 +152,8 @@ public final class PathfinderService {
      * {@code ConfinementCadence} puts each body on.
      */
     public static Confinement surveyFrom(ServerLevel level, BlockPos start, MoveCapabilities body) {
-        WorldSnapshot snapshot = snapshotAround(level, start, start, SURVEY_MARGIN, false);
+        BlockPos[] box = boxAround(level, start, start, SURVEY_MARGIN);
+        WorldSnapshot snapshot = WorldSnapshot.lazy(level, box[0], box[1]);
         BlockPos afloat = surfaceStart(snapshot, start, body);
         return Pathfinder.survey(snapshot, PathRequest.of(afloat.getX(), afloat.getY(),
                 afloat.getZ(), afloat.getX(), afloat.getY(), afloat.getZ(), body));
@@ -232,18 +234,17 @@ public final class PathfinderService {
     }
 
     private static WorldSnapshot sharedSnapshot(ServerLevel level, BlockPos start, BlockPos goal) {
-        return snapshotAround(level, start, goal, HORIZONTAL_MARGIN, true);
+        return snapshotAround(level, start, goal, HORIZONTAL_MARGIN);
     }
 
     /**
+     * The box a search from {@code start} towards {@code goal} captures, as its min and max corners.
+     *
      * @param margin how far past the endpoints to capture — routing wants room for a detour, a
      *               survey wants only enough to tell a prison from a field.
-     * @param share  whether to leave the capture in the one-deep cache for the next caller. A
-     *               survey passes {@code false}: its box is small and its position is its own, so
-     *               storing it only evicts the wider capture a routing request would have reused.
      */
-    private static WorldSnapshot snapshotAround(ServerLevel level, BlockPos start, BlockPos goal,
-            int margin, boolean share) {
+    private static BlockPos[] boxAround(ServerLevel level, BlockPos start, BlockPos goal,
+            int margin) {
         int gx = Mth.clamp(goal.getX(), start.getX() - MAX_REACH, start.getX() + MAX_REACH);
         int gy = goal.getY();
         int gz = Mth.clamp(goal.getZ(), start.getZ() - MAX_REACH, start.getZ() + MAX_REACH);
@@ -261,17 +262,26 @@ public final class PathfinderService {
                         Math.min(start.getY(), gy) - DOWN_MARGIN,
                         Math.max(start.getY(), gy) + UP_MARGIN),
                 TerrainProfile.terrain(level, minX, minZ, maxX, maxZ));
-        BlockPos min = new BlockPos(minX, band.low(), minZ);
-        BlockPos max = new BlockPos(maxX, band.high(), maxZ);
+        return new BlockPos[] {new BlockPos(minX, band.low(), minZ),
+                new BlockPos(maxX, band.high(), maxZ)};
+    }
+
+    /**
+     * A full capture of {@link #boxAround}, left in the one-deep cache for the next request this
+     * tick. The survey keeps out of it, reading its own small box {@link WorldSnapshot#lazy lazily}.
+     */
+    private static WorldSnapshot snapshotAround(ServerLevel level, BlockPos start, BlockPos goal,
+            int margin) {
+        BlockPos[] box = boxAround(level, start, goal, margin);
+        BlockPos min = box[0];
+        BlockPos max = box[1];
 
         CachedSnapshot cached = snapshots.get(level);
         if (cached != null && cached.gameTime() == level.getGameTime() && cached.snapshot().covers(min, max)) {
             return cached.snapshot();
         }
         WorldSnapshot fresh = WorldSnapshot.capture(level, min, max);
-        if (share) {
-            snapshots.put(level, new CachedSnapshot(fresh, level.getGameTime()));
-        }
+        snapshots.put(level, new CachedSnapshot(fresh, level.getGameTime()));
         return fresh;
     }
 
