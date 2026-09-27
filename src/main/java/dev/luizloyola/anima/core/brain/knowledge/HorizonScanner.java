@@ -6,6 +6,7 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The far sense: the gist of what a body makes out past inspection range — <em>there is forest
@@ -215,6 +216,20 @@ public final class HorizonScanner {
     private int originX;
     private int originZ;
     private double originEyeY;
+    /** The feet cell the bearing in flight was fired from, for {@link #walkedFrom}. */
+    private @Nullable Pos firedFrom;
+    /**
+     * Where each bearing was last walked from. A body still standing there has nothing new to see
+     * along it, however long ago that was: an idle crowd re-walking its skyline every
+     * {@link #REFRESH_TICKS} was 15% of a 125-body tick (2026-09-27). Decision: Luiz, the same day.
+     */
+    private final @Nullable Pos[] walkedFrom = new Pos[HorizonBuffer.BINS];
+    /**
+     * Where, and facing where, the last look found nothing left to walk, so standing on there
+     * skips even the search for a bearing.
+     */
+    private @Nullable Pos restingAt;
+    private double restingYaw;
     /** The flat direction of the bearing in flight. */
     private double dirX;
     private double dirZ;
@@ -279,14 +294,21 @@ public final class HorizonScanner {
         if (this.buffer.anchor() == null || moved(this.buffer.anchor(), here)) {
             this.buffer.reanchor(here);
         }
+        if (this.bin < 0 && feet.equals(this.restingAt) && Math.abs(HorizonBuffer.angleDelta(
+                yawDegrees, this.restingYaw)) < CrescentSampler.YAW_HYSTERESIS_DEGREES) {
+            return 0;
+        }
         int seeThrough = seeThroughRadius(this.profile);
         int reads = 0;
         while (reads < budget) {
             if (this.bin < 0) {
-                int next = nextBearing(yawDegrees, now);
+                int next = nextBearing(feet, yawDegrees, now);
                 if (next < 0) {
+                    this.restingAt = feet;
+                    this.restingYaw = yawDegrees;
                     break; // everything in front is fresh; the sense costs nothing
                 }
+                this.restingAt = null;
                 begin(next, feet, radius);
             }
             reads += march(probe, radius, near, seeThrough, now, events);
@@ -391,7 +413,7 @@ public final class HorizonScanner {
      * The stalest bearing inside the head cone, nearest the middle of it on a tie. Bearings behind
      * are never candidates.
      */
-    private int nextBearing(double yawDegrees, long now) {
+    private int nextBearing(Pos feet, double yawDegrees, long now) {
         double half = CrescentSampler.coneDegrees(this.profile) / 2.0;
         int best = -1;
         long bestSwept = Long.MAX_VALUE;
@@ -402,7 +424,8 @@ public final class HorizonScanner {
             if (offset > half) {
                 continue;
             }
-            if (this.buffer.isFresh(candidate, now, REFRESH_TICKS)) {
+            if (this.buffer.isFresh(candidate, now, REFRESH_TICKS)
+                    || (this.buffer.wasSwept(candidate) && feet.equals(this.walkedFrom[candidate]))) {
                 continue;
             }
             long swept = this.buffer.staleness(candidate);
@@ -417,6 +440,7 @@ public final class HorizonScanner {
 
     private void begin(int bearing, Pos feet, int radius) {
         this.bin = bearing;
+        this.firedFrom = feet;
         this.originX = feet.x();
         this.originZ = feet.z();
         // Rounded up to whole cells: the eye fraction was tuned against a Person
@@ -464,6 +488,7 @@ public final class HorizonScanner {
             this.buffer.blank(this.bin);
         }
         this.buffer.markSwept(this.bin, now, this.cutShort);
+        this.walkedFrom[this.bin] = this.firedFrom;
         this.bin = -1;
     }
 

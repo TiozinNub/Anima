@@ -91,12 +91,19 @@ class HorizonScannerTest {
     }
 
     private List<SenseEvent> sweep(FakeProbe probe, int ticks, double yaw) {
+        return sweepFrom(HERE, probe, ticks, yaw);
+    }
+
+    private List<SenseEvent> sweepFrom(Pos feet, FakeProbe probe, int ticks, double yaw) {
         List<SenseEvent> events = new ArrayList<>();
         for (int i = 0; i < ticks; i++) {
-            scanner.step(HERE, yaw, now++, probe, 64, events);
+            scanner.step(feet, yaw, now++, probe, 64, events);
         }
         return events;
     }
+
+    /** One block back — a body that has moved, however little, looks again on the old timetable. */
+    private static final Pos STEPPED = new Pos(0, 64, -1);
 
     private static List<SenseEvent> glimpses(List<SenseEvent> events) {
         return events.stream().filter(e -> e.type() == SenseEvent.Type.GLIMPSED).toList();
@@ -135,8 +142,8 @@ class HorizonScannerTest {
         probe.placeOak(0, 30);
         now += HorizonScanner.REFRESH_TICKS + 1;
 
-        assertFalse(glimpses(sweep(probe, 140)).isEmpty(),
-                "and a tree grown in plain view is a tree they can see");
+        assertFalse(glimpses(sweepFrom(STEPPED, probe, 140, AHEAD)).isEmpty(),
+                "and a tree grown in plain view is a tree they can see, once they move");
     }
 
     @Test
@@ -282,8 +289,28 @@ class HorizonScannerTest {
         assertEquals(before, probe.reads, "a fresh skyline costs nothing at all");
 
         now += HorizonScanner.REFRESH_TICKS + 1;
-        scanner.step(HERE, AHEAD, now++, probe, 64, new ArrayList<>());
-        assertTrue(probe.reads > before, "but it is looked at again eventually");
+        scanner.step(STEPPED, AHEAD, now++, probe, 64, new ArrayList<>());
+        assertTrue(probe.reads > before, "but it is looked at again once they have moved");
+    }
+
+    @Test
+    void aBodyStandingStillNeverLooksAgain() {
+        FakeProbe probe = new FakeProbe();
+        probe.placeOak(0, 30);
+        sweep(probe, 140);
+
+        int before = probe.reads;
+        now += HorizonScanner.REFRESH_TICKS * 5L;
+        sweep(probe, 200);
+        assertEquals(before, probe.reads, "nothing new to see from where they already looked");
+
+        sweep(probe, 200, 180.0);
+        assertTrue(probe.reads > before, "turning round is new ground, walked once");
+        int turned = probe.reads;
+        now += HorizonScanner.REFRESH_TICKS * 5L;
+        sweep(probe, 200, 180.0);
+        sweep(probe, 200);
+        assertEquals(turned, probe.reads, "and then it is quiet both ways");
     }
 
     @Test
@@ -316,7 +343,7 @@ class HorizonScannerTest {
             probe.clear(0, y, 30);
         }
         now += HorizonScanner.REFRESH_TICKS + 1;
-        sweep(probe, 90);
+        sweepFrom(STEPPED, probe, 90, AHEAD);
 
         // Not empty: the open ground out there is the horizon now — only the pillar must go.
         assertTrue(scanner.buffer().tan(bin) < 0,
@@ -397,7 +424,7 @@ class HorizonScannerTest {
         }
         now += HorizonScanner.REFRESH_TICKS + 1;
 
-        List<SenseEvent> pond = glimpses(sweep(probe, 90));
+        List<SenseEvent> pond = glimpses(sweepFrom(STEPPED, probe, 90, AHEAD));
 
         assertFalse(pond.isEmpty(), "a cell answered for trees is not answered for water");
         assertTrue(pond.stream().allMatch(e -> e.kind() == FakePondRule.POND),
