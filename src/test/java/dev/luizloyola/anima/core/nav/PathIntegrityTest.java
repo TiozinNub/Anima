@@ -168,4 +168,21 @@ class PathIntegrityTest {
                 new CellNeed(1, 5, 0, CellNeed.Need.FOOTING),
                 new CellNeed(1, 6, 0, CellNeed.Need.CLEAR)), needs);
     }
+
+    @Test
+    void aClimbWatchesSomethingToHoldAndTheRoomAboveIt() {
+        List<CellNeed> needs = PathIntegrity.edgeNeeds(
+                new Waypoint(3, 10, 7, MoveType.CLIMB), new Waypoint(3, 11, 7, MoveType.CLIMB), PERSON);
+        assertEquals(List.of(
+                new CellNeed(3, 11, 7, CellNeed.Need.HOLD),
+                new CellNeed(3, 12, 7, CellNeed.Need.CLEAR)), needs);
+    }
+
+    @Test
+    void steppingOffALadderSidewaysDoesNotAskTheRungForFooting() {
+        List<CellNeed> needs = PathIntegrity.edgeNeeds(
+                new Waypoint(3, 10, 7, MoveType.CLIMB), new Waypoint(4, 10, 7, MoveType.WALK), PERSON);
+        assertTrue(needs.contains(new CellNeed(3, 10, 7, CellNeed.Need.HOLD)));
+        assertFalse(needs.contains(new CellNeed(3, 10, 7, CellNeed.Need.FOOTING)));
+    }
 }

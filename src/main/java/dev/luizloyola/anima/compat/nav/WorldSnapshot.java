@@ -1,10 +1,16 @@
 package dev.luizloyola.anima.compat.nav;
 
 import dev.luizloyola.anima.core.nav.CellType;
+import dev.luizloyola.anima.core.nav.Doorway;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import java.util.Arrays;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
@@ -13,6 +19,8 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LadderBlock;
+import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.chunk.ChunkAccess;
@@ -20,6 +28,8 @@ import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.shapes.BooleanOp;
+import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
@@ -39,33 +49,64 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 public final class WorldSnapshot implements NavGrid {
     private static final CellType[] TYPES = CellType.values();
 
-    /** Values in {@link #verdicts} below {@link #VERDICT_BASE}; the rest are {@code packed + BASE}. */
-    private static final byte UNASKED = 0;
-    private static final byte POSITIONAL = 1;
-    private static final int VERDICT_BASE = 2;
+    /**
+     * A verdict is the packed cell in its low byte and these flags above it, stored plus one so that
+     * zero can mean unasked.
+     */
+    private static final int PACKED = 0xFF;
+    /** Its shape depends on where it stands: ask the world every time. */
+    private static final int POSITIONAL = 1 << 8;
+    /**
+     * A trapdoor: over a ladder facing its way it is part of the ladder — a rung open, a hatch shut
+     * — which is a question about the cell below, so it is asked of the world.
+     */
+    private static final int TRAPDOOR = 1 << 9;
+
+    /** Hand-swung trapdoors: the wooden ones and copper. Vanilla has no tag that says it. */
+    private static final TagKey<Block> HAND_TRAPDOORS =
+            TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("anima", "hand_trapdoors"));
 
     /**
-     * A cell is one byte: the {@link CellType} in the low three bits and — for a
-     * {@link CellType#STEP} and nothing else — how high its surface sits, in the four above.
+     * A cell is one byte: the {@link CellType} in the low three bits and four bits of payload
+     * above, whose meaning is the type's — how high a {@link CellType#STEP}'s surface sits, which
+     * ways a {@link CellType#GROUND} block is a ramp ({@link NavGrid#ramps}), which ways a
+     * {@link CellType#DOOR} lets a body through ({@link NavGrid#doorway}). Everything else carries
+     * none.
      *
-     * <p>The height is stored as {@code sixteenths - 1}: a partial floor is 1 to 15 sixteenths (0 is
-     * no floor, 16 a full block), so fifteen values fit in four bits and the widest packed cell
-     * comes to 117 — still a positive {@code byte} once the verdict table's offset is added, so
-     * nothing needs masking or a wider array.
+     * <p>A surface is stored as {@code sixteenths - 1}: a partial floor is 1 to 15 sixteenths (0 is
+     * no floor, 16 a full block), so fifteen values fit. The widest packed cell comes to 127, a
+     * positive {@code byte}; in the verdict table's offset form it wraps negative, which is harmless
+     * because only the two lowest values are reserved there.
      */
     private static final int TYPE_BITS = 3;
     private static final int TYPE_MASK = (1 << TYPE_BITS) - 1;
+    private static final int PAYLOAD_MASK = 0xF;
+    private static final int DOOR_ORDINAL = CellType.DOOR.ordinal();
     /** Sixteenths of a block, the grid every vanilla collision shape is built on. */
     private static final int SIXTEENTHS = 16;
 
-    private static byte pack(CellType type, int surface16) {
-        return type == CellType.STEP
-                ? (byte) (type.ordinal() | (surface16 - 1) << TYPE_BITS)
-                : (byte) type.ordinal();
+    private static byte pack(CellType type, int payload) {
+        return (byte) (type.ordinal() | (payload & PAYLOAD_MASK) << TYPE_BITS);
     }
 
     static CellType type(int packed) {
         return TYPES[packed & TYPE_MASK];
+    }
+
+    private static int payload(int packed) {
+        return packed >> TYPE_BITS & PAYLOAD_MASK;
+    }
+
+    /** The ramps a packed cell describes — see {@link NavGrid#ramps}. */
+    static int ramps(int packed) {
+        return type(packed) == CellType.GROUND ? payload(packed) : 0;
+    }
+
+    /** A climbable with a floor on top: scaffolding. See {@link NavGrid#climbFloor}. */
+    private static final int CLIMB_FLOOR = 1;
+
+    static boolean climbFloor(int packed) {
+        return type(packed) == CellType.CLIMB && (payload(packed) & CLIMB_FLOOR) != 0;
     }
 
     /** The surface a packed cell describes, as a fraction of a block — see {@link NavGrid#surface}. */
@@ -73,14 +114,15 @@ public final class WorldSnapshot implements NavGrid {
         CellType type = type(packed);
         if (type == CellType.GROUND) return 1.0;
         if (type != CellType.STEP) return 0.0;
-        return ((packed >> TYPE_BITS) + 1) / (double) SIXTEENTHS;
+        return (payload(packed) + 1) / (double) SIXTEENTHS;
     }
 
     /**
      * What each blockstate classifies as, indexed by {@link Block#BLOCK_STATE_REGISTRY} id.
      *
-     * <p>Sound because every question {@link #classifyLive} asks — five tag lookups, a collision
-     * shape and one collision query — answers the same for every copy of a blockstate unless the
+     * <p>Sound because every question {@link #classifyLive} asks — tag lookups, its collision
+     * shape (and a door's swung twin's) and probes against them — answers the same for every copy
+     * of a blockstate unless the
      * block's shape depends on where it stands: {@code BlockStateBase.initCache} builds the cache
      * {@code getCollisionShape} reads from unconditionally, without a level, exactly when
      * {@code !hasDynamicShape()}. The six blocks that do (moving piston, scaffolding, bamboo and its
@@ -91,7 +133,12 @@ public final class WorldSnapshot implements NavGrid {
      * <em>vocabulary</em>, not the world. Unsynchronised — capture is server-thread-only, and a race
      * is benign: an id always computes the same byte, and byte arrays never tear.
      */
-    private static byte[] verdicts = new byte[0];
+    private static short[] verdicts = new short[0];
+    /**
+     * Each door blockstate's code as its shape reads ({@link #doorGeometry}), plus one, indexed like
+     * {@link #verdicts}. Where it stands adds what an iron door's buttons say ({@link #doorCodeAt}).
+     */
+    private static int[] doorMemo = new int[0];
 
     private final int minX;
     private final int minY;
@@ -107,6 +154,15 @@ public final class WorldSnapshot implements NavGrid {
     private final int worldMinY;
     private final int worldMaxY;
     private final byte[] cells;
+    /** Whether {@link #bake} put a door anywhere in the box — see {@link NavGrid#hasDoors}. */
+    private boolean doors;
+    /**
+     * The {@link NavGrid#doorway} code of every door cell, by cell index: too wide for the cell's
+     * byte, and doors are rare, so they live beside it. Null until the first door.
+     */
+    private Int2IntOpenHashMap doorCodes;
+    /** Every hatch ({@link NavGrid#hatch}), by cell index. Null until the first. */
+    private IntOpenHashSet hatches;
 
     private WorldSnapshot(int minX, int minY, int minZ, int sizeX, int sizeY, int sizeZ,
             int worldMinY, int worldMaxY, byte[] cells) {
@@ -203,8 +259,23 @@ public final class WorldSnapshot implements NavGrid {
                 }
                 for (int x = x0; x <= x1; x++) {
                     BlockState state = section.getBlockState(x & 15, y & 15, z & 15);
+                    // Air is most of any box, and the rest of the loop asks nothing of it.
+                    if (state.isAir()) {
+                        this.cells[row + x] = pack(CellType.PASSABLE, 0);
+                        continue;
+                    }
                     pos.set(x, y, z);
-                    this.cells[row + x] = packedAt(state, level, pos);
+                    int verdict = verdictAt(state, level, pos);
+                    byte packed = placed(verdict, state, level, pos);
+                    this.cells[row + x] = packed;
+                    if ((packed & TYPE_MASK) == DOOR_ORDINAL) {
+                        this.doors = true;
+                        if (this.doorCodes == null) this.doorCodes = new Int2IntOpenHashMap();
+                        this.doorCodes.put(row + x, doorCodeAt(state, level, pos));
+                    } else if ((verdict & TRAPDOOR) != 0 && isHatch(state, level, pos)) {
+                        if (this.hatches == null) this.hatches = new IntOpenHashSet();
+                        this.hatches.add(row + x);
+                    }
                 }
             }
         }
@@ -220,6 +291,17 @@ public final class WorldSnapshot implements NavGrid {
         return type(packedAt(level.getBlockState(pos), level, pos));
     }
 
+    /** {@link NavGrid#climbFloor} of a single live cell, under {@link #classifyAt}'s rules. */
+    public static boolean climbFloorAt(Level level, BlockPos pos) {
+        return climbFloor(packedAt(level.getBlockState(pos), level, pos));
+    }
+
+    /** {@link NavGrid#hatch} of a single live cell. */
+    public static boolean hatchAt(Level level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        return (verdictAt(state, level, pos) & TRAPDOOR) != 0 && isHatch(state, level, pos);
+    }
+
     /**
      * How high the standable surface of a single live cell sits — {@link NavGrid#surface} through
      * the same seam as {@link #classifyAt}, and under the same server-thread rule.
@@ -228,27 +310,63 @@ public final class WorldSnapshot implements NavGrid {
         return surface(packedAt(level.getBlockState(pos), level, pos));
     }
 
+    /** {@link NavGrid#ramps} of a single live cell, under {@link #classifyAt}'s rules. */
+    public static int rampsAt(Level level, BlockPos pos) {
+        return ramps(packedAt(level.getBlockState(pos), level, pos));
+    }
+
+    /** {@link NavGrid#doorway} of a single live cell, under {@link #classifyAt}'s rules. */
+    public static int doorwayAt(Level level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        return type(packedAt(state, level, pos)) == CellType.DOOR ? doorCodeAt(state, level, pos) : 0;
+    }
+
+    /** The packed cell a live blockstate makes where it stands. */
+    private static byte packedAt(BlockState state, BlockGetter level, BlockPos pos) {
+        return placed(verdictAt(state, level, pos), state, level, pos);
+    }
+
+    /**
+     * What a verdict means where it stands: a trapdoor open over a ladder facing its way is a rung —
+     * vanilla climbs it ({@code LivingEntity.trapdoorUsableAsLadder}) — and anything else is what
+     * the blockstate said.
+     */
+    private static byte placed(int verdict, BlockState state, BlockGetter level, BlockPos pos) {
+        if ((verdict & TRAPDOOR) != 0 && state.getValue(TrapDoorBlock.OPEN)
+                && overLadder(state, level, pos)) {
+            return pack(CellType.CLIMB, 0);
+        }
+        return (byte) (verdict & PACKED);
+    }
+
     /**
      * The memo in front of {@link #classifyLive} — see {@link #verdicts} for why it is sound. A
      * state the table has no room for (registered after it was sized) goes the long way
      * round; it is answered correctly, just not cheaply.
      */
-    private static byte packedAt(BlockState state, BlockGetter level, BlockPos pos) {
-        byte[] table = verdicts();
+    private static int verdictAt(BlockState state, BlockGetter level, BlockPos pos) {
+        short[] table = verdicts();
         int id = Block.BLOCK_STATE_REGISTRY.getId(state);
         if (id < 0 || id >= table.length) {
-            return classifyLive(state, level, pos);
+            return (classifyLive(state, level, pos) & PACKED) | flagsOf(state);
         }
-        byte memo = table[id];
-        if (memo == UNASKED) {
+        int memo = table[id];
+        if (memo == 0) {
             // A dynamic shape is the one thing that makes this a question about the cell rather
             // than about the block; every other input classifyLive reads lives on the state.
-            memo = state.getBlock().hasDynamicShape()
-                    ? POSITIONAL
-                    : (byte) (classifyLive(state, level, pos) + VERDICT_BASE);
-            table[id] = memo;
+            int flags = flagsOf(state);
+            memo = 1 + ((flags & POSITIONAL) != 0 ? flags : (classifyLive(state, level, pos) & PACKED) | flags);
+            table[id] = (short) memo;
         }
-        return memo == POSITIONAL ? classifyLive(state, level, pos) : (byte) (memo - VERDICT_BASE);
+        int verdict = memo - 1;
+        return (verdict & POSITIONAL) != 0
+                ? (classifyLive(state, level, pos) & PACKED) | (verdict & ~PACKED)
+                : verdict;
+    }
+
+    private static int flagsOf(BlockState state) {
+        return (state.getBlock().hasDynamicShape() ? POSITIONAL : 0)
+                | (state.is(BlockTags.TRAPDOORS) ? TRAPDOOR : 0);
     }
 
     /**
@@ -257,13 +375,32 @@ public final class WorldSnapshot implements NavGrid {
      * <p>The null check is not paranoia: a hot swap never re-runs a static initialiser, so a field
      * this class did not have before the swap arrives null on the running server.
      */
-    private static byte[] verdicts() {
-        byte[] table = verdicts;
+    private static short[] verdicts() {
+        short[] table = verdicts;
         if (table == null || table.length == 0) {
-            table = new byte[Math.max(Block.BLOCK_STATE_REGISTRY.size(), 1)];
+            table = new short[Math.max(Block.BLOCK_STATE_REGISTRY.size(), 1)];
             verdicts = table;
         }
         return table;
+    }
+
+    /**
+     * Whether a trapdoor sits over a ladder facing its own way — vanilla's rule for a trapdoor that is
+     * part of the ladder, block id and all, so it is spelled the way vanilla spells it.
+     */
+    private static boolean overLadder(BlockState state, BlockGetter level, BlockPos pos) {
+        BlockState below = level.getBlockState(pos.below());
+        return below.is(Blocks.LADDER)
+                && below.getValue(LadderBlock.FACING) == state.getValue(TrapDoorBlock.FACING);
+    }
+
+    /**
+     * A hatch: a shut trapdoor a hand opens, over a ladder facing its way — stood on shut, and a rung
+     * once swung.
+     */
+    private static boolean isHatch(BlockState state, BlockGetter level, BlockPos pos) {
+        return !state.getValue(TrapDoorBlock.OPEN) && state.is(HAND_TRAPDOORS)
+                && overLadder(state, level, pos);
     }
 
     /**
@@ -300,6 +437,132 @@ public final class WorldSnapshot implements NavGrid {
     }
 
     /**
+     * The footprint again, over the half of a cell a body walking {@link NavGrid#NORTH},
+     * {@link NavGrid#SOUTH}, {@link NavGrid#WEST} and {@link NavGrid#EAST} enters it by — the south
+     * half for north, and so on. A stair's low tread is where the leading foot lands first, and
+     * where it comes to rest there is the whole of whether the stair is a ramp that way.
+     *
+     * <p>Kept off the middle line, so a stair's high half never clips a probe meant for its low
+     * one.
+     */
+    private static final AABB[] ENTRY = {
+            new AABB(0.5 - BODY_WIDTH / 2, 2.0, 0.55, 0.5 + BODY_WIDTH / 2, 2.1, 0.95),
+            new AABB(0.5 - BODY_WIDTH / 2, 2.0, 0.05, 0.5 + BODY_WIDTH / 2, 2.1, 0.45),
+            new AABB(0.55, 2.0, 0.5 - BODY_WIDTH / 2, 0.95, 2.1, 0.5 + BODY_WIDTH / 2),
+            new AABB(0.05, 2.0, 0.5 - BODY_WIDTH / 2, 0.45, 2.1, 0.5 + BODY_WIDTH / 2)};
+    private static final int[] ENTRY_HEADING = {NavGrid.NORTH, NavGrid.SOUTH, NavGrid.WEST, NavGrid.EAST};
+    /** Where a stair's low tread sits, and so where an entry probe must rest to find one. */
+    private static final double TREAD = 0.5;
+
+    /**
+     * Which ways a full-height block is a ramp: entered over a half that stops half a block up, it
+     * is two half steps rather than a jump. One way for a straight stair, two for an outer corner,
+     * none for an inner corner or any other block — read off the shape, so a modded stair is a
+     * stair too.
+     */
+    static int rampsOf(VoxelShape shape) {
+        int ramps = 0;
+        for (int i = 0; i < ENTRY.length; i++) {
+            double rest = ENTRY[i].minY + shape.collide(Direction.Axis.Y, ENTRY[i], PROBE_DROP);
+            if (Math.abs(rest - TREAD) < 1.0E-6) {
+                ramps |= ENTRY_HEADING[i];
+            }
+        }
+        return ramps;
+    }
+
+    /**
+     * Where a body puts itself crossing each face of a cell — a body-wide strip a block tall, from
+     * the face to 0.3 in, in {@link NavGrid#heading} order — and standing in its middle. A door's
+     * panel lies inside its face's strip and clear of the middle; a shut gate's bar crosses the
+     * middle and the two faces it spans.
+     */
+    private static final int[] FACE_HEADING = {NavGrid.NORTH, NavGrid.SOUTH, NavGrid.WEST, NavGrid.EAST};
+    private static final VoxelShape[] FACE = {
+            Shapes.box(0.5 - BODY_WIDTH / 2, 0.0, 0.0, 0.5 + BODY_WIDTH / 2, 1.0, 0.3),
+            Shapes.box(0.5 - BODY_WIDTH / 2, 0.0, 0.7, 0.5 + BODY_WIDTH / 2, 1.0, 1.0),
+            Shapes.box(0.0, 0.0, 0.5 - BODY_WIDTH / 2, 0.3, 1.0, 0.5 + BODY_WIDTH / 2),
+            Shapes.box(0.7, 0.0, 0.5 - BODY_WIDTH / 2, 1.0, 1.0, 0.5 + BODY_WIDTH / 2)};
+    private static final VoxelShape MIDDLE = Shapes.box(0.5 - BODY_WIDTH / 2, 0.0, 0.5 - BODY_WIDTH / 2,
+            0.5 + BODY_WIDTH / 2, 1.0, 0.5 + BODY_WIDTH / 2);
+    private static final int EVERY_FACE = NavGrid.NORTH | NavGrid.SOUTH | NavGrid.WEST | NavGrid.EAST;
+
+    private static boolean clear(VoxelShape shape, VoxelShape region) {
+        return !Shapes.joinIsNotEmpty(shape, region, BooleanOp.AND);
+    }
+
+    private static int blockedFaces(VoxelShape shape) {
+        int faces = 0;
+        for (int i = 0; i < FACE.length; i++) {
+            if (!clear(shape, FACE[i])) faces |= FACE_HEADING[i];
+        }
+        return faces;
+    }
+
+    /**
+     * A door's code as its shapes read, standing and swung ({@link Doorway}): the faces and the
+     * middle each blocks, and a hand's reach — every face and inside — when a hand swings it.
+     */
+    static int doorCode(VoxelShape now, VoxelShape swung, boolean byHand) {
+        return Doorway.of(blockedFaces(now), !clear(now, MIDDLE), blockedFaces(swung),
+                !clear(swung, MIDDLE), byHand ? EVERY_FACE : 0, byHand);
+    }
+
+    /**
+     * {@link #doorCode} of a blockstate, memoised: a door's swung shape is its {@code OPEN} flipped,
+     * which is what a hand does to a wooden one and a button to an iron one. A trapdoor on edge is
+     * never swung, so its two readings are the same.
+     */
+    private static int doorGeometry(BlockState state, VoxelShape shape, BlockGetter level,
+            BlockPos pos) {
+        int[] memo = doorMemo;
+        int id = Block.BLOCK_STATE_REGISTRY.getId(state);
+        if (memo == null || memo.length == 0) {
+            memo = new int[Math.max(Block.BLOCK_STATE_REGISTRY.size(), 1)];
+            doorMemo = memo;
+        }
+        if (id >= 0 && id < memo.length && memo[id] != 0) {
+            return memo[id] - 1;
+        }
+        boolean swings = !state.is(BlockTags.TRAPDOORS) && state.hasProperty(BlockStateProperties.OPEN);
+        int code = doorCode(shape, swings
+                ? state.cycle(BlockStateProperties.OPEN).getCollisionShape(level, pos)
+                : shape, swingable(state));
+        if (id >= 0 && id < memo.length) {
+            memo[id] = code + 1;
+        }
+        return code;
+    }
+
+    /**
+     * A door cell's whole code: its shape's, and for a door no hand swings, the faces it can be
+     * opened from by a button, lever or pressure plate beside it ({@link Doors#activatorFaces}).
+     */
+    private static int doorCodeAt(BlockState state, Level level, BlockPos pos) {
+        int code = doorGeometry(state, state.getCollisionShape(level, pos), level, pos);
+        if (!Doorway.byHand(code) && state.is(BlockTags.DOORS)) {
+            code = Doorway.swingableFrom(code, Doors.activatorFaces(level, pos, state));
+        }
+        return code;
+    }
+
+    /** A door, trapdoor or gate — the blocks whose collision is a panel a body passes beside. */
+    private static boolean isDoor(BlockState state) {
+        return state.is(BlockTags.DOORS) || state.is(BlockTags.TRAPDOORS)
+                || state.is(BlockTags.FENCE_GATES);
+    }
+
+    /**
+     * Whether a hand swings it: vanilla's own list of doors a mob may open, which leaves out iron,
+     * and every fence gate. Never a trapdoor — shut, one is a floor, and a body has no business
+     * turning a wall panel into one.
+     */
+    private static boolean swingable(BlockState state) {
+        return (state.is(BlockTags.MOB_INTERACTABLE_DOORS) || state.is(BlockTags.FENCE_GATES))
+                && state.hasProperty(BlockStateProperties.OPEN);
+    }
+
+    /**
      * Collapses one blockstate to the navigation vocabulary, as a packed cell byte. The order
      * matters — see comments.
      */
@@ -325,25 +588,48 @@ public final class WorldSnapshot implements NavGrid {
             return pack(isStableLeaves(state) ? CellType.GROUND : CellType.OBSTACLE, 0);
         }
         VoxelShape shape = state.getCollisionShape(level, pos);
+        boolean wet = fluid.is(FluidTags.WATER);
+        // Climbables ahead of the empty-shape test: vines have no collision at all, and as air a
+        // falling body went straight through them. Only where the body has room — scaffolding's
+        // top is a floor, and keeps the reading the probe gives it. Waterlogged, a ladder is water
+        // to swim up.
+        if (!wet && state.is(BlockTags.CLIMBABLE)) {
+            if (shape.isEmpty() || surfaceOf(shape) <= 0.0) {
+                return pack(CellType.CLIMB, 0);
+            }
+            // Scaffolding: a floor to whatever stands above it — the shape it shows a body over it,
+            // which is what a context with no body in it reads — and a climb to one inside it.
+            if (surfaceOf(shape) >= 1.0) {
+                return pack(CellType.CLIMB, CLIMB_FLOOR);
+            }
+        }
         if (shape.isEmpty()) {
-            // No collision: air-like plants — or the inside of a water column (kelp, seagrass,
-            // source blocks). Waterlogged solids fall through to the surface probe instead.
-            return pack(fluid.is(FluidTags.WATER) ? CellType.WATER : CellType.PASSABLE, 0);
+            // No collision: air-like plants, an open fence gate — or the inside of a water column
+            // (kelp, seagrass, source blocks). Waterlogged solids fall through to the surface probe
+            // instead.
+            return pack(wet ? CellType.WATER : CellType.PASSABLE, 0);
         }
         double surface = surfaceOf(shape);
         if (surface >= 1.0) {
             // Solid to the top of its own cell, or past it. At exactly a cell it is a floor for the
-            // cell above; beyond one (a fence, a wall) nothing can stand in it or on it at any
-            // height this vocabulary can name.
-            return pack(surface > 1.0 ? CellType.OBSTACLE : CellType.GROUND, 0);
+            // cell above, and a stair among them a ramp; beyond one (a fence, a wall) nothing can
+            // stand in it or on it at any height this vocabulary can name — unless it is a gate
+            // shut across a fence line, which a hand swings out of the way.
+            if (surface > 1.0) {
+                return swingable(state) && !wet
+                        ? pack(CellType.DOOR, 0)
+                        : pack(CellType.OBSTACLE, 0);
+            }
+            return pack(CellType.GROUND, rampsOf(shape));
         }
         if (surface <= 0.0) {
-            // Collision the body's footprint never meets, because it hugs one wall of the cell: a
-            // ladder, a door, an open trapdoor. Not passable, though a player really does walk into
-            // a ladder's cell — the probe answers where FEET COME TO REST, not whether a body can
-            // cross. A closed door and a ladder have the very same shape, and telling them apart
-            // needs a per-direction reading this vocabulary does not have.
-            return pack(CellType.OBSTACLE, 0);
+            // Collision the body's footprint never meets, because it hugs one face of the cell. A
+            // door or a trapdoor stood on edge is a DOOR, crossed along its panel and not through
+            // it; anything else of the kind stays a wall, since nothing here knows it can be
+            // passed. The probe answers where FEET COME TO REST, which for these is nowhere.
+            return isDoor(state) && !wet
+                    ? pack(CellType.DOOR, 0)
+                    : pack(CellType.OBSTACLE, 0);
         }
         // Finding a floor is not the same as being able to reach it: the probe drops down the
         // middle of the cell, so in a bowl-shaped block it lands on the BOTTOM and knows nothing
@@ -358,7 +644,7 @@ public final class WorldSnapshot implements NavGrid {
         // made a village street a wall — see CellType.STEP. Rounding to sixteenths is lossless for
         // vanilla shapes; the clamp only guards a modded shape thinner than one sixteenth.
         int surface16 = Math.max(1, Math.min(SIXTEENTHS - 1, (int) Math.round(surface * SIXTEENTHS)));
-        return pack(CellType.STEP, surface16);
+        return pack(CellType.STEP, surface16 - 1);
     }
 
     /**
@@ -396,6 +682,35 @@ public final class WorldSnapshot implements NavGrid {
     public double surface(int x, int y, int z) {
         int index = index(x, y, z);
         return index < 0 ? 0.0 : surface(this.cells[index]);
+    }
+
+    @Override
+    public boolean hasDoors() {
+        return this.doors;
+    }
+
+    @Override
+    public int ramps(int x, int y, int z) {
+        int index = index(x, y, z);
+        return index < 0 ? 0 : ramps(this.cells[index]);
+    }
+
+    @Override
+    public int doorway(int x, int y, int z) {
+        int index = index(x, y, z);
+        return index < 0 || this.doorCodes == null ? 0 : this.doorCodes.get(index);
+    }
+
+    @Override
+    public boolean hatch(int x, int y, int z) {
+        int index = index(x, y, z);
+        return index >= 0 && this.hatches != null && this.hatches.contains(index);
+    }
+
+    @Override
+    public boolean climbFloor(int x, int y, int z) {
+        int index = index(x, y, z);
+        return index >= 0 && climbFloor(this.cells[index]);
     }
 
     /**

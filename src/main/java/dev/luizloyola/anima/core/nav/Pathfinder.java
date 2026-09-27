@@ -18,7 +18,9 @@ import java.util.List;
  * classification of it.
  *
  * <p>The neighbour model, parameterized by {@link MoveCapabilities}: cardinal walk, jump-up-1,
- * drop-up-to-{@code maxDrop}, level diagonals that refuse to cut corners, plus {@link #STRIDES}.
+ * drop-up-to-{@code maxDrop}, level diagonals that refuse to cut corners, plus {@link #STRIDES},
+ * leaps, swimming, climbing ({@link #climbNeighbors}), stairs walked by their treads
+ * ({@link #ramped}) and doors crossed along their axis ({@link #doorToll}).
  * Deep holes and {@link CellType#DANGER} cells never produce a neighbour, so the search routes
  * around them for free.
  *
@@ -131,6 +133,27 @@ public final class Pathfinder {
      * makes deep dives <em>representable</em>, never cheap.
      */
     private static final int MAX_PLUNGE = 32;
+    /**
+     * One cell up a ladder or vines. Vanilla climbs at about 0.12 blocks a tick against a walk's
+     * 0.22, so a little under two walks; rounded up, and at or over {@link #CHEAPEST_CLIMB} so the
+     * height heuristic stays a lower bound.
+     */
+    private static final double CLIMB_UP_COST = 2.0;
+    /** One cell down one: a climbable lets a body slide at 0.15 blocks a tick. */
+    private static final double CLIMB_DOWN_COST = 1.5;
+    /**
+     * A walk up a stair — two half steps, by its low tread. Dearer than a flat walk, cheaper than
+     * the jump the stair used to be read as, and exactly {@link #CHEAPEST_CLIMB}: this is now the
+     * cheapest way up there is.
+     */
+    private static final double RAMP_UP_COST = 1.5;
+    /** How high a stair's low tread sits in its own cell. */
+    private static final double TREAD = 0.5;
+    /**
+     * What a door costs the route that has to swing it, once, on the way in: enough that an open
+     * doorway beats a shut one the same distance off, not enough to send a body round a house.
+     */
+    private static final double DOOR_SWING_COST = 1.0;
 
     /** Neighbour probe order — fixed so the search is deterministic: N, S, W, E, then diagonals. */
     private static final int[][] CARDINALS = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}};
@@ -305,6 +328,13 @@ public final class Pathfinder {
     private boolean boundsRefused;
     /** Set when a submerged move was refused for want of breath — see {@link #sealedIn}. */
     private boolean breathRefused;
+    /**
+     * Whether the node being expanded has a door in its own column, so a move out of it must leave
+     * along the door's axis. Set once per expansion: most nodes have none, and then no move asks.
+     */
+    private boolean leavingDoorway;
+    /** {@link NavGrid#hasDoors}, read once: when false, no move asks about doors at all. */
+    private final boolean doors;
 
     private Pathfinder(NavGrid grid, PathRequest request) {
         this.grid = grid;
@@ -318,6 +348,7 @@ public final class Pathfinder {
         this.goalX = request.goalX();
         this.goalY = request.goalY();
         this.goalZ = request.goalZ();
+        this.doors = grid.hasDoors();
     }
 
     /** Never returns {@code null}. */
@@ -451,13 +482,17 @@ public final class Pathfinder {
                 bestScore = score;
                 bestG = node.g;
             }
-            if (!node.move.inWater()
+            // A hold is somewhere to pass, never to stop: a body left on a ladder slides off it.
+            boolean hanging = node.move == MoveType.CLIMB
+                    && isHold(unpackX(current), unpackY(current), unpackZ(current));
+            if (!node.move.inWater() && !hanging
                     && (score < bestRestScore || (score == bestRestScore && node.g < bestRestG))) {
                 bestRest = current;
                 bestRestScore = score;
                 bestRestG = node.g;
             }
             if ((score < bestAirScore || (score == bestAirScore && node.g < bestAirG))
+                    && !hanging
                     && !isSubmerged(unpackX(current), unpackY(current), unpackZ(current))) {
                 bestAir = current;
                 bestAirScore = score;
@@ -535,8 +570,18 @@ public final class Pathfinder {
         // Where this node's feet are, read once: every land move below is a rise measured from it,
         // and re-deriving it per probe would be twenty reads of the same two cells.
         double from = y + node.surface16 / 16.0;
+        this.leavingDoorway = this.doors
+                && hasDoor(x, y, y + this.profile.topCell(node.surface16 / 16.0), z);
+        // Standing on a shut hatch is standing; the same cell reached up the ladder is holding on.
+        boolean holding = isHold(x, y, z) && !(node.surface16 > 0 && this.grid.hatch(x, y, z));
         for (int[] d : CARDINALS) {
             cardinalNeighbor(current, node, x, y, z, from, d[0], d[1]);
+        }
+        if (this.profile.canClimb()) {
+            climbNeighbors(current, node, x, y, z, holding);
+        }
+        if (holding) {
+            return; // on a ladder: climb it or step off it sideways, nothing else
         }
         for (int[] d : DIAGONALS) {
             diagonalNeighbor(current, node, x, y, z, from, d[0], d[1]);
@@ -991,10 +1036,120 @@ public final class Pathfinder {
                 stepTo(current, node, x, y, z, from, nx, ny, nz, to);
                 return;
             }
-            if (this.grid.cell(nx, ny, nz) != CellType.PASSABLE) {
+            CellType passing = this.grid.cell(nx, ny, nz);
+            // Above the body's own level the scan is only where the head goes on the way in, so a
+            // door's upper half or a rung there is room like air.
+            if (ny > y) {
+                if (roomyOf(passing, this.grid, this.profile, nx, ny, nz)) continue;
+                return;
+            }
+            if (passing == CellType.CLIMB) {
+                // A climbable at or under the body's own level catches it, as it does in the game:
+                // walking off a floor into a ladder shaft is a climb down, not a fall.
+                if (isHold(nx, ny, nz)) {
+                    relax(current, node, pack(nx, ny, nz), ny, MoveType.CLIMB,
+                            WALK_COST + CLIMB_DOWN_COST * Math.max(0.0, from - ny));
+                }
+                return;
+            }
+            if (passing != CellType.PASSABLE) {
                 return;
             }
         }
+    }
+
+    /**
+     * Up and down a climbable column. Up from a hold, or from footing under one — a jump grabs it,
+     * as a player's does — and out of the top of scaffolding onto it. Down from a hold to the next
+     * one or the floor under the ladder; down through scaffolding a body stands on, by sneaking; and
+     * down through a hatch it stands on, by swinging it open. Stepping off sideways is the cardinal
+     * move's, which knows a climb from a jump by where it starts.
+     */
+    private void climbNeighbors(long current, Node node, int x, int y, int z, boolean holding) {
+        boolean inClimbable = climbable(x, y, z);
+        if (inClimbable || this.profile.jumpHeight() >= 1) {
+            double above = footing(x, y + 1, z);
+            if (climbable(x, y + 1, z) && fitsClimbing(x, y + 1, z)) {
+                // Up into a hatch is holding its open rung, not standing on it shut.
+                double land = above == NO_FOOTING || this.grid.hatch(x, y + 1, z) ? y + 1 : above;
+                relax(current, node, pack(x, y + 1, z), land,
+                        MoveType.CLIMB, CLIMB_UP_COST + hatchToll(x, y + 1, z));
+            } else if (above != NO_FOOTING && this.grid.cell(x, y, z) == CellType.CLIMB
+                    && this.grid.climbFloor(x, y, z)) {
+                // Out of the top of a scaffolding tower, onto it.
+                relax(current, node, pack(x, y + 1, z), above, MoveType.CLIMB, CLIMB_UP_COST);
+            }
+        }
+        boolean onHatch = node.surface16 > 0 && this.grid.hatch(x, y, z);
+        if (!holding && !onHatch && !climbFloorUnder(x, y, z) && !this.grid.hatch(x, y - 1, z)) {
+            return;
+        }
+        // What is under the body — a rung, scaffolding it stands on, a hatch it stands on or in —
+        // and it goes down into the cell below, landing on footing if there is some, holding on if
+        // not.
+        int down = y - 1;
+        double floor = footing(x, down, z);
+        double toll = onHatch ? DOOR_SWING_COST : hatchToll(x, down, z);
+        if (floor != NO_FOOTING && climbable(x, down, z)) {
+            relax(current, node, pack(x, down, z), floor, MoveType.CLIMB, CLIMB_DOWN_COST + toll);
+        } else if (floor != NO_FOOTING && holding) {
+            relax(current, node, pack(x, down, z), floor, MoveType.CLIMB, CLIMB_DOWN_COST);
+        } else if (isHold(x, down, z)) {
+            relax(current, node, pack(x, down, z), down, MoveType.CLIMB, CLIMB_DOWN_COST + toll);
+        }
+    }
+
+    /**
+     * Whether a climber can hold on in feet-cell {@code (x,y,z)}: a climbable, or a hatch its hand
+     * can swing open into the ladder's top rung.
+     */
+    private boolean climbable(int x, int y, int z) {
+        if (!this.profile.canClimb()) return false;
+        return this.grid.cell(x, y, z) == CellType.CLIMB
+                || (this.profile.canOpenDoors() && this.grid.hatch(x, y, z));
+    }
+
+    /** What a climb into this cell pays for a hatch in the way: one swing. */
+    private double hatchToll(int x, int y, int z) {
+        return this.grid.hatch(x, y, z) ? DOOR_SWING_COST : 0.0;
+    }
+
+    /** Whether the body in feet-cell {@code (x,y,z)} stands on scaffolding — which it can sink through. */
+    private boolean climbFloorUnder(int x, int y, int z) {
+        return this.profile.canClimb() && this.grid.cell(x, y - 1, z) == CellType.CLIMB
+                && this.grid.climbFloor(x, y - 1, z);
+    }
+
+    /**
+     * Whether a climber can be at feet-cell {@code (x,y,z)} with nothing under it to stand on: a
+     * climbable it fits in. Somewhere to pass through, never to rest — only a player holds on to a
+     * ladder, by sneaking.
+     */
+    private boolean isHold(int x, int y, int z) {
+        return climbable(x, y, z) && !floorUnder(this.grid, x, y, z) && fitsClimbing(x, y, z);
+    }
+
+    /**
+     * {@link #fits} for a body on a ladder, whose head may go up into a hatch it can swing open —
+     * the top rung sits a body's height under the trapdoor. Only climbing opens one on the way, so
+     * nothing else counts a hatch as room.
+     */
+    private boolean fitsClimbing(int x, int y, int z) {
+        int top = this.profile.topCell(0.0);
+        for (int i = 1; i <= top; i++) {
+            if (!roomy(x, y + i, z) && !climbable(x, y + i, z)) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Whether feet-cell {@code (x,y,z)} has a floor under it: a full block, or scaffolding, which
+     * holds up whatever stands on it.
+     */
+    private static boolean floorUnder(NavGrid grid, int x, int y, int z) {
+        CellType below = grid.cell(x, y - 1, z);
+        return below == CellType.GROUND
+                || (below == CellType.CLIMB && grid.climbFloor(x, y - 1, z));
     }
 
     /** Classifies a reachable neighbouring footing by its rise and relaxes it. */
@@ -1002,10 +1157,24 @@ public final class Pathfinder {
                         int nx, int ny, int nz, double to) {
         double rise = to - from;
         if (rise > STEP_UP) {
-            if (this.profile.jumpHeight() < 1 || rise > JUMP_UP) return;
+            if (rise > JUMP_UP) return;
             // Headroom to jump: a clear cell above the head to rise into. Measured from where the
             // feet actually are — a body already standing half a block up has its head there too.
-            if (this.grid.cell(x, y + this.profile.topCell(from - y) + 1, z) != CellType.PASSABLE) return;
+            // A stair wants the same cell: walking up one, the head is still over the step behind
+            // when the feet reach the next tread.
+            if (!roomy(x, y + this.profile.topCell(from - y) + 1, z)) return;
+            if (climbable(x, y, z)) {
+                // Off a ladder onto the ledge beside it: climbed until the feet clear it, not
+                // jumped.
+                relax(current, node, pack(nx, ny, nz), to, MoveType.CLIMB, CLIMB_UP_COST);
+                return;
+            }
+            if (ramped(x, y, z, from, nx, ny, nz, to)) {
+                relax(current, node, pack(nx, ny, nz), to, MoveType.WALK,
+                        RAMP_UP_COST * terrainFactor(x, y, z, nx, ny, nz));
+                return;
+            }
+            if (this.profile.jumpHeight() < 1) return;
             relax(current, node, pack(nx, ny, nz), to, MoveType.JUMP,
                     JUMP_COST * terrainFactor(x, y, z, nx, ny, nz));
             return;
@@ -1020,8 +1189,43 @@ public final class Pathfinder {
         // block further than this body agreed to.
         double depth = -rise;
         if (depth > this.profile.maxDrop()) return;
+        if (ramped(x, y, z, from, nx, ny, nz, to)) {
+            relax(current, node, pack(nx, ny, nz), to, MoveType.WALK,
+                    WALK_COST * terrainFactor(x, y, z, nx, ny, nz));
+            return;
+        }
         relax(current, node, pack(nx, ny, nz), to, MoveType.DROP,
                 dropCost(depth) * terrainFactor(x, y, z, nx, ny, nz));
+    }
+
+    /**
+     * Whether a cardinal step between two footings too far apart to walk is a walk after all,
+     * because a stair's low tread splits it into half steps: the feet go down to it first when the
+     * body leaves a stair by its low side, and up to it first when the body enters one by its low
+     * side. A staircase is both at once, up or down, and every step of it is half a block.
+     *
+     * <p>Only a body standing on the stair's top ({@code from == y}) or arriving on one
+     * ({@code to == ny}) is on it; a carpet laid over a stair is somebody else's floor.
+     */
+    private boolean ramped(int x, int y, int z, double from, int nx, int ny, int nz, double to) {
+        int heading = NavGrid.heading(nx - x, nz - z);
+        double at = from;
+        boolean treaded = false;
+        if (from == y && this.grid.cell(x, y - 1, z) == CellType.GROUND
+                && (this.grid.ramps(x, y - 1, z) & NavGrid.opposite(heading)) != 0) {
+            double tread = y - 1 + TREAD;
+            if (Math.abs(tread - at) > STEP_UP) return false;
+            at = tread;
+            treaded = true;
+        }
+        if (to == ny && this.grid.cell(nx, ny - 1, nz) == CellType.GROUND
+                && (this.grid.ramps(nx, ny - 1, nz) & heading) != 0) {
+            double tread = ny - 1 + TREAD;
+            if (Math.abs(tread - at) > STEP_UP) return false;
+            at = tread;
+            treaded = true;
+        }
+        return treaded && Math.abs(to - at) <= STEP_UP;
     }
 
     /**
@@ -1089,7 +1293,9 @@ public final class Pathfinder {
      */
     private boolean walkableFlank(int x, int y, int z, double from) {
         double f = footing(x, y, z);
-        return f != NO_FOOTING && Math.abs(f - from) <= STEP_UP;
+        // A doorway is crossed on its axis, a step at a time; a stride has no axis to keep to.
+        return f != NO_FOOTING && Math.abs(f - from) <= STEP_UP
+                && !(this.doors && hasDoor(x, y, y + this.profile.topCell(f - y), z));
     }
 
     /**
@@ -1107,13 +1313,23 @@ public final class Pathfinder {
         CellType bottom = this.grid.cell(fx, loCell, fz);
         if (bottom == CellType.STEP) {
             if (loCell + this.grid.surface(fx, loCell, fz) - lo > STEP_UP) return false;
-        } else if (bottom != CellType.PASSABLE) {
+        } else if (!sweepable(bottom)) {
             return false;
         }
         for (int cy = loCell + 1; cy <= hiCell; cy++) {
-            if (this.grid.cell(fx, cy, fz) != CellType.PASSABLE) return false;
+            if (!sweepable(this.grid.cell(fx, cy, fz))) return false;
         }
         return true;
+    }
+
+    /**
+     * What a diagonal's shoulder may brush through: air, or a climbable. A ladder's panel lies
+     * against the block holding it up, never against a cell a route stands in, so the corner a
+     * diagonal cuts is always clear of it; vines have no collision at all. A door is refused — its
+     * panel can face either way.
+     */
+    private static boolean sweepable(CellType type) {
+        return type == CellType.PASSABLE || type == CellType.CLIMB;
     }
 
     /**
@@ -1143,10 +1359,11 @@ public final class Pathfinder {
             double surface = grid.surface(x, y, z);
             return fitsOf(grid, profile, x, y, z, surface) ? y + surface : NO_FOOTING;
         }
-        if (here != CellType.PASSABLE && here != CellType.WATER) {
+        // A doorway and the foot of a ladder are stood in like air: the panel is on a face.
+        if (here != CellType.WATER && !roomyOf(here, grid, profile, x, y, z)) {
             return NO_FOOTING; // solid, harmful, or off the edge of the world
         }
-        if (grid.cell(x, y - 1, z) != CellType.GROUND) {
+        if (!floorUnder(grid, x, y, z)) {
             return NO_FOOTING; // nothing under us — or a STEP, which is its own feet-cell
         }
         // fits() demands PASSABLE overhead, so for a water cell it is also the test that the head
@@ -1194,9 +1411,116 @@ public final class Pathfinder {
                                   double surface) {
         int top = profile.topCell(surface);
         for (int i = 1; i <= top; i++) {
-            if (grid.cell(x, y + i, z) != CellType.PASSABLE) return false;
+            if (!roomyOf(grid.cell(x, y + i, z), grid, profile, x, y + i, z)) return false;
         }
         return true;
+    }
+
+    /**
+     * Whether a body's column may pass through this cell: air, a climbable (its panel is on a face,
+     * or it has none), or a doorway with some way through it open to this body. Not water: a head
+     * in water is swimming, which is the swim moves' business.
+     */
+    private boolean roomy(int x, int y, int z) {
+        return roomyOf(this.grid.cell(x, y, z), this.grid, this.profile, x, y, z);
+    }
+
+    /** {@link #roomy} of a cell whose type has already been read — this is the hottest test there is. */
+    private static boolean roomyOf(CellType type, NavGrid grid, MoveCapabilities profile,
+                                   int x, int y, int z) {
+        return type == CellType.PASSABLE || type == CellType.CLIMB
+                || (type == CellType.DOOR
+                        && Doorway.holds(grid.doorway(x, y, z), profile.canOpenDoors()));
+    }
+
+    /** Whether any cell of this column, {@code y} to {@code top}, is a doorway. */
+    private boolean hasDoor(int x, int y, int top, int z) {
+        for (int cy = y; cy <= top; cy++) {
+            if (this.grid.cell(x, cy, z) == CellType.DOOR) return true;
+        }
+        return false;
+    }
+
+    /**
+     * What the doors a move touches cost it: nothing when it touches none, {@link #DOOR_SWING_COST}
+     * for each swing the crossing needs, and a refusal ({@code -1}) when one is in the way — a face
+     * no state of the door lets this body cross, or any door at all touched by a move that is not
+     * straight along one axis.
+     *
+     * <p>A door is read by its faces ({@link Doorway}): the way in is the face the move enters by,
+     * the way out the face it leaves by, and a body may turn inside a doorway where the panel allows
+     * — or where its hand can swing the door again with the body standing in it.
+     *
+     * <p>Asked of every move, here, because every move generator ends here: a door is a rule about
+     * the direction of a step, and no single generator owns direction.
+     */
+    private double doorToll(long current, Node from, long neighbor, double footing) {
+        int x = unpackX(current);
+        int z = unpackZ(current);
+        int nx = unpackX(neighbor);
+        int nz = unpackZ(neighbor);
+        int dx = nx - x;
+        int dz = nz - z;
+        if (dx == 0 && dz == 0) {
+            return 0.0; // up or down a column
+        }
+        boolean straight = dx == 0 || dz == 0;
+        int heading = NavGrid.heading(Integer.signum(dx), Integer.signum(dz));
+        boolean hands = this.profile.canOpenDoors();
+        double toll = 0.0;
+        if (this.leavingDoorway) {
+            int in = 0;
+            if (from.parent != NO_PARENT) {
+                int inX = x - unpackX(from.parent);
+                int inZ = z - unpackZ(from.parent);
+                if ((inX == 0) != (inZ == 0)) {
+                    in = NavGrid.opposite(NavGrid.heading(Integer.signum(inX), Integer.signum(inZ)));
+                }
+            }
+            int y = unpackY(current);
+            int top = y + this.profile.topCell(from.surface16 / 16.0);
+            for (int cy = y; cy <= top; cy++) {
+                if (this.grid.cell(x, cy, z) != CellType.DOOR) continue;
+                double leaving = straight ? leaveToll(this.grid.doorway(x, cy, z), in, heading, hands) : -1.0;
+                if (leaving < 0.0) return -1.0;
+                toll = Math.max(toll, leaving);
+            }
+        }
+        int ny = unpackY(neighbor);
+        int top = ny + this.profile.topCell(footing == NO_FOOTING ? 0.0 : footing - ny);
+        int in = NavGrid.opposite(heading);
+        double entering = 0.0;
+        for (int cy = ny; cy <= top; cy++) {
+            if (this.grid.cell(nx, cy, nz) != CellType.DOOR) continue;
+            int code = this.grid.doorway(nx, cy, nz);
+            if (!straight) return -1.0;
+            if (Doorway.free(code, false, in)) continue;
+            if (!Doorway.swingsFrom(code, in, hands) || !Doorway.free(code, true, in)) return -1.0;
+            entering = DOOR_SWING_COST;
+        }
+        return toll + entering;
+    }
+
+    /**
+     * What leaving a doorway through {@code out} costs, having come in through {@code in} (0: the
+     * body started there) — beyond what coming in already paid for. Free when the state it came in
+     * with lets it out; one swing when the door must be put the other way first, before coming in or
+     * standing in it; refused when neither can be done.
+     */
+    private static double leaveToll(int code, int in, int out, boolean hands) {
+        if (in == 0) {
+            if (Doorway.free(code, false, out)) return 0.0;
+            return Doorway.swingsInside(code, hands) && Doorway.free(code, true, out)
+                    ? DOOR_SWING_COST : -1.0;
+        }
+        boolean entered = Doorway.entryState(code, in);
+        Boolean through = Doorway.crossingState(code, in, out);
+        if (through != null && through == entered) return 0.0;
+        if (through != null && Doorway.swingsFrom(code, in, hands)) {
+            return DOOR_SWING_COST; // swung before coming in, which coming in did not pay for
+        }
+        return Doorway.swingsInside(code, hands) && Doorway.free(code, !entered, out)
+                ? DOOR_SWING_COST : -1.0;
     }
 
     /** Memoized {@link NavGrids#isNearDeepDrop} — see {@link #CAREFUL_COST_FACTOR}. */
@@ -1320,12 +1644,19 @@ public final class Pathfinder {
                 return;
             }
         }
+        // Water has no doors in it — no door is waterlogged — and a stroke has a hundred
+        // neighbours, so it does not ask.
+        double toll = !this.doors || move.inWater() ? 0.0 : doorToll(current, from, neighbor, footing);
+        if (toll < 0.0) {
+            return;
+        }
         int surface16 = footing == NO_FOOTING ? 0
                 : Math.max(0, Math.min(15, (int) Math.round((footing - ny) * 16.0)));
         // Scaled by the ground, then surcharged for fear: roughness is how tiring the crossing is,
         // so it multiplies the crossing, while dread is a flat toll for setting foot at all. The
         // heuristic survives both because neither can make a move cost less than its length.
-        double g = from.g + cost * (1.0 + roughness(neighbor)) + dread(neighbor) + grudge(neighbor);
+        double g = from.g + cost * (1.0 + roughness(neighbor)) + dread(neighbor) + grudge(neighbor)
+                + toll;
         Node node = this.nodes.get(neighbor);
         if (node == null) {
             node = new Node();
@@ -1484,8 +1815,8 @@ public final class Pathfinder {
      *
      * <p>The two rates are what the cheapest move of each kind charges per block of height. Down,
      * a long plunge, whose {@link #dropCost} tends to 0.3 a block from above and never reaches it.
-     * UP, a step onto a partial floor: a whole walk for {@link MoveCapabilities#STEP_UP} of a
-     * block, so 1.67, and 1.5 keeps a margin under it. A cheaper way down or up would move these
+     * UP, a walk up a stair, {@link #RAMP_UP_COST} for a whole block — a step onto a partial floor
+     * is 1.67 a block and a climb {@link #CLIMB_UP_COST}. A cheaper way down or up would move these
      * with it.
      */
     private double heuristic(int x, int y, int z) {
@@ -1526,7 +1857,7 @@ public final class Pathfinder {
 
     /** Least a move can cost per block it descends — {@link #dropCost}'s asymptote, never met. */
     private static final double CHEAPEST_DESCENT = 0.3;
-    /** Least a move can cost per block it climbs, with a margin under the real floor of 1.67. */
+    /** Least a move can cost per block it climbs: a stair, walked. */
     private static final double CHEAPEST_CLIMB = 1.5;
 
     /**

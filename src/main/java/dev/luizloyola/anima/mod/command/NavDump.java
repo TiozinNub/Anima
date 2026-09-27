@@ -63,6 +63,24 @@ public final class NavDump {
                                                 StringArgumentType.getString(ctx, "file"))))));
     }
 
+    /**
+     * The fifth field, for the types whose code does not say everything: a partial floor's height,
+     * a stair's ramps, a door's passages. Empty for everything else, and for a block with no ramps,
+     * so a capture of plain terrain reads as it always did.
+     */
+    private static String payload(ServerLevel level, BlockPos pos, CellType type) {
+        return switch (type) {
+            case STEP -> " " + Math.round(WorldSnapshot.surfaceAt(level, pos) * 16);
+            case GROUND -> {
+                int ramps = WorldSnapshot.rampsAt(level, pos);
+                yield ramps == 0 ? "" : " " + ramps;
+            }
+            case DOOR -> " " + WorldSnapshot.doorwayAt(level, pos);
+            case CLIMB -> WorldSnapshot.climbFloorAt(level, pos) ? " 1" : "";
+            default -> "";
+        };
+    }
+
     private static int dump(CommandSourceStack source, BlockPos from, BlockPos to, String name) {
         if (!NAME.matcher(name).matches()) {
             Replies.fail(source, Component.literal(
@@ -104,7 +122,11 @@ public final class NavDump {
                         + CellType.PASSABLE.name() + "; outside it, "
                         + CellType.OBSTACLE.name() + "\n");
                 out.write("# a " + CellType.STEP.name()
-                        + " carries a fifth field: its surface height in sixteenths\n");
+                        + " carries a fifth field: its surface height in sixteenths; a "
+                        + CellType.GROUND.name() + " with ramps, its ramp mask; a "
+                        + CellType.DOOR.name() + ", its doorway code; a "
+                        + CellType.CLIMB.name() + " with a floor on top, 1\n");
+                out.write("# a line 'hatch x y z' marks a shut trapdoor over a ladder\n");
 
                 BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
                 for (int x = min.getX(); x <= max.getX(); x++) {
@@ -124,10 +146,10 @@ public final class NavDump {
                                 continue;
                             }
                             out.write(type.code() + " " + x + " " + y + " " + z
-                                    + (type == CellType.STEP
-                                            ? " " + Math.round(WorldSnapshot.surfaceAt(level, pos) * 16)
-                                            : "")
-                                    + "\n");
+                                    + payload(level, pos, type) + "\n");
+                            if (WorldSnapshot.hatchAt(level, pos)) {
+                                out.write("hatch " + x + " " + y + " " + z + "\n");
+                            }
                         }
                     }
                 }

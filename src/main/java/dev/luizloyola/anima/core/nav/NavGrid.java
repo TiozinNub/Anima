@@ -34,6 +34,49 @@ public interface NavGrid {
     }
 
     /**
+     * The directions a body walks UP this {@link CellType#GROUND} block by a low tread half a block
+     * high — a stair, taken the way it faces. A mask of {@link #NORTH}, {@link #SOUTH},
+     * {@link #WEST} and {@link #EAST}; 0 for a full block, and for anything that is not
+     * {@code GROUND}.
+     */
+    default int ramps(int x, int y, int z) {
+        return 0;
+    }
+
+    /**
+     * Which faces a body may cross in this {@link CellType#DOOR} cell, now and once swung, and who
+     * can swing it from where — see {@link Doorway}. 0 for anything that is not a {@code DOOR}.
+     */
+    default int doorway(int x, int y, int z) {
+        return 0;
+    }
+
+    /**
+     * Whether this cell is a hatch: a shut trapdoor, stood on like any floor, over a ladder that a
+     * hand opens it into — once swung, it is the ladder's top rung.
+     */
+    default boolean hatch(int x, int y, int z) {
+        return false;
+    }
+
+    /**
+     * Whether this {@link CellType#CLIMB} cell is also a floor to a body standing on top of it —
+     * scaffolding, which a body climbs inside, stands on, and sinks through by sneaking.
+     */
+    default boolean climbFloor(int x, int y, int z) {
+        return false;
+    }
+
+    /**
+     * Whether any cell of this grid may be a {@link CellType#DOOR}. A search asks every move about
+     * doors, and most of the world has none, so a grid that knows it holds none lets it skip the
+     * question. True unless the grid knows otherwise.
+     */
+    default boolean hasDoors() {
+        return true;
+    }
+
+    /**
      * Whether this grid actually has data for a cell, as opposed to answering
      * {@link CellType#OBSTACLE} because it has none.
      *
@@ -47,6 +90,29 @@ public interface NavGrid {
      */
     default boolean inBounds(int x, int y, int z) {
         return true;
+    }
+
+    /** A heading as a bit, for {@link #ramps}: toward -z. */
+    int NORTH = 1;
+    /** Toward +z. */
+    int SOUTH = 2;
+    /** Toward -x. */
+    int WEST = 4;
+    /** Toward +x. */
+    int EAST = 8;
+
+    /** The bit for a cardinal step {@code (dx, dz)}, or 0 for anything that is not one. */
+    static int heading(int dx, int dz) {
+        if (dx == 0 && dz == -1) return NORTH;
+        if (dx == 0 && dz == 1) return SOUTH;
+        if (dx == -1 && dz == 0) return WEST;
+        if (dx == 1 && dz == 0) return EAST;
+        return 0;
+    }
+
+    /** The heading bits turned round: north for south, west for east. */
+    static int opposite(int headings) {
+        return (headings & (NORTH | WEST)) << 1 | (headings & (SOUTH | EAST)) >> 1;
     }
 
     /**

@@ -47,7 +47,9 @@ public final class GoalCell {
                     && grid.cell(x, down + 1, z) == CellType.PASSABLE) {
                 return down; // the water surface — a swimmer floats here
             }
-            if (here != CellType.PASSABLE) {
+            // A climbable is air to this scan: a goal named on a ladder or in vines ends on the
+            // floor under it, since nobody can stand on the rung itself.
+            if (here != CellType.PASSABLE && here != CellType.CLIMB) {
                 return y; // ground, water or danger under an open goal: no floor in reach
             }
         }

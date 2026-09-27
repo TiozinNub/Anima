@@ -261,6 +261,13 @@ public final class ProfileAspect {
                     + "mean it stops noticing that it is shut in — it means the only thing it can "
                     + "do about it is say so, which is the right answer for something with paws "
                     + "and the one a silent body would get wrong.");
+    public static final ProfileAspect BODY_CAN_OPEN_DOORS = register("body.can_open_doors", Kind.BOOL, 0, 1,
+            "Whether this body has a hand to swing a door or a fence gate with. False leaves a "
+                    + "shut one a wall: a house with its doors closed is somewhere it cannot get "
+                    + "into, or out of. Doors no hand can move (iron) are walls either way.");
+    public static final ProfileAspect BODY_CAN_CLIMB = register("body.can_climb", Kind.BOOL, 0, 1,
+            "Whether this body climbs ladders and vines. False leaves a ladder shaft a hole and a "
+                    + "ladder up a wall a wall.");
     public static final ProfileAspect ESCAPE_PRESSURE = register("escape.pressure", Kind.DOUBLE,
             0.0, 1.0,
             "How hard being shut in presses on this body. High by default: a body that cannot "

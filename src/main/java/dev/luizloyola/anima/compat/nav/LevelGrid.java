@@ -57,6 +57,42 @@ public final class LevelGrid implements NavGrid {
     }
 
     @Override
+    public int ramps(int x, int y, int z) {
+        if (!inBounds(x, y, z)) {
+            return 0;
+        }
+        this.scratch.set(x, y, z);
+        return WorldSnapshot.rampsAt(this.level, this.scratch);
+    }
+
+    @Override
+    public int doorway(int x, int y, int z) {
+        if (!inBounds(x, y, z)) {
+            return 0;
+        }
+        this.scratch.set(x, y, z);
+        return WorldSnapshot.doorwayAt(this.level, this.scratch);
+    }
+
+    @Override
+    public boolean hatch(int x, int y, int z) {
+        if (!inBounds(x, y, z)) {
+            return false;
+        }
+        this.scratch.set(x, y, z);
+        return WorldSnapshot.hatchAt(this.level, this.scratch);
+    }
+
+    @Override
+    public boolean climbFloor(int x, int y, int z) {
+        if (!inBounds(x, y, z)) {
+            return false;
+        }
+        this.scratch.set(x, y, z);
+        return WorldSnapshot.climbFloorAt(this.level, this.scratch);
+    }
+
+    @Override
     public boolean inBounds(int x, int y, int z) {
         return y >= this.level.getMinY() && y <= this.level.getMaxY() && chunkFor(x, z) != null;
     }

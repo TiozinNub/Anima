@@ -9,12 +9,13 @@ package dev.luizloyola.anima.core.nav;
 final class TestBodies {
 
     /**
-     * Two cells tall (a 1.8 hitbox), jumps 1, drops 3, leaps 3 (the vanilla sprint limit), swims.
+     * Two cells tall (a 1.8 hitbox), jumps 1, drops 3, leaps 3 (the vanilla sprint limit), swims,
+     * opens doors and climbs.
      *
      * <p>36 cells of submerged travel: a 300-tick lungful at the planner's five ticks a cell with
      * its reserve kept back — a real body's number, not a round one.
      */
-    static final MoveCapabilities BIPED = new MoveCapabilities(1.8, 1, 3, 3, true, 36);
+    static final MoveCapabilities BIPED = new MoveCapabilities(1.8, 1, 3, 3, true, 36, true, true);
 
     private TestBodies() {
     }

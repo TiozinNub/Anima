@@ -26,9 +26,22 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
  * @param maxSubmerged cells of travel it may make with its head under water before reaching air.
  *                   Body STATE, not shape — read off the breath gauge at request time, so a
  *                   half-drowned body plans a shorter tunnel. Zero refuses submerged travel
+ * @param canOpenDoors whether it has a hand to swing a door or a gate with; false leaves a shut
+ *                   one a wall — see {@link Doorway}
+ * @param canClimb   whether it climbs ladders and vines; false leaves a ladder shaft a hole
  */
 public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
-                               boolean canSwim, int maxSubmerged) {
+                               boolean canSwim, int maxSubmerged, boolean canOpenDoors,
+                               boolean canClimb) {
+
+    /**
+     * A body with no hands and no climbing — what a caller asking only about shape and water gets.
+     * Neither is assumed: a body that did not declare it cannot do it.
+     */
+    public MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
+                            boolean canSwim, int maxSubmerged) {
+        this(height, jumpHeight, maxDrop, maxLeap, canSwim, maxSubmerged, false, false);
+    }
 
     /**
      * A body that will not put its head under — the shape numbers plus swimming, and no breath to
@@ -92,6 +105,8 @@ public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int m
                 profile.i(ProfileAspect.BODY_MAX_DROP),
                 profile.i(ProfileAspect.BODY_MAX_LEAP),
                 profile.b(ProfileAspect.BODY_CAN_SWIM),
-                maxSubmerged);
+                maxSubmerged,
+                profile.b(ProfileAspect.BODY_CAN_OPEN_DOORS),
+                profile.b(ProfileAspect.BODY_CAN_CLIMB));
     }
 }

@@ -89,12 +89,35 @@ public final class NavGrids {
     public static boolean satisfies(NavGrid grid, CellNeed need) {
         CellType here = grid.cell(need.x(), need.y(), need.z());
         return switch (need.need()) {
-            case CLEAR -> here == CellType.PASSABLE;
+            // A hatch is room to the climber whose head goes up into it, which is the only route
+            // the planner puts through one.
+            case CLEAR -> isOpen(here) || grid.hatch(need.x(), need.y(), need.z());
             case WATER -> here == CellType.WATER;
             case ROOM -> here == CellType.PASSABLE || here == CellType.WATER;
-            case FOOTING -> here == CellType.STEP
-                    || ((here == CellType.PASSABLE || here == CellType.WATER)
-                            && grid.cell(need.x(), need.y() - 1, need.z()) == CellType.GROUND);
+            case FOOTING -> hasFooting(grid, need, here);
+            case HOLD -> here == CellType.CLIMB || grid.hatch(need.x(), need.y(), need.z())
+                    || hasFooting(grid, need, here);
         };
+    }
+
+    /**
+     * What a body's column may pass through: air, a climbable, a doorway. Body-blind, so a door
+     * counts whichever way it is swung — a door someone shut across a route is the follower's to
+     * swing, and one it cannot swing wedges it and re-plans.
+     */
+    private static boolean isOpen(CellType here) {
+        return here == CellType.PASSABLE || here == CellType.CLIMB || here == CellType.DOOR;
+    }
+
+    private static boolean hasFooting(NavGrid grid, CellNeed need, CellType here) {
+        if (here == CellType.STEP) {
+            return true;
+        }
+        if (!isOpen(here) && here != CellType.WATER) {
+            return false;
+        }
+        CellType below = grid.cell(need.x(), need.y() - 1, need.z());
+        return below == CellType.GROUND
+                || (below == CellType.CLIMB && grid.climbFloor(need.x(), need.y() - 1, need.z()));
     }
 }

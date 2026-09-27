@@ -25,6 +25,8 @@ import java.util.List;
  *   <li><b>Run-ups</b> ({@link MoveType#RUNUP}): the line rule when level, the destination rule
  *       when it rises onto its takeoff. Either way the takeoff is watched again, as the next leap's
  *       launch cell.
+ *   <li><b>Climbs</b> ({@link MoveType#CLIMB}): the destination stays something to hold or stand
+ *       on ({@link CellNeed.Need#HOLD}) under an open column.
  * </ul>
  *
  * <p>Re-derived from waypoint geometry rather than recorded by the search, so it mirrors what
@@ -45,6 +47,12 @@ public final class PathIntegrity {
             // often as air, so the column asks for ROOM and not CLEAR. Demanding air failed every
             // DIVE and every submerged crossing on its own first tick, re-planning the same route.
             addAfloat(needs, to.x(), to.y(), to.z(), profile);
+            return needs;
+        }
+        if (to.move() == MoveType.CLIMB) {
+            // A hold, or the footing a climb steps off onto at the top or the bottom: HOLD takes
+            // either, since the waypoint does not say which, and the column above stays open.
+            addHold(needs, to.x(), to.y(), to.z(), profile);
             return needs;
         }
         if (to.move() == MoveType.WALK
@@ -74,6 +82,9 @@ public final class PathIntegrity {
             List<int[]> line = lineCells(from.x(), from.z(), to.x(), to.z());
             if (from.move().inWater()) {
                 addAfloat(needs, from.x(), from.y(), from.z(), profile);
+            } else if (from.move() == MoveType.CLIMB) {
+                // Stepping off a ladder sideways: the near end is a hold, which has no footing.
+                addHold(needs, from.x(), from.y(), from.z(), profile);
             } else {
                 addStandable(needs, from.x(), from.y(), from.z(), profile,
                         from.surface16() / 16.0);
@@ -144,6 +155,15 @@ public final class PathIntegrity {
         // it failed every DIVE and every submerged crossing on its own first tick.
         for (int i = 1; i <= profile.topCell(0.0); i++) {
             needs.add(new CellNeed(x, y + i, z, CellNeed.Need.ROOM));
+        }
+    }
+
+    /** Appends what a climb needs of a cell: something to hold or stand on, and room above. */
+    private static void addHold(List<CellNeed> needs, int x, int y, int z,
+                                MoveCapabilities profile) {
+        needs.add(new CellNeed(x, y, z, CellNeed.Need.HOLD));
+        for (int i = 1; i <= profile.topCell(0.0); i++) {
+            needs.add(new CellNeed(x, y + i, z, CellNeed.Need.CLEAR));
         }
     }
 

@@ -20,12 +20,15 @@ import java.util.Map;
  *
  * Anything outside the drawn rows is {@link CellType#OBSTACLE}, per the {@link NavGrid} contract.
  * For shapes a heightmap cannot draw (ceilings, tunnels), {@link #fill} overrides a box of cells
- * with an explicit type; {@link #step} puts a partial floor (a slab, a carpet) into one cell.
+ * with an explicit type; {@link #step} puts a partial floor (a slab, a carpet) into one cell,
+ * {@link #stair} a ramp, {@link #door} a doorway and {@link #climb} a ladder.
  */
 public final class AsciiWorld implements NavGrid {
     private final String[] rows;
     private final Map<Long, CellType> overrides = new HashMap<>();
     private final Map<Long, Double> surfaces = new HashMap<>();
+    private final Map<Long, Integer> payloads = new HashMap<>();
+    private final java.util.Set<Long> hatches = new java.util.HashSet<>();
 
     private AsciiWorld(String[] rows) {
         this.rows = rows;
@@ -62,6 +65,78 @@ public final class AsciiWorld implements NavGrid {
             }
         }
         return this;
+    }
+
+    /**
+     * A stair: a full block at {@code (x,y,z)} a body walks up by a low tread, heading the
+     * {@link NavGrid#ramps} directions given.
+     */
+    public AsciiWorld stair(int x, int y, int z, int ramps) {
+        fill(x, y, z, x, y, z, CellType.GROUND);
+        this.payloads.put(Pathfinder.pack(x, y, z), ramps);
+        return this;
+    }
+
+    /** A doorway through the inclusive box, with the {@link Doorway} passages given. */
+    public AsciiWorld door(int x1, int y1, int z1, int x2, int y2, int z2, int passages) {
+        fill(x1, y1, z1, x2, y2, z2, CellType.DOOR);
+        for (int x = x1; x <= x2; x++) {
+            for (int y = y1; y <= y2; y++) {
+                for (int z = z1; z <= z2; z++) {
+                    this.payloads.put(Pathfinder.pack(x, y, z), passages);
+                }
+            }
+        }
+        return this;
+    }
+
+    /** A climbable (a ladder, vines) through the inclusive box. */
+    public AsciiWorld climb(int x1, int y1, int z1, int x2, int y2, int z2) {
+        return fill(x1, y1, z1, x2, y2, z2, CellType.CLIMB);
+    }
+
+    /** Scaffolding through the inclusive box: climbed inside, stood on top. */
+    public AsciiWorld scaffolding(int x1, int y1, int z1, int x2, int y2, int z2) {
+        fill(x1, y1, z1, x2, y2, z2, CellType.CLIMB);
+        for (int x = x1; x <= x2; x++) {
+            for (int y = y1; y <= y2; y++) {
+                for (int z = z1; z <= z2; z++) {
+                    this.payloads.put(Pathfinder.pack(x, y, z), 1);
+                }
+            }
+        }
+        return this;
+    }
+
+    /** A hatch at one cell: a shut trapdoor over a ladder, a floor of the given surface. */
+    public AsciiWorld hatch(int x, int y, int z, double surface) {
+        if (surface >= 1.0) {
+            fill(x, y, z, x, y, z, CellType.GROUND);
+        } else {
+            step(x, y, z, x, y, z, surface);
+        }
+        this.hatches.add(Pathfinder.pack(x, y, z));
+        return this;
+    }
+
+    @Override
+    public boolean hatch(int x, int y, int z) {
+        return this.hatches.contains(Pathfinder.pack(x, y, z));
+    }
+
+    @Override
+    public boolean climbFloor(int x, int y, int z) {
+        return cell(x, y, z) == CellType.CLIMB && this.payloads.getOrDefault(Pathfinder.pack(x, y, z), 0) != 0;
+    }
+
+    @Override
+    public int ramps(int x, int y, int z) {
+        return cell(x, y, z) == CellType.GROUND ? this.payloads.getOrDefault(Pathfinder.pack(x, y, z), 0) : 0;
+    }
+
+    @Override
+    public int doorway(int x, int y, int z) {
+        return cell(x, y, z) == CellType.DOOR ? this.payloads.getOrDefault(Pathfinder.pack(x, y, z), 0) : 0;
     }
 
     @Override

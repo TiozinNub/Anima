@@ -33,12 +33,27 @@ public enum CellType {
      *
      * <p>These once read {@code OBSTACLE}, walling off streets, fields and hillsides the body
      * crosses fine on vanilla's 0.6 step height.
-     *
-     * <p><b>Last.</b> The ordinals are memoised ({@code WorldSnapshot} packs a byte per
-     * cell) and a hot swap never re-runs a static initialiser, so a value inserted before the end
-     * decodes stale entries as the wrong type. Append; never reorder.
      */
-    STEP('S');
+    STEP('S'),
+    /**
+     * A panel on one face of the cell, or a gate across it: every door, an open trapdoor, a shut
+     * fence gate. A body crosses it along one axis and not the other, and a hand may swing it —
+     * {@link NavGrid#doorway} says which, and {@link Doorway} reads it. Room for a body wherever
+     * some passage is open to it; footing over {@link #GROUND}, like air.
+     *
+     * <p>These read {@link #OBSTACLE} until 2026-09-26, so a house was a box with no way in.
+     */
+    DOOR('O'),
+    /**
+     * Something a body can climb, and whose collision leaves it room to: a ladder, vines. Over
+     * {@link #GROUND} it is ordinary footing; with nothing under it, it is a hold — somewhere a
+     * climber can be but not rest. Room for a body, like air.
+     *
+     * <p><b>Last.</b> The ordinals are memoised ({@code WorldSnapshot} packs a byte per cell) and
+     * a hot swap never re-runs a static initialiser, so a value inserted before the end decodes
+     * stale entries as the wrong type. Append; never reorder.
+     */
+    CLIMB('H');
 
     private final char code;
 

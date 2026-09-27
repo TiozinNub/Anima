@@ -27,6 +27,11 @@ public record CellNeed(int x, int y, int z, Need need) {
          * that runs under the surface. A swimmer's own column is water, so demanding air of it
          * re-planned on the first tick of every submerged leg.
          */
-        ROOM
+        ROOM,
+        /**
+         * Something to climb here, or somewhere to stand — where a {@link MoveType#CLIMB} leg
+         * ends. A ladder pulled down under a climbing body is the case it exists for.
+         */
+        HOLD
     }
 }

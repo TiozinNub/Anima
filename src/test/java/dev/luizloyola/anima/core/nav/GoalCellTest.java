@@ -59,4 +59,11 @@ class GoalCellTest {
     void aSwimmerFloatsAtTheSurfaceOfOpenWater() {
         assertEquals(0, groundY(AsciiWorld.of("W"), 3));
     }
+
+    /** Nobody can stand on a rung: a goal named on a ladder ends on the floor it stands on. */
+    @Test
+    void aGoalOnALadderEndsAtItsFoot() {
+        AsciiWorld world = AsciiWorld.of("1").climb(0, 1, 0, 0, 6, 0);
+        assertEquals(1, groundY(world, 4));
+    }
 }

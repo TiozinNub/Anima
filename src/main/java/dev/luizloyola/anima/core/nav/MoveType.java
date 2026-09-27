@@ -33,7 +33,13 @@ public enum MoveType {
     SWIM,
     /** Down inside water: the head goes under, or further under. */
     DIVE,
-    SURFACE;
+    SURFACE,
+    /**
+     * On a ladder or vines: up or down the column, in from the side onto a hold, or off the top
+     * onto a ledge. Held up by the climbable rather than by a floor, so the follower holds jump to
+     * go up and lets go to come down, and never presses jump off the ground for it.
+     */
+    CLIMB;
 
     /**
      * Whether this move ends with the body <em>in</em> the water rather than on its feet. The three

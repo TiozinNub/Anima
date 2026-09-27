@@ -14,8 +14,10 @@ import java.util.Map;
  * way a headless test catches it calling a staircase a wall.
  *
  * <p>Format: {@code # box minX minY minZ maxX maxY maxZ}, then one {@code <code> <x> <y> <z>} line
- * per non-passable cell in world coordinates; {@code #} comments ignored. A {@link CellType#STEP}
- * adds a fifth field, its surface in sixteenths — the one code that does not say where its top is.
+ * per non-passable cell in world coordinates; {@code #} comments ignored. A fifth field carries what
+ * a code does not say: a {@link CellType#STEP}'s surface in sixteenths (required), a
+ * {@link CellType#GROUND}'s ramps, a {@link CellType#DOOR}'s doorway code, a {@link CellType#CLIMB}'s
+ * floor (absent means none); a {@code hatch x y z} line marks a hatch.
  * Unmentioned cells inside the box are {@link CellType#PASSABLE}, everything outside
  * {@link CellType#OBSTACLE}, per the {@link NavGrid} contract. World coordinates let a query
  * recorded in-game replay verbatim.
@@ -29,9 +31,14 @@ public final class CapturedWorld implements NavGrid {
     private final int maxZ;
     private final Map<Long, CellType> cells;
     private final Map<Long, Double> surfaces;
+    /** A ramp mask or a door's passages, by the cell's type — see the format note. */
+    private final Map<Long, Integer> payloads;
+    private final boolean doors;
+    private final java.util.Set<Long> hatches;
 
     private CapturedWorld(int minX, int minY, int minZ, int maxX, int maxY, int maxZ,
-                          Map<Long, CellType> cells, Map<Long, Double> surfaces) {
+                          Map<Long, CellType> cells, Map<Long, Double> surfaces,
+                          Map<Long, Integer> payloads, java.util.Set<Long> hatches) {
         this.minX = minX;
         this.minY = minY;
         this.minZ = minZ;
@@ -40,6 +47,9 @@ public final class CapturedWorld implements NavGrid {
         this.maxZ = maxZ;
         this.cells = cells;
         this.surfaces = surfaces;
+        this.payloads = payloads;
+        this.hatches = hatches;
+        this.doors = cells.containsValue(CellType.DOOR);
     }
 
     /** Parses a capture. {@code lines} is the whole file, in order. */
@@ -47,6 +57,8 @@ public final class CapturedWorld implements NavGrid {
         int[] box = null;
         Map<Long, CellType> cells = new HashMap<>();
         Map<Long, Double> surfaces = new HashMap<>();
+        Map<Long, Integer> payloads = new HashMap<>();
+        java.util.Set<Long> hatches = new java.util.HashSet<>();
         int lineNo = 0;
         for (String raw : lines) {
             lineNo++;
@@ -61,6 +73,11 @@ public final class CapturedWorld implements NavGrid {
                 continue;
             }
             String[] parts = line.split("\\s+");
+            if (parts[0].equals("hatch") && parts.length == 4) {
+                hatches.add(Pathfinder.pack(parse(parts[1], lineNo), parse(parts[2], lineNo),
+                        parse(parts[3], lineNo)));
+                continue;
+            }
             if (parts.length < 4 || parts.length > 5 || parts[0].length() != 1) {
                 throw new IllegalArgumentException(
                         "line " + lineNo + ": expected '<code> x y z [surface16]', got: " + line);
@@ -76,12 +93,15 @@ public final class CapturedWorld implements NavGrid {
                             "line " + lineNo + ": a STEP needs its surface in sixteenths: " + line);
                 }
                 surfaces.put(key, parse(parts[4], lineNo) / 16.0);
+            } else if (parts.length == 5) {
+                payloads.put(key, parse(parts[4], lineNo));
             }
         }
         if (box == null) {
             throw new IllegalArgumentException("capture has no '# box minX minY minZ maxX maxY maxZ' header");
         }
-        return new CapturedWorld(box[0], box[1], box[2], box[3], box[4], box[5], cells, surfaces);
+        return new CapturedWorld(box[0], box[1], box[2], box[3], box[4], box[5], cells, surfaces,
+                payloads, hatches);
     }
 
     private static int[] ints(String text, int count, int lineNo) {
@@ -119,6 +139,31 @@ public final class CapturedWorld implements NavGrid {
         Double recorded = this.surfaces.get(Pathfinder.pack(x, y, z));
         if (recorded != null) return recorded;
         return NavGrid.super.surface(x, y, z);
+    }
+
+    @Override
+    public boolean hatch(int x, int y, int z) {
+        return this.hatches.contains(Pathfinder.pack(x, y, z));
+    }
+
+    @Override
+    public boolean climbFloor(int x, int y, int z) {
+        return cell(x, y, z) == CellType.CLIMB && payloads.getOrDefault(Pathfinder.pack(x, y, z), 0) != 0;
+    }
+
+    @Override
+    public boolean hasDoors() {
+        return this.doors;
+    }
+
+    @Override
+    public int ramps(int x, int y, int z) {
+        return cell(x, y, z) == CellType.GROUND ? payloads.getOrDefault(Pathfinder.pack(x, y, z), 0) : 0;
+    }
+
+    @Override
+    public int doorway(int x, int y, int z) {
+        return cell(x, y, z) == CellType.DOOR ? payloads.getOrDefault(Pathfinder.pack(x, y, z), 0) : 0;
     }
 
     /** Whether the inclusive box {@code [min, max]} lies fully inside this capture. */

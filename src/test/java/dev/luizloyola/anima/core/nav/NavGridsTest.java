@@ -69,4 +69,19 @@ class NavGridsTest {
         assertTrue(NavGrids.satisfies(world, new CellNeed(1, 0, 0, CellNeed.Need.FOOTING)));
         assertFalse(NavGrids.satisfies(world, new CellNeed(2, 0, 0, CellNeed.Need.FOOTING)));
     }
+
+    @Test
+    void aDoorwayAndTheFootOfALadderAreStoodInAndARungIsHeld() {
+        AsciiWorld world = AsciiWorld.of("11")
+                .door(0, 1, 0, 0, 2, 0, Doorway.of(NavGrid.NORTH, false, NavGrid.WEST, false, 15, true))
+                .climb(1, 1, 0, 1, 4, 0);
+        assertTrue(NavGrids.satisfies(world, new CellNeed(0, 1, 0, CellNeed.Need.FOOTING)));
+        assertTrue(NavGrids.satisfies(world, new CellNeed(0, 2, 0, CellNeed.Need.CLEAR)));
+        assertTrue(NavGrids.satisfies(world, new CellNeed(1, 1, 0, CellNeed.Need.FOOTING)));
+        assertFalse(NavGrids.satisfies(world, new CellNeed(1, 3, 0, CellNeed.Need.FOOTING)),
+                "halfway up there is nothing to stand on");
+        assertTrue(NavGrids.satisfies(world, new CellNeed(1, 3, 0, CellNeed.Need.HOLD)));
+        assertFalse(NavGrids.satisfies(world, new CellNeed(1, 6, 0, CellNeed.Need.HOLD)),
+                "and past the top, nothing to hold");
+    }
 }
