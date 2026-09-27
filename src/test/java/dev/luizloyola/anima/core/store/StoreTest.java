@@ -74,6 +74,21 @@ class StoreTest {
     }
 
     @Test
+    void aFullChestBesideTheBodyIsNotAtHandWhileAnotherIsFree() {
+        FakeContext ctx = ctxBeside();
+        ctx.percepts.blocks.set(CHEST.x(), CHEST.y(), CHEST.z(), Store.BLOCK);
+        Pos free = new Pos(CHEST.x() + 16, CHEST.y(), CHEST.z());
+        ctx.claim(Store.POI, free);
+        ctx.percepts.blocks.set(free.x(), free.y(), free.z(), Store.BLOCK);
+        ctx.knowledge.avoid(Store.POI, CHEST, 100L); // found full
+
+        assertTrue(Store.atHand(ctx).isEmpty(),
+                "the put skips a full chest, so being beside one is not being at a store");
+        assertFalse(Store.standingAtOne(ctx));
+        assertEquals(free, Store.nearestKnown(ctx).orElseThrow().anchor(), "the walk goes on to this");
+    }
+
+    @Test
     void aRememberedStoreOutOfArmsReachIsNotOneToStandAt() {
         FakeContext ctx = ctxBeside();
         ctx.percepts.blocks.set(CHEST.x(), CHEST.y(), CHEST.z(), Store.BLOCK);

@@ -108,20 +108,29 @@ public final class Store {
     }
 
     /**
-     * Whether one of {@link #ours} stands within reach right now. The remembered anchor
-     * is re-read through the probe, and a claim the world no longer backs (broken, burned) is
-     * disproven on the spot — dropped from the party's claims, not just this body's sighting,
-     * since a placed chest belongs to the party. One probe read on the happy path; no memory, no
-     * reads.
+     * The store this body would put into from where it stands: {@link #nearestKnown}, if it is in
+     * reach. What {@code PutItems} opens and what {@link #standingAtOne} checks, so the two agree:
+     * a full chest beside the body is not at hand. Counted as one while the put skipped it, a
+     * settler stood there failing until the rounds cap with a free chest 16 blocks off
+     * (2026-09-27).
+     */
+    public static Optional<Pos> atHand(BrainContext ctx) {
+        Pos here = ctx.percepts().position();
+        return nearestKnown(ctx).map(PoiMemory::anchor)
+                .filter(anchor -> distance(anchor, here) <= REACH);
+    }
+
+    /**
+     * Whether a store is {@link #atHand} and still there. The remembered anchor is re-read through
+     * the probe, and a claim the world no longer backs (broken, burned) is disproven on the spot —
+     * dropped from the party's claims, since a placed chest belongs to the party.
      */
     public static boolean standingAtOne(BrainContext ctx) {
-        Pos here = ctx.percepts().position();
-        Optional<PoiMemory> known = ours(ctx).stream()
-                .min(java.util.Comparator.comparingDouble(memory -> distance(memory.anchor(), here)));
-        if (known.isEmpty() || distance(known.get().anchor(), here) > REACH) {
+        Optional<Pos> at = atHand(ctx);
+        if (at.isEmpty()) {
             return false;
         }
-        Pos anchor = known.get().anchor();
+        Pos anchor = at.get();
         if (!isStore(ctx.percepts().blocks().at(anchor.x(), anchor.y(), anchor.z()))) {
             ctx.knowledge().disprove(POI, anchor);
             return false;
@@ -160,9 +169,6 @@ public final class Store {
         // walks to another or builds one. Found in-world on 2026-08-20 — without this a settler
         // stood over a chest somebody had filled with 10,000 grass blocks and re-opened it every
         // round until the round cap, then failed the errand and wandered off.
-        //
-        // Deliberately NOT applied to standingAtOne: where a body IS standing is a fact, and an
-        // avoid-mark is a preference about where to go next.
         long now = ctx.percepts().time();
         Pos here = ctx.percepts().position();
         return ours(ctx).stream()

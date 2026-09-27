@@ -62,9 +62,11 @@ public final class EnsureStore implements AchieveTask {
         if (hint == null) {
             return Store.standingAtOne(ctx);
         }
-        // Standing in a chest that is not the yard is not being at the yard: without this a hauler
-        // would empty the project's wood into whatever they happened to be beside.
-        return Store.standingAtOne(ctx) && yardNear(ctx, hint).isPresent();
+        // The store at hand must BE the yard: without this a hauler would empty the project's wood
+        // into whatever they happened to be beside.
+        double radius = ctx.profile().i(ProfileAspect.STORES_FOUND_RADIUS);
+        return Store.standingAtOne(ctx)
+                && Store.atHand(ctx).filter(at -> Store.distance(at, hint) <= radius).isPresent();
     }
 
     /**

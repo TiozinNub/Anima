@@ -131,6 +131,56 @@ class EnsureStoreTest {
     }
 
     @Test
+    void aChestAtHandThatIsNotTheYardIsNotTheYard() {
+        FakeContext ctx = new FakeContext();
+        Pos yard = new Pos(10, 64, 10);
+        Pos other = new Pos(101, 64, 100);
+        ctx.percepts.position = new Pos(100, 64, 100);
+        for (Pos chest : List.of(yard, other)) {
+            ctx.claim(Store.POI, chest);
+            ctx.percepts.blocks.set(chest.x(), chest.y(), chest.z(), Store.BLOCK);
+        }
+
+        assertFalse(new EnsureStore(yard).satisfied(ctx),
+                "a yard chest somewhere is not the chest at hand being the yard's");
+        assertTrue(new EnsureStore().satisfied(ctx));
+    }
+
+    @Test
+    void aFullChestBesideTheBodySendsTheStowOnToAFreeOne() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(0, 64, 0);
+        Pos full = new Pos(1, 64, 0);
+        Pos free = new Pos(16, 64, 0);
+        for (Pos chest : List.of(full, free)) {
+            ctx.claim(Store.POI, chest);
+            ctx.percepts.blocks.set(chest.x(), chest.y(), chest.z(), Store.BLOCK);
+            ctx.containers.boxes.put(chest, new java.util.ArrayList<>());
+        }
+        ctx.containers.full.add(full);
+        for (int slot = 0; slot < 3; slot++) {
+            ctx.percepts.inventory().set(slot, ItemStack.of("minecraft:oak_log", 64, 64));
+        }
+        ctx.mover.setState(dev.luizloyola.anima.core.brain.act.MoveState.ARRIVED);
+
+        TaskExecutor executor = new TaskExecutor();
+        executor.run(new PutAwaySurplus(), ctx);
+        int walks = 0;
+        for (int tick = 0; tick < 2000 && executor.isBusy(); tick++) {
+            ctx.percepts.time++;
+            executor.tick(ctx);
+            if (ctx.mover.moveToCalls > walks) { // the fake legs arrive at once
+                walks = ctx.mover.moveToCalls;
+                ctx.percepts.position = new Pos(ctx.mover.lastX, ctx.mover.lastY, ctx.mover.lastZ);
+            }
+        }
+
+        assertEquals(java.util.Optional.of(TaskStatus.SUCCESS), executor.lastStatus(),
+                "found in-world 2026-09-27: 31 rounds of no store in reach, then the cap");
+        assertEquals(3, ctx.containers.boxes.get(free).size(), "every stack in the free chest");
+    }
+
+    @Test
     void aStoreJustFoundFullIsNotOneToWalkTo() {
         FakeContext ctx = new FakeContext();
         ctx.percepts.position = new Pos(0, 64, 0);

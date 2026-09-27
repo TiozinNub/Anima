@@ -4,7 +4,6 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
-import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.ItemSpec;
@@ -111,11 +110,7 @@ public final class PutItems implements PrimitiveTask {
                     // EnsureStore put the body here; nothing else may assume it. A stow that finds
                     // no store in reach is a plan that went stale between decompose and arrival,
                     // and the goal above re-derives rather than guessing at another chest.
-                    at = Store.nearestKnown(ctx)
-                            .map(PoiMemory::anchor)
-                            .filter(anchor -> Store.distance(anchor, ctx.percepts().position())
-                                    <= Store.REACH)
-                            .orElse(null);
+                    at = Store.atHand(ctx).orElse(null);
                     if (at == null) {
                         return finish(ctx, "no store in reach");
                     }
