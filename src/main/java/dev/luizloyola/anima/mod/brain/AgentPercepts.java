@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.ConfinementCadence;
+import dev.luizloyola.anima.core.brain.sense.Enclosure;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
@@ -79,6 +80,8 @@ public final class AgentPercepts implements Percepts {
     private @Nullable Confinement confinement;
     /** When the next survey is owed, and this body's own slot to owe it on. */
     private @Nullable ConfinementCadence cadence;
+    /** When to ask how the space this body stands in opens, and the last answer. */
+    private final EnclosureWatch enclosure;
 
     /** {@code person.tickCount} at which {@link #dropsCache} was last filled. */
     private int dropsQueriedAt;
@@ -90,6 +93,7 @@ public final class AgentPercepts implements Percepts {
         this.beings = beings;
         this.blocks = new LevelProbe(person.entity());
         this.terrain = new LevelGrid(person.level());
+        this.enclosure = new EnclosureWatch(person);
         this.foods = new FoodLookup() {
             @Override
             public Optional<FoodValue> of(ItemStack stack) {
@@ -292,6 +296,16 @@ public final class AgentPercepts implements Percepts {
                 : Confinement.NONE;
         cadence.ran(now, this.confinement);
         return this.confinement;
+    }
+
+    @Override
+    public Enclosure enclosure() {
+        return this.enclosure.current();
+    }
+
+    /** Asks about the space this body stands in when there is reason to — the brain's tick. */
+    void tickEnclosure() {
+        this.enclosure.tick(beings());
     }
 
     @Override

@@ -354,6 +354,14 @@ public final class Navigator {
     }
 
     /**
+     * The capture the last walk was planned over. Kept after the walk ends, until the next order or
+     * {@link #stop}, so a question about where it ended needs no capture of its own.
+     */
+    public @Nullable NavGrid plannedGrid() {
+        return this.grid;
+    }
+
+    /**
      * Why the last order died — {@link MoveFailure#NONE} unless {@link #state()} is FAILED. Set
      * where the cause is known, not inferred from the counters afterwards: the retries in between
      * have reset them by the time the machine reaches FAILED.

@@ -48,6 +48,8 @@ class ProfileAspectTest {
             // One shared worker pool and one shared server tick: a species that could answer this
             // would be answering for everybody's frame time. Same reason as the budgets above.
             Knob.PATHFINDER_IN_THREAD,
+            // A capture baked on the server tick: its size is a cost to everybody's frame time.
+            Knob.ENCLOSURE_REACH,
             // The contract of a registry two agents share — it belongs to the board, not to
             // either of them.
             Knob.CLAIM_TTL_TICKS,

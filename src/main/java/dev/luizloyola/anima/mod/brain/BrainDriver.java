@@ -139,6 +139,8 @@ public final class BrainDriver {
      * and never takes an errand. Transient; a reload re-decides.
      */
     private final WorkSource board;
+    /** The body's senses, held typed so the tick can drive the ones that ask on their own. */
+    private final AgentPercepts percepts;
 
     /** A body with no layer-3 demand of its own — the pets case, and every test rig. */
     public BrainDriver(AgentBody person) {
@@ -154,7 +156,8 @@ public final class BrainDriver {
         dev.luizloyola.anima.core.brain.act.Hand hand = new AgentHand(person);
         ContainerAccess containers =
                 new dev.luizloyola.anima.compat.inv.WorldContainers(person.entity());
-        Percepts percepts = new AgentPercepts(person, () -> person.beingSense().beings());
+        AgentPercepts percepts = new AgentPercepts(person, () -> person.beingSense().beings());
+        this.percepts = percepts;
         ActuatorAccess actuators = new ActuatorAccess() {
             @Override
             public Mover mover() {
@@ -402,6 +405,7 @@ public final class BrainDriver {
      * executor: the arbiter stays dormant so a dev-issued task isn't second-guessed mid-flight.
      */
     public void tick() {
+        this.percepts.tickEnclosure();
         // The board thinks on its own slow cadence regardless of who is driving — posting and
         // withdrawing are demand bookkeeping, not action; only the arbiter CLAIMS.
         this.board.tick(this.context);

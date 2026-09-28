@@ -115,6 +115,12 @@ public enum Knob implements KnobSpec {
                     + "milliseconds), but a crowd re-planning on the same tick is not. Chiefly a "
                     + "development dial — on to fast-forward a world without the warp, off for a "
                     + "populated server."),
+    /** @see dev.luizloyola.anima.mod.nav.PathfinderService#enclosure */
+    ENCLOSURE_REACH("limits.enclosure_reach", Kind.INT, 24, 12, 64,
+            "Half-width of the box captured to judge the space a body stands in, when its last "
+                    + "walk's capture does not cover it: a house wider than about twice this less "
+                    + "ten reads as open ground. Baked on the server thread, so it costs with the "
+                    + "square of this; the walk's own capture is used whenever it covers."),
 
     // --- claims: the contract of a registry two agents share ----------------------------------
 

@@ -920,4 +920,29 @@ public final class WorldSnapshot implements NavGrid {
                 && min.getY() >= this.minY && max.getY() < this.minY + this.sizeY
                 && min.getZ() >= this.minZ && max.getZ() < this.minZ + this.sizeZ;
     }
+
+    /** Every cell baked as a door or a hatch: what {@link LiveDoors} reads again. */
+    java.util.List<BlockPos> doorCells() {
+        java.util.List<BlockPos> cells = new java.util.ArrayList<>();
+        if (this.doorCodes != null) {
+            for (it.unimi.dsi.fastutil.ints.IntIterator it = this.doorCodes.keySet().iterator();
+                    it.hasNext(); ) {
+                cells.add(positionOf(it.nextInt()));
+            }
+        }
+        if (this.hatches != null) {
+            for (it.unimi.dsi.fastutil.ints.IntIterator it = this.hatches.iterator(); it.hasNext(); ) {
+                cells.add(positionOf(it.nextInt()));
+            }
+        }
+        return cells;
+    }
+
+    /** {@link #index}, inverted. */
+    private BlockPos positionOf(int index) {
+        int ix = index % this.sizeX;
+        int rest = index / this.sizeX;
+        return new BlockPos(this.minX + ix, this.minY + rest / this.sizeZ,
+                this.minZ + rest % this.sizeZ);
+    }
 }

@@ -1,10 +1,12 @@
 package dev.luizloyola.anima.mod.nav;
 
+import dev.luizloyola.anima.compat.nav.LiveDoors;
 import dev.luizloyola.anima.compat.nav.TerrainProfile;
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.DangerField;
+import dev.luizloyola.anima.core.brain.sense.Enclosure;
 import dev.luizloyola.anima.core.brain.sense.SetbackField;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
@@ -12,7 +14,9 @@ import dev.luizloyola.anima.core.nav.HandsOff;
 import dev.luizloyola.anima.core.nav.NavDomain;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.CellType;
+import dev.luizloyola.anima.core.nav.EnclosureCheck;
 import dev.luizloyola.anima.core.nav.GoalCell;
+import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.PathRequest;
 import dev.luizloyola.anima.core.nav.Pathfinder;
@@ -232,6 +236,52 @@ public final class PathfinderService {
                 afloat.getX(), afloat.getY(), afloat.getZ(), body);
         Confinement sealed = Pathfinder.survey(snapshot, request);
         return sealed.sealed() ? sealed : Pathfinder.room(snapshot, request, ROOM_WALK, ROOM_ENOUGH);
+    }
+
+    /**
+     * How near the rim of a walk's capture a body may stand and still be judged on it: the
+     * survey's own reach from the rim (~5 for a Person) plus a few cells of room to be proved in.
+     */
+    private static final int ENCLOSURE_RIM = 8;
+    /** The budget for each of the enclosure check's floods — a room is a few hundred cells. */
+    private static final int ENCLOSURE_NODES = 8192;
+
+    /** An enclosure check under way, and the grid it searches: its doors are what go stale. */
+    public record EnclosureDispatch(CompletableFuture<Enclosure> result, NavGrid grid) {}
+
+    /**
+     * How the space around {@code feet} opens (shelter spec), searched on a worker like a route.
+     *
+     * <p>{@code walked} is the capture of the walk that just ended, if there was one. It is
+     * searched when it covers the body with {@link #ENCLOSURE_RIM} to spare, its doors read again
+     * first, which spares the tick a capture; otherwise a fresh box of
+     * {@link Knob#ENCLOSURE_REACH} is baked here.
+     */
+    public static EnclosureDispatch enclosure(ServerLevel level, BlockPos feet,
+            MoveCapabilities body, @Nullable NavGrid walked) {
+        WorldSnapshot snapshot;
+        NavGrid grid;
+        if (walked instanceof WorldSnapshot planned
+                && planned.covers(feet.offset(-ENCLOSURE_RIM, -UP_MARGIN, -ENCLOSURE_RIM),
+                        feet.offset(ENCLOSURE_RIM, UP_MARGIN, ENCLOSURE_RIM))) {
+            snapshot = planned;
+            grid = LiveDoors.over(planned, level);
+        } else {
+            int reach = Config.get().i(Knob.ENCLOSURE_REACH);
+            BlockPos[] box = boxAround(level, feet, feet, reach);
+            snapshot = WorldSnapshot.capture(level, box[0], box[1]);
+            grid = snapshot;
+        }
+        BlockPos from = surfaceStart(snapshot, feet, body);
+        long now = level.getGameTime();
+        if (inThread()) {
+            return new EnclosureDispatch(CompletableFuture.completedFuture(EnclosureCheck.run(
+                    grid, from.getX(), from.getY(), from.getZ(), body, ENCLOSURE_NODES, now)), grid);
+        }
+        NavGrid searched = grid;
+        return new EnclosureDispatch(CompletableFuture.supplyAsync(() -> EnclosureCheck.run(
+                searched, from.getX(), from.getY(), from.getZ(), body, ENCLOSURE_NODES, now),
+                executor()), grid);
     }
 
     /**

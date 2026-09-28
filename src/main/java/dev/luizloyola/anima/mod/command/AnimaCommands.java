@@ -38,6 +38,7 @@ public final class AnimaCommands {
                                 AgentCommands::follow, AgentCommands::brain, AgentCommands::think,
                                 AgentCommands::log, AgentCommands::knowledge,
                                 AgentCommands::horizon, AgentCommands::survey,
+                                EnclosureCommands::enclosure,
                                 AgentCommands::claims, AgentCommands::peers, AgentCommands::needs,
                                 AgentCommands::history,
                                 AgentCommands::profile, AgentCommands::grave, AgentCommands::chat,
