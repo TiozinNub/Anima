@@ -1120,10 +1120,14 @@ public final class Navigator {
                 ? (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F
                 : this.person.entity().getYRot();
         boolean centred = horizontalSq <= CLIMB_CENTRED * CLIMB_CENTRED;
+        // Facing the rungs the whole way. The steering below is hundredths of a block toward the
+        // column's middle, and a body turned to walk each nudge spun on the ladder, facing out as
+        // often as in.
+        float wall = climbFacing();
         if (dy < -CLIMB_LEVEL) {
             // Up. Full input toward a ledge — pushing against its face climbs too — and none once
             // over the column, where input would only press the body off the rungs.
-            this.person.driveForward(heading, centred ? 0.0F : 1.0F);
+            climbDrive(wall, heading, centred ? 0.0F : 1.0F);
             this.person.driveJump();
         } else {
             // Down, or in from the side. A ladder's or a trapdoor's panel takes 3/16 of the shaft,
@@ -1137,13 +1141,32 @@ public final class Navigator {
             float toward = (float) (Mth.atan2(gz, gx) * Mth.RAD_TO_DEG) - 90.0F;
             float throttle = gapSq <= SETTLE_IN_GAP * SETTLE_IN_GAP ? 0.0F
                     : gapSq <= CLIMB_CENTRED * CLIMB_CENTRED ? EASE_THROTTLE : CAREFUL_THROTTLE;
-            this.person.driveForward(gapSq > SETTLE_IN_GAP * SETTLE_IN_GAP ? toward : heading, throttle);
+            climbDrive(wall, gapSq > SETTLE_IN_GAP * SETTLE_IN_GAP ? toward : heading, throttle);
             // Scaffolding holds up whatever stands on it unless it sneaks, and then lets it sink.
             BlockPos feet = this.person.blockPosition();
             if (centred && (WorldSnapshot.climbFloorAt(level(), feet)
                     || WorldSnapshot.climbFloorAt(level(), feet.below()))) {
                 this.person.driveSneak(true);
             }
+        }
+    }
+
+    /**
+     * The way a climbing body faces — see {@link WorldSnapshot#climbFacingAt}. Read off the rung
+     * under the feet when none is at them, so a body over a shaft turns before it drops in and one
+     * rising off the top rung does not turn until it walks away.
+     */
+    private float climbFacing() {
+        BlockPos feet = this.person.blockPosition();
+        return WorldSnapshot.climbFacingAt(level(),
+                this.person.entity().onClimbable() ? feet : feet.below());
+    }
+
+    private void climbDrive(float wall, float heading, float throttle) {
+        if (Float.isNaN(wall)) {
+            this.person.driveForward(heading, throttle);
+        } else {
+            this.person.driveFacing(wall, heading, throttle);
         }
     }
 

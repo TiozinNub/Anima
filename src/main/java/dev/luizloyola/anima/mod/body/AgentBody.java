@@ -197,6 +197,14 @@ public interface AgentBody {
     /** Walk toward {@code heading} (degrees) at {@code throttle} of full speed. */
     void driveForward(float heading, float throttle);
 
+    /**
+     * Walk toward {@code heading} while facing {@code facing} (degrees) — a sidestep or a step back,
+     * as a player strafes. A body that cannot strafe turns and walks.
+     */
+    default void driveFacing(float facing, float heading, float throttle) {
+        driveForward(heading, throttle);
+    }
+
     /** Stop walking. Does not clear a running navigation. */
     void stopMoving();
 

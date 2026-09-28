@@ -384,6 +384,30 @@ public final class WorldSnapshot implements NavGrid {
         return type(packedAt(state, level, pos)) == CellType.DOOR ? doorCodeAt(state, level, pos) : 0;
     }
 
+    /**
+     * The yaw a body holding the climb at {@code pos} faces: into the wall its panel hangs on — a
+     * ladder, a trapdoor open over one, a vine on one face. {@code NaN} where there is no one wall
+     * to face (scaffolding, a vine on two faces) or no climb at all.
+     */
+    public static float climbFacingAt(Level level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        return type(packedAt(state, level, pos)) == CellType.CLIMB
+                ? panelFacing(state.getShape(level, pos)) : Float.NaN;
+    }
+
+    /** The yaw of the face a thin panel lies against; {@code NaN} for any other shape. */
+    static float panelFacing(VoxelShape shape) {
+        if (shape.isEmpty()) {
+            return Float.NaN;
+        }
+        AABB panel = shape.bounds();
+        if (panel.maxX < 0.5) return Direction.WEST.toYRot();
+        if (panel.minX > 0.5) return Direction.EAST.toYRot();
+        if (panel.maxZ < 0.5) return Direction.NORTH.toYRot();
+        if (panel.minZ > 0.5) return Direction.SOUTH.toYRot();
+        return Float.NaN;
+    }
+
     /** The packed cell a live blockstate makes where it stands. */
     private static byte packedAt(BlockState state, BlockGetter level, BlockPos pos) {
         return placed(verdictAt(state, level, pos), state, level, pos);
