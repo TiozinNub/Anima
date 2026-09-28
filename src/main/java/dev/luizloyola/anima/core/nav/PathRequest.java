@@ -61,7 +61,7 @@ public record PathRequest(
      */
     public PathRequest avoiding(SetbackField setbacks) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
-                profile, danger, domain, maxNodes, variety, setbacks), pillars);
+                profile, danger, domain, maxNodes, variety, setbacks, pillars);
     }
 
     /** A route for a body with nothing to be afraid of — every test, and most of the world. */
@@ -77,7 +77,7 @@ public record PathRequest(
      */
     public PathRequest within(NavDomain domain) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
-                profile, danger, domain, maxNodes, variety, setbacks), pillars);
+                profile, danger, domain, maxNodes, variety, setbacks, pillars);
     }
 
     /**
@@ -95,7 +95,7 @@ public record PathRequest(
      */
     public PathRequest varying(long variety) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
-                profile, danger, domain, maxNodes, variety, setbacks), pillars);
+                profile, danger, domain, maxNodes, variety, setbacks, pillars);
     }
 
     /**
