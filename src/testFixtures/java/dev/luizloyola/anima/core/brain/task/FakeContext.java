@@ -33,6 +33,7 @@ public final class FakeContext implements BrainContext {
     public final FakeRiser riser = new FakeRiser();
     public final FakeLeaner leaner = new FakeLeaner();
     public final FakeContainers containers = new FakeContainers();
+    public final FakeHand hand = new FakeHand();
     public final FakeGazer gazer = new FakeGazer();
     public final FakeStriker striker = new FakeStriker();
     public final FakePercepts percepts = new FakePercepts();
@@ -137,6 +138,11 @@ public final class FakeContext implements BrainContext {
         @Override
         public dev.luizloyola.anima.core.brain.act.ContainerAccess containers() {
             return containers;
+        }
+
+        @Override
+        public dev.luizloyola.anima.core.brain.act.Hand hand() {
+            return hand;
         }
 
         @Override

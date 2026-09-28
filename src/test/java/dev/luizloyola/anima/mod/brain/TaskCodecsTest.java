@@ -46,6 +46,15 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aUseComesBackWithItsCellAndWhatIsLeftOfItsBeat() {
+        var before = new dev.luizloyola.anima.core.brain.task.UseBlock(4, 70, -2).resume(3);
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.UseBlock.class,
+                roundTrip(before));
+        assertEquals(new dev.luizloyola.anima.core.brain.sense.Pos(4, 70, -2), after.target());
+        assertEquals(3, after.pauseTicks());
+    }
+
+    @Test
     void aWalkComesBackWithItsDestination() {
         GoTo before = new GoTo(12, -60, -34);
         GoTo after = assertInstanceOf(GoTo.class, roundTrip(before));

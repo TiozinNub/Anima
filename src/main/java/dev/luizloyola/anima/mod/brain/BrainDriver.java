@@ -149,6 +149,7 @@ public final class BrainDriver {
         Mover mover = new AgentMover(person);
         ItemConsumer consumer = new AgentItemConsumer(person);
         BlockPlacer placer = new AgentBlockPlacer(person);
+        dev.luizloyola.anima.core.brain.act.Hand hand = new AgentHand(person);
         ContainerAccess containers =
                 new dev.luizloyola.anima.compat.inv.WorldContainers(person.entity());
         Percepts percepts = new AgentPercepts(person, () -> person.beingSense().beings());
@@ -188,6 +189,11 @@ public final class BrainDriver {
             @Override
             public ContainerAccess containers() {
                 return containers; // one-shot verbs, resolved live each call: no lifecycle to hold
+            }
+
+            @Override
+            public dev.luizloyola.anima.core.brain.act.Hand hand() {
+                return hand; // one-shot, like the placer
             }
 
             @Override

@@ -222,6 +222,16 @@ public final class AnimaTasks {
                         Codec.BOOL.fieldOf("begun").forGetter(BreakBlock::begun)
                 ).apply(t, (x, y, z, begun) -> new BreakBlock(x, y, z).resume(begun))));
 
+        TaskCodecs.register("anima:use_block", dev.luizloyola.anima.core.brain.task.UseBlock.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        Codec.INT.fieldOf("x").forGetter(task -> task.target().x()),
+                        Codec.INT.fieldOf("y").forGetter(task -> task.target().y()),
+                        Codec.INT.fieldOf("z").forGetter(task -> task.target().z()),
+                        Codec.INT.fieldOf("pause").forGetter(
+                                dev.luizloyola.anima.core.brain.task.UseBlock::pauseTicks)
+                ).apply(t, (x, y, z, pause) ->
+                        new dev.luizloyola.anima.core.brain.task.UseBlock(x, y, z).resume(pause))));
+
         TaskCodecs.register("anima:gather", GatherNearbyDrops.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         ITEM_SPEC.fieldOf("spec").forGetter(GatherNearbyDrops::spec),

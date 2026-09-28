@@ -32,6 +32,13 @@ public interface ActuatorAccess {
 
     /** Reaching into containers — see {@link ContainerAccess}. */
     ContainerAccess containers();
+    /**
+     * The empty hand on a block — see {@link Hand}. Defaults to {@link Hand#NONE}: a body that
+     * cannot use a block is only a clumsier one.
+     */
+    default Hand hand() {
+        return Hand.NONE;
+    }
 
     /**
      * The eyes — see {@link Gazer}. Defaults to {@link Gazer#NONE}, unlike the ports above: a body

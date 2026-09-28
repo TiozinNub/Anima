@@ -1,0 +1,17 @@
+package dev.luizloyola.anima.core.brain.act;
+
+import dev.luizloyola.anima.core.brain.sense.Pos;
+
+/**
+ * The empty hand used on a block — what a player's right-click does with nothing held. A one-shot,
+ * like {@link BlockPlacer}. Anima knows no block this does anything to: whoever knows one registers
+ * what using it means (a consumer's berry bush), and every other block is left alone.
+ */
+public interface Hand {
+
+    /** A body with no hand to use: nothing ever changes. */
+    Hand NONE = target -> false;
+
+    /** Use the block at the cell; true exactly when the world changed. Out of reach changes nothing. */
+    boolean use(Pos target);
+}
