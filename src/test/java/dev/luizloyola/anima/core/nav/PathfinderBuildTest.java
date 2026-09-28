@@ -308,7 +308,7 @@ class PathfinderBuildTest {
                 "four down is a fall this body will not take");
         Path path = Pathfinder.find(grid, PathRequest.of(0, 5, 1, 3, 1, 3, SCALER).near(thePillar()));
         assertTrue(path.reachedGoal());
-        assertEquals(4, count(path, MoveType.LOWER), "every block of it, eaten on the way down");
+        assertEquals(4, count(path, MoveType.LOWER), () -> "every block of it, eaten on the way down: " + path.waypoints());
         assertWalkable(grid, path, 0, 5, 1, SCALER);
     }
 
