@@ -153,6 +153,15 @@ public interface Percepts {
     }
 
     /**
+     * How the space this body stands in opens — see {@link Enclosure}. Checked off the tick when
+     * the body stops walking, so a body on the move, or one that has walked out of the space it was
+     * last checked in, reads {@link Enclosure#UNKNOWN}. The default is that.
+     */
+    default Enclosure enclosure() {
+        return Enclosure.UNKNOWN;
+    }
+
+    /**
      * Whether this body's own walks keep failing stranded from about here — the suspicion that sends
      * {@link #confinement} looking wider (see {@code Setbacks.enclosed}). Nothing known by default.
      */
