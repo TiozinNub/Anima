@@ -44,11 +44,20 @@ final class GroundWork {
     private static final float ONTO_DECK = 0.45F;
     /** How near the notch a body presses its jump into it. */
     private static final double JUMP_RANGE = 1.2;
+    /**
+     * How long a body with nothing to put back waits in the notch for the drop of what it cut.
+     * Vanilla holds a broken block's drop back from pickup for ten ticks, and a body that jumps in
+     * at once is quicker than that: it gave up, empty-handed, with the lip it cut lying at its feet
+     * (gauntlet K7 and K9, 2026-09-28), and left the step changed.
+     */
+    private static final int DROP_WAIT = 40;
 
     private final AgentBody person;
     private final AgentBlockPlacer placer;
     private int workingIndex = -1;
     private int ticks;
+    /** Ticks this act has stood in its notch with nothing to put back. */
+    private int waitedForDrop;
     /** Whether the riser or the arm is busy on this hand's account — only those are called off. */
     private boolean ownsRiser;
     private boolean ownsBreaker;
@@ -92,6 +101,7 @@ final class GroundWork {
         if (index != this.workingIndex) {
             this.workingIndex = index;
             this.ticks = 0;
+            this.waitedForDrop = 0;
         }
         if (++this.ticks > ACT_TIMEOUT) {
             return refuse("gave up on the " + name(to) + " at " + at(to));
@@ -183,6 +193,10 @@ final class GroundWork {
             }
             String item = Laying.putBack(this.person.inventory(), this.cut.get(feet));
             if (item == null) {
+                if (++this.waitedForDrop < DROP_WAIT) {
+                    this.person.stopMoving();
+                    return Result.WORKING; // the lip's own drop, not yet in hand
+                }
                 return refuse("nothing to put back at " + feet.toShortString());
             }
             if (!riser.up(item)) {
