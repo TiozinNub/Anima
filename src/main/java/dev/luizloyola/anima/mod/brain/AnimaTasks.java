@@ -492,10 +492,23 @@ public final class AnimaTasks {
                         POS.fieldOf("lastKnown")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.Engage::lastKnown),
                         Codec.INT.fieldOf("fruitless")
-                                .forGetter(dev.luizloyola.anima.core.brain.task.Engage::fruitless)
-                ).apply(t, (target, lastKnown, fruitless) ->
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Engage::fruitless),
+                        Codec.BOOL.optionalFieldOf("drawn", false)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Engage::drawn),
+                        // NaN, not yet rolled, is a legal double in NBT and comes back as itself.
+                        Codec.DOUBLE.optionalFieldOf("inset", Double.NaN)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Engage::inset),
+                        Codec.INT.optionalFieldOf("reaction", -1)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Engage::reaction),
+                        TaskCodecs.codec().optionalFieldOf("leg").forGetter(task ->
+                                java.util.Optional.ofNullable((Task) task.leg())),
+                        Codec.DOUBLE.optionalFieldOf("legFrom", 0.0)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Engage::legFrom)
+                ).apply(t, (target, lastKnown, fruitless, drawn, inset, reaction, leg, legFrom) ->
                         new dev.luizloyola.anima.core.brain.task.Engage(target, lastKnown)
-                                .resume(fruitless))));
+                                .resume(fruitless, drawn, inset, reaction,
+                                        leg.orElse(null) instanceof GoTo walk ? walk : null,
+                                        legFrom))));
 
         // The rung 5 root: what this body would say to OPEN the encounter if speech.current()
         // finds nothing already there. The live Encounter itself is not here — it is world state

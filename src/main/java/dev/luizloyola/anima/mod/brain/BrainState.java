@@ -6,6 +6,9 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.history.Deed;
+import dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct;
+import dev.luizloyola.anima.core.brain.sense.BeingId;
+import dev.luizloyola.anima.core.brain.sense.Combatant;
 import dev.luizloyola.anima.core.brain.history.Doing;
 import dev.luizloyola.anima.core.brain.history.Doings;
 import dev.luizloyola.anima.core.brain.history.History;
@@ -51,6 +54,55 @@ public final class BrainState {
     /** One history entry as written: the doing's key, its slots encoded, when, how often. */
     private record SavedDeed(String doing, List<String> slots, long last, int times) {
     }
+
+    private static final Codec<BeingId> BEING_ID =
+            net.minecraft.core.UUIDUtil.CODEC.xmap(BeingId::new, BeingId::value);
+
+    private static final Codec<Combatant> COMBATANT = RecordCodecBuilder.create(c -> c.group(
+            Codec.DOUBLE.fieldOf("health").forGetter(Combatant::health),
+            Codec.DOUBLE.fieldOf("maxHealth").forGetter(Combatant::maxHealth),
+            Codec.DOUBLE.fieldOf("armor").forGetter(Combatant::armor),
+            Codec.DOUBLE.fieldOf("toughness").forGetter(Combatant::toughness),
+            Codec.DOUBLE.fieldOf("damage").forGetter(Combatant::damage),
+            Codec.DOUBLE.fieldOf("hitsPerSecond").forGetter(Combatant::hitsPerSecond),
+            Codec.DOUBLE.fieldOf("pace").forGetter(Combatant::pace),
+            Codec.DOUBLE.fieldOf("fuse").forGetter(Combatant::fuse),
+            Codec.DOUBLE.fieldOf("blastReach").forGetter(Combatant::blastReach)
+    ).apply(c, Combatant::new));
+
+    private record Shown(BeingId who, Combatant as) {
+    }
+
+    private record Until(BeingId who, long until) {
+    }
+
+    /** What fight or flight carries between ticks — see {@link FightOrFlightInstinct.Memory}. */
+    public static final Codec<FightOrFlightInstinct.Memory> FIGHT_MEMORY =
+            RecordCodecBuilder.create(m -> m.group(
+                    RecordCodecBuilder.<Shown>create(e -> e.group(
+                            BEING_ID.fieldOf("who").forGetter(Shown::who),
+                            COMBATANT.fieldOf("as").forGetter(Shown::as)
+                    ).apply(e, Shown::new)).listOf().optionalFieldOf("shown", List.of())
+                            .forGetter(memory -> memory.shown().entrySet().stream()
+                                    .map(entry -> new Shown(entry.getKey(), entry.getValue()))
+                                    .toList()),
+                    RecordCodecBuilder.<Until>create(e -> e.group(
+                            BEING_ID.fieldOf("who").forGetter(Until::who),
+                            Codec.LONG.fieldOf("until").forGetter(Until::until)
+                    ).apply(e, Until::new)).listOf().optionalFieldOf("unreachable", List.of())
+                            .forGetter(memory -> memory.unreachable().entrySet().stream()
+                                    .map(entry -> new Until(entry.getKey(), entry.getValue()))
+                                    .toList()),
+                    Codec.BOOL.optionalFieldOf("waitingOutFuse", false)
+                            .forGetter(FightOrFlightInstinct.Memory::waitingOutFuse),
+                    Codec.STRING.optionalFieldOf("lastSaid", "")
+                            .forGetter(FightOrFlightInstinct.Memory::lastSaid)
+            ).apply(m, (shown, unreachable, waiting, lastSaid) -> new FightOrFlightInstinct.Memory(
+                    shown.stream().collect(java.util.stream.Collectors.toMap(
+                            Shown::who, Shown::as, (a, b) -> b)),
+                    unreachable.stream().collect(java.util.stream.Collectors.toMap(
+                            Until::who, Until::until, (a, b) -> b)),
+                    waiting, lastSaid)));
 
     /**
      * What a body did lately. An entry whose doing this install no longer declares, or whose slots

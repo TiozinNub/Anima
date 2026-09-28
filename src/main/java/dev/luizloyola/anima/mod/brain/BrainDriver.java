@@ -107,6 +107,8 @@ public final class BrainDriver {
      * currently running, and cut it short if so.
      */
     private final Instinct wanderDrive;
+    /** Held apart from the list because its memory is saved with the body. */
+    private final FightOrFlightInstinct fightOrFlight = new FightOrFlightInstinct();
 
     /**
      * This person's knowledge view, resolved lazily on first use and cached: the {@code AgentId}
@@ -380,7 +382,7 @@ public final class BrainDriver {
         // flee/eat tie must resolve to fleeing. Escape sits straight behind it — everything below
         // is a want about somewhere the body cannot currently get to.
         this.arbiter = new Arbiter(List.of(
-                new FightOrFlightInstinct(), new EscapeInstinct(), Drives.EAT,
+                this.fightOrFlight, new EscapeInstinct(), Drives.EAT,
                 // After eating, before talking: a body that cannot carry anything sorts its hands
                 // out before it stops to chat. Position decides exact ties only.
                 new UnburdenInstinct(),
@@ -461,6 +463,15 @@ public final class BrainDriver {
 
     public record BrainSnapshot(dev.luizloyola.anima.core.brain.task.TaskExecutor.State plan,
                                 Arbiter.Grant grant) {
+    }
+
+    /** What fight or flight remembers between ticks: the gear each target has shown, and more. */
+    public FightOrFlightInstinct.Memory fightMemory() {
+        return this.fightOrFlight.memory();
+    }
+
+    public void restoreFightMemory(FightOrFlightInstinct.Memory memory) {
+        this.fightOrFlight.restore(memory);
     }
 
     /** @see Arbiter#cooldowns */

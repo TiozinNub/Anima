@@ -89,9 +89,9 @@ public final class FightOrFlightInstinct implements Instinct {
      */
     static final double FUSE_MARGIN = 2.0;
 
-    /** Targets a fight could not get to, until when. Not saved: a restart tries them once more. */
+    /** Targets a fight could not get to, until when (game time). */
     private final Map<BeingId, Long> unreachable = new HashMap<>();
-    /** The strongest each perceived body has shown, while it is perceived. Not saved either. */
+    /** The strongest each perceived body has shown, while it is perceived. */
     private final Map<BeingId, Combatant> shown = new HashMap<>();
     /** The answer last written to the journal, so a steady fight is one line and not one a tick. */
     private @Nullable String lastSaid;
@@ -115,6 +115,31 @@ public final class FightOrFlightInstinct implements Instinct {
     }
 
     public FightOrFlightInstinct() {
+    }
+
+    /**
+     * What this drive carries between ticks, saved with the body: a reload is two ticks in a row,
+     * so a sword seen drawn before a restart is still remembered after it. The per-tick memo is
+     * left out; it is only ever this tick's.
+     */
+    public record Memory(Map<BeingId, Combatant> shown, Map<BeingId, Long> unreachable,
+                         boolean waitingOutFuse, String lastSaid) {
+        public static final Memory EMPTY = new Memory(Map.of(), Map.of(), false, "");
+    }
+
+    public Memory memory() {
+        return new Memory(Map.copyOf(shown), Map.copyOf(unreachable), waitingOutFuse,
+                lastSaid == null ? "" : lastSaid);
+    }
+
+    public void restore(Memory memory) {
+        shown.clear();
+        shown.putAll(memory.shown());
+        unreachable.clear();
+        unreachable.putAll(memory.unreachable());
+        waitingOutFuse = memory.waitingOutFuse();
+        lastSaid = memory.lastSaid().isEmpty() ? null : memory.lastSaid();
+        memo = null;
     }
 
     @Override

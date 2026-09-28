@@ -359,13 +359,26 @@ class TaskCodecsTest {
         assertEquals(zombie, fight.target());
         assertEquals(new Pos(3, 64, -2), fight.where());
 
+        GoTo leg = new GoTo(7, 64, 1, dev.luizloyola.anima.core.nav.Gait.SPRINT).resume(true);
         dev.luizloyola.anima.core.brain.task.Engage engage = assertInstanceOf(
                 dev.luizloyola.anima.core.brain.task.Engage.class,
                 roundTrip(new dev.luizloyola.anima.core.brain.task.Engage(zombie, new Pos(5, 64, 1))
-                        .resume(2)));
+                        .resume(2, true, 0.35, 3, leg, 6.5)));
         assertEquals(zombie, engage.target());
         assertEquals(new Pos(5, 64, 1), engage.lastKnown());
         assertEquals(2, engage.fruitless(), "a chase one leg from giving up must not get three more");
+        assertTrue(engage.drawn(), "the sword already out is not drawn again");
+        assertEquals(0.35, engage.inset(), 1e-9);
+        assertEquals(3, engage.reaction(), "a blow three ticks off lands three ticks after the load");
+        assertEquals(new Pos(7, 64, 1), new Pos(engage.leg().x(), engage.leg().y(), engage.leg().z()),
+                "the chase carries on rather than being ordered again");
+        assertEquals(6.5, engage.legFrom(), 1e-9);
+
+        dev.luizloyola.anima.core.brain.task.Engage fresh = assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.Engage.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.Engage(zombie, new Pos(5, 64, 1))));
+        assertTrue(Double.isNaN(fresh.inset()), "an inset not yet rolled stays unrolled");
+        assertEquals(-1, fresh.reaction());
     }
 
     @Test

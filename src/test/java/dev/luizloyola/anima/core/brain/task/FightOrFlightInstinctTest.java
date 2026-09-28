@@ -384,6 +384,28 @@ class FightOrFlightInstinctTest {
     }
 
     @Test
+    void whatItRemembersSurvivesARestart() {
+        ctx.danger = TestDanger.TABLE.withOverrides(java.util.Map.of("person", 0.0));
+        ctx.percepts.self = me(5, 1.6, 20);
+        Combatant fists = new Combatant(20, 20, 0, 0, 1, 4, 0.28, 0, 0);
+        Being player = add("person", 3, new Combatant(20, 20, 0, 0, 8, 1.6, 0.28, 0, 0));
+        ctx.percepts.attackers.add(player.id());
+        next(); // saw the netherite sword
+        Being zombie = add("zombie", 5, ZOMBIE);
+        mind.ended(ctx, new Fight(zombie.id(), zombie.pos()), TaskStatus.FAILED);
+        ctx.percepts.beings = List.of(player); // the zombie only had to be given up on
+
+        FightOrFlightInstinct restarted = new FightOrFlightInstinct();
+        restarted.restore(mind.memory());
+        assertEquals(mind.memory(), restarted.memory(), "nothing is lost on the way through");
+
+        ctx.percepts.combatants.put(player.id(), fists); // put it away while the server was down
+        ctx.percepts.time++;
+        assertInstanceOf(FleeStep.class, restarted.root(ctx),
+                "a restart is two ticks in a row: the sword is still remembered");
+    }
+
+    @Test
     void whateverHitThisBodyIsFoughtFirst() {
         ctx.percepts.self = me(6, 1.6, 20);
         add("zombie", 4, ZOMBIE);

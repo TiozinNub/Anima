@@ -179,8 +179,8 @@ public final class Engage implements PrimitiveTask {
     }
 
     // ── continuity ───────────────────────────────────────────────────────────────────────────
-    // The leg is not saved: the first tick after a load orders a fresh one at the target's cell,
-    // which is where a saved leg would have been going.
+    // Everything: a reload is two ticks in a row, so a blow half-reacted to lands on the same tick
+    // it would have, and a chase leg carries on rather than being ordered again.
 
     public BeingId target() {
         return target;
@@ -194,8 +194,34 @@ public final class Engage implements PrimitiveTask {
         return fruitless;
     }
 
-    public Engage resume(int fruitless) {
+    public boolean drawn() {
+        return drawn;
+    }
+
+    public double inset() {
+        return inset;
+    }
+
+    public int reaction() {
+        return reaction;
+    }
+
+    public @Nullable GoTo leg() {
+        return leg;
+    }
+
+    public double legFrom() {
+        return legFrom;
+    }
+
+    public Engage resume(int fruitless, boolean drawn, double inset, int reaction,
+                         @Nullable GoTo leg, double legFrom) {
         this.fruitless = fruitless;
+        this.drawn = drawn;
+        this.inset = inset;
+        this.reaction = reaction;
+        this.leg = leg;
+        this.legFrom = legFrom;
         return this;
     }
 }
