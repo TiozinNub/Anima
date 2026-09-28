@@ -112,8 +112,13 @@ public final class LaidCommands {
         BlockPos to = BlockPosArgument.getBlockPos(ctx, "to");
         LaidBlocks laid = ledger(source);
         int cleared = 0;
-        for (BlockPos cell : BlockPos.betweenClosed(from, to)) {
-            if (laid.remove(new Pos(cell.getX(), cell.getY(), cell.getZ()))) {
+        // By row, not by cell: a test course clears a box of millions of cells before every build.
+        for (LaidBlocks.Row row : java.util.List.copyOf(laid.rows())) {
+            Pos at = row.at();
+            if (at.x() >= Math.min(from.getX(), to.getX()) && at.x() <= Math.max(from.getX(), to.getX())
+                    && at.y() >= Math.min(from.getY(), to.getY()) && at.y() <= Math.max(from.getY(), to.getY())
+                    && at.z() >= Math.min(from.getZ(), to.getZ()) && at.z() <= Math.max(from.getZ(), to.getZ())
+                    && laid.remove(at)) {
                 cleared++;
             }
         }

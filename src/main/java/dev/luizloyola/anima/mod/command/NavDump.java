@@ -3,7 +3,10 @@ package dev.luizloyola.anima.mod.command;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
+import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.CellType;
+import dev.luizloyola.anima.core.nav.LaidBlocks;
+import dev.luizloyola.anima.mod.nav.LaidBlocksData;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -128,6 +131,7 @@ public final class NavDump {
                         + CellType.CLIMB.name() + " with a floor on top, 1\n");
                 out.write("# a line 'hatch x y z' marks a shut trapdoor over a ladder\n");
                 out.write("# a line 'soft x y z' marks soft ground a hand may cut and put back\n");
+                out.write("# a line 'laid x y z' marks a block of a recorded pillar\n");
 
                 BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
                 for (int x = min.getX(); x <= max.getX(); x++) {
@@ -155,6 +159,17 @@ public final class NavDump {
                                 out.write("hatch " + x + " " + y + " " + z + "\n");
                             }
                         }
+                    }
+                }
+                for (LaidBlocks.Row row : LaidBlocksData.get(level.getServer()).laid().rows()) {
+                    Pos at = row.at();
+                    pos.set(at.x(), at.y(), at.z());
+                    if (row.kind() == LaidBlocks.Kind.PILLAR
+                            && at.x() >= min.getX() && at.x() <= max.getX()
+                            && at.y() >= min.getY() && at.y() <= max.getY()
+                            && at.z() >= min.getZ() && at.z() <= max.getZ()
+                            && level.isLoaded(pos) && !level.getBlockState(pos).canBeReplaced()) {
+                        out.write("laid " + at.x() + " " + at.y() + " " + at.z() + "\n");
                     }
                 }
             }

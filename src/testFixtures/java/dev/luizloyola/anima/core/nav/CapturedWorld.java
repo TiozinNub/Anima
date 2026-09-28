@@ -18,7 +18,7 @@ import java.util.Map;
  * a code does not say: a {@link CellType#STEP}'s surface in sixteenths (required), a
  * {@link CellType#GROUND}'s ramps, a {@link CellType#DOOR}'s doorway code, a {@link CellType#CLIMB}'s
  * floor (absent means none); a {@code hatch x y z} line marks a hatch, a {@code soft x y z} line
- * soft ground.
+ * soft ground, a {@code laid x y z} line a block of a recorded pillar ({@link #pillars}).
  * Unmentioned cells inside the box are {@link CellType#PASSABLE}, everything outside
  * {@link CellType#OBSTACLE}, per the {@link NavGrid} contract. World coordinates let a query
  * recorded in-game replay verbatim.
@@ -37,11 +37,12 @@ public final class CapturedWorld implements NavGrid {
     private final boolean doors;
     private final java.util.Set<Long> hatches;
     private final java.util.Set<Long> soft;
+    private final java.util.Set<Long> pillars;
 
     private CapturedWorld(int minX, int minY, int minZ, int maxX, int maxY, int maxZ,
                           Map<Long, CellType> cells, Map<Long, Double> surfaces,
                           Map<Long, Integer> payloads, java.util.Set<Long> hatches,
-                          java.util.Set<Long> soft) {
+                          java.util.Set<Long> soft, java.util.Set<Long> pillars) {
         this.minX = minX;
         this.minY = minY;
         this.minZ = minZ;
@@ -53,6 +54,7 @@ public final class CapturedWorld implements NavGrid {
         this.payloads = payloads;
         this.hatches = hatches;
         this.soft = soft;
+        this.pillars = pillars;
         this.doors = cells.containsValue(CellType.DOOR);
     }
 
@@ -64,6 +66,7 @@ public final class CapturedWorld implements NavGrid {
         Map<Long, Integer> payloads = new HashMap<>();
         java.util.Set<Long> hatches = new java.util.HashSet<>();
         java.util.Set<Long> soft = new java.util.HashSet<>();
+        java.util.Set<Long> pillars = new java.util.HashSet<>();
         int lineNo = 0;
         for (String raw : lines) {
             lineNo++;
@@ -85,6 +88,11 @@ public final class CapturedWorld implements NavGrid {
             }
             if (parts[0].equals("soft") && parts.length == 4) {
                 soft.add(Pathfinder.pack(parse(parts[1], lineNo), parse(parts[2], lineNo),
+                        parse(parts[3], lineNo)));
+                continue;
+            }
+            if (parts[0].equals("laid") && parts.length == 4) {
+                pillars.add(Pathfinder.pack(parse(parts[1], lineNo), parse(parts[2], lineNo),
                         parse(parts[3], lineNo)));
                 continue;
             }
@@ -111,7 +119,7 @@ public final class CapturedWorld implements NavGrid {
             throw new IllegalArgumentException("capture has no '# box minX minY minZ maxX maxY maxZ' header");
         }
         return new CapturedWorld(box[0], box[1], box[2], box[3], box[4], box[5], cells, surfaces,
-                payloads, hatches, soft);
+                payloads, hatches, soft, pillars);
     }
 
     private static int[] ints(String text, int count, int lineNo) {
@@ -189,6 +197,14 @@ public final class CapturedWorld implements NavGrid {
     @Override
     public int doorway(int x, int y, int z) {
         return cell(x, y, z) == CellType.DOOR ? payloads.getOrDefault(Pathfinder.pack(x, y, z), 0) : 0;
+    }
+
+    /**
+     * The recorded pillars in the capture, as {@link PathRequest#near} takes them: the world's record
+     * of laid blocks is not terrain, so a request carries it rather than the grid.
+     */
+    public java.util.Set<Long> pillars() {
+        return this.pillars;
     }
 
     /** Whether the inclusive box {@code [min, max]} lies fully inside this capture. */
