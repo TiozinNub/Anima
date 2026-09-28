@@ -186,6 +186,24 @@ class GauntletPathTest {
     }
 
     /**
+     * Carving: K7's grass step is carved; K16, the same step in podzol, is scaled; K9's staircase
+     * is carved at most at its top lip, since a carve under the next step leaves that step three high.
+     */
+    @Test
+    void grassIsCarvedAndPodzolAndAStaircaseAreScaled() {
+        assertTrue(routeOf("K7").stream().anyMatch(w -> w.move() == MoveType.CARVE),
+                () -> "K7 is not carved: " + routeOf("K7"));
+        List<Waypoint> podzol = routeOf("K16");
+        assertTrue(podzol.stream().noneMatch(w -> w.move() == MoveType.CARVE)
+                        && podzol.stream().anyMatch(w -> w.move() == MoveType.SCALE),
+                () -> "K16 is not scaled: " + podzol);
+        Station k9 = stations.stream().filter(st -> st.id().equals("K9")).findFirst().orElseThrow();
+        List<Waypoint> slope = routeOf("K9");
+        assertTrue(slope.stream().filter(w -> w.move() == MoveType.CARVE).allMatch(w -> w.x() == k9.sx() + 8),
+                () -> "K9 is carved under a step: " + slope);
+    }
+
+    /**
      * A handful of {@link PathRequest#varying} seeds — one per imaginary settler. Variety is an
      * opinion about what ground costs to cross and must never amount to a capability: Which body
      * is asking cannot decide whether a place can be reached. 186 real stations, half of them

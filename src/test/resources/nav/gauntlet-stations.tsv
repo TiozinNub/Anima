@@ -165,6 +165,7 @@ K12	853	-49	136	870	-47	136	false	block	DIRT PATH STEP 2 high	build	true
 K13	854	-57	148	870	-49	148	true	build	PIT 8 deep, a recorded pillar in the corner	build	true
 K14	853	-49	159	856	-57	160	true	build	on top of a recorded pillar, 8 up	build	true
 K15	854	-57	172	870	-49	172	false	block	PIT 8 deep, an unrecorded pillar in the corner	build	true
+K16	853	-49	184	870	-47	184	true	build	PODZOL STEP 2 high	build	true
 I1.1	795	-49	4	801	-49	4	true	reach	STAND ON IT: stone	reach	true
 I1.2	795	-49	9	801	-49	9	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=bottom]	reach	true
 I1.3	795	-49	14	801	-49	14	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=top]	reach	true
