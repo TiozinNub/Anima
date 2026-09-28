@@ -268,6 +268,57 @@ class PathfinderBuildTest {
                 .noneMatch(w -> w.move() == MoveType.LEAP || w.move() == MoveType.RUNUP));
     }
 
+    // ── a recorded pillar ────────────────────────────────────────────────────────────────────
+
+    /** A pit four deep with a pillar standing in its north-west corner, its top level with the rim. */
+    private static AsciiWorld pitWithAPillar() {
+        return AsciiWorld.of(
+                "55555",
+                "51115",
+                "51115",
+                "51115",
+                "55555").fill(1, 1, 1, 1, 4, 1, CellType.GROUND);
+    }
+
+    private static java.util.Set<Long> thePillar() {
+        java.util.Set<Long> cells = new java.util.HashSet<>();
+        for (int y = 1; y <= 4; y++) {
+            cells.add(LaidBlocks.cell(1, y, 1));
+        }
+        return cells;
+    }
+
+    private static final MoveCapabilities SCALER = TestBodies.BIPED.withScaling(true);
+
+    @Test
+    void anEmptyPocketClimbsBesideARecordedPillar() {
+        NavGrid grid = pitWithAPillar().bounded();
+        assertFalse(Pathfinder.find(grid, PathRequest.of(2, 1, 1, 2, 5, 0, SCALER)).reachedGoal(),
+                "an unrecorded column is somebody's, not a ladder");
+        Path path = Pathfinder.find(grid, PathRequest.of(2, 1, 1, 2, 5, 0, SCALER).near(thePillar()));
+        assertTrue(path.reachedGoal());
+        assertEquals(3, count(path, MoveType.PILLAR), "three blocks off the pillar, then a jump");
+        assertWalkable(grid, path, 2, 1, 1, SCALER);
+    }
+
+    @Test
+    void aRecordedPillarIsGoneDown() {
+        NavGrid grid = pitWithAPillar().bounded();
+        assertFalse(Pathfinder.find(grid, PathRequest.of(0, 5, 1, 3, 1, 3, SCALER)).reachedGoal(),
+                "four down is a fall this body will not take");
+        Path path = Pathfinder.find(grid, PathRequest.of(0, 5, 1, 3, 1, 3, SCALER).near(thePillar()));
+        assertTrue(path.reachedGoal());
+        assertEquals(4, count(path, MoveType.LOWER), "every block of it, eaten on the way down");
+        assertWalkable(grid, path, 0, 5, 1, SCALER);
+    }
+
+    @Test
+    void aWalkThatMayNotScaleLeavesAPillarAlone() {
+        NavGrid grid = pitWithAPillar().bounded();
+        assertFalse(Pathfinder.find(grid, PathRequest.of(0, 5, 1, 3, 1, 3, TestBodies.BIPED)
+                .near(thePillar())).reachedGoal());
+    }
+
     // ── who never builds ─────────────────────────────────────────────────────────────────────
 
     /**

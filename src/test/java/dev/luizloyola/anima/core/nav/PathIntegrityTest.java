@@ -49,6 +49,15 @@ class PathIntegrityTest {
     }
 
     @Test
+    void goingDownAPillarWatchesTheBlockItBreaks() {
+        List<CellNeed> needs = PathIntegrity.edgeNeeds(
+                new Waypoint(3, 11, 7, MoveType.WALK), new Waypoint(3, 10, 7, MoveType.LOWER), PERSON);
+        assertEquals(List.of(
+                new CellNeed(3, 10, 7, CellNeed.Need.LAYABLE),
+                new CellNeed(3, 11, 7, CellNeed.Need.CLEAR)), needs);
+    }
+
+    @Test
     void steppingOffADeckDoesNotAskItsFloorForFooting() {
         // Looked at ahead of the lay, the deck is still a gap: FOOTING there would re-plan the
         // route on the tick before the body built what it needs.
