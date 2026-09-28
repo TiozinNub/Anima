@@ -352,9 +352,10 @@ public final class Doorways {
         if (self.getBoundingBox().intersects(doorway.inflate(0.1, 0.0, 0.1))) {
             return true;
         }
+        // Pushable, not merely alive: a spectator is alive and is not in the doorway.
         return !level.getEntitiesOfClass(LivingEntity.class,
                 doorway.inflate(COMING_THROUGH, 0.0, COMING_THROUGH),
-                other -> other != self && other.isAlive()).isEmpty();
+                other -> other != self && other.isPushable()).isEmpty();
     }
 
     private static int[] cellOf(Waypoint w) {
