@@ -361,6 +361,29 @@ class FightOrFlightInstinctTest {
     }
 
     @Test
+    void theStrongestGearATargetHasShownIsRememberedUntilItIsLostTrackOf() {
+        ctx.danger = TestDanger.TABLE.withOverrides(java.util.Map.of("person", 0.0));
+        ctx.percepts.self = me(5, 1.6, 20); // a stone sword
+        Combatant fists = new Combatant(20, 20, 0, 0, 1, 4, 0.28, 0, 0);
+        Combatant netherite = new Combatant(20, 20, 0, 0, 8, 1.6, 0.28, 0, 0);
+        Being player = add("person", 3, fists);
+        ctx.percepts.attackers.add(player.id());
+        assertInstanceOf(Fight.class, next(), "a player with bare fists is worth fighting");
+
+        ctx.percepts.combatants.put(player.id(), netherite);
+        assertInstanceOf(FleeStep.class, next(), "one with a netherite sword is not");
+
+        ctx.percepts.combatants.put(player.id(), fists);
+        assertInstanceOf(FleeStep.class, next(), "putting it away does not unsee it");
+
+        List<Being> all = ctx.percepts.beings;
+        ctx.percepts.beings = List.of();
+        next(); // lost track of them
+        ctx.percepts.beings = all;
+        assertInstanceOf(Fight.class, next(), "and a stranger is judged by what it shows");
+    }
+
+    @Test
     void whateverHitThisBodyIsFoughtFirst() {
         ctx.percepts.self = me(6, 1.6, 20);
         add("zombie", 4, ZOMBIE);

@@ -192,12 +192,14 @@ public final class ProfileAspect {
 
     // --- combat: how this body lands a blow -------------------------------------------------------
 
-    public static final ProfileAspect COMBAT_REACTION_MIN_TICKS = register("combat.reaction_min_ticks", Kind.INT, 0, 40,
-            "The quickest this body swings once a blow is possible — in reach and charged. Even "
-                    + "the best fighter is not instant; a skill will narrow toward this, never past it.");
-    public static final ProfileAspect COMBAT_REACTION_MAX_TICKS = register("combat.reaction_max_ticks", Kind.INT, 0, 40,
-            "The slowest it swings once a blow is possible. Each blow waits a random time between "
-                    + "the two.");
+    public static final ProfileAspect COMBAT_REACTION_TICKS = register("combat.reaction_ticks", Kind.INT, 0, 40,
+            "Ticks from a target coming into reach to the blow. They count while the weapon is "
+                    + "still charging, so a target that stays close is hit sooner than one stepping "
+                    + "in. A skill will set this; nobody is instant.");
+    public static final ProfileAspect COMBAT_REACTION_HOLD_TICKS = register("combat.reaction_hold_ticks", Kind.INT, 0, 40,
+            "The part of that reaction always left for after the weapon has charged: the count "
+                    + "waits here for the charge, so even a target that never left is not hit the "
+                    + "tick the weapon is ready.");
     public static final ProfileAspect COMBAT_REACH_INSET = register("combat.reach_inset", Kind.DOUBLE, 0.0, 3.0,
             "Up to how far inside its full reach this body steps before swinging, rolled per blow: "
                     + "a fighter who always hits from the very edge of reach is one nobody can touch.");

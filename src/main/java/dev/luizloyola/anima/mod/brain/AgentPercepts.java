@@ -227,11 +227,10 @@ public final class AgentPercepts implements Percepts {
             return java.util.Optional.empty();
         }
         Melee.Hit hit = this.person.striker().bestHit();
-        // Its blows land a reaction after each charge, not on it.
-        double reaction = (this.person.profile().i(ProfileAspect.COMBAT_REACTION_MIN_TICKS)
-                + this.person.profile().i(ProfileAspect.COMBAT_REACTION_MAX_TICKS)) / 2.0;
+        // In a standing fight its blows land the held part of a reaction after each charge.
+        double hold = this.person.profile().i(ProfileAspect.COMBAT_REACTION_HOLD_TICKS);
         double perSecond = hit.perSecond() > 0.0
-                ? 20.0 / (20.0 / hit.perSecond() + reaction) : 0.0;
+                ? 20.0 / (20.0 / hit.perSecond() + hold) : 0.0;
         return java.util.Optional.of(new Combatant(body.health(), body.maxHealth(), body.armor(),
                 body.toughness(), hit.damage(), perSecond, body.pace(), 0.0, 0.0));
     }

@@ -33,8 +33,9 @@ class EngageTest {
                 who.awareness(), who.held());
     }
 
-    private static final int QUICKEST = 4;
-    private static final int SLOWEST = 10;
+    /** The test species' reaction: 5 ticks from coming into reach, the last 2 after the charge. */
+    private static final int REACTION = 5;
+    private static final int HOLD = 2;
 
     /** Ticks until the next blow lands, or -1 within {@code limit}. */
     private int ticksToNextBlow(Engage engage, int limit) {
@@ -49,30 +50,69 @@ class EngageTest {
     }
 
     @Test
-    void inReachAndChargedItSwingsAfterAHumansReactionNotTheSameTick() {
+    void chargedWhenATargetStepsInItStillWaitsTheWholeReaction() {
         Being zombie = zombieAt(2, 2.0);
         ctx.striker.reach = Striker.Reach.IN_REACH;
         Engage engage = new Engage(zombie.id(), zombie.pos());
 
-        int ticks = ticksToNextBlow(engage, 20);
-        assertTrue(ticks - 1 >= QUICKEST && ticks - 1 <= SLOWEST,
-                "the blow waits " + (ticks - 1) + " ticks after it became possible");
+        assertEquals(REACTION, ticksToNextBlow(engage, 20), "never the tick it came into reach");
         assertEquals(List.of(zombie.id()), ctx.striker.struck);
         assertEquals(0, ctx.mover.moveToCalls, "nothing to chase at arm's length");
     }
 
     @Test
-    void theReactionVariesFromBlowToBlow() {
+    void theReactionCountsWhileTheWeaponChargesAndHoldsTheLastOfItForAfter() {
+        Being zombie = zombieAt(2, 2.0);
+        ctx.striker.reach = Striker.Reach.IN_REACH;
+        ctx.striker.charge = 0.5;
+        Engage engage = new Engage(zombie.id(), zombie.pos());
+        for (int t = 0; t < 10; t++) {
+            engage.tick(ctx); // the reaction runs down to its held part and waits there
+        }
+        assertTrue(ctx.striker.struck.isEmpty());
+
+        ctx.striker.charge = 1.0;
+        assertEquals(HOLD, ticksToNextBlow(engage, 20),
+                "the charge came in, and only the held part of the reaction was left");
+    }
+
+    @Test
+    void aTargetThatStaysCloseIsHitSoonerThanOneSteppingIn() {
         Being zombie = zombieAt(2, 2.0);
         ctx.striker.reach = Striker.Reach.IN_REACH;
         Engage engage = new Engage(zombie.id(), zombie.pos());
-        java.util.Set<Integer> seen = new java.util.HashSet<>();
-        for (int blow = 0; blow < 30; blow++) {
-            int ticks = ticksToNextBlow(engage, 20);
-            assertTrue(ticks - 1 >= QUICKEST && ticks - 1 <= SLOWEST, "blow " + blow + ": " + ticks);
-            seen.add(ticks);
+        ticksToNextBlow(engage, 20);
+
+        ctx.striker.charge = 0.0; // the blow spent the charge; the next reaction starts at once
+        for (int t = 0; t < REACTION; t++) {
+            engage.tick(ctx);
         }
-        assertTrue(seen.size() > 1, "a metronome is as easy to read as a machine: " + seen);
+        ctx.striker.charge = 1.0;
+        assertEquals(HOLD, ticksToNextBlow(engage, 20));
+    }
+
+    @Test
+    void leavingReachStartsTheReactionOver() {
+        Being zombie = zombieAt(2, 2.0);
+        ctx.striker.reach = Striker.Reach.IN_REACH;
+        Engage engage = new Engage(zombie.id(), zombie.pos());
+        engage.tick(ctx);
+        engage.tick(ctx);
+        ctx.striker.reach = Striker.Reach.OUT_OF_REACH;
+        engage.tick(ctx);
+        ctx.striker.reach = Striker.Reach.IN_REACH;
+
+        assertEquals(REACTION, ticksToNextBlow(engage, 20));
+    }
+
+    @Test
+    void theReactionIsTheSameEveryBlowUntilASkillSetsIt() {
+        Being zombie = zombieAt(2, 2.0);
+        ctx.striker.reach = Striker.Reach.IN_REACH;
+        Engage engage = new Engage(zombie.id(), zombie.pos());
+        for (int blow = 0; blow < 10; blow++) {
+            assertEquals(REACTION, ticksToNextBlow(engage, 20), "blow " + blow);
+        }
     }
 
     @Test
@@ -120,7 +160,9 @@ class EngageTest {
                 "the counter still reads the old hand's charge until the body's next tick");
         assertEquals(1, ctx.striker.draws, "ranked once, not again before the blow");
         assertTrue(ticksToNextBlow(engage, 20) > 0);
-        assertEquals(2, ctx.striker.draws, "and once more when the blow opened");
+        assertEquals(1, ctx.striker.draws, "not again while the same reaction runs");
+        engage.tick(ctx);
+        assertEquals(2, ctx.striker.draws, "but again as the next blow's reaction starts");
     }
 
     @Test

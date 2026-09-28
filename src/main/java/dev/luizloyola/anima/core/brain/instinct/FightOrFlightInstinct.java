@@ -41,6 +41,11 @@ import org.jspecify.annotations.Nullable;
  * grant and every tick after ({@link #reconsider}), so three more zombies break off a fight, and a
  * zombie one blow from dead is still finished by a body at four hearts.
  *
+ * <p><b>What a threat can do is what it has shown.</b> Each perceived body is sized up with the
+ * best hit and the most armour it has shown while this body has been aware of it, so putting a
+ * sword away does not lure anyone in who saw it drawn (Luiz, 2026-09-28). Losing track of it
+ * forgets it.
+ *
  * <p><b>The target</b> is the threat worth most: its fear, more if it hit this body, less the
  * longer it would take to kill, with an edge for the one already being fought. A target a fight
  * could not reach is left out for {@link #UNREACHABLE_TICKS}.
@@ -86,6 +91,8 @@ public final class FightOrFlightInstinct implements Instinct {
 
     /** Targets a fight could not get to, until when. Not saved: a restart tries them once more. */
     private final Map<BeingId, Long> unreachable = new HashMap<>();
+    /** The strongest each perceived body has shown, while it is perceived. Not saved either. */
+    private final Map<BeingId, Combatant> shown = new HashMap<>();
     /** The answer last written to the journal, so a steady fight is one line and not one a tick. */
     private @Nullable String lastSaid;
     /** Set when a blast sent this body running; held until no fuse near it is still burning. */
@@ -228,13 +235,17 @@ public final class FightOrFlightInstinct implements Instinct {
         Being best = null;
         double bestValue = 0.0;
         double bestKillTime = Double.POSITIVE_INFINITY;
+        java.util.Set<BeingId> perceived = new java.util.HashSet<>();
         for (Being being : percepts.beings()) {
+            perceived.add(being.id());
             boolean attackedMe = percepts.attackedLately(being.id());
             double fear = pressureOf(profile, ctx.danger(), being, attackedMe);
             if (fear <= 0.0) {
                 continue;
             }
-            Combatant them = percepts.combatant(being.id()).orElse(null);
+            Combatant them = percepts.combatant(being.id())
+                    .map(live -> sizeUp(being.id(), live))
+                    .orElse(null);
             if (them == null) {
                 continue; // no body to size up: gone, dying, or a sound with nothing behind it
             }
@@ -262,6 +273,7 @@ public final class FightOrFlightInstinct implements Instinct {
                 bestKillTime = killTime;
             }
         }
+        shown.keySet().retainAll(perceived);
         if (!fuseBurning) {
             waitingOutFuse = false;
         }
@@ -296,6 +308,25 @@ public final class FightOrFlightInstinct implements Instinct {
         memoAt = now;
         memoFor = fighting;
         return stance;
+    }
+
+    /**
+     * {@code live} as this body judges it: its health, pace and fuse as they are now, but the best
+     * hit and the most armour it has shown.
+     */
+    private Combatant sizeUp(BeingId who, Combatant live) {
+        Combatant known = shown.get(who);
+        Combatant judged = known == null ? live : new Combatant(live.health(), live.maxHealth(),
+                Math.max(live.armor(), known.armor()), Math.max(live.toughness(), known.toughness()),
+                hitsHarder(live, known) ? live.damage() : known.damage(),
+                hitsHarder(live, known) ? live.hitsPerSecond() : known.hitsPerSecond(),
+                live.pace(), live.fuse(), live.blastReach());
+        shown.put(who, judged);
+        return judged;
+    }
+
+    private static boolean hitsHarder(Combatant a, Combatant b) {
+        return a.damage() * a.hitsPerSecond() > b.damage() * b.hitsPerSecond();
     }
 
     /** Seconds this body would take to kill {@code being}: unhurt as far as it knows unless seen. */
