@@ -81,6 +81,8 @@ D13	673	-49	148	690	-55	148	true	reach	LADDER down through a shut TRAPDOOR hatch
 D14	673	-49	160	690	-55	160	true	reach	SCAFFOLDING down a tower
 D15	673	-49	172	690	-43	172	false	block	IRON TRAPDOOR over a ladder
 D16	673	-49	184	690	-43	184	false	block	TRAPDOOR over a ladder facing ANOTHER way
+D17	673	-49	196	690	-53	196	true	reach	LADDER down into a room 3 tall
+D18	673	-49	208	690	-52	208	true	reach	LADDER down into a room 2 tall
 E1	697	-49	4	714	-49	4	true	reach	wade: water 1 deep, 8 long
 E2	697	-49	16	714	-49	16	true	reach	deep water, 9 long
 E3	697	-49	28	714	-49	28	true	reach	water gap 2

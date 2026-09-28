@@ -335,7 +335,8 @@ class GauntletPathTest {
      * a jump or a leap found another way up, and the row would be about that instead.
      */
     private static final List<String> MUST_CLIMB =
-            List.of("D1", "D2", "D3", "D4", "D9", "D12", "D13", "D14", "I2.9");
+            List.of("D1", "D2", "D3", "D4", "D9", "D12", "D13", "D14", "D17", "D18",
+                    "I2.9");
     /** Stations whose whole subject is a door or a gate: the route must stand in its doorway. */
     private static final List<String> MUST_USE_THE_DOOR =
             List.of("F1", "F2", "F3", "F8", "F12", "F13", "F14", "F15", "F16", "F17", "F19", "I2.7");
