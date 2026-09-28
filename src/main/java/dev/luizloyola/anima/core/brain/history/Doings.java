@@ -15,10 +15,10 @@ public final class Doings {
 
     private static final Map<String, Doing> REGISTRY = new LinkedHashMap<>();
 
-    /** Slot: what was run from — a species, or {@link #SOMETHING} when it was never made out. */
+    /** Slot: what was run from, as {@link Whom} names it. */
     public static final Doing FLEEING = register(new Doing(
             "fleeing", "anima.doing.fleeing", List.of("from"), true));
-    /** Slot: what was fought — a species, or {@link #SOMETHING}. Recorded when it went down. */
+    /** Slot: what was fought, as {@link Whom} names it. Recorded when it went down. */
     public static final Doing FIGHTING = register(new Doing(
             "fighting", "anima.doing.fighting", List.of("whom"), true));
     public static final Doing GETTING_UNSTUCK = register(new Doing(

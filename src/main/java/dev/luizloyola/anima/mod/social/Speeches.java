@@ -98,8 +98,9 @@ public final class Speeches {
     /**
      * Line {@code index} of {@code e} as it is said — variant and topic resolved, the name an
      * introduction gives away spelled out, a deed told in its own words — or null for a system line
-     * or a word this install lacks. The same text for every listener: a name in the line IS the
-     * introduction, and a deed names only things, never people.
+     * or a word this install lacks. The same text for every listener: an introduction's name IS the
+     * introduction, and a deed names people only as its teller knew them — a name heard is not a
+     * face, so it introduces nobody (decision: Luiz).
      */
     public static @Nullable Component spoken(MinecraftServer server, Encounter e, int index) {
         Utterance u = e.transcript().get(index);

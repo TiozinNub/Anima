@@ -25,6 +25,7 @@ public final class SlotNames {
             case LANG -> Component.translatable(slot.value());
             case ITEM -> item(slot.value());
             case ENTITY -> entity(slot.value());
+            case NAME -> Component.literal(slot.value());
         };
     }
 

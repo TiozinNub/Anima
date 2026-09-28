@@ -5,7 +5,7 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.history.Doings;
-import dev.luizloyola.anima.core.brain.history.Slot;
+import dev.luizloyola.anima.core.brain.history.Whom;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Combatant;
@@ -367,7 +367,7 @@ public final class FightOrFlightInstinct implements Instinct {
     public Deed doing(BrainContext ctx) {
         Stance stance = decide(ctx, null);
         if (stance.fight()) {
-            return Deed.of(Doings.FIGHTING, slotFor(stance.target()));
+            return Deed.of(Doings.FIGHTING, Whom.of(ctx, stance.target()));
         }
         Being scariest = null;
         double max = 0.0;
@@ -379,14 +379,7 @@ public final class FightOrFlightInstinct implements Instinct {
                 scariest = being;
             }
         }
-        return Deed.of(Doings.FLEEING, slotFor(scariest));
-    }
-
-    /** Its species once made out; "something" before that — honest about an arrow from the dark. */
-    private static Slot slotFor(@Nullable Being being) {
-        return being == null || being.identified() == Being.Identified.NONE
-                || being.species().isEmpty()
-                ? Doings.SOMETHING : Slot.entity(being.species());
+        return Deed.of(Doings.FLEEING, Whom.of(ctx, scariest));
     }
 
     /** One journal line per change of answer or target. */

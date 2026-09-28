@@ -31,6 +31,8 @@ class DoingLinesTest {
             assertTrue(EN.containsKey(when.langKey()), when.langKey());
         }
         assertTrue(EN.containsKey(Doings.SOMETHING.value()));
+        assertTrue(EN.containsKey(Whom.STRANGER.value()));
+        assertTrue(EN.containsKey(Whom.SOMEONE.value()));
     }
 
     @Test

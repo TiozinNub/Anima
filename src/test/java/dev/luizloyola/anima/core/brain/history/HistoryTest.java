@@ -105,7 +105,7 @@ class HistoryTest {
     @Test
     void aSlotRoundTripsThroughItsString() {
         for (Slot slot : List.of(Slot.lang("autarkia.purpose.yard"), Slot.item("minecraft:oak_log"),
-                Slot.entity("zombie"), Slot.entity("somemod:thing"))) {
+                Slot.entity("zombie"), Slot.entity("somemod:thing"), Slot.name("Luiz"))) {
             assertEquals(Optional.of(slot), Slot.decode(slot.encode()), slot.encode());
         }
         assertEquals(Optional.empty(), Slot.decode("no-prefix"));

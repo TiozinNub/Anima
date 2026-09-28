@@ -5,15 +5,15 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * One argument of a {@link Deed}: a lang key, or something only the game can name — an item id or
- * a species. Carried as {@code "<type>:<value>"} wherever a string has to hold it (a saved history,
+ * One argument of a {@link Deed}: a lang key, a name the teller knows somebody by, or something
+ * only the game can name — an item id or a species. Carried as {@code "<type>:<value>"} wherever a string has to hold it (a saved history,
  * a line's payload), and resolved into words by the mod layer on each reader's client.
  *
  * <p>This class owns the prefix. Nothing else splits the string.
  */
 public record Slot(Type type, String value) {
 
-    public enum Type { LANG, ITEM, ENTITY }
+    public enum Type { LANG, ITEM, ENTITY, NAME }
 
     public Slot {
         Objects.requireNonNull(type, "type");
@@ -33,6 +33,11 @@ public record Slot(Type type, String value) {
     /** A species as {@code Being.species} spells it — {@code zombie}, or {@code mod:thing}. */
     public static Slot entity(String species) {
         return new Slot(Type.ENTITY, species);
+    }
+
+    /** A name said as it is — {@code Luiz}. Never translated. */
+    public static Slot name(String name) {
+        return new Slot(Type.NAME, name);
     }
 
     public String encode() {
