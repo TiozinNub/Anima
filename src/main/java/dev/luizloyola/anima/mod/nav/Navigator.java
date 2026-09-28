@@ -686,7 +686,7 @@ public final class Navigator {
                 this.person.setbacks().stranded(
                         new Pos(this.routeFrom.getX(), this.routeFrom.getY(), this.routeFrom.getZ()),
                         new Pos(this.goal.getX(), this.goal.getY(), this.goal.getZ()),
-                        result.reachableCells(), level().getGameTime());
+                        result.restCells(), level().getGameTime());
             }
             log("failed", "no path to " + this.goal.toShortString() + " — "
                     + MoveFailure.STRANDED.describe()

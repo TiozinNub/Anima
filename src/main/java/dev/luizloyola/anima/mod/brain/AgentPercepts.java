@@ -254,9 +254,10 @@ public final class AgentPercepts implements Percepts {
 
     /**
      * The ordinary survey, and a wider one when stranded walks say the body may be shut in
-     * something the ordinary box cannot see whole — a crevice, a cave pocket. A wider look that
-     * finds a way out clears the evidence: the body was not shut in, or has got out (Luiz,
-     * 2026-09-26). About 8 ms a look in the crevice, once a second while it climbs out.
+     * something the ordinary box cannot see whole — a crevice, a cave pocket — or in somewhere whose
+     * only way out is a long swim, a ledge over a flooded channel. A wider look that finds a way
+     * out, with room to stand along it, clears the evidence: the body was not shut in, or has got
+     * out (Luiz, 2026-09-26). About 8 ms a look in the crevice, once a second while it climbs out.
      */
     private Confinement survey(ServerLevel level) {
         MoveCapabilities body = MoveCapabilities.of(this.person.profile());

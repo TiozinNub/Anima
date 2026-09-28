@@ -120,9 +120,11 @@ public final class Setbacks {
      */
     public static final int STRANDED_WINDOW_TICKS = 2_400;
     /**
-     * The largest region a stranded search may have enumerated and still count: a pocket, not a
+     * The most cells to stand in a stranded search may have found and still count: a pocket, not a
      * valley. Under the search's budget by a margin, so a search that stopped here ran out of
-     * places, not of time — open ground exhausts the budget first and never counts.
+     * places, not of time — open ground exhausts the budget first and never counts. Cells to stand
+     * in, not cells: a search from a ledge over a flooded channel closed 1,300 cells and found 3 of
+     * them (2026-09-28).
      */
     public static final int POCKET_CELLS = 1_024;
     /** How close a walk must have started to where the body stands to be evidence about here. */
@@ -185,14 +187,14 @@ public final class Setbacks {
     }
 
     /**
-     * A walk from {@code from} failed stranded, its search having enumerated {@code cells} cells.
-     * Evidence of being shut in only from a small region: a search that got far is proof the body
-     * is not in a pocket, and clears what was gathered (Luiz, 2026-09-26: stranded walks pile up and
-     * mark the area, roof or no roof, but never open ground).
+     * A walk from {@code from} failed stranded, its search having found {@code rest} cells to stand
+     * in. Evidence of being shut in only from a small region: a search that found plenty of ground
+     * is proof the body is not in a pocket, and clears what was gathered (Luiz, 2026-09-26: stranded
+     * walks pile up and mark the area, roof or no roof, but never open ground).
      */
-    public void stranded(Pos from, Pos goal, int cells, long now) {
+    public void stranded(Pos from, Pos goal, int rest, long now) {
         prune(now);
-        if (cells > POCKET_CELLS) {
+        if (rest > POCKET_CELLS) {
             this.stranded.clear();
             return;
         }

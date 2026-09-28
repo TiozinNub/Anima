@@ -349,6 +349,8 @@ public final class Pathfinder {
     private final boolean doors;
     /** A survey's first pass: the open list is ordered by {@link #toNearestSide}, not by cost. */
     private boolean headed;
+    /** {@link #room}: the open list is ordered by cost alone, so it closes cells nearest first. */
+    private boolean byCost;
     /** The capture's edges around a headed survey's start — see {@link #findSides}. */
     private int westSide;
     private int eastSide;
@@ -438,6 +440,54 @@ public final class Pathfinder {
     }
 
     /**
+     * Whether this body has room to stand within {@code walk} of where it is: at least
+     * {@code enough} cells it could stop in. Shut in when it has fewer, and the region is those
+     * cells.
+     *
+     * <p>The other half of being shut in. {@link #survey} asks whether ANY way out exists, and a
+     * swim is one: a settler on a ledge over a flooded channel had three cells of ground, a swim of
+     * twenty-two strokes to the nearest bank, every walk failing from where it stood, and the survey
+     * calling it free (2026-09-28). Water, air and holds are crossed here but never counted.
+     *
+     * <p>Ordered by cost alone, so the first cell past {@code walk} ends the count with everything
+     * inside it counted. A budget spent before either limit says free: this never claims a body is
+     * shut in without having looked everywhere it could stop.
+     */
+    public static Confinement room(NavGrid grid, PathRequest request, double walk, int enough) {
+        return new Pathfinder(grid, request).roomFrom(request, walk, enough);
+    }
+
+    private Confinement roomFrom(PathRequest request, double walk, int enough) {
+        this.byCost = true;
+        long start = pack(request.startX(), request.startY(), request.startZ());
+        Node origin = new Node();
+        origin.surface16 = surface16At(request.startX(), request.startY(), request.startZ());
+        this.nodes.put(start, origin);
+        this.open.push(start, 0.0);
+
+        List<Pos> rest = new ArrayList<>();
+        int expanded = 0;
+        while (!this.open.isEmpty()) {
+            long current = this.open.pop();
+            Node node = this.nodes.get(current);
+            if (node.closed) continue;
+            if (node.g > walk) break;
+            node.closed = true;
+            if (restsIn(current, node)) {
+                rest.add(new Pos(unpackX(current), unpackY(current), unpackZ(current)));
+                if (rest.size() >= enough) {
+                    return new Confinement(false, rest.size(), List.of());
+                }
+            }
+            if (++expanded >= request.maxNodes()) {
+                return new Confinement(false, rest.size(), List.of());
+            }
+            expandNeighbors(current, node);
+        }
+        return new Confinement(true, rest.size(), rest);
+    }
+
+    /**
      * Every cell the expansion actually reached — the map of a proved prison. That is what lets
      * whoever holds the verdict walk to a way out instead of only considering what is underfoot.
      * Built only when there is a proof to attach it to; an ordinary search allocates nothing.
@@ -485,6 +535,7 @@ public final class Pathfinder {
         double bestAirG = 0.0;
 
         int expanded = 0;
+        int rest = 0;
         // Set explicitly rather than derived from the loop condition afterwards: a last pop that
         // empties the heap on the very tick the budget runs out leaves the open set empty without
         // the region having been enumerated, and reading `open.isEmpty()` at the end would call
@@ -501,7 +552,7 @@ public final class Pathfinder {
             if (current == goal) {
                 // +1: this node was closed above but the counter is only bumped further down, and
                 // the count means "cells closed".
-                return reconstruct(current, true, false, expanded + 1);
+                return reconstruct(current, true, false, expanded + 1, rest);
             }
             double score = partialScore(unpackX(current), unpackY(current), unpackZ(current));
             if (score < bestScore || (score == bestScore && node.g < bestG)) {
@@ -509,17 +560,16 @@ public final class Pathfinder {
                 bestScore = score;
                 bestG = node.g;
             }
-            // A hold is somewhere to pass, never to stop: a body left on a ladder slides off it.
-            boolean hanging = node.move == MoveType.CLIMB
-                    && isHold(unpackX(current), unpackY(current), unpackZ(current));
-            if (!node.move.inWater() && !hanging
-                    && (score < bestRestScore || (score == bestRestScore && node.g < bestRestG))) {
-                bestRest = current;
-                bestRestScore = score;
-                bestRestG = node.g;
+            if (restsIn(current, node)) {
+                rest++;
+                if (score < bestRestScore || (score == bestRestScore && node.g < bestRestG)) {
+                    bestRest = current;
+                    bestRestScore = score;
+                    bestRestG = node.g;
+                }
             }
             if ((score < bestAirScore || (score == bestAirScore && node.g < bestAirG))
-                    && !hanging
+                    && !hanging(current, node)
                     && !isSubmerged(unpackX(current), unpackY(current), unpackZ(current))) {
                 bestAir = current;
                 bestAirScore = score;
@@ -532,7 +582,17 @@ public final class Pathfinder {
             expandNeighbors(current, node);
         }
         return reconstruct(exhausted ? bestRest : bestAir, false, exhausted && sealedIn(request),
-                expanded);
+                expanded, rest);
+    }
+
+    /** A hold is somewhere to pass, never to stop: a body left on a ladder slides off it. */
+    private boolean hanging(long cell, Node node) {
+        return node.move == MoveType.CLIMB && isHold(unpackX(cell), unpackY(cell), unpackZ(cell));
+    }
+
+    /** Whether the body could stop in this cell: reached on its feet, not afloat, not hanging. */
+    private boolean restsIn(long cell, Node node) {
+        return !node.move.inWater() && !hanging(cell, node);
     }
 
     /**
@@ -1735,7 +1795,7 @@ public final class Pathfinder {
         }
         this.open.push(neighbor, this.headed
                 ? toNearestSide(unpackX(neighbor), unpackZ(neighbor))
-                : g + heuristic(unpackX(neighbor), ny, unpackZ(neighbor)));
+                : this.byCost ? g : g + heuristic(unpackX(neighbor), ny, unpackZ(neighbor)));
     }
 
     /**
@@ -1945,7 +2005,8 @@ public final class Pathfinder {
      * it stays out of the closed set, and the body is free to route through that cell for some
      * other purpose.
      */
-    private Path reconstruct(long end, boolean reachedGoal, boolean sealed, int reachableCells) {
+    private Path reconstruct(long end, boolean reachedGoal, boolean sealed, int reachableCells,
+                             int restCells) {
         Deque<Waypoint> chain = new ArrayDeque<>();
         long key = end;
         Node node = this.nodes.get(key);
@@ -1976,7 +2037,7 @@ public final class Pathfinder {
             key = node.parent;
             node = this.nodes.get(key);
         }
-        return new Path(new ArrayList<>(chain), reachedGoal, sealed, reachableCells);
+        return new Path(new ArrayList<>(chain), reachedGoal, sealed, reachableCells, restCells);
     }
 
     private Waypoint runUpOf(long takeoff) {

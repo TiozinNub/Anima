@@ -5,10 +5,13 @@ import java.util.List;
 /**
  * Whether this body can get out of where it is — the search's own verdict, carried to the brain.
  *
- * <p>Not inferred from failures: a route search that runs out of anywhere to go has enumerated
- * every cell this body can reach, and (given the guards in {@code Pathfinder}) only the world
- * itself stopped it. The pattern would not work anyway — a body sealed in a small room succeeds at
- * most of what it tries and fails only intermittently, so no streak counter would ever fire.
+ * <p>Proved, not inferred from failures: a route search that runs out of anywhere to go has
+ * enumerated every cell this body can reach, and (given the guards in {@code Pathfinder}) only the
+ * world itself stopped it. Failures only decide when to look wider — a body sealed in a small room
+ * succeeds at most of what it tries and fails only intermittently, so no streak counter would fire.
+ *
+ * <p>Shut in also covers a body with a way out but no room to stand short of a long swim — see
+ * {@code Pathfinder.room}. Its {@code cells} and {@code region} are then the cells to stand in.
  *
  * @param sealed whether the body is shut in
  * @param cells  how many cells it can reach; only a statement about its whole world when sealed

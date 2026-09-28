@@ -172,17 +172,30 @@ public final class PathfinderService {
      * crevice's cave went 13 down, inside the five cells of the rim that void a proof.
      */
     private static final int WIDE_SURVEY_DEPTH = 32;
+    /**
+     * How far, in walk cost, {@link #surveyWide} counts room to stand — about a long walk on flat
+     * ground; a stroke costs two and a half.
+     */
+    private static final double ROOM_WALK = 32.0;
+    /**
+     * How many cells to stand in within {@link #ROOM_WALK} are room enough. Measured on the forest
+     * (2026-09-28): the ledge over the channel had 3, the ground above it 631, open forest 1,390.
+     */
+    private static final int ROOM_ENOUGH = 64;
 
     /**
-     * {@link #surveyFrom} over the wide box — only on evidence, since it is a much larger capture.
+     * {@link #surveyFrom} over the wide box, and then whether there is room to stand within a walk —
+     * only on evidence. Shut in by either: no way out at all, or none short of a long swim.
      */
     public static Confinement surveyWide(ServerLevel level, BlockPos start, MoveCapabilities body) {
-        WorldSnapshot snapshot = WorldSnapshot.capture(level,
+        WorldSnapshot snapshot = WorldSnapshot.lazy(level,
                 start.offset(-WIDE_SURVEY_MARGIN, -WIDE_SURVEY_DEPTH, -WIDE_SURVEY_MARGIN),
                 start.offset(WIDE_SURVEY_MARGIN, WIDE_SURVEY_DEPTH, WIDE_SURVEY_MARGIN));
         BlockPos afloat = surfaceStart(snapshot, start, body);
-        return Pathfinder.survey(snapshot, PathRequest.of(afloat.getX(), afloat.getY(),
-                afloat.getZ(), afloat.getX(), afloat.getY(), afloat.getZ(), body));
+        PathRequest request = PathRequest.of(afloat.getX(), afloat.getY(), afloat.getZ(),
+                afloat.getX(), afloat.getY(), afloat.getZ(), body);
+        Confinement sealed = Pathfinder.survey(snapshot, request);
+        return sealed.sealed() ? sealed : Pathfinder.room(snapshot, request, ROOM_WALK, ROOM_ENOUGH);
     }
 
     /**

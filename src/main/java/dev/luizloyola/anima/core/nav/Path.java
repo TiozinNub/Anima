@@ -20,9 +20,12 @@ import java.util.List;
  *                    in {@code Pathfinder}). Never true alongside {@code reachedGoal}
  * @param reachableCells how many cells the search closed. A statement about the whole reachable
  *                    region only when {@code sealed}; otherwise just how far the search got
+ * @param restCells   how many of those the body could stop in — on its feet, not afloat and not
+ *                    hanging on a ladder. A search over a flooded channel closes a thousand cells and
+ *                    finds three of these
  */
 public record Path(List<Waypoint> waypoints, boolean reachedGoal, boolean sealed,
-                   int reachableCells) {
+                   int reachableCells, int restCells) {
     public Path {
         waypoints = List.copyOf(waypoints);
     }
@@ -33,7 +36,7 @@ public record Path(List<Waypoint> waypoints, boolean reachedGoal, boolean sealed
      * looked.
      */
     public Path(List<Waypoint> waypoints, boolean reachedGoal) {
-        this(waypoints, reachedGoal, false, 0);
+        this(waypoints, reachedGoal, false, 0, 0);
     }
 
     public boolean isEmpty() {
