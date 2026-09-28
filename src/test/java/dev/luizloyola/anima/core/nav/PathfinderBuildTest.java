@@ -212,6 +212,19 @@ class PathfinderBuildTest {
         assertFalse(path.reachedGoal(), "past the cap a shaft is not climbed by stacking");
     }
 
+    /** Two slabs stacked are a step of one and a half: too high to jump, not too smooth to lean on. */
+    @Test
+    void aPillarLeansOnASlabStack() {
+        String[] rows = {"1111111", "1111111", "1111111"};
+        AsciiWorld world = AsciiWorld.of(rows)
+                .step(3, 1, 0, 3, 1, 2, 0.5)
+                .step(3, 2, 0, 3, 2, 2, 0.5);
+        assertFalse(find(bounded(world, rows), 1, 1, 1, 5, 1, 1, EMPTY_HANDED).reachedGoal());
+        Path path = find(bounded(world, rows), 1, 1, 1, 5, 1, 1, carrying(4));
+        assertTrue(path.reachedGoal());
+        assertEquals(1, count(path, MoveType.PILLAR));
+    }
+
     /** A platform floating over open ground has no wall under its edge to lean a pillar on. */
     @Test
     void noTowerIsBuiltInTheOpen() {

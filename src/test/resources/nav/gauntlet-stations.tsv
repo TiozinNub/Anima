@@ -141,7 +141,7 @@ J1	829	-49	4	846	-49	4	true	reach	corner diagonals over VOID	reach	?
 J2	829	-49	16	846	-49	16	true	reach	corner diagonals, flanks FLOORED	reach	?
 J3	829	-49	28	846	-49	28	false	block	corner diagonal, both flanks WALLED	build	?
 J4	829	-49	40	846	-49	40	true	reach	corner diagonal, one flank a CARPET	reach	?
-J5	829	-49	52	846	-49	52	false	block	corner diagonal through FIRE	block	?
+J5	829	-49	52	846	-49	52	false	block	corner diagonal through FIRE	build	?
 J6	829	-49	64	843	-48	65	true	reach	diagonal step +0.5 SLAB	reach	?
 J7	829	-49	76	843	-49	77	true	reach	diagonal step -0.5 SLAB	reach	?
 J8	829	-49	88	843	-48	89	true	reach	diagonal JUMP up a full block	reach	?

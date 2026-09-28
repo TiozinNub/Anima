@@ -1306,8 +1306,9 @@ public final class Pathfinder {
     }
 
     /**
-     * Whether a cardinal side of this cell is solid inside the grid. Past the capture every cell
-     * reads OBSTACLE, and a pillar may not lean on the edge of what was captured.
+     * Whether a cardinal side of this cell is solid inside the grid — a full block, a wall, or a
+     * partial one: a block is laid against a slab's side as against stone. Past the capture every
+     * cell reads OBSTACLE, and a pillar may not lean on the edge of what was captured.
      */
     private boolean againstFace(int x, int y, int z) {
         for (int[] d : CARDINALS) {
@@ -1315,7 +1316,7 @@ public final class Pathfinder {
             int fz = z + d[1];
             if (!this.grid.inBounds(fx, y, fz)) continue;
             CellType side = this.grid.cell(fx, y, fz);
-            if (side == CellType.GROUND || side == CellType.OBSTACLE) {
+            if (side == CellType.GROUND || side == CellType.OBSTACLE || side == CellType.STEP) {
                 return true;
             }
         }
