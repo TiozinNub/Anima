@@ -67,7 +67,11 @@ public final class Laying {
         return pick(inventory);
     }
 
-    private static boolean layable(String itemId) {
+    /**
+     * Whether a body may lay this item: in {@code #anima:bridging_blocks} and not a falling block.
+     * What a consumer's item spec for a supply of such blocks matches on.
+     */
+    public static boolean layable(String itemId) {
         return block(itemId) != null && new ItemStack(item(itemId)).is(BRIDGING_BLOCKS);
     }
 
