@@ -27,7 +27,16 @@ public interface Striker {
         GONE
     }
 
-    Reach reach(BeingId target);
+    /** Where a blow at {@code target} stands, at full reach. */
+    default Reach reach(BeingId target) {
+        return reach(target, 0.0);
+    }
+
+    /**
+     * Where a blow at {@code target} stands, counting it in reach only within {@code inset} blocks
+     * short of full reach — a fighter steps in rather than swinging from the very edge.
+     */
+    Reach reach(BeingId target, double inset);
 
     /**
      * How far the next swing has charged, 0 to 1 — a player's attack strength. Every swing of the
@@ -47,7 +56,7 @@ public interface Striker {
     /** A body with no fighting arm: nothing is ever in reach. */
     Striker NONE = new Striker() {
         @Override
-        public Reach reach(BeingId target) {
+        public Reach reach(BeingId target, double inset) {
             return Reach.GONE;
         }
 

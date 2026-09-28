@@ -246,7 +246,8 @@ public final class FightOrFlightInstinct implements Instinct {
             }
             theirDamagePerSecond += them.damagePerSecondAgainst(me.armor(), me.toughness());
             boolean dangerous = them.hitsPerSecond() > 0.0 || them.blastReach() > 0.0;
-            if (dangerous && them.pace() >= me.pace()) {
+            // Strictly faster: a chaser only as quick as this body never closes the gap.
+            if (dangerous && them.pace() > me.pace()) {
                 outrunsAll = false;
             }
             if (unreachable.containsKey(being.id())) {

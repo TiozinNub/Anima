@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.act.Striker;
@@ -15,8 +16,10 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>Its first tick draws the pack's best weapon, so the warmup runs during the chase, and it asks
  * again before every blow, since the last one may have broken it. Each tick it asks the arm where a
- * blow stands. In reach, it stops and swings the moment the charge is full, as a player waits out
- * the cooldown. Out of reach, or with something in the way,
+ * blow stands. In reach and charged, it swings — after a reaction of {@code combat.reaction_*}
+ * ticks, from up to {@code combat.reach_inset} blocks inside full reach, both rolled per blow. A
+ * machine that hits the tick you enter its reach, with every charge full, is one nobody can touch
+ * (Luiz, 2026-09-28). Out of reach, or with something in the way,
  * it chases the target's perceived cell — re-aimed whenever that cell changes, the way
  * {@link Converse} follows a speaker. It watches the target throughout, at the rank a deliberate
  * act looks at what it is doing.
@@ -39,6 +42,10 @@ public final class Engage implements PrimitiveTask {
     private String failure = "";
     /** Not saved: a restored fight asks again, and an arm already holding the best keeps it. */
     private boolean drawn;
+    /** How far inside full reach this blow is swung from; rolled per blow, NaN until the first. */
+    private double inset = Double.NaN;
+    /** Ticks left before this blow lands, counted from when it became possible; -1 while it is not. */
+    private int reaction = -1;
 
     /**
      * @param target whom to fight
@@ -52,7 +59,10 @@ public final class Engage implements PrimitiveTask {
     @Override
     public TaskStatus tick(BrainContext ctx) {
         Striker arm = ctx.actuators().striker();
-        Striker.Reach reach = arm.reach(target);
+        if (Double.isNaN(inset)) {
+            inset = ctx.random().nextDouble() * ctx.profile().d(ProfileAspect.COMBAT_REACH_INSET);
+        }
+        Striker.Reach reach = arm.reach(target, inset);
         if (reach == Striker.Reach.DEAD) {
             dropLeg(ctx);
             return TaskStatus.SUCCESS;
@@ -65,7 +75,7 @@ public final class Engage implements PrimitiveTask {
             return fail(ctx, "lost track of them");
         }
         lastKnown = seen.pos();
-        Boolean drewNow = null; // the pack is ranked at most once a tick
+        boolean drewNow = false;
         if (!drawn) {
             drewNow = arm.draw();
             drawn = true;
@@ -74,16 +84,21 @@ public final class Engage implements PrimitiveTask {
         if (reach == Striker.Reach.IN_REACH) {
             dropLeg(ctx);
             fruitless = 0;
-            if (arm.charge() >= 1.0) {
-                if (drewNow == null) {
-                    drewNow = arm.draw();
+            if (arm.charge() >= 1.0 && !drewNow) {
+                if (reaction < 0) {
+                    // The blow just became possible. A hand that changes now has not charged,
+                    // whatever the counter said a moment ago.
+                    reaction = arm.draw() ? -1 : rollReaction(ctx);
                 }
-                if (!drewNow) {
+                if (reaction >= 0 && reaction-- == 0) {
                     arm.strike(target);
+                    reaction = -1;
+                    inset = ctx.random().nextDouble() * ctx.profile().d(ProfileAspect.COMBAT_REACH_INSET);
                 }
             }
             status = TaskStatus.RUNNING;
         } else {
+            reaction = -1; // the opening is gone; the next one is reacted to afresh
             status = chase(ctx, seen);
         }
         // Asked last, after any leg's own glance where it walks — this claim outranks that one.
@@ -113,6 +128,12 @@ public final class Engage implements PrimitiveTask {
         }
         leg = null;
         return TaskStatus.RUNNING;
+    }
+
+    private static int rollReaction(BrainContext ctx) {
+        int min = ctx.profile().i(ProfileAspect.COMBAT_REACTION_MIN_TICKS);
+        int max = Math.max(min, ctx.profile().i(ProfileAspect.COMBAT_REACTION_MAX_TICKS));
+        return min + ctx.random().nextInt(max - min + 1);
     }
 
     private TaskStatus fail(BrainContext ctx, String why) {

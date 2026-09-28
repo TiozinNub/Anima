@@ -190,6 +190,18 @@ public final class ProfileAspect {
             "How many places of a kind this body remembers before the stalest goes. Must exceed "
                     + "what it works among, or the edges churn forget/rediscover forever.");
 
+    // --- combat: how this body lands a blow -------------------------------------------------------
+
+    public static final ProfileAspect COMBAT_REACTION_MIN_TICKS = register("combat.reaction_min_ticks", Kind.INT, 0, 40,
+            "The quickest this body swings once a blow is possible — in reach and charged. Even "
+                    + "the best fighter is not instant; a skill will narrow toward this, never past it.");
+    public static final ProfileAspect COMBAT_REACTION_MAX_TICKS = register("combat.reaction_max_ticks", Kind.INT, 0, 40,
+            "The slowest it swings once a blow is possible. Each blow waits a random time between "
+                    + "the two.");
+    public static final ProfileAspect COMBAT_REACH_INSET = register("combat.reach_inset", Kind.DOUBLE, 0.0, 3.0,
+            "Up to how far inside its full reach this body steps before swinging, rolled per blow: "
+                    + "a fighter who always hits from the very edge of reach is one nobody can touch.");
+
     // --- danger: what this body finds frightening about a body ---------------------------------
 
     public static final ProfileAspect DANGER_MELEE_MULT = register("danger.melee_mult", Kind.DOUBLE, 0.0, 4.0,

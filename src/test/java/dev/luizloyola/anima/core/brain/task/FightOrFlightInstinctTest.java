@@ -286,6 +286,16 @@ class FightOrFlightInstinctTest {
     }
 
     @Test
+    void aChaserOnlyAsFastAsThisBodyDoesNotCornerIt() {
+        ctx.percepts.self = me(1, 4, 20); // 1.25: fought only when cornered
+        add("person", 3, new Combatant(20, 20, 2, 0, 3, 1.0, 0.28, 0, 0));
+        ctx.percepts.attackers.addAll(ctx.percepts.combatants.keySet());
+
+        assertInstanceOf(FleeStep.class, next(),
+                "a player sprints exactly as fast: running holds the gap, so it runs");
+    }
+
+    @Test
     void anUnlitCreeperIsFoughtAndALitOneAtArmsLengthIsRunFromInAnyArmour() {
         ctx.percepts.self = me(6, 1.6, 20);
         Being creeper = add("creeper", 3, creeper(0));

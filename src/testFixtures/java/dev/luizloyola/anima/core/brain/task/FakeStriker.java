@@ -12,6 +12,12 @@ import java.util.List;
  */
 public final class FakeStriker implements Striker {
     public Reach reach = Reach.OUT_OF_REACH;
+    /**
+     * When set, reach is measured: in reach within {@link #range} less the asked inset of this
+     * gap, out of it beyond. {@link #reach} still answers for dead and gone.
+     */
+    public double gap = Double.NaN;
+    public double range = 3.0;
     public double charge = 1.0;
     public final List<BeingId> struck = new ArrayList<>();
     /** What the next {@link #draw} answers; it answers once, then the hand holds the best. */
@@ -19,8 +25,11 @@ public final class FakeStriker implements Striker {
     public int draws;
 
     @Override
-    public Reach reach(BeingId target) {
-        return reach;
+    public Reach reach(BeingId target, double inset) {
+        if (Double.isNaN(gap) || reach == Reach.DEAD || reach == Reach.GONE) {
+            return reach;
+        }
+        return gap <= range - inset ? Reach.IN_REACH : Reach.OUT_OF_REACH;
     }
 
     @Override

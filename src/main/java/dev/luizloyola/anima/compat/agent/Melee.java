@@ -123,7 +123,12 @@ public final class Melee {
      * attack range, the {@code entity_interaction_range} attribute measured to the target's box.
      */
     public static boolean withinReach(LivingEntity body, LivingEntity target) {
-        double range = body.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE);
+        return withinReach(body, target, 0.0);
+    }
+
+    /** {@link #withinReach(LivingEntity, LivingEntity)}, {@code inset} blocks short of full reach. */
+    public static boolean withinReach(LivingEntity body, LivingEntity target, double inset) {
+        double range = Math.max(0.0, body.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE) - inset);
         return target.getBoundingBox().distanceToSqr(body.getEyePosition()) <= range * range;
     }
 

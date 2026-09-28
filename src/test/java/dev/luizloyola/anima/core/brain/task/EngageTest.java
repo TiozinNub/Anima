@@ -33,15 +33,59 @@ class EngageTest {
                 who.awareness(), who.held());
     }
 
+    private static final int QUICKEST = 4;
+    private static final int SLOWEST = 10;
+
+    /** Ticks until the next blow lands, or -1 within {@code limit}. */
+    private int ticksToNextBlow(Engage engage, int limit) {
+        int before = ctx.striker.struck.size();
+        for (int t = 1; t <= limit; t++) {
+            engage.tick(ctx);
+            if (ctx.striker.struck.size() > before) {
+                return t;
+            }
+        }
+        return -1;
+    }
+
     @Test
-    void inReachAndFullyChargedItSwings() {
+    void inReachAndChargedItSwingsAfterAHumansReactionNotTheSameTick() {
         Being zombie = zombieAt(2, 2.0);
         ctx.striker.reach = Striker.Reach.IN_REACH;
         Engage engage = new Engage(zombie.id(), zombie.pos());
 
-        assertEquals(TaskStatus.RUNNING, engage.tick(ctx));
+        int ticks = ticksToNextBlow(engage, 20);
+        assertTrue(ticks - 1 >= QUICKEST && ticks - 1 <= SLOWEST,
+                "the blow waits " + (ticks - 1) + " ticks after it became possible");
         assertEquals(List.of(zombie.id()), ctx.striker.struck);
         assertEquals(0, ctx.mover.moveToCalls, "nothing to chase at arm's length");
+    }
+
+    @Test
+    void theReactionVariesFromBlowToBlow() {
+        Being zombie = zombieAt(2, 2.0);
+        ctx.striker.reach = Striker.Reach.IN_REACH;
+        Engage engage = new Engage(zombie.id(), zombie.pos());
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        for (int blow = 0; blow < 30; blow++) {
+            int ticks = ticksToNextBlow(engage, 20);
+            assertTrue(ticks - 1 >= QUICKEST && ticks - 1 <= SLOWEST, "blow " + blow + ": " + ticks);
+            seen.add(ticks);
+        }
+        assertTrue(seen.size() > 1, "a metronome is as easy to read as a machine: " + seen);
+    }
+
+    @Test
+    void itStepsInsideItsFullReachBeforeSwinging() {
+        Being zombie = zombieAt(3, 3.0);
+        ctx.striker.gap = 3.0; // the very edge of a 3-block reach
+        Engage engage = new Engage(zombie.id(), zombie.pos());
+
+        assertEquals(-1, ticksToNextBlow(engage, 15), "no blow from the edge of reach");
+        assertTrue(ctx.mover.moveToCalls > 0, "it closes in instead");
+
+        ctx.striker.gap = 2.3; // well inside, whatever the roll
+        assertTrue(ticksToNextBlow(engage, 20) > 0);
     }
 
     @Test
@@ -75,8 +119,8 @@ class EngageTest {
         assertTrue(ctx.striker.struck.isEmpty(),
                 "the counter still reads the old hand's charge until the body's next tick");
         assertEquals(1, ctx.striker.draws, "ranked once, not again before the blow");
-        engage.tick(ctx);
-        assertEquals(1, ctx.striker.struck.size());
+        assertTrue(ticksToNextBlow(engage, 20) > 0);
+        assertEquals(2, ctx.striker.draws, "and once more when the blow opened");
     }
 
     @Test
@@ -84,13 +128,14 @@ class EngageTest {
         Being zombie = zombieAt(2, 2.0);
         ctx.striker.reach = Striker.Reach.IN_REACH;
         Engage engage = new Engage(zombie.id(), zombie.pos());
-        engage.tick(ctx);
-        engage.tick(ctx);
+        ticksToNextBlow(engage, 20);
+        int draws = ctx.striker.draws;
         ctx.striker.drawChanges = true; // the last blow broke the sword; a spare comes out
         engage.tick(ctx);
 
-        assertEquals(2, ctx.striker.struck.size(), "no blow on the tick the spare was drawn");
-        assertEquals(3, ctx.striker.draws);
+        assertEquals(1, ctx.striker.struck.size(), "no blow on the tick the spare was drawn");
+        assertEquals(draws + 1, ctx.striker.draws, "the next blow asked for the best weapon");
+        assertTrue(ticksToNextBlow(engage, 20) > 0, "and the spare swings once it has charged");
     }
 
     @Test
@@ -151,7 +196,7 @@ class EngageTest {
         Engage engage = new Engage(zombie.id(), zombie.pos());
         engage.tick(ctx);
         ctx.striker.reach = Striker.Reach.IN_REACH;
-        engage.tick(ctx);
+        assertTrue(ticksToNextBlow(engage, 20) > 0);
 
         assertEquals(List.of("moveTo(5, 64, 0)", "stop"), ctx.mover.events);
         assertEquals(1, ctx.striker.struck.size());

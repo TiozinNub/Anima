@@ -60,7 +60,7 @@ public final class AgentStriker implements Striker {
     }
 
     @Override
-    public Reach reach(BeingId target) {
+    public Reach reach(BeingId target, double inset) {
         LivingEntity self = body.entity();
         LivingEntity victim = find(target);
         if (victim == null || victim.level() != self.level()) {
@@ -69,7 +69,7 @@ public final class AgentStriker implements Striker {
         if (victim.isDeadOrDying()) {
             return Reach.DEAD;
         }
-        if (!Melee.withinReach(self, victim)) {
+        if (!Melee.withinReach(self, victim, inset)) {
             return Reach.OUT_OF_REACH;
         }
         return self.hasLineOfSight(victim) ? Reach.IN_REACH : Reach.BLOCKED;
