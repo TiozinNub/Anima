@@ -93,14 +93,23 @@ public final class BrainState {
                             .forGetter(memory -> memory.unreachable().entrySet().stream()
                                     .map(entry -> new Until(entry.getKey(), entry.getValue()))
                                     .toList()),
+                    RecordCodecBuilder.<Until>create(e -> e.group(
+                            BEING_ID.fieldOf("who").forGetter(Until::who),
+                            Codec.LONG.fieldOf("at").forGetter(Until::until)
+                    ).apply(e, Until::new)).listOf().optionalFieldOf("counted", List.of())
+                            .forGetter(memory -> memory.counted().entrySet().stream()
+                                    .map(entry -> new Until(entry.getKey(), entry.getValue()))
+                                    .toList()),
                     Codec.BOOL.optionalFieldOf("waitingOutFuse", false)
                             .forGetter(FightOrFlightInstinct.Memory::waitingOutFuse),
                     Codec.STRING.optionalFieldOf("lastSaid", "")
                             .forGetter(FightOrFlightInstinct.Memory::lastSaid)
-            ).apply(m, (shown, unreachable, waiting, lastSaid) -> new FightOrFlightInstinct.Memory(
+            ).apply(m, (shown, unreachable, counted, waiting, lastSaid) -> new FightOrFlightInstinct.Memory(
                     shown.stream().collect(java.util.stream.Collectors.toMap(
                             Shown::who, Shown::as, (a, b) -> b)),
                     unreachable.stream().collect(java.util.stream.Collectors.toMap(
+                            Until::who, Until::until, (a, b) -> b)),
+                    counted.stream().collect(java.util.stream.Collectors.toMap(
                             Until::who, Until::until, (a, b) -> b)),
                     waiting, lastSaid)));
 

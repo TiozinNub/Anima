@@ -46,6 +46,11 @@ import org.jspecify.annotations.Nullable;
  * sword away does not lure anyone in who saw it drawn (Luiz, 2026-09-28). Losing track of it
  * forgets it.
  *
+ * <p><b>A pack seen chasing is still behind you.</b> A threat that counted towards the balance keeps
+ * counting for {@link #PACK_MEMORY_TICKS} after it drops out of view or range. Without that, a body
+ * running from five husks turned to fight the one it could still see, met the other four, and
+ * ran again, every few ticks for minutes (Lawrence, 2026-09-28).
+ *
  * <p><b>The target</b> is the threat worth most: its fear, more if it hit this body, less the
  * longer it would take to kill, with an edge for the one already being fought. A target a fight
  * could not reach is left out for {@link #UNREACHABLE_TICKS}.
@@ -89,10 +94,15 @@ public final class FightOrFlightInstinct implements Instinct {
      */
     static final double FUSE_MARGIN = 2.0;
 
+    /** How long a threat that stopped being counted — out of view, out of range — still counts. */
+    static final long PACK_MEMORY_TICKS = 100;
+
     /** Targets a fight could not get to, until when (game time). */
     private final Map<BeingId, Long> unreachable = new HashMap<>();
     /** The strongest each perceived body has shown, while it is perceived. */
     private final Map<BeingId, Combatant> shown = new HashMap<>();
+    /** When each threat last counted towards the balance (game time). */
+    private final Map<BeingId, Long> counted = new HashMap<>();
     /** The answer last written to the journal, so a steady fight is one line and not one a tick. */
     private @Nullable String lastSaid;
     /** Set when a blast sent this body running; held until no fuse near it is still burning. */
@@ -123,13 +133,13 @@ public final class FightOrFlightInstinct implements Instinct {
      * left out; it is only ever this tick's.
      */
     public record Memory(Map<BeingId, Combatant> shown, Map<BeingId, Long> unreachable,
-                         boolean waitingOutFuse, String lastSaid) {
-        public static final Memory EMPTY = new Memory(Map.of(), Map.of(), false, "");
+                         Map<BeingId, Long> counted, boolean waitingOutFuse, String lastSaid) {
+        public static final Memory EMPTY = new Memory(Map.of(), Map.of(), Map.of(), false, "");
     }
 
     public Memory memory() {
-        return new Memory(Map.copyOf(shown), Map.copyOf(unreachable), waitingOutFuse,
-                lastSaid == null ? "" : lastSaid);
+        return new Memory(Map.copyOf(shown), Map.copyOf(unreachable), Map.copyOf(counted),
+                waitingOutFuse, lastSaid == null ? "" : lastSaid);
     }
 
     public void restore(Memory memory) {
@@ -137,6 +147,8 @@ public final class FightOrFlightInstinct implements Instinct {
         shown.putAll(memory.shown());
         unreachable.clear();
         unreachable.putAll(memory.unreachable());
+        counted.clear();
+        counted.putAll(memory.counted());
         waitingOutFuse = memory.waitingOutFuse();
         lastSaid = memory.lastSaid().isEmpty() ? null : memory.lastSaid();
         memo = null;
@@ -261,6 +273,7 @@ public final class FightOrFlightInstinct implements Instinct {
         double bestValue = 0.0;
         double bestKillTime = Double.POSITIVE_INFINITY;
         java.util.Set<BeingId> perceived = new java.util.HashSet<>();
+        java.util.Set<BeingId> countedNow = new java.util.HashSet<>();
         for (Being being : percepts.beings()) {
             perceived.add(being.id());
             boolean attackedMe = percepts.attackedLately(being.id());
@@ -280,10 +293,10 @@ public final class FightOrFlightInstinct implements Instinct {
             if (me == null) {
                 continue;
             }
+            counted.put(being.id(), now);
+            countedNow.add(being.id());
             theirDamagePerSecond += them.damagePerSecondAgainst(me.armor(), me.toughness());
-            boolean dangerous = them.hitsPerSecond() > 0.0 || them.blastReach() > 0.0;
-            // Strictly faster: a chaser only as quick as this body never closes the gap.
-            if (dangerous && them.pace() > me.pace()) {
+            if (!outruns(me, them)) {
                 outrunsAll = false;
             }
             if (unreachable.containsKey(being.id())) {
@@ -299,6 +312,20 @@ public final class FightOrFlightInstinct implements Instinct {
             }
         }
         shown.keySet().retainAll(perceived);
+        counted.entrySet().removeIf(entry -> now - entry.getValue() > PACK_MEMORY_TICKS
+                || !shown.containsKey(entry.getKey()));
+        if (me != null) {
+            for (Map.Entry<BeingId, Long> entry : counted.entrySet()) {
+                if (countedNow.contains(entry.getKey())) {
+                    continue;
+                }
+                Combatant them = shown.get(entry.getKey());
+                theirDamagePerSecond += them.damagePerSecondAgainst(me.armor(), me.toughness());
+                if (!outruns(me, them)) {
+                    outrunsAll = false;
+                }
+            }
+        }
         if (!fuseBurning) {
             waitingOutFuse = false;
         }
@@ -348,6 +375,12 @@ public final class FightOrFlightInstinct implements Instinct {
                 live.pace(), live.fuse(), live.blastReach());
         shown.put(who, judged);
         return judged;
+    }
+
+    /** Strictly faster, or harmless: a chaser only as quick as this body never closes the gap. */
+    private static boolean outruns(Combatant me, Combatant them) {
+        boolean dangerous = them.hitsPerSecond() > 0.0 || them.blastReach() > 0.0;
+        return !dangerous || them.pace() <= me.pace();
     }
 
     private static boolean hitsHarder(Combatant a, Combatant b) {

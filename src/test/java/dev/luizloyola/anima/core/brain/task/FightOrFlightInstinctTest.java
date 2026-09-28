@@ -406,6 +406,36 @@ class FightOrFlightInstinctTest {
     }
 
     @Test
+    void aPackSeenChasingStillCountsForAWhileOnceOutOfView() {
+        ctx.percepts.self = me(6, 1.6, 20);
+        Being nearest = add("zombie", 3, ZOMBIE);
+        add("zombie", 5, ZOMBIE);
+        add("zombie", 6, ZOMBIE);
+        add("zombie", 7, ZOMBIE);
+        assertInstanceOf(FleeStep.class, next(), "four hit 12 a second");
+
+        // Running, it can see only the nearest: the rest are remembered where it last saw them,
+        // which is now out of range.
+        List<Being> all = ctx.percepts.beings;
+        java.util.List<Being> view = new java.util.ArrayList<>();
+        view.add(nearest);
+        for (Being being : all.subList(1, all.size())) {
+            view.add(new Being(being.id(), being.kind(), being.species(), being.name(),
+                    being.profession(), being.pos(), 20, being.eyeHeight(),
+                    being.playerControlled(), being.count(), being.spread(), being.herdAnimal(),
+                    being.members(), being.activity(), being.locomotion(), being.sneaking(),
+                    being.watching(), being.aimedAt(), being.hailing(), being.approaching(),
+                    being.aggressive(), being.gear(), being.identified(),
+                    Being.Awareness.REMEMBERED, being.held()));
+        }
+        ctx.percepts.beings = view;
+        assertInstanceOf(FleeStep.class, next(), "the pack is still behind it: no turning back");
+
+        ctx.percepts.time += 100;
+        assertInstanceOf(Fight.class, next(), "long gone, the one still in sight is a fair fight");
+    }
+
+    @Test
     void whateverHitThisBodyIsFoughtFirst() {
         ctx.percepts.self = me(6, 1.6, 20);
         add("zombie", 4, ZOMBIE);

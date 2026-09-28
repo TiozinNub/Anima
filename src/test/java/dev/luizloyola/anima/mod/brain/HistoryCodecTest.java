@@ -33,6 +33,8 @@ class HistoryCodecTest {
                         new dev.luizloyola.anima.core.brain.sense.Combatant(20, 20, 8, 2, 8, 1.6, 0.28, 0, 0)),
                 java.util.Map.of(dev.luizloyola.anima.core.brain.sense.BeingId.of(java.util.UUID.randomUUID()),
                         4200L),
+                java.util.Map.of(dev.luizloyola.anima.core.brain.sense.BeingId.of(java.util.UUID.randomUUID()),
+                        4100L),
                 true, "flee");
         JsonElement encoded = BrainState.FIGHT_MEMORY.encodeStart(JsonOps.INSTANCE, memory).getOrThrow();
         assertEquals(memory, BrainState.FIGHT_MEMORY.parse(JsonOps.INSTANCE, encoded).getOrThrow());
