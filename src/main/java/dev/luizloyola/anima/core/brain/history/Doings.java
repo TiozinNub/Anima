@@ -27,7 +27,7 @@ public final class Doings {
             "eating", "anima.doing.eating", List.of(), true));
     public static final Doing SORTING_PACK = register(new Doing(
             "sorting_pack", "anima.doing.sorting_pack", List.of(), true));
-    /** Not remembered: "I talked with Bram earlier" hands the listener a name nobody told them. */
+    /** Not remembered: a chat is not news. */
     public static final Doing TALKING = register(new Doing(
             "talking", "anima.doing.talking", List.of(), false));
     public static final Doing LOOKING_FOR_COMPANY = register(new Doing(
