@@ -179,8 +179,13 @@ public final class Pathfinder {
     private static final double SCALE_COST = 5.0;
     /** The highest step a scale climbs. Four up is a cliff, not a step. */
     private static final int MAX_SCALE = 3;
-    /** One {@link MoveType#LOWER}: the block underfoot broken, and a drop of one with it. */
-    private static final double LOWER_COST = 3.0;
+    /**
+     * One {@link MoveType#LOWER}: the block underfoot broken, and a drop of one with it. Priced like
+     * a short drop, below the second of time it really takes: going down a pillar is the only thing
+     * that ever cleans it up, and at its true cost the search ate one block and dropped past the
+     * rest, leaving the pillar standing. Still over the heuristic's 0.3 a block.
+     */
+    private static final double LOWER_COST = 0.5;
     /** Decks in one run. Past this a gap is not crossed but spanned, and that is the builder's work. */
     private static final int SPAN_CAP = 16;
     /** Pillar blocks in one run — the forest crevice a settler could not leave was twelve deep. */
