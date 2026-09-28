@@ -51,6 +51,12 @@ final class GroundWork {
      * (gauntlet K7 and K9, 2026-09-28), and left the step changed.
      */
     private static final int DROP_WAIT = 40;
+    /**
+     * How many times a cut that failed is started again. The arm gives up when the block changes
+     * under it, and dirt a cut leaves open to the sky can turn to grass beside a grassed step on a
+     * random tick (gauntlet K8, 2026-09-28): still soft, still the step.
+     */
+    private static final int CUT_RETRIES = 2;
 
     private final AgentBody person;
     private final AgentBlockPlacer placer;
@@ -58,6 +64,8 @@ final class GroundWork {
     private int ticks;
     /** Ticks this act has stood in its notch with nothing to put back. */
     private int waitedForDrop;
+    /** Cuts of this act that failed and were started again. */
+    private int cutRetries;
     /** Whether the riser or the arm is busy on this hand's account — only those are called off. */
     private boolean ownsRiser;
     private boolean ownsBreaker;
@@ -102,6 +110,7 @@ final class GroundWork {
             this.workingIndex = index;
             this.ticks = 0;
             this.waitedForDrop = 0;
+            this.cutRetries = 0;
         }
         if (++this.ticks > ACT_TIMEOUT) {
             return refuse("gave up on the " + name(to) + " at " + at(to));
@@ -213,7 +222,11 @@ final class GroundWork {
         if (breaker.state() == BreakState.FAILED && this.ownsBreaker) {
             this.ownsBreaker = false;
             breaker.abort();
-            return refuse("the step at " + at(to) + " would not break");
+            if (++this.cutRetries > CUT_RETRIES) {
+                putBackFromHere(from, to);
+                return refuse("the step at " + at(to) + " would not break");
+            }
+            return Result.WORKING; // the loop below starts the cut again
         }
         Level level = this.person.level();
         for (int y = to.y() - 1; y > floor; y--) {
@@ -223,6 +236,7 @@ final class GroundWork {
                 this.person.stopMoving();
                 this.cut.putIfAbsent(cell, BuiltInRegistries.ITEM.getKey(state.getBlock().asItem()).toString());
                 if (!breaker.begin(new Pos(cell.getX(), cell.getY(), cell.getZ()))) {
+                    putBackFromHere(from, to);
                     return refuse("could not reach the step at " + cell.toShortString());
                 }
                 this.ownsBreaker = true;
@@ -239,6 +253,26 @@ final class GroundWork {
             this.person.driveJump();
         }
         return Result.WORKING;
+    }
+
+    /**
+     * A scale given up before the body got into the notch puts back what it had cut, from where it
+     * stands, before the route is asked again: otherwise the next search reads the half-cut step as
+     * the ground and climbs it as it now is, and the step stays changed. Best effort — only what the
+     * pocket already holds goes back.
+     */
+    private void putBackFromHere(BlockPos from, Waypoint to) {
+        Level level = this.person.level();
+        for (int y = from.getY() + 1; y < to.y(); y++) {
+            BlockPos cell = new BlockPos(to.x(), y, to.z());
+            if (!this.cut.containsKey(cell) || !level.getBlockState(cell).canBeReplaced()) {
+                continue;
+            }
+            String item = Laying.putBack(this.person.inventory(), this.cut.get(cell));
+            if (item != null && this.placer.place(item, new Pos(cell.getX(), cell.getY(), cell.getZ()))) {
+                log("put back", item + " at " + cell.toShortString());
+            }
+        }
     }
 
     private boolean arrived(Waypoint to) {
