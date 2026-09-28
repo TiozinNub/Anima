@@ -82,6 +82,12 @@ public final class Navigator {
     /** Final-waypoint radius when the goal cell borders a drop — see the radius selection. */
     private static final double CAREFUL_FINAL_RADIUS = 0.35;
     /**
+     * Radius of a corner that wraps something harmful — see {@link #wrapsHarm}. Close enough that
+     * the 0.6-wide body is off the inner corner when it turns, and over a careful tick's step
+     * (~0.1) so it never orbits the waypoint.
+     */
+    private static final double HARM_CORNER_RADIUS = 0.2;
+    /**
      * Residual slide (blocks/tick, squared) below which a landing counts as settled: 0.02/tick.
      * Friction leaves ~1.2× the current speed as drift, so creep after arrival is ~0.025 blocks;
      * the first cut, 0.1/tick, let ~0.13 through and the body glided onto the lip.
@@ -800,11 +806,12 @@ public final class Navigator {
         };
         boolean leapLanding = waypoint.move() == MoveType.LEAP && this.person.onGround()
                 && horizontalSq <= 1.44;
-        boolean careful = isCareful(waypoint, leapLanding);
+        boolean harmCorner = !isLast && wrapsHarm(this.index);
+        boolean careful = isCareful(waypoint, leapLanding) || harmCorner;
         // A careful FINAL waypoint also shrinks the arrival radius: 0.55 from the center of a
         // 1-wide block is its lip — "arrived" next to a drop must mean standing well inside.
         double radius = isLast ? (careful ? CAREFUL_FINAL_RADIUS : FINAL_RADIUS)
-                : careful ? CAREFUL_RADIUS : WAYPOINT_RADIUS;
+                : harmCorner ? HARM_CORNER_RADIUS : careful ? CAREFUL_RADIUS : WAYPOINT_RADIUS;
         // Publish both for the debug view. Assigned where they are decided, not recomputed by the
         // reader — see careful().
         this.careful = careful;
@@ -1267,6 +1274,11 @@ public final class Navigator {
             if (next.move() == MoveType.RUNUP) {
                 return;
             }
+            // Nor a corner that wraps something harmful: from up to 0.6 short of it, the line to
+            // the next waypoint crosses the cell the path went around.
+            if (wrapsHarm(this.index)) {
+                return;
+            }
             double offX = pos.x - (current.x() + 0.5);
             double offZ = pos.z - (current.z() + 0.5);
             double segX = next.x() - current.x();
@@ -1416,6 +1428,38 @@ public final class Navigator {
      */
     private boolean isWet() {
         return this.person.entity().isInWater();
+    }
+
+    /**
+     * Whether the path turns square at waypoint {@code i} around something that hurts — a berry
+     * bush on the inside of the corner. The planner never routes into one and refuses the diagonal
+     * past it, but a corner claimed early steers straight at the next waypoint, and that line
+     * crosses the bush: a forager in a patch took a hit at every such turn (2026-09-28, gauntlet
+     * G11). Walks only; legs of any length, each along one axis.
+     */
+    private boolean wrapsHarm(int i) {
+        List<Waypoint> waypoints = this.path.waypoints();
+        if (this.grid == null || i <= 0 || i >= waypoints.size() - 1) {
+            return false;
+        }
+        Waypoint prev = waypoints.get(i - 1);
+        Waypoint at = waypoints.get(i);
+        Waypoint next = waypoints.get(i + 1);
+        if (at.move() != MoveType.WALK || next.move() != MoveType.WALK) {
+            return false;
+        }
+        int inX = Integer.signum(prev.x() - at.x());
+        int inZ = Integer.signum(prev.z() - at.z());
+        int outX = Integer.signum(next.x() - at.x());
+        int outZ = Integer.signum(next.z() - at.z());
+        if (Math.abs(inX) + Math.abs(inZ) != 1 || Math.abs(outX) + Math.abs(outZ) != 1
+                || inX * outX + inZ * outZ != 0) {
+            return false;
+        }
+        int x = at.x() + inX + outX;
+        int z = at.z() + inZ + outZ;
+        return this.grid.cell(x, at.y(), z) == CellType.DANGER
+                || this.grid.cell(x, at.y() + 1, z) == CellType.DANGER;
     }
 
     /**

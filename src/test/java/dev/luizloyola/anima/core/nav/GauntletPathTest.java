@@ -282,6 +282,25 @@ class GauntletPathTest {
     }
 
     /**
+     * G11's subject is two square turns around berry bushes, which the follower once cut. A route
+     * that leapt the bushes, or went round them some other way, would pass without ever turning
+     * where the bushes are — so the route must stand on both corners, and walk.
+     */
+    @Test
+    void theBushChicaneIsWalkedRoundItsCorners() {
+        Station s = stations.stream().filter(st -> st.id().equals("G11")).findFirst()
+                .orElseThrow(() -> new AssertionError("no station G11"));
+        List<Waypoint> route = Pathfinder.find(world,
+                PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+        for (int[] corner : new int[][] {{753, 123}, {753, 124}}) {
+            assertTrue(route.stream().anyMatch(w -> w.x() == corner[0] && w.z() == corner[1]),
+                    () -> "G11 never turns at (" + corner[0] + ", " + corner[1] + "): " + route);
+        }
+        assertTrue(route.stream().noneMatch(w -> w.move() == MoveType.LEAP),
+                "G11 is leapt rather than walked: " + route);
+    }
+
+    /**
      * Stations whose whole subject is the water. Same disease as {@link #DIAGONAL_ONLY}: H6 read a
      * clean pass for a route that walked the length of its pool's RETAINING WALL and dropped onto
      * the goal pad without getting wet.

@@ -122,6 +122,7 @@ G7	745	-49	76	762	-49	76	false	block	powder snow patch
 G8	745	-49	88	762	-49	88	false	block	fire on netherrack
 G9	745	-49	100	762	-49	100	false	block	sweet berry bushes
 G10	745	-49	112	762	-49	112	true	reach	1-wide safe lane in lava
+G11	745	-49	124	762	-49	124	true	reach	chicane through berry bushes
 H1	769	-49	4	786	-50	4	true	reach	drop 1
 H2	769	-49	16	786	-52	16	true	reach	drop 3
 H3	769	-49	28	786	-53	28	false	reach	drop 4
