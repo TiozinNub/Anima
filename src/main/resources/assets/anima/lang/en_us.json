@@ -588,5 +588,6 @@
   "anima.talk.dropped": "You let the conversation with %s drop.",
   "anima.talk.busy.you": "You're still talking to %s.",
   "anima.talk.busy.now": "%s is busy right now.",
-  "anima.talk.busy.them": "%s is already talking to someone."
+  "anima.talk.busy.them": "%s is already talking to someone.",
+  "tag.item.anima.bridging_blocks": "Bridging Blocks"
 }

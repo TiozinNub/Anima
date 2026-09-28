@@ -588,5 +588,6 @@
   "anima.talk.dropped": "Você deixou a conversa com %s morrer.",
   "anima.talk.busy.you": "Você ainda está conversando com %s.",
   "anima.talk.busy.now": "%s não tem tempo agora.",
-  "anima.talk.busy.them": "%s já está conversando com alguém."
+  "anima.talk.busy.them": "%s já está conversando com alguém.",
+  "tag.item.anima.bridging_blocks": "Blocos de ponte"
 }
