@@ -83,6 +83,10 @@ public final class ProfileAspect {
     public static final ProfileAspect FLEE_APPROACH_BONUS = register("instincts.flee_approach_bonus", Kind.DOUBLE, 1.0, 4.0,
             "Pressure multiplier when a threat is measurably closing in — how strongly this body "
                     + "reads being followed as being hunted.");
+    public static final ProfileAspect FLEE_LOOK_TICKS = register("instincts.flee_look_ticks", Kind.INT, 0, 40,
+            "How long (ticks) this body stops to look back after each stretch of running from "
+                    + "something it can no longer see, and then each look around if it is not "
+                    + "where it was. 0 never looks back.");
     public static final ProfileAspect FIGHT_START_RATIO = register("instincts.fight_start_ratio", Kind.DOUBLE, 0.0, 100.0,
             "How lopsided a fight must be before this body takes it on, as how long the threats "
                     + "would take to kill it over how long it would take to kill its target. 2 "

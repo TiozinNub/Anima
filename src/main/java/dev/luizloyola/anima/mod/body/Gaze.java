@@ -108,8 +108,15 @@ public final class Gaze implements Gazer {
 
     @Override
     public void lookAt(double x, double y, double z, Priority priority, int holdTicks) {
+        lookAt(x, y, z, priority, holdTicks, false);
+    }
+
+    @Override
+    public void lookAt(double x, double y, double z, Priority priority, int holdTicks,
+                       boolean snap) {
         long now = this.body.level().getGameTime();
-        this.claims[priority.ordinal()] = new Claim(new Vec3(x, y, z), now + Math.max(1, holdTicks));
+        this.claims[priority.ordinal()] =
+                new Claim(new Vec3(x, y, z), now + Math.max(1, holdTicks), snap);
     }
 
     /**
@@ -152,7 +159,7 @@ public final class Gaze implements Gazer {
             // it does not survive the interruption.
             this.attention.clear();
             this.reason = rank == Priority.WORK ? "work" : "walking";
-            aimAt(entity, winner.at(), bodyFree, false);
+            aimAt(entity, winner.at(), bodyFree, winner.snap());
             return;
         }
         Vec3 eye = this.body.eyePosition();
@@ -238,6 +245,6 @@ public final class Gaze implements Gazer {
                 this.reason, this.aim.x, this.aim.y, this.aim.z, verdict);
     }
 
-    private record Claim(Vec3 at, long until) {
+    private record Claim(Vec3 at, long until, boolean snap) {
     }
 }

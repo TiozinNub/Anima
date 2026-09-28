@@ -167,6 +167,8 @@
   "anima.config.aspect.instincts.flee_ramp.desc": "Distance in blocks over which fear ramps from nothing to full panic.",
   "anima.config.aspect.instincts.flee_approach_bonus": "Closing-in fear boost",
   "anima.config.aspect.instincts.flee_approach_bonus.desc": "Extra fear when a threat is measurably closing in — the observable stand-in for \"it is hunting me\".",
+  "anima.config.aspect.instincts.flee_look_ticks": "Look back while fleeing for",
+  "anima.config.aspect.instincts.flee_look_ticks.desc": "How long, in ticks, this body stops to look back after each stretch of running from something it can no longer see, and then each look around if it is not where it was. 0 never looks back.",
   "anima.config.aspect.instincts.fight_start_ratio": "Odds to start a fight",
   "anima.config.aspect.instincts.fight_start_ratio.desc": "How lopsided a fight must be before it is taken on: how long the threats would take to kill this body, over how long it would take to kill its target.",
   "anima.config.aspect.instincts.fight_quit_ratio": "Odds to break off a fight",

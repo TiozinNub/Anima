@@ -45,6 +45,16 @@ public interface Gazer {
      */
     void lookAt(double x, double y, double z, Priority priority, int holdTicks);
 
+    /**
+     * As {@link #lookAt(double, double, double, Priority, int)}, and with {@code snap} the head
+     * whips round at a startle's speed rather than turning. For a look that must land before the
+     * moment passes — a glance back while running — and nothing else.
+     */
+    default void lookAt(double x, double y, double z, Priority priority, int holdTicks,
+                        boolean snap) {
+        lookAt(x, y, z, priority, holdTicks);
+    }
+
     /** As {@link #lookAt(double, double, double, Priority, int)}, for one tick only. */
     default void lookAt(double x, double y, double z, Priority priority) {
         lookAt(x, y, z, priority, 1);

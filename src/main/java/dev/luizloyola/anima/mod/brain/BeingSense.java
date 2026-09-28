@@ -454,6 +454,12 @@ public final class BeingSense {
                     ? LevelProbe.bodyVisible(person.level(), person.entity().getEyePosition(), body)
                     : LevelProbe.centerVisible(person.level(), person.entity().getEyePosition(), body);
         }
+
+        @Override
+        public boolean inSightOf(Pos cell, double height) {
+            return LevelProbe.pointVisible(person.level(), person.entity().getEyePosition(),
+                    new Vec3(cell.x() + 0.5, cell.y() + height, cell.z() + 0.5));
+        }
     }
 
     /**

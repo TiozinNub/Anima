@@ -15,6 +15,8 @@ public final class FakeGazer implements Gazer {
     public int holdTicks;
     /** How many claims have been made — a look re-asked every tick is not one look. */
     public int claims;
+    /** Whether the last claim asked for a startle's turn. */
+    public boolean snap;
 
     @Override
     public void lookAt(double x, double y, double z, Priority priority, int holdTicks) {
@@ -25,5 +27,13 @@ public final class FakeGazer implements Gazer {
         this.priority = priority;
         this.holdTicks = holdTicks;
         this.claims++;
+        this.snap = false;
+    }
+
+    @Override
+    public void lookAt(double x, double y, double z, Priority priority, int holdTicks,
+                       boolean snap) {
+        lookAt(x, y, z, priority, holdTicks);
+        this.snap = snap;
     }
 }

@@ -45,7 +45,8 @@ class FleeCoverTest {
     /** The goal a flee leg picked, read out of the GoTo it decomposed to. */
     private Pos fleeTarget() {
         List<Task> plan = new FleeStep().methods().get(0).decompose(ctx);
-        assertEquals(1, plan.size());
+        assertEquals(2, plan.size(), "the sprint, then the look back");
+        assertTrue(plan.get(1) instanceof LookBack);
         String described = ((PrimitiveTask) plan.get(0)).describe();
         Matcher m = GOAL.matcher(described);
         assertTrue(m.find(), "not a goto: " + described);

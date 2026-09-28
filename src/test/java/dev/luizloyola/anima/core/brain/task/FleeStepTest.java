@@ -82,8 +82,10 @@ class FleeStepTest {
         assertEquals(Gait.SPRINT, ctx.mover.lastGait, "the leg sprints where it can — the flee gait");
 
         ctx.mover.setState(MoveState.ARRIVED);
-        executor.tick(ctx); // GoTo SUCCEEDS -> the leg (no Idle) ends immediately, same tick
+        executor.tick(ctx); // GoTo SUCCEEDS
+        executor.tick(ctx); // the threat is in view, so the look back has nothing to look for
         assertFalse(executor.isBusy(), "SUCCESS just ends the leg -- unlike WanderStep, no Idle pause");
+        assertFalse(ctx.gazer.snap, "no look back at something in view");
         assertEquals(1, ctx.mover.moveToCalls, "still exactly one GoTo -- nothing chained within one step");
     }
 

@@ -23,8 +23,10 @@ import java.util.random.RandomGenerator;
  * to the pathfinder. No threats, or a centroid landing on them (surrounded), falls back to a
  * uniformly random heading of the same length.
  *
- * <p>Decomposes to one {@code [GoTo(target, Gait.SPRINT)]}, no {@link Idle}: flight does not pause
- * between legs.
+ * <p>Decomposes to {@code [GoTo(target, Gait.SPRINT), LookBack]}, no {@link Idle}: flight does not
+ * pause between legs except to look back, and {@link LookBack} decides for itself whether it may.
+ * The look is the leg's last step rather than a grant of its own because a flight whose threats have
+ * fallen out of range bids nothing at the boundary, and would never get to look.
  *
  * <p><b>SUCCESS just ends the leg.</b> While the pressure stays on top the arbiter re-grants
  * {@link dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct}, and a fresh {@code FleeStep}
@@ -110,7 +112,7 @@ public final class FleeStep implements CompoundTask {
             DangerField field = DangerField.of(ctx.danger(), ctx.percepts().beings(),
                     ctx.knowledge(), ctx.percepts().time(), DangerField.FADE_TICKS);
             Pos goal = safest(ctx, here, threats, direction, jitterX, jitterZ, field);
-            return List.of(new GoTo(goal.x(), goal.y(), goal.z(), Gait.SPRINT));
+            return List.of(new GoTo(goal.x(), goal.y(), goal.z(), Gait.SPRINT), new LookBack());
         }
 
         @Override

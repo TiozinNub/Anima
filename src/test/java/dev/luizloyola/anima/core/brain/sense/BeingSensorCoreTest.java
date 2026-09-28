@@ -44,6 +44,19 @@ class BeingSensorCoreTest {
         return events;
     }
 
+    private List<BeingEvent> tickFacing(double yaw, int ticks) {
+        List<BeingEvent> events = new ArrayList<>();
+        for (int i = 0; i < ticks; i++) {
+            world.newTick();
+            events.addAll(sensor.tick(self, yaw, 0.0, now++, world));
+        }
+        return events;
+    }
+
+    private static long count(List<BeingEvent> events, BeingEvent.Type type) {
+        return events.stream().filter(e -> e.type() == type).count();
+    }
+
     private Being only() {
         List<Being> beings = sensor.beings();
         assertEquals(1, beings.size(), "expected exactly one perceived being: " + beings);
@@ -614,6 +627,9 @@ class BeingSensorCoreTest {
         int rayChecks;
         int raysThisTick;
         int maxRaysInOneTick;
+        /** Whether a line to an empty spot is clear — false by default, as the interface's. */
+        boolean spotsInSight;
+        int spotChecks;
 
         /** The test loop's tick edge for the per-tick ray counter. */
         void newTick() {
@@ -692,6 +708,12 @@ class BeingSensorCoreTest {
             maxRaysInOneTick = Math.max(maxRaysInOneTick, raysThisTick);
             return !hidden.contains(id);
         }
+
+        @Override
+        public boolean inSightOf(Pos cell, double height) {
+            spotChecks++;
+            return spotsInSight;
+        }
     }
 
     /** Something that was never there is dropped outright, rather than remembered for a while. */
@@ -728,5 +750,101 @@ class BeingSensorCoreTest {
         assertEquals(2, listed, "the fixture: two faces, a voice and a zombie");
         assertEquals(listed, sensor.countPeers(id -> true));
         assertEquals(1, sensor.countPeers(ann::equals), "and the filter is the caller's");
+    }
+
+    // --- looking back: a turned head looks at once, and an empty spot refutes a memory ----------
+
+    @Test
+    void turningRoundSeesWhatIsBehindAtOnce() {
+        world.addCreature(Being.Kind.MONSTER, "zombie", false, true, new Pos(0, 64, -8), 8.0);
+        assertTrue(tickFacing(0.0, 1).isEmpty(), "behind: unseen");
+
+        List<BeingEvent> turned = tickFacing(180.0, 1);
+        assertEquals(1, count(turned, BeingEvent.Type.SPOTTED),
+                "a look back sees on the tick the head comes round, not at the next sweep");
+    }
+
+    @Test
+    void aGlanceInsideTheConeWaitsForTheSweep() {
+        // 100° off the heading: outside the 150° cone until the head turns 40° towards it — a turn
+        // smaller than half the cone, which is not a look round.
+        world.addCreature(Being.Kind.MONSTER, "zombie", false, true, new Pos(8, 64, -1), 8.1);
+        tickFacing(0.0, 1);
+        assertTrue(tickFacing(-40.0, 1).isEmpty(), "no extra sweep for a glance");
+        assertEquals(1, count(tickFacing(-40.0, 10), BeingEvent.Type.SPOTTED),
+                "the ordinary sweep still finds it");
+    }
+
+    /** A zombie heard behind, then silent long enough to go dark while the body faced away. */
+    private BeingId aZombieLostBehind() {
+        BeingId zombie = world.addCreature(Being.Kind.MONSTER, "zombie", false, true,
+                new Pos(0, 64, -10), 10.0);
+        world.hidden.add(zombie);
+        sensor.heard(world.bodies.get(zombie), now, true);
+        tickFacing(0.0, 40);
+        assertEquals(Being.Awareness.REMEMBERED, only().awareness(), "the fixture: gone quiet");
+        return zombie;
+    }
+
+    @Test
+    void aThreatNotWhereItWasLosesItsPlace() {
+        BeingId zombie = aZombieLostBehind();
+        world.move(zombie, new Pos(30, 64, 30), 42.0); // it went off while nobody looked
+        world.spotsInSight = true;
+
+        List<BeingEvent> looked = tickFacing(180.0, 1);
+        assertTrue(sensor.beings().isEmpty(), "its spot is in plain view and empty");
+        assertEquals(1, count(looked, BeingEvent.Type.LOST));
+        assertTrue(sensor.snapshot().tracks().isEmpty(), "a refuted memory is not saved");
+    }
+
+    @Test
+    void aSoundPutsItBack() {
+        BeingId zombie = aZombieLostBehind();
+        world.move(zombie, new Pos(-9, 64, 3), 9.5);
+        world.spotsInSight = true;
+        tickFacing(180.0, 1);
+        assertTrue(sensor.beings().isEmpty());
+
+        sensor.heard(world.bodies.get(zombie), now, false);
+        List<BeingEvent> heard = tickFacing(180.0, 1);
+        assertEquals(1, count(heard, BeingEvent.Type.SPOTTED), "back in the percepts, and said");
+        assertEquals(Being.Awareness.HEARD, only().awareness());
+        assertEquals("zombie", only().species(), "the tier survived: a step names it again");
+    }
+
+    @Test
+    void aSpotBehindAWallRefutesNothing() {
+        aZombieLostBehind();
+        world.spotsInSight = false;
+        tickFacing(180.0, 20);
+        assertEquals(Being.Awareness.REMEMBERED, only().awareness(), "cannot see there: still there");
+        assertTrue(world.spotChecks > 0, "the line was genuinely asked");
+    }
+
+    @Test
+    void aThreatWatchedGoingBehindAWallKeepsItsLinger() {
+        BeingId zombie = world.addCreature(Being.Kind.MONSTER, "zombie", false, true,
+                new Pos(0, 64, 8), 8.0);
+        tickFacing(0.0, 2);
+        world.hidden.add(zombie); // steps behind the pillar, watched
+        world.spotsInSight = true;
+        tickFacing(0.0, 30);
+        tickFacing(180.0, 5);
+        tickFacing(0.0, 5);
+        assertEquals(Being.Awareness.REMEMBERED, only().awareness(), "it went behind the wall");
+        assertEquals(0, world.spotChecks, "and no ray was spent doubting it");
+    }
+
+    @Test
+    void aFriendKeepsItsLinger() {
+        BeingId ann = world.addPerson("Ann", new Pos(0, 64, -10), 10.0, Being.Activity.IDLE);
+        world.hidden.add(ann);
+        sensor.heard(world.bodies.get(ann), now, true);
+        tickFacing(0.0, 40);
+        world.move(ann, new Pos(30, 64, 30), 42.0);
+        world.spotsInSight = true;
+        tickFacing(180.0, 5);
+        assertEquals(1, sensor.beings().size(), "only a threat is worth looking for");
     }
 }

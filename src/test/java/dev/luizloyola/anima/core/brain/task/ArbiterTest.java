@@ -806,12 +806,13 @@ class ArbiterTest {
 
         ctx.percepts.beings = List.of();
         ctx.mover.setState(MoveState.ARRIVED);
-        arbiter.tick(ctx); // t3: GoTo SUCCEEDS -> the leg (FleeStep, no Idle) ends -> boundary
+        arbiter.tick(ctx); // t3: GoTo SUCCEEDS
+        arbiter.tick(ctx); // t4: nothing left to look back at -> the leg (no Idle) ends -> boundary
         assertFalse(arbiter.executor().isBusy(),
                 "the leg finished this tick, but nothing is re-granted until the NEXT boundary");
 
-        // t4..t102: Eat, cut off at t2, is out for exactly its 100 ticks although it tops Wander.
-        for (int t = 4; t <= 2 + Instinct.DEFAULT_FAIL_COOLDOWN; t++) {
+        // t5..t102: Eat, cut off at t2, is out for exactly its 100 ticks although it tops Wander.
+        for (int t = 5; t <= 2 + Instinct.DEFAULT_FAIL_COOLDOWN; t++) {
             arbiter.tick(ctx);
             assertEquals(1, ctx.consumer.beginCalls, "eat still cooling at tick " + t);
         }
@@ -882,10 +883,11 @@ class ArbiterTest {
 
         ctx.mover.setState(MoveState.ARRIVED); 
         ctx.percepts.beings = List.of(FakePercepts.monsterAt(new Pos(-5, 64, 0), 5.0, false)); // now west
-        arbiter.tick(ctx); // t2: GoTo #1 SUCCEEDS -> boundary; re-grant is still next tick, not this one
+        arbiter.tick(ctx); // t2: GoTo #1 SUCCEEDS
+        arbiter.tick(ctx); // t3: the look back has nothing to look for (in view) -> boundary
         assertEquals(1, flee.grantedRoots.size(), "re-grant happens on the NEXT tick, not the boundary tick itself");
 
-        arbiter.tick(ctx); // t3: idle -> a FRESH FleeStep, re-aimed at the CURRENT (now western) threat
+        arbiter.tick(ctx); // t4: idle -> a FRESH FleeStep, re-aimed at the CURRENT (now western) threat
         assertEquals(2, flee.grantedRoots.size());
         assertNotSame(flee.grantedRoots.get(0), flee.grantedRoots.get(1), "a fresh root each grant");
         assertTrue(ctx.mover.lastX > 0, "leg 2 re-aims east, away from the now-western threat");

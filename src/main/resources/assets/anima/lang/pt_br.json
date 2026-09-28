@@ -167,6 +167,8 @@
   "anima.config.aspect.instincts.flee_ramp.desc": "Distância, em blocos, ao longo da qual o medo cresce do nada até o pânico total.",
   "anima.config.aspect.instincts.flee_approach_bonus": "Medo de quem se aproxima",
   "anima.config.aspect.instincts.flee_approach_bonus.desc": "Medo extra quando a ameaça está claramente se aproximando — o sinal observável de que \"ela está me caçando\".",
+  "anima.config.aspect.instincts.flee_look_ticks": "Olhar para trás ao fugir por",
+  "anima.config.aspect.instincts.flee_look_ticks.desc": "Por quanto tempo, em ticks, este corpo para e olha para trás depois de cada trecho de fuga de algo que já não vê, e depois cada olhada ao redor se não estiver onde estava. 0 nunca olha para trás.",
   "anima.config.aspect.instincts.fight_start_ratio": "Vantagem para começar uma luta",
   "anima.config.aspect.instincts.fight_start_ratio.desc": "Quão desigual a luta precisa ser para ser aceita: quanto tempo as ameaças levariam para matar este corpo, dividido por quanto tempo ele levaria para matar o alvo.",
   "anima.config.aspect.instincts.fight_quit_ratio": "Vantagem para abandonar uma luta",

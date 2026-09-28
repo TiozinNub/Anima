@@ -150,6 +150,15 @@ public final class FakePercepts implements Percepts {
                 Being.Gear.NONE, Being.Identified.SPECIES, Being.Awareness.SEEN);
     }
 
+    /** {@link #monsterAt} under a chosen id, as one channel has it — a look back asks which. */
+    public static Being monsterAt(BeingId id, Pos pos, double distance, Being.Awareness awareness) {
+        return new Being(id, Being.Kind.MONSTER, "zombie", "",
+                null, pos, distance, Being.HUMANOID_EYE_HEIGHT, false, 1, 0, false, List.of(),
+                Being.Activity.IDLE,
+                Being.Locomotion.STILL, false, false, false, false, false, true,
+                Being.Gear.NONE, Being.Identified.SPECIES, awareness);
+    }
+
     /**
      * The one {@link Being} literal for a person-kind track — every person-shaped fixture goes
      * through this instead of copying the constructor call, so growing {@code Being} by a field

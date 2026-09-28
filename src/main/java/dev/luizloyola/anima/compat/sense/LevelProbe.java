@@ -415,6 +415,11 @@ public final class LevelProbe implements BlockProbe {
         return sightClear(level, from, center, BlockPos.containing(center));
     }
 
+    /** One ray from {@code from} to a point with nobody at it — where something was. */
+    public static boolean pointVisible(Level level, Vec3 from, Vec3 to) {
+        return sightClear(level, from, to, BlockPos.containing(to));
+    }
+
     /** The shared sight march — see {@link #visibleFromEyes} for the transparency rationale. */
     private static boolean sightClear(Level level, Vec3 from, Vec3 to, BlockPos targetCell) {
         int steps = (int) Math.ceil(from.distanceTo(to) * 2.0);

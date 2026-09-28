@@ -177,6 +177,17 @@ public final class BeingSensorCore {
          */
         long hailedAt = NEVER;
         long calledAt = NEVER;
+        /**
+         * Whether every channel lost it while it stood outside the cone — the body looked away, or
+         * only ever heard it. Only such a memory can be refuted: one watched stepping behind a wall
+         * is behind the wall.
+         */
+        boolean darkUnwatched;
+        /**
+         * Looked for where it was, and it was not there: out of {@link #beings()} until a sound or
+         * a sight places it again, still known meanwhile — its tier and its marks stay.
+         */
+        boolean unplaced;
     }
 
     /** One herd aggregate: a stable id over a churning member set. */
@@ -199,6 +210,8 @@ public final class BeingSensorCore {
     private final Set<BeingId> pendingIds = new HashSet<>();
     private final List<BeingEvent> pending = new ArrayList<>();
     private long lastSweepAt = NEVER;
+    /** Where the head pointed at the last sweep; NaN until the first. */
+    private double sweptYaw = Double.NaN;
     /**
      * Kept so a REMEMBERED reading can re-measure its distance: the position it remembers is
      * frozen, the body asking is not.
@@ -224,9 +237,19 @@ public final class BeingSensorCore {
         this.lastFeet = feet;
         this.selfX = exactX;
         this.selfZ = exactZ;
-        boolean sweepBeat = now - lastSweepAt >= SWEEP_INTERVAL_TICKS;
+        // A head that turned past half the cone looks at once: the sweep and every re-check fall
+        // due now, or a glance back would be over before the eyes caught up with it.
+        boolean turned = !Double.isNaN(sweptYaw)
+                && Math.abs(wrapDegrees(yawDegrees - sweptYaw)) > coneDegrees() / 2.0;
+        if (turned) {
+            for (Track track : tracks.values()) {
+                track.nextCheckAt = Math.min(track.nextCheckAt, now);
+            }
+        }
+        boolean sweepBeat = turned || now - lastSweepAt >= SWEEP_INTERVAL_TICKS;
         if (sweepBeat) {
             lastSweepAt = now;
+            sweptYaw = yawDegrees;
             for (BeingReading candidate : world.candidates()) {
                 if (!tracks.containsKey(candidate.id()) && pendingIds.add(candidate.id())) {
                     pendingDiscovery.addLast(candidate);
@@ -288,7 +311,7 @@ public final class BeingSensorCore {
             return false;
         }
         track.awareness = Being.Awareness.REMEMBERED;
-        if (track.herd == null) {
+        if (narrated(track)) {
             pending.add(BeingEvent.lost(being(track)));
         }
         return true;
@@ -358,7 +381,7 @@ public final class BeingSensorCore {
                 r.herdAnimal(), r.pos(), r.distance(), r.eyeHeight(), r.playerControlled(),
                 r.locomotion(), r.sneaking(), r.watching(), r.aimedAt(), r.aggressive(), r.gear(),
                 r.activity(), r.held());
-        if (track.herd == null) {
+        if (narrated(track)) {
             announceIfChanged(track, before); // masked below INDIVIDUAL, so this can be a no-op
         }
     }
@@ -397,6 +420,8 @@ public final class BeingSensorCore {
         track.lastLiveAt = now;
         updateTrend(track, who.distance(), who.pos(), now);
         Being before = being(track);
+        boolean placedAgain = track.unplaced;
+        track.unplaced = false;
         boolean recognizedNow = false;
         if (voice && track.tier == Being.Identified.NONE) {
             track.tier = Being.Identified.SPECIES; // the call named the something
@@ -410,7 +435,9 @@ public final class BeingSensorCore {
         if (track.herd != null) {
             return; // absorbed: the herd speaks for its members
         }
-        if (recognizedNow) {
+        if (placedAgain) {
+            pending.add(BeingEvent.spotted(being(track)));
+        } else if (recognizedNow) {
             pending.add(BeingEvent.recognized(being(track), before));
         } else {
             announceIfChanged(track, before);
@@ -424,7 +451,7 @@ public final class BeingSensorCore {
     public List<Being> beings() {
         List<Being> out = new ArrayList<>(tracks.size());
         for (Track track : tracks.values()) {
-            if (track.herd == null) {
+            if (track.herd == null && !track.unplaced) {
                 out.add(being(track));
             }
         }
@@ -442,7 +469,7 @@ public final class BeingSensorCore {
     public int countPeers(Predicate<BeingId> who) {
         int count = 0;
         for (Track track : tracks.values()) {
-            if (track.herd == null && track.tier == Being.Identified.INDIVIDUAL
+            if (track.herd == null && !track.unplaced && track.tier == Being.Identified.INDIVIDUAL
                     && track.last.kind().minded() && who.test(track.last.id())) {
                 count++;
             }
@@ -473,7 +500,8 @@ public final class BeingSensorCore {
             }
             BeingReading fresh = world.reading(entry.getKey());
             if (fresh == null) {
-                goDarkOrForget(track, entry.getKey(), now, it);
+                budget = goDark(track, entry.getKey(), feet, yawDegrees, pitchDegrees, now, world,
+                        budget, it);
                 continue;
             }
             boolean inCone = inCone(feet, yawDegrees, pitchDegrees, fresh.pos());
@@ -489,6 +517,8 @@ public final class BeingSensorCore {
             boolean heardFresh = now - track.heardAt <= HEARD_FRESH_TICKS;
             if (seen || heardFresh) {
                 Being before = being(track);
+                boolean placedAgain = track.unplaced;
+                track.unplaced = false;
                 boolean recognizedNow = false;
                 updateTrend(track, fresh.distance(), fresh.pos(), now);
                 // Ears carry position (sound places its source) but not the visual reads: no
@@ -507,16 +537,67 @@ public final class BeingSensorCore {
                 if (track.herd != null) {
                     continue; // absorbed: the herd speaks for its members
                 }
-                if (recognizedNow) {
+                if (placedAgain) {
+                    pending.add(BeingEvent.spotted(being(track)));
+                } else if (recognizedNow) {
                     pending.add(BeingEvent.recognized(being(track), before));
                 } else {
                     announceIfChanged(track, before);
                 }
             } else {
-                goDarkOrForget(track, entry.getKey(), now, it);
+                budget = goDark(track, entry.getKey(), feet, yawDegrees, pitchDegrees, now, world,
+                        budget, it);
             }
         }
         return budget;
+    }
+
+    /**
+     * Neither seen nor heard this beat. A threat lost while the body looked away, whose place is in
+     * view now with a clear line to it, is not there: it loses its place. Anything else fades.
+     *
+     * @return the ray budget left
+     */
+    private int goDark(Track track, BeingId id, Pos feet, double yawDegrees, double pitchDegrees,
+                       long now, BeingWorld world, int budget,
+                       Iterator<Map.Entry<BeingId, Track>> it) {
+        if (track.awareness != Being.Awareness.REMEMBERED) {
+            track.darkUnwatched = !inCone(feet, yawDegrees, pitchDegrees, track.last.pos());
+        }
+        if (budget > 0 && refutable(track, feet, yawDegrees, pitchDegrees)) {
+            budget--;
+            if (world.inSightOf(track.last.pos(), track.last.eyeHeight())) {
+                track.unplaced = true;
+                track.awareness = Being.Awareness.REMEMBERED;
+                track.nextCheckAt = now + interval(track.last.distance());
+                pending.add(BeingEvent.lost(being(track)));
+                return budget;
+            }
+        }
+        goDarkOrForget(track, id, now, it);
+        return budget;
+    }
+
+    /**
+     * Whether looking at where this track was could prove it wrong: a threat, lost unwatched, still
+     * placed, and its place inside the cone and within sight range. A remembered friend keeps its
+     * linger — only a threat is worth looking for.
+     */
+    private boolean refutable(Track track, Pos feet, double yawDegrees, double pitchDegrees) {
+        if (track.unplaced || !track.darkUnwatched || track.herd != null) {
+            return false;
+        }
+        boolean aggressive = (track.tier != Being.Identified.NONE && track.last.aggressive())
+                || track.attackedAt != NEVER;
+        if (!aggressive) {
+            return false;
+        }
+        Pos at = track.last.pos();
+        double dx = at.x() - feet.x();
+        double dy = at.y() - feet.y();
+        double dz = at.z() - feet.z();
+        return dx * dx + dy * dy + dz * dz <= (double) radius() * radius()
+                && inCone(feet, yawDegrees, pitchDegrees, at);
     }
 
     /** Gives queued candidates their first look, cheapest test first, until the budget dries. */
@@ -557,7 +638,7 @@ public final class BeingSensorCore {
     private void regroupHerds(long now) {
         List<Map.Entry<BeingId, Track>> herdable = new ArrayList<>();
         for (Map.Entry<BeingId, Track> entry : tracks.entrySet()) {
-            if (entry.getValue().last.herdAnimal()) {
+            if (entry.getValue().last.herdAnimal() && !entry.getValue().unplaced) {
                 herdable.add(entry);
             }
         }
@@ -738,7 +819,7 @@ public final class BeingSensorCore {
         boolean called = track.hailedAt != NEVER;
         if (!attacked && !called && now - track.lastLiveAt > lingerTicks()) {
             track.awareness = Being.Awareness.REMEMBERED;
-            if (track.herd == null) {
+            if (narrated(track)) {
                 pending.add(BeingEvent.lost(being(track)));
             }
             it.remove();
@@ -747,7 +828,7 @@ public final class BeingSensorCore {
         Being before = being(track);
         track.awareness = Being.Awareness.REMEMBERED;
         track.nextCheckAt = now + interval(track.last.distance());
-        if (track.herd == null) {
+        if (narrated(track)) {
             announceIfChanged(track, before); // the slip-out-of-sight moment, narrated once
         }
     }
@@ -766,7 +847,7 @@ public final class BeingSensorCore {
                 Being before = being(track);
                 track.last = faded(track.last);
                 track.activityAt = now;
-                if (track.herd == null) {
+                if (narrated(track)) {
                     announceIfChanged(track, before);
                 }
             }
@@ -774,7 +855,7 @@ public final class BeingSensorCore {
             if (track.attackedAt != NEVER && now - track.attackedAt > attackDecayTicks()) {
                 Being before = being(track);
                 track.attackedAt = NEVER;
-                if (track.herd == null) {
+                if (narrated(track)) {
                     announceIfChanged(track, before);
                 }
             }
@@ -782,7 +863,7 @@ public final class BeingSensorCore {
             if (track.hailedAt != NEVER && now - track.hailedAt > hailPatienceTicks()) {
                 Being before = being(track);
                 track.hailedAt = NEVER;
-                if (track.herd == null) {
+                if (narrated(track)) {
                     announceIfChanged(track, before);
                 }
             }
@@ -796,7 +877,7 @@ public final class BeingSensorCore {
                     && distanceTo(track) <= ANSWERED_WITHIN) {
                 Being before = being(track);
                 track.hailedAt = NEVER;
-                if (track.herd == null) {
+                if (narrated(track)) {
                     announceIfChanged(track, before);
                 }
             }
@@ -845,6 +926,22 @@ public final class BeingSensorCore {
     }
 
     /** The narrator's rule: if any rendered axis of the MASKED reading flipped, say so — once. */
+    /** Whether this track speaks for itself: not absorbed into a herd, and not unplaced. */
+    private static boolean narrated(Track track) {
+        return track.herd == null && !track.unplaced;
+    }
+
+    /** {@code degrees} brought into -180..180. */
+    private static double wrapDegrees(double degrees) {
+        double wrapped = degrees % 360.0;
+        if (wrapped >= 180.0) {
+            wrapped -= 360.0;
+        } else if (wrapped < -180.0) {
+            wrapped += 360.0;
+        }
+        return wrapped;
+    }
+
     private void announceIfChanged(Track track, Being before) {
         Being after = being(track);
         if (!before.name().equals(after.name())
@@ -1001,10 +1098,16 @@ public final class BeingSensorCore {
     /** What this sense would need to go on remembering what it remembers. */
     public State snapshot() {
         List<TrackState> savedTracks = new ArrayList<>(tracks.size());
-        tracks.forEach((id, track) -> savedTracks.add(new TrackState(track.last, track.awareness,
-                track.tier, track.nextCheckAt, track.lastLiveAt, track.heardAt, track.activityAt,
-                track.trendDistance, track.trendAt, track.trendSelfX, track.trendSelfZ,
-                track.approaching, track.herd, track.attackedAt)));
+        // An unplaced track is not saved: it is a threat already looked for and not found, and a
+        // restart that forgets it loses nothing a sound would not give back.
+        tracks.forEach((id, track) -> {
+            if (!track.unplaced) {
+                savedTracks.add(new TrackState(track.last, track.awareness, track.tier,
+                        track.nextCheckAt, track.lastLiveAt, track.heardAt, track.activityAt,
+                        track.trendDistance, track.trendAt, track.trendSelfX, track.trendSelfZ,
+                        track.approaching, track.herd, track.attackedAt));
+            }
+        });
         List<HerdState> savedHerds = new ArrayList<>(herds.size());
         herds.forEach((id, herd) -> savedHerds.add(
                 new HerdState(herd.id, herd.species, List.copyOf(herd.members))));

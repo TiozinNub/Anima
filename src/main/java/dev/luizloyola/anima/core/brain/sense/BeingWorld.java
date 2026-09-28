@@ -27,4 +27,13 @@ public interface BeingWorld {
 
     /** Whether this body has a clear ray from the observer's eyes (per-kind ray count). */
     boolean inSight(BeingId id);
+
+    /**
+     * Whether the observer's eyes have a clear line to {@code height} blocks above the middle of
+     * {@code cell} — where something stood, asked with nobody there. False by default: a world
+     * that cannot answer never proves a memory wrong.
+     */
+    default boolean inSightOf(Pos cell, double height) {
+        return false;
+    }
 }

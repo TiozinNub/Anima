@@ -313,6 +313,9 @@ public final class AnimaTasks {
         TaskCodecs.register("anima:eat", SatisfyHunger.class, MapCodec.unit(SatisfyHunger::new));
         TaskCodecs.register("anima:eat_carried", dev.luizloyola.anima.core.brain.task.EatCarried.class,
                 MapCodec.unit(dev.luizloyola.anima.core.brain.task.EatCarried::new));
+        // A look under a second long restarts from the percepts; its progress is not worth a field.
+        TaskCodecs.register("anima:look_back", dev.luizloyola.anima.core.brain.task.LookBack.class,
+                MapCodec.unit(dev.luizloyola.anima.core.brain.task.LookBack::new));
 
         TaskCodecs.register("anima:place", dev.luizloyola.anima.core.brain.task.PlaceBlock.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
