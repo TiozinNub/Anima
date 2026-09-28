@@ -53,6 +53,8 @@ public final class DebugViewRenderer {
     private static final int LEAP_COLOR = 0xFFFF4D4D;
     private static final int SWIM_COLOR = 0xFF4DD2FF;
     private static final int CLIMB_COLOR = 0xFFC08A5B;
+    /** A leg that lays a block first: dirt green, so a built route reads apart from a walked one. */
+    private static final int BUILD_COLOR = 0xFF7BC96F;
     private static final int GOAL_COLOR = 0xFF57F287;
     /** A goal the plan does not reach — the same box, in a colour that is not an arrival. */
     private static final int UNREACHED_COLOR = 0xFFFF6B6B;
@@ -838,6 +840,7 @@ public final class DebugViewRenderer {
             // one cell long has its own shape to say so without needing a colour of its own.
             case SWIM, DIVE, SURFACE -> SWIM_COLOR;
             case CLIMB -> CLIMB_COLOR; // a ladder's brown
+            case BRIDGE, PILLAR -> BUILD_COLOR;
         };
     }
 

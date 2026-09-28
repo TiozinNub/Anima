@@ -91,6 +91,17 @@ public final class WorldSnapshot implements NavGrid {
         return (byte) (type.ordinal() | (payload & PAYLOAD_MASK) << TYPE_BITS);
     }
 
+    /**
+     * The eighth bit, on a {@link CellType#PASSABLE} cell: passable, but not replaced by a placement
+     * — a torch, a rail, a flower. Set for what is NOT layable, so air and grass stay zero and no
+     * other reading of a cell changes. See {@link NavGrid#layable}.
+     */
+    private static final int FIXED = 1 << 7;
+
+    static boolean layable(int packed) {
+        return type(packed) == CellType.PASSABLE && (packed & FIXED) == 0;
+    }
+
     static CellType type(int packed) {
         return TYPES[packed & TYPE_MASK];
     }
@@ -694,7 +705,10 @@ public final class WorldSnapshot implements NavGrid {
             // No collision: air-like plants, an open fence gate — or the inside of a water column
             // (kelp, seagrass, source blocks). Waterlogged solids fall through to the surface probe
             // instead.
-            return pack(wet ? CellType.WATER : CellType.PASSABLE, 0);
+            if (wet) {
+                return pack(CellType.WATER, 0);
+            }
+            return (byte) (pack(CellType.PASSABLE, 0) | (state.canBeReplaced() ? 0 : FIXED));
         }
         double surface = surfaceOf(shape);
         if (surface >= 1.0) {
@@ -799,6 +813,12 @@ public final class WorldSnapshot implements NavGrid {
     public boolean climbFloor(int x, int y, int z) {
         int index = slot(x, y, z);
         return index >= 0 && climbFloor(this.cells[index]);
+    }
+
+    @Override
+    public boolean layable(int x, int y, int z) {
+        int index = slot(x, y, z);
+        return index >= 0 && layable(this.cells[index]);
     }
 
     /**

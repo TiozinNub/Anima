@@ -46,4 +46,15 @@ public record Path(List<Waypoint> waypoints, boolean reachedGoal, boolean sealed
     public Waypoint last() {
         return this.waypoints.get(this.waypoints.size() - 1);
     }
+
+    /** How many blocks walking this route lays — see {@link MoveType#lays()}. */
+    public int laid() {
+        int laid = 0;
+        for (Waypoint waypoint : this.waypoints) {
+            if (waypoint.move().lays()) {
+                laid++;
+            }
+        }
+        return laid;
+    }
 }

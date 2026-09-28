@@ -22,7 +22,9 @@ import java.util.List;
  * leaps, swimming, climbing ({@link #climbNeighbors}), stairs walked by their treads
  * ({@link #ramped}) and doors crossed along their axis ({@link #doorToll}).
  * Deep holes and {@link CellType#DANGER} cells never produce a neighbour, so the search routes
- * around them for free.
+ * around them for free — unless the body may build ({@link MoveCapabilities#maxLaid}), when
+ * {@link #find} may ask again with decks and pillars ({@link #bridgeNeighbor},
+ * {@link #pillarNeighbor}).
  *
  * <p>When the goal cannot be reached — walled off, outside the grid, or the {@code maxNodes}
  * budget runs out — the result is the path to the expanded cell closest to the goal (smallest
@@ -162,6 +164,31 @@ public final class Pathfinder {
      * doorway beats a shut one the same distance off, not enough to send a body round a house.
      */
     private static final double DOOR_SWING_COST = 1.0;
+    /**
+     * One {@link MoveType#BRIDGE} step: stop at the edge, sneak, lay, step on — about a second, four
+     * or five blocks of walking — and the block. Flat, like a leap: the careful throttle is the lay
+     * itself, so the terrain factor would charge it twice.
+     */
+    private static final double LAY_COST = 6.0;
+    /** One {@link MoveType#PILLAR} step: the jump and the lay, and a block left standing. */
+    private static final double PILLAR_COST = 7.0;
+    /** Decks in one run. Past this a gap is not crossed but spanned, and that is the builder's work. */
+    private static final int SPAN_CAP = 16;
+    /** Pillar blocks in one run — the forest crevice a settler could not leave was twelve deep. */
+    private static final int PILLAR_CAP = 16;
+    /** Blocks one route may lay, whatever the pocket holds. */
+    static final int ROUTE_CAP = 32;
+    /**
+     * How much dearer than the straight line the first route may be before a body that may build
+     * asks whether building is quicker. A route this near straight leaves a bridge little to save,
+     * and every walk that asks pays for a second search.
+     */
+    private static final double DETOUR_RATIO = 1.5;
+    /**
+     * How far down the gap under a deck is read for anything harmful. A fall past this kills
+     * whatever it lands in.
+     */
+    private static final int GAP_READ = 32;
 
     /** Neighbour probe order — fixed so the search is deterministic: N, S, W, E, then diagonals. */
     private static final int[][] CARDINALS = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}};
@@ -287,6 +314,14 @@ public final class Pathfinder {
         long takeoff = NO_PARENT;
         /** Cells travelled with the head under water to reach here — see {@link #relaxWater}. */
         int submergedRun;
+        /**
+         * Blocks laid on the best route here, and how many of the last moves laid the same way —
+         * the deck span or the pillar height so far. Carried like the breath clock, with the same
+         * approximation in the same safe direction: a cell closed by a route that spent more is
+         * not reopened by a dearer one that spent less.
+         */
+        int laid;
+        int layRun;
         boolean closed;
     }
 
@@ -333,6 +368,16 @@ public final class Pathfinder {
     private final long variety;
 
     /**
+     * How many blocks this search may lay: zero for every search but {@link #find}'s second, so a
+     * survey or a count of room never builds its way out of the question it was asked.
+     */
+    private final int layBudget;
+    /** {@link #hazardBelow}'s memo: every deck across a ravine reads the same kind of gap. */
+    private final CellTable.Flags gapCache = new CellTable.Flags(256);
+    /** What the route to the goal cost, when this search reached it — {@link #worthBuilding}. */
+    private double arrivedCost = Double.NaN;
+
+    /**
      * Set when a plunge probe walked off the bottom of the grid still looking for water — the one
      * move whose reach (up to {@link #MAX_PLUNGE}) is far past any sane margin, so it reports its
      * own encounter with the edge rather than forcing {@link #sealedIn} to allow for it everywhere.
@@ -358,6 +403,11 @@ public final class Pathfinder {
     private int southSide;
 
     private Pathfinder(NavGrid grid, PathRequest request) {
+        this(grid, request, 0);
+    }
+
+    private Pathfinder(NavGrid grid, PathRequest request, int layBudget) {
+        this.layBudget = layBudget;
         this.grid = grid;
         this.profile = request.profile();
         this.danger = request.danger();
@@ -372,9 +422,38 @@ public final class Pathfinder {
         this.doors = grid.hasDoors();
     }
 
-    /** Never returns {@code null}. */
+    /**
+     * Never returns {@code null}.
+     *
+     * <p><b>Two searches at most, and the second is rare.</b> The first is the ordinary one. A body
+     * that may build ({@link MoveCapabilities#maxLaid}) is asked again, with decks and pillars, only
+     * when {@link #worthBuilding} says the first answer leaves room for it — and the building route
+     * is taken only if it ARRIVES. Its nearest reachable cell can be the top of a pillar in the air,
+     * and a body must never stack blocks toward somewhere it cannot get to.
+     */
     public static Path find(NavGrid grid, PathRequest request) {
-        return new Pathfinder(grid, request).search(request);
+        Pathfinder first = new Pathfinder(grid, request);
+        Path path = first.search(request);
+        int budget = Math.min(request.profile().maxLaid(), ROUTE_CAP);
+        if (budget <= 0 || !first.worthBuilding(path, request)) {
+            return path;
+        }
+        Path built = new Pathfinder(grid, request, budget).search(request);
+        return built.reachedGoal() && built.laid() > 0 ? built : path;
+    }
+
+    /**
+     * Whether a body that may build should ask how, now the ordinary search has answered: only for
+     * a goal it could stand on as the world is — never one in the air, over lava, inside rock or
+     * past the capture, which no amount of building makes a place — and only when that answer was
+     * no route at all, or a long way round.
+     */
+    private boolean worthBuilding(Path path, PathRequest request) {
+        if (!standable(this.grid, this.profile, this.goalX, this.goalY, this.goalZ)) {
+            return false;
+        }
+        return !path.reachedGoal() || this.arrivedCost
+                > DETOUR_RATIO * heuristic(request.startX(), request.startY(), request.startZ());
     }
 
     /**
@@ -550,6 +629,7 @@ public final class Pathfinder {
             node.closed = true;
 
             if (current == goal) {
+                this.arrivedCost = node.g;
                 // +1: this node was closed above but the counter is only bumped further down, and
                 // the count means "cells closed".
                 return reconstruct(current, true, false, expanded + 1, rest);
@@ -689,6 +769,15 @@ public final class Pathfinder {
         boolean holding = isHold(x, y, z) && !(node.surface16 > 0 && this.grid.hatch(x, y, z));
         for (int[] d : CARDINALS) {
             cardinalNeighbor(current, node, x, y, z, from, d[0], d[1]);
+        }
+        if (this.layBudget > 0) {
+            pillarNeighbor(current, node, x, y, z);
+        }
+        if (node.move.lays()) {
+            // Standing on a block the grid has not got. Leaps, strides, diagonals, climbs and
+            // strokes all read this cell's floor from the grid, so only the moves that know better
+            // leave from here: the cardinal steps, and laying another.
+            return;
         }
         if (this.profile.canClimb()) {
             climbNeighbors(current, node, x, y, z, holding);
@@ -1172,6 +1261,91 @@ public final class Pathfinder {
                 return;
             }
         }
+        // Open air all the way down, with nowhere in reach to land.
+        if (this.layBudget > 0) {
+            bridgeNeighbor(current, node, x, y, z, nx, nz);
+        }
+    }
+
+    /**
+     * A level step onto a deck laid in the gap under {@code (nx, y, nz)}, against the side of the
+     * floor this body stands on — so there has to be one: a full block under the feet cell, or the
+     * block this route laid there. On a slab that is the block under the slab; a slab over air has
+     * nothing to lay against. Never from the water, never into a cell holding something a placement
+     * does not replace, never over anything harmful.
+     */
+    private void bridgeNeighbor(long current, Node node, int x, int y, int z, int nx, int nz) {
+        if (node.laid >= this.layBudget
+                || (node.move == MoveType.BRIDGE && node.layRun >= SPAN_CAP)) {
+            return;
+        }
+        if (!node.move.lays() && this.grid.cell(x, y - 1, z) != CellType.GROUND) return;
+        if (node.move.inWater() || isWater(x, y, z)) return;
+        if (!this.grid.layable(nx, y - 1, nz) || !fits(nx, y, nz, 0.0)) return;
+        if (hazardBelow(nx, y - 1, nz)) return;
+        relax(current, node, pack(nx, y, nz), y, MoveType.BRIDGE, LAY_COST);
+    }
+
+    /**
+     * Up one where the body stands, onto a block laid in the cell it jumps out of — only
+     * <b>against a face</b>: solid ground beside the laid cell or the cell it rises into. A pit
+     * wall, a crevice, a cliff: yes. A tower in the open: never — which is what keeps a search that
+     * may build from stacking toward whatever it cannot otherwise reach.
+     */
+    private void pillarNeighbor(long current, Node node, int x, int y, int z) {
+        if (node.laid >= this.layBudget
+                || (node.move == MoveType.PILLAR && node.layRun >= PILLAR_CAP)) {
+            return;
+        }
+        if (this.profile.jumpHeight() < 1 || node.surface16 != 0) return;
+        if (!node.move.lays() && this.grid.cell(x, y - 1, z) != CellType.GROUND) return;
+        if (node.move.inWater() || isWater(x, y, z)) return;
+        if (!this.grid.layable(x, y, z) || !roomy(x, y + 1, z) || !fits(x, y + 1, z, 0.0)) return;
+        if (!againstFace(x, y, z) && !againstFace(x, y + 1, z)) return;
+        relax(current, node, pack(x, y + 1, z), y + 1, MoveType.PILLAR, PILLAR_COST);
+    }
+
+    /**
+     * Whether a cardinal side of this cell is solid inside the grid. Past the capture every cell
+     * reads OBSTACLE, and a pillar may not lean on the edge of what was captured.
+     */
+    private boolean againstFace(int x, int y, int z) {
+        for (int[] d : CARDINALS) {
+            int fx = x + d[0];
+            int fz = z + d[1];
+            if (!this.grid.inBounds(fx, y, fz)) continue;
+            CellType side = this.grid.cell(fx, y, fz);
+            if (side == CellType.GROUND || side == CellType.OBSTACLE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether falling off a deck laid at {@code (x, y, z)} lands on something harmful: the gap
+     * under it read down to its floor. Refused, not priced — a deck is walked at the edge of a drop,
+     * and lava under a slip is not a detour's worth of trouble.
+     */
+    private boolean hazardBelow(int x, int y, int z) {
+        long key = pack(x, y, z);
+        byte known = this.gapCache.get(key);
+        if (known != CellTable.Flags.UNKNOWN) {
+            return known == CellTable.Flags.TRUE;
+        }
+        boolean hazard = false;
+        for (int d = 1; d <= GAP_READ && this.grid.inBounds(x, y - d, z); d++) {
+            CellType below = this.grid.cell(x, y - d, z);
+            if (below == CellType.DANGER) {
+                hazard = true;
+                break;
+            }
+            if (below != CellType.PASSABLE && below != CellType.CLIMB) {
+                break;
+            }
+        }
+        this.gapCache.put(key, hazard);
+        return hazard;
     }
 
     /**
@@ -1773,6 +1947,8 @@ public final class Pathfinder {
         // heuristic survives both because neither can make a move cost less than its length.
         double g = from.g + cost * (1.0 + roughness(neighbor)) + dread(neighbor) + grudge(neighbor)
                 + toll;
+        int laid = from.laid + (move.lays() ? 1 : 0);
+        int layRun = !move.lays() ? 0 : from.move == move ? from.layRun + 1 : 1;
         Node node = this.nodes.get(neighbor);
         if (node == null) {
             node = new Node();
@@ -1782,6 +1958,8 @@ public final class Pathfinder {
             node.surface16 = surface16;
             node.submergedRun = submergedRun;
             node.takeoff = takeoff;
+            node.laid = laid;
+            node.layRun = layRun;
             this.nodes.put(neighbor, node);
         } else if (!node.closed && g < node.g) {
             node.g = g;
@@ -1790,6 +1968,8 @@ public final class Pathfinder {
             node.surface16 = surface16;
             node.submergedRun = submergedRun;
             node.takeoff = takeoff;
+            node.laid = laid;
+            node.layRun = layRun;
         } else {
             return;
         }

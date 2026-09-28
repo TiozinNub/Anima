@@ -39,7 +39,23 @@ public enum MoveType {
      * onto a ledge. Held up by the climbable rather than by a floor, so the follower holds jump to
      * go up and lets go to come down, and never presses jump off the ground for it.
      */
-    CLIMB;
+    CLIMB,
+    /**
+     * A level cardinal step onto a block laid first in the gap under the destination: a deck, laid
+     * against the floor of the cell before it. Offered only to a search allowed to build
+     * ({@link MoveCapabilities#maxLaid}).
+     */
+    BRIDGE,
+    /** Up one in place: jump, lay a block in the cell just left, land on it — the riser's move. */
+    PILLAR;
+
+    /**
+     * Whether entering this waypoint lays a block — always into the cell directly under it, which
+     * is how the follower and {@link PathIntegrity} find it without the waypoint saying so.
+     */
+    public boolean lays() {
+        return this == BRIDGE || this == PILLAR;
+    }
 
     /**
      * Whether this move ends with the body <em>in</em> the water rather than on its feet. The three

@@ -21,7 +21,8 @@ import java.util.Map;
  * Anything outside the drawn rows is {@link CellType#OBSTACLE}, per the {@link NavGrid} contract.
  * For shapes a heightmap cannot draw (ceilings, tunnels), {@link #fill} overrides a box of cells
  * with an explicit type; {@link #step} puts a partial floor (a slab, a carpet) into one cell,
- * {@link #stair} a ramp, {@link #door} a doorway and {@link #climb} a ladder.
+ * {@link #stair} a ramp, {@link #door} a doorway and {@link #climb} a ladder; {@link #fixed} marks
+ * passable cells nothing may be laid into.
  */
 public final class AsciiWorld implements NavGrid {
     private final String[] rows;
@@ -29,6 +30,7 @@ public final class AsciiWorld implements NavGrid {
     private final Map<Long, Double> surfaces = new HashMap<>();
     private final Map<Long, Integer> payloads = new HashMap<>();
     private final java.util.Set<Long> hatches = new java.util.HashSet<>();
+    private final java.util.Set<Long> fixed = new java.util.HashSet<>();
 
     private AsciiWorld(String[] rows) {
         this.rows = rows;
@@ -88,6 +90,26 @@ public final class AsciiWorld implements NavGrid {
             }
         }
         return this;
+    }
+
+    /**
+     * Passable cells holding something a placement does not replace — a torch, a rail — through
+     * the inclusive box: walked through, never laid into. See {@link NavGrid#layable}.
+     */
+    public AsciiWorld fixed(int x1, int y1, int z1, int x2, int y2, int z2) {
+        for (int x = x1; x <= x2; x++) {
+            for (int y = y1; y <= y2; y++) {
+                for (int z = z1; z <= z2; z++) {
+                    this.fixed.add(Pathfinder.pack(x, y, z));
+                }
+            }
+        }
+        return this;
+    }
+
+    @Override
+    public boolean layable(int x, int y, int z) {
+        return cell(x, y, z) == CellType.PASSABLE && !this.fixed.contains(Pathfinder.pack(x, y, z));
     }
 
     /** A climbable (a ladder, vines) through the inclusive box. */

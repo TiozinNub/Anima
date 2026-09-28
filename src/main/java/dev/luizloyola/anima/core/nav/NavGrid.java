@@ -92,6 +92,17 @@ public interface NavGrid {
         return true;
     }
 
+    /**
+     * Whether a block could be laid into this cell as it stands: empty, or holding something a
+     * placement replaces (grass, a snow layer). A torch, a rail or a flower is passable but not
+     * layable — it would have to be broken first, and laying never breaks anything.
+     *
+     * <p>The default counts every passable cell, correct for a drawn grid with nothing in its air.
+     */
+    default boolean layable(int x, int y, int z) {
+        return cell(x, y, z) == CellType.PASSABLE;
+    }
+
     /** A heading as a bit, for {@link #ramps}: toward -z. */
     int NORTH = 1;
     /** Toward +z. */

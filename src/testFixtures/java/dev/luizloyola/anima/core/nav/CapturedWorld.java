@@ -134,6 +134,16 @@ public final class CapturedWorld implements NavGrid {
         return type != null ? type : CellType.PASSABLE;
     }
 
+    /**
+     * A capture is a window, like the snapshot it was dumped from: past its box {@link #cell} reads
+     * OBSTACLE for want of data, and a pillar must not lean on that.
+     */
+    @Override
+    public boolean inBounds(int x, int y, int z) {
+        return x >= this.minX && x <= this.maxX && y >= this.minY && y <= this.maxY
+                && z >= this.minZ && z <= this.maxZ;
+    }
+
     @Override
     public double surface(int x, int y, int z) {
         Double recorded = this.surfaces.get(Pathfinder.pack(x, y, z));

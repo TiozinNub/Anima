@@ -29,10 +29,21 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
  * @param canOpenDoors whether it has a hand to swing a door or a gate with; false leaves a shut
  *                   one a wall — see {@link Doorway}
  * @param canClimb   whether it climbs ladders and vines; false leaves a ladder shaft a hole
+ * @param maxLaid    blocks it may lay on one route, to bridge a gap or pillar up. Body STATE, like
+ *                   {@code maxSubmerged}: read off the pocket at request time, and zero for a walk
+ *                   that did not ask to build. Zero refuses building
  */
 public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
                                boolean canSwim, int maxSubmerged, boolean canOpenDoors,
-                               boolean canClimb) {
+                               boolean canClimb, int maxLaid) {
+
+    /** A body that lays nothing — every caller that has not asked to build. */
+    public MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
+                            boolean canSwim, int maxSubmerged, boolean canOpenDoors,
+                            boolean canClimb) {
+        this(height, jumpHeight, maxDrop, maxLeap, canSwim, maxSubmerged, canOpenDoors, canClimb,
+                0);
+    }
 
     /**
      * A body with no hands and no climbing — what a caller asking only about shape and water gets.
@@ -90,6 +101,15 @@ public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int m
         if (maxSubmerged < 0) {
             throw new IllegalArgumentException("maxSubmerged must be >= 0: " + maxSubmerged);
         }
+        if (maxLaid < 0) {
+            throw new IllegalArgumentException("maxLaid must be >= 0: " + maxLaid);
+        }
+    }
+
+    /** The same body with {@code blocks} it may lay on this route. */
+    public MoveCapabilities withLaid(int blocks) {
+        return new MoveCapabilities(this.height, this.jumpHeight, this.maxDrop, this.maxLeap,
+                this.canSwim, this.maxSubmerged, this.canOpenDoors, this.canClimb, blocks);
     }
 
     /** Reads one body's capabilities out of its resolved profile, here and now. */

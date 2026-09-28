@@ -32,6 +32,13 @@ public record CellNeed(int x, int y, int z, Need need) {
          * Something to climb here, or somewhere to stand — where a {@link MoveType#CLIMB} leg
          * ends. A ladder pulled down under a climbing body is the case it exists for.
          */
-        HOLD
+        HOLD,
+        /**
+         * Room to lay a block here, or the block already laid — the cell under a
+         * {@link MoveType#lays() laying} waypoint. Either state holds, since the route's own lay is
+         * what turns one into the other, and demanding either alone would read that as the route
+         * breaking.
+         */
+        LAYABLE
     }
 }

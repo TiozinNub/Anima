@@ -27,6 +27,9 @@ import java.util.List;
  *       launch cell.
  *   <li><b>Climbs</b> ({@link MoveType#CLIMB}): the destination stays something to hold or stand
  *       on ({@link CellNeed.Need#HOLD}) under an open column.
+ *   <li><b>Laying moves</b> ({@link MoveType#lays()}): the cell under the waypoint stays
+ *       {@link CellNeed.Need#LAYABLE} under an open column — and so does the near end of a level
+ *       step leaving one.
  * </ul>
  *
  * <p>Re-derived from waypoint geometry rather than recorded by the search, so it mirrors what
@@ -53,6 +56,11 @@ public final class PathIntegrity {
             // A hold, or the footing a climb steps off onto at the top or the bottom: HOLD takes
             // either, since the waypoint does not say which, and the column above stays open.
             addHold(needs, to.x(), to.y(), to.z(), profile);
+            return needs;
+        }
+        if (to.move().lays()) {
+            // A deck or a pillar block, laid under the waypoint by the leg itself.
+            addLaid(needs, to.x(), to.y(), to.z(), profile);
             return needs;
         }
         if (to.move() == MoveType.WALK
@@ -85,6 +93,10 @@ public final class PathIntegrity {
             } else if (from.move() == MoveType.CLIMB) {
                 // Stepping off a ladder sideways: the near end is a hold, which has no footing.
                 addHold(needs, from.x(), from.y(), from.z(), profile);
+            } else if (from.move().lays()) {
+                // Stepping off a deck: its floor is a block the route has not laid yet when the
+                // follower looks ahead, which FOOTING would read as the route broken.
+                addLaid(needs, from.x(), from.y(), from.z(), profile);
             } else {
                 addStandable(needs, from.x(), from.y(), from.z(), profile,
                         from.surface16() / 16.0);
@@ -155,6 +167,19 @@ public final class PathIntegrity {
         // it failed every DIVE and every submerged crossing on its own first tick.
         for (int i = 1; i <= profile.topCell(0.0); i++) {
             needs.add(new CellNeed(x, y + i, z, CellNeed.Need.ROOM));
+        }
+    }
+
+    /**
+     * Appends what a laying waypoint needs: room for the block under it or the block already there
+     * ({@link CellNeed.Need#LAYABLE} takes either, since the route's own lay turns one into the
+     * other), and the body's whole column clear, its own cell included — nothing stands in it yet.
+     */
+    private static void addLaid(List<CellNeed> needs, int x, int y, int z,
+                                MoveCapabilities profile) {
+        needs.add(new CellNeed(x, y - 1, z, CellNeed.Need.LAYABLE));
+        for (int i = 0; i <= profile.topCell(0.0); i++) {
+            needs.add(new CellNeed(x, y + i, z, CellNeed.Need.CLEAR));
         }
     }
 

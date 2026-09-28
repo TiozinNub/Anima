@@ -97,6 +97,7 @@ public final class NavGrids {
             case FOOTING -> hasFooting(grid, need, here);
             case HOLD -> here == CellType.CLIMB || grid.hatch(need.x(), need.y(), need.z())
                     || hasFooting(grid, need, here);
+            case LAYABLE -> here == CellType.GROUND || grid.layable(need.x(), need.y(), need.z());
         };
     }
 
