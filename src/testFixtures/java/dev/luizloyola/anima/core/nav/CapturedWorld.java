@@ -18,7 +18,7 @@ import java.util.Map;
  * a code does not say: a {@link CellType#STEP}'s surface in sixteenths (required), a
  * {@link CellType#GROUND}'s ramps, a {@link CellType#DOOR}'s doorway code, a {@link CellType#CLIMB}'s
  * floor (absent means none); a {@code hatch x y z} line marks a hatch, a {@code soft x y z} line
- * soft ground, a {@code laid x y z} line a block of a recorded pillar ({@link #pillars}).
+ * soft ground (with a fifth field {@code 1}, ground that regrows), a {@code laid x y z} line a block of a recorded pillar ({@link #pillars}).
  * Unmentioned cells inside the box are {@link CellType#PASSABLE}, everything outside
  * {@link CellType#OBSTACLE}, per the {@link NavGrid} contract. World coordinates let a query
  * recorded in-game replay verbatim.
@@ -37,12 +37,14 @@ public final class CapturedWorld implements NavGrid {
     private final boolean doors;
     private final java.util.Set<Long> hatches;
     private final java.util.Set<Long> soft;
+    private final java.util.Set<Long> regrowing;
     private final java.util.Set<Long> pillars;
 
     private CapturedWorld(int minX, int minY, int minZ, int maxX, int maxY, int maxZ,
                           Map<Long, CellType> cells, Map<Long, Double> surfaces,
                           Map<Long, Integer> payloads, java.util.Set<Long> hatches,
-                          java.util.Set<Long> soft, java.util.Set<Long> pillars) {
+                          java.util.Set<Long> soft, java.util.Set<Long> regrowing,
+                          java.util.Set<Long> pillars) {
         this.minX = minX;
         this.minY = minY;
         this.minZ = minZ;
@@ -54,6 +56,7 @@ public final class CapturedWorld implements NavGrid {
         this.payloads = payloads;
         this.hatches = hatches;
         this.soft = soft;
+        this.regrowing = regrowing;
         this.pillars = pillars;
         this.doors = cells.containsValue(CellType.DOOR);
     }
@@ -66,6 +69,7 @@ public final class CapturedWorld implements NavGrid {
         Map<Long, Integer> payloads = new HashMap<>();
         java.util.Set<Long> hatches = new java.util.HashSet<>();
         java.util.Set<Long> soft = new java.util.HashSet<>();
+        java.util.Set<Long> regrowing = new java.util.HashSet<>();
         java.util.Set<Long> pillars = new java.util.HashSet<>();
         int lineNo = 0;
         for (String raw : lines) {
@@ -86,9 +90,13 @@ public final class CapturedWorld implements NavGrid {
                         parse(parts[3], lineNo)));
                 continue;
             }
-            if (parts[0].equals("soft") && parts.length == 4) {
-                soft.add(Pathfinder.pack(parse(parts[1], lineNo), parse(parts[2], lineNo),
-                        parse(parts[3], lineNo)));
+            if (parts[0].equals("soft") && (parts.length == 4 || parts.length == 5)) {
+                long key = Pathfinder.pack(parse(parts[1], lineNo), parse(parts[2], lineNo),
+                        parse(parts[3], lineNo));
+                soft.add(key);
+                if (parts.length == 5 && parse(parts[4], lineNo) == 1) {
+                    regrowing.add(key);
+                }
                 continue;
             }
             if (parts[0].equals("laid") && parts.length == 4) {
@@ -119,7 +127,7 @@ public final class CapturedWorld implements NavGrid {
             throw new IllegalArgumentException("capture has no '# box minX minY minZ maxX maxY maxZ' header");
         }
         return new CapturedWorld(box[0], box[1], box[2], box[3], box[4], box[5], cells, surfaces,
-                payloads, hatches, soft, pillars);
+                payloads, hatches, soft, regrowing, pillars);
     }
 
     private static int[] ints(String text, int count, int lineNo) {
@@ -177,6 +185,11 @@ public final class CapturedWorld implements NavGrid {
     @Override
     public boolean soft(int x, int y, int z) {
         return this.soft.contains(Pathfinder.pack(x, y, z));
+    }
+
+    @Override
+    public boolean regrows(int x, int y, int z) {
+        return this.regrowing.contains(Pathfinder.pack(x, y, z));
     }
 
     @Override

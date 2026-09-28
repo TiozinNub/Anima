@@ -139,6 +139,7 @@ final class GroundWork {
             case PILLAR -> pillar(index, to);
             case SCALE -> scale(from, to);
             case LOWER -> lower(to);
+            case CARVE -> carve(to);
             default -> Result.DONE;
         };
     }
@@ -273,6 +274,46 @@ final class GroundWork {
         this.ownsBreaker = true;
         ledger().remove(pos(block));
         log("lowering", "through " + block.toShortString());
+        return Result.WORKING;
+    }
+
+    /**
+     * A carve: the lip prised off into the hand and kept, then a jump of one into the notch. The
+     * notch stays and nothing records it — the search's judge passed it as ground that might always
+     * have been that shape.
+     */
+    private Result carve(Waypoint to) {
+        AgentBlockBreaker breaker = this.person.blockBreaker();
+        if (breaker.state() == BreakState.BREAKING) {
+            this.person.stopMoving();
+            return Result.WORKING;
+        }
+        if (breaker.state() == BreakState.FAILED && this.ownsBreaker) {
+            this.ownsBreaker = false;
+            breaker.abort();
+            if (++this.cutRetries > CUT_RETRIES) {
+                return refuse("the lip at " + at(to) + " would not break");
+            }
+            return Result.WORKING; // grass spreading changed the block: cut it again
+        }
+        BlockPos lip = new BlockPos(to.x(), to.y(), to.z());
+        if (!this.person.level().getBlockState(lip).canBeReplaced()) {
+            this.person.stopMoving();
+            if (!breaker.pry(pos(lip))) {
+                return refuse("could not reach the lip at " + at(to));
+            }
+            this.ownsBreaker = true;
+            log("carving", "cut " + lip.toShortString());
+            return Result.WORKING;
+        }
+        steer(to, 1.0F);
+        BlockPos feet = this.person.blockPosition();
+        Vec3 pos = this.person.position();
+        double dx = to.x() + 0.5 - pos.x;
+        double dz = to.z() + 0.5 - pos.z;
+        if (this.person.onGround() && feet.getY() < to.y() && dx * dx + dz * dz < JUMP_RANGE * JUMP_RANGE) {
+            this.person.driveJump();
+        }
         return Result.WORKING;
     }
 

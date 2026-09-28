@@ -59,7 +59,13 @@ public enum MoveType {
      * Down one, by breaking the recorded pillar block underfoot and dropping with it — the way a
      * pillar is cleaned up, by whoever goes down it. The cut is the waypoint's own feet cell.
      */
-    LOWER;
+    LOWER,
+    /**
+     * Up one into a two-block step whose lip was broken first and kept: the step is one block for
+     * good. Only where the notch would look natural, so nothing records it. The cut is the
+     * waypoint's own feet cell.
+     */
+    CARVE;
 
     /**
      * Whether entering this waypoint lays a block — always into the cell directly under it, which
@@ -78,9 +84,17 @@ public enum MoveType {
         return lays() || this == SCALE;
     }
 
+    /**
+     * Whether entering this waypoint breaks the block in its own feet cell. The grid still holds
+     * that block, so nothing that reads the cell may take it for the ground it was.
+     */
+    public boolean cutsItsCell() {
+        return this == LOWER || this == CARVE;
+    }
+
     /** Whether entering this waypoint needs the hand: something laid, cut, or both. */
     public boolean worked() {
-        return rebuildsFloor() || this == LOWER;
+        return rebuildsFloor() || cutsItsCell();
     }
 
     /**

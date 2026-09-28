@@ -111,6 +111,15 @@ public final class LevelGrid implements NavGrid {
     }
 
     @Override
+    public boolean regrows(int x, int y, int z) {
+        if (!inBounds(x, y, z)) {
+            return false;
+        }
+        this.scratch.set(x, y, z);
+        return WorldSnapshot.regrowsAt(this.level, this.scratch);
+    }
+
+    @Override
     public boolean inBounds(int x, int y, int z) {
         return y >= this.level.getMinY() && y <= this.level.getMaxY() && chunkFor(x, z) != null;
     }

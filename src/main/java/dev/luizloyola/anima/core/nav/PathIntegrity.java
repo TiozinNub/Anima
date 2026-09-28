@@ -64,8 +64,9 @@ public final class PathIntegrity {
             addLaid(needs, to.x(), to.y(), to.z(), profile);
             return needs;
         }
-        if (to.move() == MoveType.LOWER) {
-            // The pillar block the body stands on is broken under it: solid now, open after.
+        if (to.move().cutsItsCell()) {
+            // The block the waypoint stands in — a pillar's underfoot, a carved lip ahead — is broken
+            // on the way in: solid now, open after.
             addLowered(needs, to.x(), to.y(), to.z(), profile);
             return needs;
         }
@@ -110,9 +111,9 @@ public final class PathIntegrity {
             } else if (from.move() == MoveType.CLIMB) {
                 // Stepping off a ladder sideways: the near end is a hold, which has no footing.
                 addHold(needs, from.x(), from.y(), from.z(), profile);
-            } else if (from.move() == MoveType.LOWER) {
-                // Stepping off the foot of a pillar just gone down: its cell held the block until
-                // the body broke it, so a look ahead finds it solid.
+            } else if (from.move().cutsItsCell()) {
+                // Stepping off the foot of a pillar just gone down, or out of a notch: its cell held
+                // a block until the body broke it, so a look ahead finds it solid.
                 addLowered(needs, from.x(), from.y(), from.z(), profile);
             } else if (from.move().rebuildsFloor()) {
                 // Stepping off a deck or a scaled step: its floor is a block the route has not

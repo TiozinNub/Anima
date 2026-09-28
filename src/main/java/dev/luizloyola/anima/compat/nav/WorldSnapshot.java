@@ -71,6 +71,10 @@ public final class WorldSnapshot implements NavGrid {
     private static final TagKey<Block> SOFT_GROUND =
             TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("anima", "soft_ground"));
 
+    /** Soft ground whose cover spreads back over bare dirt. See {@link NavGrid#regrows}. */
+    private static final TagKey<Block> REGROWING_GROUND =
+            TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("anima", "regrowing_ground"));
+
     /** Hand-swung trapdoors: the wooden ones and copper. Vanilla has no tag that says it. */
     private static final TagKey<Block> HAND_TRAPDOORS =
             TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("anima", "hand_trapdoors"));
@@ -106,6 +110,11 @@ public final class WorldSnapshot implements NavGrid {
     private static final int FIXED = 1 << 7;
     /** The same bit on a {@link CellType#GROUND} cell: soft ground. See {@link NavGrid#soft}. */
     private static final int SOFT = 1 << 7;
+    /**
+     * In a soft cell's payload, where a ramp mask would be: soft ground is a full block with no
+     * ramps, so its payload is free. See {@link NavGrid#regrows}.
+     */
+    private static final int REGROWS = 1;
 
     static boolean layable(int packed) {
         return type(packed) == CellType.PASSABLE && (packed & FIXED) == 0;
@@ -113,6 +122,10 @@ public final class WorldSnapshot implements NavGrid {
 
     static boolean soft(int packed) {
         return type(packed) == CellType.GROUND && (packed & SOFT) != 0;
+    }
+
+    static boolean regrows(int packed) {
+        return soft(packed) && (payload(packed) & REGROWS) != 0;
     }
 
     static CellType type(int packed) {
@@ -125,7 +138,7 @@ public final class WorldSnapshot implements NavGrid {
 
     /** The ramps a packed cell describes — see {@link NavGrid#ramps}. */
     static int ramps(int packed) {
-        return type(packed) == CellType.GROUND ? payload(packed) : 0;
+        return type(packed) == CellType.GROUND && !soft(packed) ? payload(packed) : 0;
     }
 
     /** A climbable with a floor on top: scaffolding. See {@link NavGrid#climbFloor}. */
@@ -386,6 +399,11 @@ public final class WorldSnapshot implements NavGrid {
     /** {@link NavGrid#soft} of a single live cell, under {@link #classifyAt}'s rules. */
     public static boolean softAt(Level level, BlockPos pos) {
         return soft(packedAt(level.getBlockState(pos), level, pos));
+    }
+
+    /** {@link NavGrid#regrows} of a single live cell, under {@link #classifyAt}'s rules. */
+    public static boolean regrowsAt(Level level, BlockPos pos) {
+        return regrows(packedAt(level.getBlockState(pos), level, pos));
     }
 
     /** {@link NavGrid#layable} of a single live cell, under {@link #classifyAt}'s rules. */
@@ -744,7 +762,10 @@ public final class WorldSnapshot implements NavGrid {
                         ? pack(CellType.DOOR, 0)
                         : pack(CellType.OBSTACLE, 0);
             }
-            return (byte) (pack(CellType.GROUND, rampsOf(shape)) | (state.is(SOFT_GROUND) ? SOFT : 0));
+            if (state.is(SOFT_GROUND)) {
+                return (byte) (pack(CellType.GROUND, state.is(REGROWING_GROUND) ? REGROWS : 0) | SOFT);
+            }
+            return pack(CellType.GROUND, rampsOf(shape));
         }
         if (surface <= 0.0) {
             // Collision the body's footprint never meets, because it hugs one face of the cell. A
@@ -848,6 +869,12 @@ public final class WorldSnapshot implements NavGrid {
     public boolean soft(int x, int y, int z) {
         int index = slot(x, y, z);
         return index >= 0 && soft(this.cells[index]);
+    }
+
+    @Override
+    public boolean regrows(int x, int y, int z) {
+        int index = slot(x, y, z);
+        return index >= 0 && regrows(this.cells[index]);
     }
 
     /**

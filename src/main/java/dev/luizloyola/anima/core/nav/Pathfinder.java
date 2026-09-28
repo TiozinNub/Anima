@@ -180,6 +180,11 @@ public final class Pathfinder {
     /** The highest step a scale climbs. Four up is a cliff, not a step. */
     private static final int MAX_SCALE = 3;
     /**
+     * One {@link MoveType#CARVE}: the lip cut and a jump of one. Below a two-block scale, so where the
+     * judge allows a carve it is the way up.
+     */
+    private static final double CARVE_COST = 3.0;
+    /**
      * One {@link MoveType#LOWER}: the block underfoot broken, and a drop of one with it. Priced like
      * a short drop, below the second of time it really takes: going down a pillar is the only thing
      * that ever cleans it up, and at its true cost the search ate one block and dropped past the
@@ -337,8 +342,8 @@ public final class Pathfinder {
         int laid;
         int layRun;
         /**
-         * Blocks taken on the way: a recorded pillar's, climbed beside or eaten going down. What
-         * the pocket must pay is what was laid less what was taken.
+         * Blocks taken on the way: a recorded pillar's, climbed beside or eaten going down, and a
+         * carved lip. What the pocket must pay is what was laid less what was taken.
          */
         int taken;
         boolean closed;
@@ -815,10 +820,10 @@ public final class Pathfinder {
             pillarNeighbor(current, node, x, y, z);
             lowerNeighbor(current, node, x, y, z);
         }
-        if (node.move.lays() || node.move == MoveType.LOWER) {
-            // Standing on a block the grid has not got. Leaps, strides, diagonals, climbs and
-            // strokes all read this cell's floor from the grid, so only the moves that know better
-            // leave from here: the cardinal steps, and laying another.
+        if (node.move.lays() || node.move.cutsItsCell()) {
+            // Standing on a block the grid has not got, or in one it still has. Leaps, strides,
+            // diagonals, climbs and strokes all read this cell from the grid, so only the moves
+            // that know better leave from here: the cardinal steps, and laying another.
             return;
         }
         if (this.profile.canScale()) {
@@ -1406,12 +1411,36 @@ public final class Pathfinder {
             if (!this.grid.soft(nx, lip, nz) || touchesLiquid(nx, lip, nz)) return;
             double to = footing(nx, y + rise, nz);
             if (to == y + rise) {
+                if (rise == 2 && looksNatural(nx, lip, nz)) {
+                    relax(current, node, pack(nx, lip, nz), lip, MoveType.CARVE, CARVE_COST, 0,
+                            NO_PARENT, 1);
+                }
                 relax(current, node, pack(nx, y + rise, nz), to, MoveType.SCALE,
                         SCALE_COST * (rise - 1));
                 return;
             }
             if (to != NO_FOOTING) return; // something on the lip: a carpet, a snow layer
         }
+    }
+
+    /**
+     * Whether a two-block step's lip may be cut and kept, the notch left for good
+     * (docs/superpowers/specs/2026-09-28-bridging-design.md, "Does a carve look natural"): its
+     * cover grows back, nothing stands on it that a placement would not replace, the notch floor is
+     * ground two deep, and no side of the lip stands two or more above it — cut there, the next body
+     * meets a step of three. Measured on the forest: 41 to 64% of two-block soft steps pass.
+     */
+    private boolean looksNatural(int x, int lip, int z) {
+        if (!this.grid.regrows(x, lip, z) || !this.grid.layable(x, lip + 1, z)
+                || this.grid.cell(x, lip - 2, z) != CellType.GROUND) {
+            return false;
+        }
+        for (int[] d : CARDINALS) {
+            if (this.grid.cell(x + d[0], lip + 2, z + d[1]) != CellType.PASSABLE) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Whether a side of this cell holds water or anything harmful. */
@@ -2051,7 +2080,7 @@ public final class Pathfinder {
         relax(current, from, neighbor, footing, move, cost, submergedRun, takeoff, 0);
     }
 
-    /** @param take blocks this move takes from a recorded pillar — see {@link Node#taken} */
+    /** @param take blocks this move puts in the hand — see {@link Node#taken} */
     private void relax(long current, Node from, long neighbor, double footing, MoveType move,
                        double cost, int submergedRun, long takeoff, int take) {
         int ny = unpackY(neighbor);

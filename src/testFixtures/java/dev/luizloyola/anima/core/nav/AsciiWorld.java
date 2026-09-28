@@ -32,6 +32,7 @@ public final class AsciiWorld implements NavGrid {
     private final java.util.Set<Long> hatches = new java.util.HashSet<>();
     private final java.util.Set<Long> fixed = new java.util.HashSet<>();
     private final java.util.Set<Long> soft = new java.util.HashSet<>();
+    private final java.util.Set<Long> regrowing = new java.util.HashSet<>();
 
     private AsciiWorld(String[] rows) {
         this.rows = rows;
@@ -131,6 +132,7 @@ public final class AsciiWorld implements NavGrid {
             @Override public boolean hasDoors() { return map.hasDoors(); }
             @Override public boolean layable(int x, int y, int z) { return map.layable(x, y, z); }
             @Override public boolean soft(int x, int y, int z) { return map.soft(x, y, z); }
+            @Override public boolean regrows(int x, int y, int z) { return map.regrows(x, y, z); }
             @Override public boolean inBounds(int x, int y, int z) {
                 return x >= 0 && x < w && z >= 0 && z < depth;
             }
@@ -152,6 +154,24 @@ public final class AsciiWorld implements NavGrid {
     @Override
     public boolean soft(int x, int y, int z) {
         return cell(x, y, z) == CellType.GROUND && this.soft.contains(Pathfinder.pack(x, y, z));
+    }
+
+    /** Soft cells through the inclusive box whose cover grows back — see {@link NavGrid#regrows}. */
+    public AsciiWorld regrows(int x1, int y1, int z1, int x2, int y2, int z2) {
+        soft(x1, y1, z1, x2, y2, z2);
+        for (int x = x1; x <= x2; x++) {
+            for (int y = y1; y <= y2; y++) {
+                for (int z = z1; z <= z2; z++) {
+                    this.regrowing.add(Pathfinder.pack(x, y, z));
+                }
+            }
+        }
+        return this;
+    }
+
+    @Override
+    public boolean regrows(int x, int y, int z) {
+        return soft(x, y, z) && this.regrowing.contains(Pathfinder.pack(x, y, z));
     }
 
     @Override

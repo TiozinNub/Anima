@@ -114,6 +114,17 @@ public interface NavGrid {
         return false;
     }
 
+    /**
+     * Whether this soft ground's cover grows back over bare dirt — grass, mycelium:
+     * {@code #anima:regrowing_ground}. A {@link MoveType#CARVE} keeps its cut only through such a
+     * lip, because the notch heals over.
+     *
+     * <p>The default is none, correct for a drawn grid that did not say.
+     */
+    default boolean regrows(int x, int y, int z) {
+        return false;
+    }
+
     /** A heading as a bit, for {@link #ramps}: toward -z. */
     int NORTH = 1;
     /** Toward +z. */
