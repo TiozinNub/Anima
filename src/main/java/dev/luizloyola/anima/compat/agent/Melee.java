@@ -2,6 +2,7 @@ package dev.luizloyola.anima.compat.agent;
 
 import dev.luizloyola.anima.mixin.LivingEntityAttackStrengthAccessor;
 import java.util.function.Predicate;
+import net.minecraft.core.Holder;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
@@ -14,6 +15,10 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.item.ItemStack;
@@ -63,6 +68,43 @@ public final class Melee {
     public static float charge(LivingEntity body) {
         float delay = (float) (1.0 / body.getAttributeValue(Attributes.ATTACK_SPEED) * 20.0);
         return Mth.clamp((chargeTicks(body) + 0.5F) / delay, 0.0F, 1.0F);
+    }
+
+    /**
+     * What {@code weapon} in hand would deal a second at full charge: attack damage times attack
+     * speed, from the body's own base values and the item's main-hand modifiers. Everything else on
+     * the body — potions, what it holds now — would move every candidate alike, so it is left out.
+     * Enchantments are left out too.
+     */
+    public static double damagePerSecond(LivingEntity body, ItemStack weapon) {
+        double[] damage = {base(body, Attributes.ATTACK_DAMAGE), 0.0, 1.0};
+        double[] speed = {base(body, Attributes.ATTACK_SPEED), 0.0, 1.0};
+        weapon.forEachModifier(EquipmentSlot.MAINHAND, (attribute, modifier) -> {
+            if (attribute.value() == Attributes.ATTACK_DAMAGE.value()) {
+                apply(damage, modifier);
+            } else if (attribute.value() == Attributes.ATTACK_SPEED.value()) {
+                apply(speed, modifier);
+            }
+        });
+        return total(damage) * total(speed);
+    }
+
+    private static double base(LivingEntity body, Holder<Attribute> attribute) {
+        AttributeInstance instance = body.getAttribute(attribute);
+        return instance == null ? 0.0 : instance.getBaseValue();
+    }
+
+    /** {@code value} is {base + additions, multiplier of the base, multiplier of the total}. */
+    private static void apply(double[] value, AttributeModifier modifier) {
+        switch (modifier.operation()) {
+            case ADD_VALUE -> value[0] += modifier.amount();
+            case ADD_MULTIPLIED_BASE -> value[1] += modifier.amount();
+            case ADD_MULTIPLIED_TOTAL -> value[2] *= 1.0 + modifier.amount();
+        }
+    }
+
+    private static double total(double[] value) {
+        return Math.max(0.0, value[0] * (1.0 + value[1]) * value[2]);
     }
 
     /**

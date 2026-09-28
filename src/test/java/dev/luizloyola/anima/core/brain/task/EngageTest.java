@@ -56,6 +56,44 @@ class EngageTest {
     }
 
     @Test
+    void itDrawsBeforeTheChaseSoTheWarmupRunsOnTheWay() {
+        Being zombie = zombieAt(8, 8.0);
+        new Engage(zombie.id(), zombie.pos()).tick(ctx);
+
+        assertEquals(1, ctx.striker.draws);
+        assertEquals(1, ctx.mover.moveToCalls);
+    }
+
+    @Test
+    void aHandThatJustChangedDoesNotSwingThatTick() {
+        Being zombie = zombieAt(2, 2.0);
+        ctx.striker.reach = Striker.Reach.IN_REACH;
+        ctx.striker.drawChanges = true;
+        Engage engage = new Engage(zombie.id(), zombie.pos());
+
+        engage.tick(ctx);
+        assertTrue(ctx.striker.struck.isEmpty(),
+                "the counter still reads the old hand's charge until the body's next tick");
+        assertEquals(1, ctx.striker.draws, "ranked once, not again before the blow");
+        engage.tick(ctx);
+        assertEquals(1, ctx.striker.struck.size());
+    }
+
+    @Test
+    void everyBlowAsksForTheBestWeaponFirst() {
+        Being zombie = zombieAt(2, 2.0);
+        ctx.striker.reach = Striker.Reach.IN_REACH;
+        Engage engage = new Engage(zombie.id(), zombie.pos());
+        engage.tick(ctx);
+        engage.tick(ctx);
+        ctx.striker.drawChanges = true; // the last blow broke the sword; a spare comes out
+        engage.tick(ctx);
+
+        assertEquals(2, ctx.striker.struck.size(), "no blow on the tick the spare was drawn");
+        assertEquals(3, ctx.striker.draws);
+    }
+
+    @Test
     void itWatchesTheTargetAtWorkRank() {
         Being zombie = zombieAt(5, 5.0);
         new Engage(zombie.id(), zombie.pos()).tick(ctx);

@@ -1,15 +1,22 @@
 package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.compat.agent.Melee;
+import dev.luizloyola.anima.compat.inv.ItemStacks;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.Metabolism;
 import dev.luizloyola.anima.core.brain.act.Striker;
 import dev.luizloyola.anima.core.brain.act.Sweep;
+import dev.luizloyola.anima.core.brain.act.ToolChoice;
+import dev.luizloyola.anima.core.brain.act.WeaponChoice;
+import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.social.PartyId;
 import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.social.PartyData;
+import java.util.ArrayList;
+import java.util.List;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -87,6 +94,32 @@ public final class AgentStriker implements Striker {
             body.metabolism().exhaust(Metabolism.EXHAUSTION_ATTACK);
         }
         return landed;
+    }
+
+    @Override
+    public boolean draw() {
+        Inventory inv = body.inventory();
+        LivingEntity self = body.entity();
+        HolderLookup.Provider registries = self.level().registryAccess();
+        List<WeaponChoice.Candidate> pack = new ArrayList<>();
+        for (int slot = 0; slot < Inventory.ARMOR_START; slot++) {
+            dev.luizloyola.anima.core.inv.ItemStack core = inv.get(slot);
+            if (!core.isEmpty()) {
+                pack.add(new WeaponChoice.Candidate(slot,
+                        Melee.damagePerSecond(self, ItemStacks.toVanilla(core, registries))));
+            }
+        }
+        int choice = WeaponChoice.choose(pack, Inventory.HOTBAR_START + inv.selectedSlot(),
+                Melee.damagePerSecond(self, ItemStack.EMPTY));
+        if (choice == ToolChoice.KEEP_HAND) {
+            return false;
+        }
+        if (choice == ToolChoice.BARE_HAND) {
+            inv.stow();
+            return inv.mainHand().isEmpty(); // a full pack keeps the hand as it is
+        }
+        inv.wield(choice);
+        return true;
     }
 
     /** The charge counter, for the body's save: a reload must not cost a fighter its warmup. */

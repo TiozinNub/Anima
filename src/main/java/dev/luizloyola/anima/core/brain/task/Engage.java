@@ -13,8 +13,10 @@ import org.jspecify.annotations.Nullable;
  * Close on somebody and hit them until they are dead: the loop inside {@link Fight}. It knows whom
  * it fights and nothing about why.
  *
- * <p>Each tick it asks the arm where a blow stands. In reach, it stops and swings the moment the
- * charge is full, as a player waits out the cooldown. Out of reach, or with something in the way,
+ * <p>Its first tick draws the pack's best weapon, so the warmup runs during the chase, and it asks
+ * again before every blow, since the last one may have broken it. Each tick it asks the arm where a
+ * blow stands. In reach, it stops and swings the moment the charge is full, as a player waits out
+ * the cooldown. Out of reach, or with something in the way,
  * it chases the target's perceived cell — re-aimed whenever that cell changes, the way
  * {@link Converse} follows a speaker. It watches the target throughout, at the rank a deliberate
  * act looks at what it is doing.
@@ -35,6 +37,8 @@ public final class Engage implements PrimitiveTask {
     private @Nullable GoTo leg;
     private double legFrom;
     private String failure = "";
+    /** Not saved: a restored fight asks again, and an arm already holding the best keeps it. */
+    private boolean drawn;
 
     /**
      * @param target whom to fight
@@ -61,12 +65,22 @@ public final class Engage implements PrimitiveTask {
             return fail(ctx, "lost track of them");
         }
         lastKnown = seen.pos();
+        Boolean drewNow = null; // the pack is ranked at most once a tick
+        if (!drawn) {
+            drewNow = arm.draw();
+            drawn = true;
+        }
         TaskStatus status;
         if (reach == Striker.Reach.IN_REACH) {
             dropLeg(ctx);
             fruitless = 0;
             if (arm.charge() >= 1.0) {
-                arm.strike(target);
+                if (drewNow == null) {
+                    drewNow = arm.draw();
+                }
+                if (!drewNow) {
+                    arm.strike(target);
+                }
             }
             status = TaskStatus.RUNNING;
         } else {

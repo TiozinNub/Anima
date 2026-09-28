@@ -14,6 +14,9 @@ public final class FakeStriker implements Striker {
     public Reach reach = Reach.OUT_OF_REACH;
     public double charge = 1.0;
     public final List<BeingId> struck = new ArrayList<>();
+    /** What the next {@link #draw} answers; it answers once, then the hand holds the best. */
+    public boolean drawChanges;
+    public int draws;
 
     @Override
     public Reach reach(BeingId target) {
@@ -29,5 +32,13 @@ public final class FakeStriker implements Striker {
     public boolean strike(BeingId target) {
         struck.add(target);
         return reach == Reach.IN_REACH;
+    }
+
+    @Override
+    public boolean draw() {
+        draws++;
+        boolean changed = drawChanges;
+        drawChanges = false;
+        return changed;
     }
 }
