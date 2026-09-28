@@ -78,6 +78,8 @@ public final class FakeContext implements BrainContext {
      * context has no executor to derive it from.
      */
     public boolean reshapingGround = false;
+    /** Whether the work under way lets its walks build — see {@link BrainContext#walksMayBuild()}. */
+    public boolean walksMayBuild = false;
     /** This body's party's claims, made on first {@link #claim}; a test wiring its own leaves it null. */
     private dev.luizloyola.anima.core.social.Places places;
 
@@ -209,6 +211,11 @@ public final class FakeContext implements BrainContext {
     @Override
     public java.util.List<dev.luizloyola.anima.core.brain.history.History.Entry> history() {
         return history;
+    }
+
+    @Override
+    public boolean walksMayBuild() {
+        return walksMayBuild;
     }
 
     @Override

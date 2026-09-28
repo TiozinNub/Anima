@@ -57,4 +57,14 @@ public sealed interface Task permits PrimitiveTask, CompoundTask {
     default boolean converses() {
         return false;
     }
+
+    /**
+     * Whether the walks under this operation may lay blocks — a deck over a gap, a pillar up a wall
+     * (docs/superpowers/specs/2026-09-28-bridging-design.md, "What a walk may do"). The consumer
+     * opts its errands in; asked of the whole running chain like {@link #reshapesGround()}, because
+     * an errand's walks are the errand's whichever task issues them.
+     */
+    default boolean buildsOnTheWay() {
+        return false;
+    }
 }

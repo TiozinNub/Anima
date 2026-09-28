@@ -232,6 +232,11 @@ public final class TaskExecutor {
         return chainAnswers(Task::reshapesGround);
     }
 
+    /** Whether the walks of the work under way may lay blocks — see {@link Task#buildsOnTheWay()}. */
+    public boolean building() {
+        return chainAnswers(Task::buildsOnTheWay);
+    }
+
     /** Whether the work under way is a conversation — see {@link Task#converses()}. */
     public boolean conversing() {
         return chainAnswers(Task::converses);

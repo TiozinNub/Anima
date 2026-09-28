@@ -132,6 +132,15 @@ public interface BrainContext {
     }
 
     /**
+     * Whether the work under way lets its walks lay blocks — see
+     * {@link dev.luizloyola.anima.core.brain.task.Task#buildsOnTheWay()}. A walk issued without a
+     * level asks it: see {@link dev.luizloyola.anima.core.nav.WalkLevel#underWork}.
+     */
+    default boolean walksMayBuild() {
+        return false;
+    }
+
+    /**
      * This body's stream of chance — drawn from when an instinct or a method has a genuine choice
      * to make.
      *

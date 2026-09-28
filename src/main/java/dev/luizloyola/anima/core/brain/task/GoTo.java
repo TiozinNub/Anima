@@ -74,7 +74,7 @@ public final class GoTo implements PrimitiveTask {
     public TaskStatus tick(BrainContext ctx) {
         if (!issued) {
             issued = true;
-            ctx.actuators().mover().moveTo(x, y, z, gait, level);
+            ctx.actuators().mover().moveTo(x, y, z, gait, level.underWork(ctx.walksMayBuild()));
             // Look where you are about to go: eyes reaching the destination before the legs is what
             // reads as intent. A claim, so anything that actually needs the head outranks it, and it
             // lapses on its own rather than having to be called off.

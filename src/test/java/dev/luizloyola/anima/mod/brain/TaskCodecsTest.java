@@ -220,6 +220,13 @@ class TaskCodecsTest {
         assertEquals(dev.luizloyola.anima.core.inv.ItemCall.Strength.WANT,
                 after.calls().get(0).strength());
         assertInstanceOf(GoTo.class, after.work());
+        org.junit.jupiter.api.Assertions.assertFalse(after.builds(), "saved before it could build");
+
+        var building = assertInstanceOf(dev.luizloyola.anima.core.brain.task.KittedErrand.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.KittedErrand(java.util.List.of(),
+                        new GoTo(4, -60, 9), true)));
+        org.junit.jupiter.api.Assertions.assertTrue(building.buildsOnTheWay(),
+                "a restart keeps an errand's leave to build");
 
         var shrug = assertInstanceOf(dev.luizloyola.anima.core.brain.task.Try.class, roundTrip(
                 new dev.luizloyola.anima.core.brain.task.Try(new GoTo(1, 2, 3))));

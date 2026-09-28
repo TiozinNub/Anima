@@ -40,6 +40,15 @@ public interface WorkItem {
         return Kit.NONE;
     }
 
+    /**
+     * Whether this errand's walks may lay blocks — bridge a gap, pillar up a wall — with what the
+     * body carries (docs/superpowers/specs/2026-09-28-bridging-design.md). Off unless the consumer
+     * opts its errand in; carried by {@link dev.luizloyola.anima.core.brain.task.KittedErrand}.
+     */
+    default boolean buildsOnTheWay() {
+        return false;
+    }
+
     /** One-line name for journal and board readouts, e.g. {@code "acquire logs x16"}. */
     String describe();
     /**

@@ -574,7 +574,9 @@ public final class AnimaTasks {
                         ITEM_CALL.listOf().fieldOf("calls")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.KittedErrand::calls),
                         TaskCodecs.codec().fieldOf("work")
-                                .forGetter(dev.luizloyola.anima.core.brain.task.KittedErrand::work)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.KittedErrand::work),
+                        com.mojang.serialization.Codec.BOOL.optionalFieldOf("builds", false)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.KittedErrand::builds)
                 ).apply(t, dev.luizloyola.anima.core.brain.task.KittedErrand::new)));
 
         // Restored with Coverage.NONE: the project that owns the errand re-attaches its live

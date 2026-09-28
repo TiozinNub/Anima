@@ -22,18 +22,40 @@ public final class KittedErrand implements CompoundTask {
 
     private final List<ItemCall> calls;
     private final Task work;
+    /** Whether the errand's walks may lay blocks — see {@link WorkItem#buildsOnTheWay()}. */
+    private final boolean builds;
     private final List<Method> methods;
 
     public KittedErrand(List<ItemCall> calls, Task work) {
+        this(calls, work, false);
+    }
+
+    public KittedErrand(List<ItemCall> calls, Task work, boolean builds) {
         this.calls = List.copyOf(calls);
         this.work = work;
+        this.builds = builds;
         this.methods = List.of(new KitUpThenWork());
     }
 
-    /** A fresh root for a granted item: its own root, behind its kit when it declares one. */
+    /**
+     * A fresh root for a granted item: its own root, behind its kit when it declares one, and
+     * carrying its leave to build on the way when it has that.
+     */
     public static Task around(WorkItem item) {
         Task root = item.root();
-        return item.kit().isEmpty() ? root : new KittedErrand(item.kit().calls(), root);
+        if (item.kit().isEmpty() && !item.buildsOnTheWay()) {
+            return root;
+        }
+        return new KittedErrand(item.kit().calls(), root, item.buildsOnTheWay());
+    }
+
+    @Override
+    public boolean buildsOnTheWay() {
+        return builds;
+    }
+
+    public boolean builds() {
+        return builds;
     }
 
     @Override
@@ -43,7 +65,7 @@ public final class KittedErrand implements CompoundTask {
 
     @Override
     public String describe() {
-        return "kit up, then " + describeWork();
+        return calls.isEmpty() ? describeWork() : "kit up, then " + describeWork();
     }
 
     public List<ItemCall> calls() {

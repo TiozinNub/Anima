@@ -1,10 +1,12 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.sense.Drop;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.ItemSpec;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,7 +54,8 @@ public final class GatherNearbyDrops implements PrimitiveTask {
             return TaskStatus.RUNNING;
         }
         Pos centroid = Flocks.nearestCentroid(matching, ctx.percepts().position());
-        ctx.actuators().mover().moveTo(centroid.x(), centroid.y(), centroid.z());
+        ctx.actuators().mover().moveTo(centroid.x(), centroid.y(), centroid.z(), Gait.WALK,
+                WalkLevel.SCALE.underWork(ctx.walksMayBuild()));
         walkIssued = true;
         laps++;
         return TaskStatus.RUNNING;

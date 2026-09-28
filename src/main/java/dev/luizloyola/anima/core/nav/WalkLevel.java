@@ -30,4 +30,13 @@ public enum WalkLevel {
     public static WalkLevel of(Gait gait) {
         return gait == Gait.WALK ? SCALE : WALK_ONLY;
     }
+
+    /**
+     * This level, raised to {@link #BUILD} when it is the plain default and the work under way lets
+     * its walks build. Never raised from {@link #WALK_ONLY}: a stroll, a flight or a fight stays one
+     * whatever it is part of.
+     */
+    public WalkLevel underWork(boolean building) {
+        return this == SCALE && building ? BUILD : this;
+    }
 }

@@ -62,6 +62,43 @@ class KittedErrandTest {
         }
     }
 
+    /** An errand the consumer lets build: its walks may lay blocks. */
+    private record BuildingItem(Task root) implements WorkItem {
+        @Override
+        public double priority() {
+            return 0.5;
+        }
+
+        @Override
+        public String describe() {
+            return "stand-in that builds";
+        }
+
+        @Override
+        public Deed doing() {
+            return Deed.of(FakeDoings.IDLED);
+        }
+
+        @Override
+        public boolean buildsOnTheWay() {
+            return true;
+        }
+    }
+
+    @Test
+    void anErrandThatBuildsIsWrappedWithoutAKitAndTheChainSaysSo() {
+        Work root = new Work();
+        KittedErrand errand = assertInstanceOf(KittedErrand.class,
+                KittedErrand.around(new BuildingItem(root)));
+        assertEquals(List.of(root), errand.methods().get(0).decompose(ctx), "nothing to kit up");
+        assertEquals("the errand", errand.describe());
+        TaskExecutor executor = new TaskExecutor();
+        executor.run(new KittedErrand(List.of(), new GoTo(1, 2, 3), true), ctx);
+        executor.tick(ctx);
+        org.junit.jupiter.api.Assertions.assertTrue(executor.building(),
+                "a walk deep in the errand is the errand's");
+    }
+
     @Test
     void aKitlessItemComesBackUnwrapped() {
         Work root = new Work();

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -177,5 +178,20 @@ class GoToTest {
         assertEquals("goto (12, -60, 8) (sprint)", new GoTo(12, -60, 8, Gait.SPRINT).describe());
         assertEquals("goto (12, -60, 8) (stroll)", new GoTo(12, -60, 8, Gait.STROLL).describe());
         assertEquals("goto (12, -60, 8)", new GoTo(12, -60, 8, Gait.WALK).describe());
+    }
+
+    /** A plain walk under work that builds may build; a stroll and a walk-only walk stay what they are. */
+    @Test
+    void aPlainWalkUnderBuildingWorkMayBuild() {
+        ctx.walksMayBuild = true;
+        new GoTo(1, 2, 3).tick(ctx);
+        assertEquals(WalkLevel.BUILD, mover.lastLevel);
+        new GoTo(1, 2, 3, Gait.STROLL).tick(ctx);
+        assertEquals(WalkLevel.WALK_ONLY, mover.lastLevel);
+        new GoTo(1, 2, 3, Gait.WALK, WalkLevel.WALK_ONLY).tick(ctx);
+        assertEquals(WalkLevel.WALK_ONLY, mover.lastLevel);
+        ctx.walksMayBuild = false;
+        new GoTo(1, 2, 3).tick(ctx);
+        assertEquals(WalkLevel.SCALE, mover.lastLevel, "nothing asked: a plain walk scales");
     }
 }
