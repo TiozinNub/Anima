@@ -277,8 +277,8 @@ final class GroundWork {
     }
 
     /**
-     * A recorded pillar block beside the feet, one level up, with something under it — the block a
-     * climber takes, whose own drop would have landed on the one below. Null when there is none.
+     * A recorded pillar block beside the feet, one level up — the block a climber takes. Nothing need
+     * be under it: the one under it is the block the last step took. Null when there is none.
      */
     private @org.jspecify.annotations.Nullable BlockPos recordedBeside(BlockPos feet) {
         Level level = this.person.level();
@@ -286,8 +286,7 @@ final class GroundWork {
             BlockPos cell = feet.above().relative(side);
             LaidBlocks.Row row = ledger().at(pos(cell)).orElse(null);
             if (row != null && row.kind() == LaidBlocks.Kind.PILLAR
-                    && !level.getBlockState(cell).canBeReplaced()
-                    && !level.getBlockState(cell.below()).canBeReplaced()) {
+                    && !level.getBlockState(cell).canBeReplaced()) {
                 return cell;
             }
         }

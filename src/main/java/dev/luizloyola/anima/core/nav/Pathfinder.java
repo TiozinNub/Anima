@@ -1341,7 +1341,7 @@ public final class Pathfinder {
      */
     private void pillarNeighbor(long current, Node node, int x, int y, int z) {
         // Beside a recorded pillar the block comes from the pillar, not the pocket: taken from one
-        // level above the feet, so its drop lands on the pillar block below it and is picked up.
+        // level above the feet, the level the body is about to rise to.
         int take = recordedBeside(x, y + 1, z) && this.grid.cell(x, y, z) != CellType.OBSTACLE ? 1 : 0;
         if ((take == 0 && node.laid - node.taken >= this.layBudget)
                 || (node.move == MoveType.PILLAR && node.layRun >= PILLAR_CAP)) {
@@ -1356,7 +1356,11 @@ public final class Pathfinder {
                 take);
     }
 
-    /** Whether a cardinal side of this cell holds a recorded pillar block, with something under it. */
+    /**
+     * Whether a cardinal side of this cell holds a recorded pillar block. Nothing need be under it:
+     * a climber takes the pillar from the bottom up, so every block after the first hangs over the
+     * one it took, and it is prised into the hand rather than dropped.
+     */
     private boolean recordedBeside(int x, int y, int z) {
         if (this.pillars.isEmpty()) {
             return false;
@@ -1364,7 +1368,7 @@ public final class Pathfinder {
         for (int[] d : CARDINALS) {
             int fx = x + d[0];
             int fz = z + d[1];
-            if (this.pillars.contains(pack(fx, y, fz)) && this.grid.cell(fx, y - 1, fz) == CellType.GROUND) {
+            if (this.pillars.contains(pack(fx, y, fz)) && this.grid.cell(fx, y, fz) == CellType.GROUND) {
                 return true;
             }
         }
