@@ -85,7 +85,9 @@ final class EnclosureWatch {
         if (walkEnded) {
             ask(level, navigator.plannedGrid());
         } else if (!this.loaded) {
-            ask(level, null);
+            // In the tick: a reload must look like two ticks in a row, and the answer this body had
+            // is not saved — it is a reading of the world, so it is read again.
+            askNow(level);
         } else if (!current().known() && this.pending == null && !feet().equals(this.askedFrom)) {
             ask(level, null);
         } else if (doorsChanged(level, now)) {
@@ -97,13 +99,22 @@ final class EnclosureWatch {
     }
 
     private void ask(ServerLevel level, @Nullable NavGrid walked) {
+        dispatch(level, walked, false);
+    }
+
+    private void askNow(ServerLevel level) {
+        dispatch(level, null, true);
+    }
+
+    private void dispatch(ServerLevel level, @Nullable NavGrid walked, boolean inTick) {
         if (this.pending != null) {
             this.askAgain = true;
             return;
         }
         this.askedFrom = feet();
         PathfinderService.EnclosureDispatch dispatch = PathfinderService.enclosure(level,
-                this.body.blockPosition(), MoveCapabilities.of(this.body.profile()), walked);
+                this.body.blockPosition(), MoveCapabilities.of(this.body.profile()), walked,
+                inTick);
         this.pending = dispatch.result();
         this.pendingOn = dispatch.grid();
         adoptIfBack();

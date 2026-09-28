@@ -53,9 +53,8 @@ public final class EnclosureCommands {
     }
 
     /**
-     * Runs the check now and waits for it — a worker's few milliseconds held on the server thread,
-     * which is fine because an operator asked and is waiting. What the body itself believes is
-     * untouched.
+     * Runs the check now, on the server thread — a few milliseconds, fine because an operator asked
+     * and is waiting. What the body itself believes is untouched.
      */
     private static int check(CommandContext<CommandSourceStack> ctx, @Nullable BlockPos at) {
         AgentBody person = Subject.body(ctx);
@@ -63,7 +62,7 @@ public final class EnclosureCommands {
         if (!(person.level() instanceof ServerLevel level)) return 0;
         BlockPos where = at != null ? at : person.blockPosition();
         Enclosure answer = PathfinderService.enclosure(level, where,
-                MoveCapabilities.of(person.profile()), null).result().join();
+                MoveCapabilities.of(person.profile()), null, true).result().join();
         say(ctx.getSource(), person.entity().getName().getString(), answer);
         return 1;
     }

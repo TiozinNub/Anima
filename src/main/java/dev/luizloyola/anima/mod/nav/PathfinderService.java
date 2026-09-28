@@ -256,9 +256,12 @@ public final class PathfinderService {
      * searched when it covers the body with {@link #ENCLOSURE_RIM} to spare, its doors read again
      * first, which spares the tick a capture; otherwise a fresh box of
      * {@link Knob#ENCLOSURE_REACH} is baked here.
+     *
+     * @param inTick answer before returning, on this thread — for a body just loaded, whose answer
+     *               must be there on its first tick as it was on its last
      */
     public static EnclosureDispatch enclosure(ServerLevel level, BlockPos feet,
-            MoveCapabilities body, @Nullable NavGrid walked) {
+            MoveCapabilities body, @Nullable NavGrid walked, boolean inTick) {
         WorldSnapshot snapshot;
         NavGrid grid;
         if (walked instanceof WorldSnapshot planned
@@ -274,7 +277,7 @@ public final class PathfinderService {
         }
         BlockPos from = surfaceStart(snapshot, feet, body);
         long now = level.getGameTime();
-        if (inThread()) {
+        if (inTick || inThread()) {
             return new EnclosureDispatch(CompletableFuture.completedFuture(EnclosureCheck.run(
                     grid, from.getX(), from.getY(), from.getZ(), body, ENCLOSURE_NODES, now)), grid);
         }
