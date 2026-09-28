@@ -58,7 +58,12 @@ public final class Setbacks {
          * body ENDED up is only a guess at where the trouble was, and the guess is worth a lean
          * rather than a detour.
          */
-        STRAYED(0.3);
+        STRAYED(0.3),
+        /**
+         * A block the route meant to lay would not go. As firm as a wedge: the world said no to
+         * this spot outright, and the next search should build somewhere else or not at all.
+         */
+        LAY_REFUSED(1.0);
 
         private final double weight;
 

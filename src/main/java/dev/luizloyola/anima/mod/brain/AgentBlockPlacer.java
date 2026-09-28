@@ -5,6 +5,7 @@ import dev.luizloyola.anima.core.brain.act.BlockPlacer;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundSource;
@@ -60,6 +61,11 @@ public final class AgentBlockPlacer implements BlockPlacer {
         if (person.entity().getEyePosition().distanceToSqr(Vec3.atCenterOf(pos)) > REACH * REACH) {
             return false;
         }
+        // A hand places a block against a face it can touch: something solid beside the cell. A
+        // block hung in open air is one no player could have put there.
+        if (!hasFace(level, pos)) {
+            return false;
+        }
         person.faceBlock(pos); 
         level.setBlockAndUpdate(pos, state);
         // The world hears it: the vibration bus (sculk, other Persons' ears) and the
@@ -72,5 +78,15 @@ public final class AgentBlockPlacer implements BlockPlacer {
         Arms.swingToInteract(person.entity(), InteractionHand.MAIN_HAND);
         person.inventory().remove(itemId, 1);
         return true;
+    }
+
+    private static boolean hasFace(Level level, BlockPos pos) {
+        for (Direction side : Direction.values()) {
+            BlockState beside = level.getBlockState(pos.relative(side));
+            if (!beside.isAir() && !beside.canBeReplaced()) {
+                return true;
+            }
+        }
+        return false;
     }
 }

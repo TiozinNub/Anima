@@ -52,7 +52,13 @@ public enum MoveFailure {
      * stopped Navigator is IDLE, not FAILED — so it is the reading a task makes of a mover that
      * has gone idle under an order it never finished.
      */
-    STOPPED("legs taken");
+    STOPPED("legs taken"),
+    /**
+     * A block the route meant to lay, or to cut and put back, would not go: the cell filled with
+     * something else, the support gone, nothing left in the pocket, a step that would not break.
+     * Appended, as every value here must be.
+     */
+    LAY_REFUSED("nowhere to lay a block");
 
     private final String description;
 

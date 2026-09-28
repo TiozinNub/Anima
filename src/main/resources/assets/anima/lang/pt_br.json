@@ -267,6 +267,8 @@
   "anima.config.aspect.body.can_open_doors.desc": "Se este corpo tem mão para abrir uma porta ou um portão. Desligado, uma porta fechada é uma parede. Portas de ferro são paredes de qualquer jeito.",
   "anima.config.aspect.body.can_climb": "Sabe escalar",
   "anima.config.aspect.body.can_climb.desc": "Se este corpo sobe escadas de mão e trepadeiras. Desligado, um poço com escada é um buraco e uma escada numa parede é uma parede.",
+  "anima.config.aspect.body.can_build": "Sabe construir",
+  "anima.config.aspect.body.can_build.desc": "Se este corpo tem mão para assentar um bloco: uma ponte sobre um vão, um pilar parede acima, a borda de um degrau de terra posta de volta. Desligado, uma caminhada que pode construir dá a volta.",
   "anima.config.aspect.escape.pressure": "Urgência de sair",
   "anima.config.aspect.escape.pressure.desc": "O quanto estar preso pressiona este corpo. Alta por padrão: de um lugar de onde não se consegue sair, todo outro desejo é sobre algum lugar inalcançável. Abaixo do medo de propósito — o que está te mordendo vale mais que a parede.",
   "anima.config.aspect.gaze.turn_degrees": "Velocidade da cabeça",

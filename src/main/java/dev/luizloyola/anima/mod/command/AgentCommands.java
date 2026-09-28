@@ -1,5 +1,11 @@
 package dev.luizloyola.anima.mod.command;
 
+import com.mojang.brigadier.builder.ArgumentBuilder;
+import net.minecraft.server.level.ColumnPos;
+import net.minecraft.commands.arguments.coordinates.ColumnPosArgument;
+import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.NavDomain;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
 import dev.luizloyola.anima.core.brain.history.History;
@@ -492,7 +498,11 @@ public final class AgentCommands {
                                 .then(Commands.literal("goto")
                                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                                 .executes(ctx -> navGoto(ctx,
-                                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+                                                        WalkLevel.SCALE, null))
+                                                .then(walkLevel("walk", WalkLevel.WALK_ONLY))
+                                                .then(walkLevel("scale", WalkLevel.SCALE))
+                                                .then(walkLevel("build", WalkLevel.BUILD))))
                                 .then(Commands.literal("stop")
                                         .executes(ctx -> navStop(ctx)))
                                 .then(Commands.literal("route")
@@ -1204,12 +1214,35 @@ public final class AgentCommands {
             EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND,
             EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET);
 
-    private static int navGoto(CommandContext<CommandSourceStack> ctx, BlockPos pos) {
+    /**
+     * {@code goto <pos> walk|scale|build [within <from> <to>]}: what the walk may do to the ground,
+     * and the columns it must keep to — the gauntlet's blocks layer fences each runner to its lane.
+     */
+    private static ArgumentBuilder<CommandSourceStack, ?> walkLevel(String name, WalkLevel level) {
+        return Commands.literal(name)
+                .executes(ctx -> navGoto(ctx, BlockPosArgument.getLoadedBlockPos(ctx, "pos"), level,
+                        null))
+                .then(Commands.literal("within")
+                        .then(Commands.argument("from", ColumnPosArgument.columnPos())
+                                .then(Commands.argument("to", ColumnPosArgument.columnPos())
+                                        .executes(ctx -> {
+                                            ColumnPos from = ColumnPosArgument.getColumnPos(ctx, "from");
+                                            ColumnPos to = ColumnPosArgument.getColumnPos(ctx, "to");
+                                            return navGoto(ctx,
+                                                    BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+                                                    level, NavDomain.columns(from.x(), from.z(),
+                                                            to.x(), to.z()));
+                                        }))));
+    }
+
+    private static int navGoto(CommandContext<CommandSourceStack> ctx, BlockPos pos, WalkLevel level,
+                               @Nullable NavDomain fence) {
         CommandSourceStack source = ctx.getSource();
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
-        person.navigateTo(Vec3.atBottomCenterOf(pos));
-        OpJournal.record(source, person.agentId(), "walked to " + pos.toShortString() + " by hand");
+        person.navigator().pathTo(pos, Gait.WALK, level, fence);
+        OpJournal.record(source, person.agentId(), "walked to " + pos.toShortString() + " by hand"
+                + (level == WalkLevel.SCALE ? "" : " (" + level.name().toLowerCase(Locale.ROOT) + ")"));
         Replies.send(source, () -> Component.translatable("anima.command.nav.goto",
                 person.entity().getName(), pos.toShortString()).withStyle(ChatFormatting.AQUA));
         return 1;

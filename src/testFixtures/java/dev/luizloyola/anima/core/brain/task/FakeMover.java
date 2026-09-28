@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.act.Mover;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -23,6 +24,7 @@ public final class FakeMover implements Mover {
     public int lastY;
     public int lastZ;
     public Gait lastGait;
+    public WalkLevel lastLevel;
     private MoveState state = MoveState.IDLE;
     private MoveFailure failure = MoveFailure.NONE;
 
@@ -36,7 +38,8 @@ public final class FakeMover implements Mover {
     }
 
     @Override
-    public void moveTo(int x, int y, int z, Gait gait) {
+    public void moveTo(int x, int y, int z, Gait gait, WalkLevel level) {
+        lastLevel = level;
         moveToCalls++;
         lastX = x;
         lastY = y;

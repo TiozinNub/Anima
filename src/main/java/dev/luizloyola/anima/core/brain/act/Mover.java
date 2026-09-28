@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.act;
 
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 
 /**
  * The movement actuator port: core defines the interface in terms of what an NPC needs ("walk to
@@ -30,7 +31,16 @@ public interface Mover {
      *             Navigator decides where each gait actually applies (terrain overrides mood);
      *             the port stays advisory, never a guarantee.
      */
-    void moveTo(int x, int y, int z, Gait gait);
+    default void moveTo(int x, int y, int z, Gait gait) {
+        moveTo(x, y, z, gait, WalkLevel.of(gait));
+    }
+
+    /**
+     * As {@link #moveTo(int, int, int, Gait)}, saying what the walk may do to the ground it
+     * crosses — see {@link WalkLevel}. Unsaid, a plain walk may scale a soft step and a stroll or a
+     * sprint may not.
+     */
+    void moveTo(int x, int y, int z, Gait gait, WalkLevel level);
 
     /** Progress of the most recent order; {@link MoveState#IDLE} when there is none. */
     MoveState state();

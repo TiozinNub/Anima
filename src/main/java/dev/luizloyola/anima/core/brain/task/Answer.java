@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
@@ -75,7 +77,7 @@ public final class Answer implements CompoundTask {
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
-            return List.of(new GoTo(where.x(), where.y(), where.z()),
+            return List.of(new GoTo(where.x(), where.y(), where.z(), Gait.WALK, WalkLevel.WALK_ONLY),
                     new Converse(who, Speech.Opening.THEY_HAILED));
         }
 

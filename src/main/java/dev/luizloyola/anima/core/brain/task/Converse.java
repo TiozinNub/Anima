@@ -9,6 +9,7 @@ import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.social.speech.Chooser;
 import dev.luizloyola.anima.core.social.speech.Encounter;
 import dev.luizloyola.anima.core.social.speech.Picker;
@@ -237,7 +238,7 @@ public final class Converse implements PrimitiveTask {
                     return letGo(ctx, "they were headed somewhere else");
                 }
             }
-            walk = new GoTo(at.x(), at.y(), at.z(), Gait.WALK);
+            walk = new GoTo(at.x(), at.y(), at.z(), Gait.WALK, WalkLevel.WALK_ONLY);
             walkedFrom = counterpart.distance();
         }
         if (walk.tick(ctx) == TaskStatus.RUNNING) {

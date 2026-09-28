@@ -5,6 +5,7 @@ import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 import java.util.Locale;
 
 /**
@@ -24,6 +25,9 @@ import java.util.Locale;
  * {@link dev.luizloyola.anima.core.brain.act.Mover#moveTo(int, int, int, Gait)} — {@code FleeStep}
  * orders {@link Gait#SPRINT}, {@code WanderStep} {@link Gait#STROLL}; the plain constructor is
  * {@link Gait#WALK}.
+ *
+ * <p><b>What it may do to the ground</b> is its {@link WalkLevel}: unsaid, the pace decides — a
+ * plain walk may scale a soft step, a stroll or a sprint may not. A walk that should build says so.
  */
 public final class GoTo implements PrimitiveTask {
 
@@ -38,6 +42,7 @@ public final class GoTo implements PrimitiveTask {
     private final int y;
     private final int z;
     private final Gait gait;
+    private final WalkLevel level;
     private boolean issued;
     /**
      * Why the walk died, captured on the tick it is observed. Not persisted, and it does not need
@@ -53,17 +58,23 @@ public final class GoTo implements PrimitiveTask {
 
     /** @param gait see {@link dev.luizloyola.anima.core.brain.act.Mover#moveTo(int, int, int, Gait)} */
     public GoTo(int x, int y, int z, Gait gait) {
+        this(x, y, z, gait, WalkLevel.of(gait));
+    }
+
+    /** @param level what the walk may do to the ground — see the class doc */
+    public GoTo(int x, int y, int z, Gait gait, WalkLevel level) {
         this.x = x;
         this.y = y;
         this.z = z;
         this.gait = gait;
+        this.level = level;
     }
 
     @Override
     public TaskStatus tick(BrainContext ctx) {
         if (!issued) {
             issued = true;
-            ctx.actuators().mover().moveTo(x, y, z, gait);
+            ctx.actuators().mover().moveTo(x, y, z, gait, level);
             // Look where you are about to go: eyes reaching the destination before the legs is what
             // reads as intent. A claim, so anything that actually needs the head outranks it, and it
             // lapses on its own rather than having to be called off.
@@ -113,7 +124,8 @@ public final class GoTo implements PrimitiveTask {
     @Override
     public String describe() {
         String pace = gait == Gait.WALK ? "" : " (" + gait.name().toLowerCase(Locale.ROOT) + ")";
-        return "goto (" + x + ", " + y + ", " + z + ")" + pace;
+        String building = level == WalkLevel.BUILD ? " (may build)" : "";
+        return "goto (" + x + ", " + y + ", " + z + ")" + pace + building;
     }
 
     // ── continuity ───────────────────────────────────────────────────────────────────────────
@@ -135,6 +147,10 @@ public final class GoTo implements PrimitiveTask {
 
     public Gait gait() {
         return gait;
+    }
+
+    public WalkLevel level() {
+        return level;
     }
 
     public boolean issued() {

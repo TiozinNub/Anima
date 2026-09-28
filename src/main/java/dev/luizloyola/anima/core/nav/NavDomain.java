@@ -20,12 +20,24 @@ import java.util.Set;
 public final class NavDomain {
 
     /** No fence at all — every request that does not say otherwise. */
-    public static final NavDomain EVERYWHERE = new NavDomain(null);
+    public static final NavDomain EVERYWHERE = new NavDomain(null, null);
 
     private final Set<Long> cells;
+    /** A box of whole columns, {@code {x1, z1, x2, z2}} — see {@link #columns}; null otherwise. */
+    private final int[] box;
 
-    private NavDomain(Set<Long> cells) {
+    private NavDomain(Set<Long> cells, int[] box) {
         this.cells = cells;
+        this.box = box;
+    }
+
+    /**
+     * Every column from {@code (x1, z1)} to {@code (x2, z2)}, at any height — a lane, a yard. Held
+     * as its corners, not its cells, so a fence round a tall box costs nothing to build or ask.
+     */
+    public static NavDomain columns(int x1, int z1, int x2, int z2) {
+        return new NavDomain(null, new int[] {Math.min(x1, x2), Math.min(z1, z2),
+                Math.max(x1, x2), Math.max(z1, z2)});
     }
 
     /** A domain of exactly these cells. The collection is copied; later changes do not leak in. */
@@ -34,21 +46,27 @@ public final class NavDomain {
         for (Pos cell : allowed) {
             packed.add(pack(cell.x(), cell.y(), cell.z()));
         }
-        return new NavDomain(packed);
+        return new NavDomain(packed, null);
     }
 
     /** Whether a body may stand here. */
     public boolean contains(int x, int y, int z) {
+        if (box != null) {
+            return x >= box[0] && z >= box[1] && x <= box[2] && z <= box[3];
+        }
         return cells == null || cells.contains(pack(x, y, z));
     }
 
     /** Whether this is {@link #EVERYWHERE} in behaviour — no fence to check. */
     public boolean isEverywhere() {
-        return cells == null;
+        return cells == null && box == null;
     }
 
     /** How many cells the fence admits — only meaningful when not {@link #isEverywhere()}. */
     public int size() {
+        if (box != null) {
+            return (box[2] - box[0] + 1) * (box[3] - box[1] + 1);
+        }
         return cells == null ? 0 : cells.size();
     }
 

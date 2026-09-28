@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.sense.DangerField;
 import dev.luizloyola.anima.core.brain.sense.SetbackField;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
+import dev.luizloyola.anima.core.nav.NavDomain;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.GoalCell;
@@ -108,8 +109,15 @@ public final class PathfinderService {
      */
     public static Dispatched request(ServerLevel level, @Nullable AgentId who, BlockPos start,
             BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks) {
+        return request(level, who, start, goal, body, danger, setbacks, NavDomain.EVERYWHERE);
+    }
+
+    /** As above, fenced: the route may stand only inside {@code fence}. */
+    public static Dispatched request(ServerLevel level, @Nullable AgentId who, BlockPos start,
+            BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
+            NavDomain fence) {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
-        PathRequest pathRequest = buildRequest(snapshot, start, goal, body, danger, who, setbacks);
+        PathRequest pathRequest = buildRequest(snapshot, start, goal, body, danger, who, setbacks).within(fence);
         String handle = who == null ? "?" : who.shortText();
         CompletableFuture<Path> result = CompletableFuture.supplyAsync(() -> {
             Path path = Pathfinder.find(snapshot, pathRequest);
@@ -134,9 +142,16 @@ public final class PathfinderService {
     /** The same pipeline as {@link #request}, entirely on the calling (server) thread. */
     public static Dispatched computeNow(ServerLevel level, @Nullable AgentId who, BlockPos start,
             BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks) {
+        return computeNow(level, who, start, goal, body, danger, setbacks, NavDomain.EVERYWHERE);
+    }
+
+    /** As above, fenced: the route may stand only inside {@code fence}. */
+    public static Dispatched computeNow(ServerLevel level, @Nullable AgentId who, BlockPos start,
+            BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
+            NavDomain fence) {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
         Path path = Pathfinder.find(snapshot,
-                buildRequest(snapshot, start, goal, body, danger, who, setbacks));
+                buildRequest(snapshot, start, goal, body, danger, who, setbacks).within(fence));
         return new Dispatched(CompletableFuture.completedFuture(path), snapshot);
     }
 

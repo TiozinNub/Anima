@@ -17,6 +17,10 @@ import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.CrowdSteering;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.MoveType;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.agent.AgentProfile;
+import dev.luizloyola.anima.core.nav.NavDomain;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.nav.NavGrids;
 import dev.luizloyola.anima.core.nav.Path;
@@ -191,6 +195,8 @@ public final class Navigator {
     private final AgentBody person;
     /** The hand that swings the doors a route crosses, and swings them back. */
     private final Doorways doorways;
+    /** The hand that lays the blocks a route lays, and cuts and puts back what it scales. */
+    private final GroundWork groundWork;
     private State state = State.IDLE;
     private @Nullable BlockPos goal;
     private @Nullable Path path;
@@ -247,11 +253,19 @@ public final class Navigator {
      * exhaustion in {@code tickNeeds}. Reset to WALK in {@link #stop()}.
      */
     private Gait gait = Gait.WALK;
+    /**
+     * What the current order may do to the ground — see {@link WalkLevel}. Turned into what the
+     * search may plan at each request ({@link #routeCapabilities}); reset in {@link #stop()}.
+     */
+    private WalkLevel level = WalkLevel.SCALE;
+    /** Where the current order may stand at all, when whoever gave it fenced it; never saved. */
+    private @Nullable NavDomain fence;
     private @Nullable CompletableFuture<Path> pending;
 
     public Navigator(AgentBody person) {
         this.person = person;
         this.doorways = new Doorways(person);
+        this.groundWork = new GroundWork(person);
     }
 
     /** Begin navigating toward {@code goal}, replacing any navigation already in progress. */
@@ -265,8 +279,18 @@ public final class Navigator {
      * sprint flag or the forward throttle.
      */
     public void pathTo(BlockPos goal, Gait gait) {
-        stop(); // resets this.gait, so set it after
+        pathTo(goal, gait, WalkLevel.of(gait), null);
+    }
+
+    /**
+     * As {@link #pathTo(BlockPos, Gait)}, saying what the walk may do to the ground
+     * ({@link WalkLevel}) and, when it must keep to one place, where it may stand at all.
+     */
+    public void pathTo(BlockPos goal, Gait gait, WalkLevel level, @Nullable NavDomain fence) {
+        stop(); // resets this.gait, the level and the fence, so set them after
         this.gait = gait;
+        this.level = level;
+        this.fence = fence;
         this.goal = goal;
         this.repathsLeft = MAX_REPATHS;
         requestPath();
@@ -312,6 +336,9 @@ public final class Navigator {
         this.integrityCheckedIndex = -1;
         this.proactiveRepathCooldown = 0;
         this.gait = Gait.WALK;
+        this.level = WalkLevel.SCALE;
+        this.fence = null;
+        this.groundWork.reset();
         this.state = State.IDLE;
         this.failure = MoveFailure.NONE;
         this.person.stopMoving();
@@ -542,6 +569,7 @@ public final class Navigator {
      * swap the path out from under a follow pass that is still running (see {@link #tick()}).
      */
     private void requestPath() {
+        this.groundWork.reset();
         this.path = null;
         this.index = 0;
         this.integrityCheckedIndex = -1;
@@ -555,11 +583,13 @@ public final class Navigator {
         AgentId who = this.person.agentId();
         BlockPos start = startCell();
         this.routeFrom = start;
+        MoveCapabilities body = routeCapabilities();
+        NavDomain where = this.fence != null ? this.fence : NavDomain.EVERYWHERE;
         PathfinderService.Dispatched dispatched = PathfinderService.inThread()
                 ? PathfinderService.computeNow(level(), who, start, this.goal,
-                        capabilities(), DangerFields.of(this.person), troubles())
+                        body, DangerFields.of(this.person), troubles(), where)
                 : PathfinderService.request(level(), who, start, this.goal,
-                        capabilities(), DangerFields.of(this.person), troubles());
+                        body, DangerFields.of(this.person), troubles(), where);
         this.grid = dispatched.snapshot();
         this.pending = dispatched.result();
     }
@@ -752,6 +782,13 @@ public final class Navigator {
         // none of the footed edge logic below applies.
         if (waypoint.move() == MoveType.CLIMB) {
             tickClimb(waypoint, isLast, pos, dx, dz, horizontalSq, dy);
+            return;
+        }
+        // A waypoint whose floor the leg itself lays, or cuts and puts back: the hand does it, at
+        // its own pace and against its own clock — a body standing still to lay a block is working,
+        // not wedged, so neither stuck counter runs.
+        if (waypoint.move().rebuildsFloor()) {
+            tickGroundWork(waypoint, isLast);
             return;
         }
 
@@ -957,6 +994,21 @@ public final class Navigator {
                 && pressLeap(dx, dz, velocity.x, velocity.z, leapSpan)) {
             this.person.driveJump();
             this.lastLeapPressIndex = this.index;
+        }
+    }
+
+    private void tickGroundWork(Waypoint waypoint, boolean isLast) {
+        BlockPos from;
+        if (this.index > 0) {
+            Waypoint previous = this.path.waypoints().get(this.index - 1);
+            from = new BlockPos(previous.x(), previous.y(), previous.z());
+        } else {
+            from = this.routeFrom != null ? this.routeFrom : this.person.blockPosition();
+        }
+        switch (this.groundWork.tick(this.index, from, waypoint)) {
+            case DONE -> advance(isLast);
+            case REFUSED -> retryOrFail(MoveFailure.LAY_REFUSED);
+            case WORKING -> { }
         }
     }
 
@@ -1278,6 +1330,11 @@ public final class Navigator {
             // help — the near half of the cell is "past the plane" and is where the turn must not
             // happen.
             if (next.move() == MoveType.RUNUP) {
+                return;
+            }
+            // A floor the route lays or puts back is arrived on, once the hand is done: passing its
+            // plane beside the gap is not standing on it.
+            if (current.move().rebuildsFloor()) {
                 return;
             }
             // Nor a corner that wraps something harmful: from up to 0.6 short of it, the line to
@@ -1636,6 +1693,7 @@ public final class Navigator {
             case WEDGED -> Setbacks.Kind.WEDGED;
             case STALLED -> Setbacks.Kind.STALLED;
             case STRAYED -> Setbacks.Kind.STRAYED;
+            case LAY_REFUSED -> Setbacks.Kind.LAY_REFUSED;
             default -> null;
         };
     }
@@ -1697,6 +1755,20 @@ public final class Navigator {
     }
 
     /**
+     * {@link #capabilities()}, with what this order lets the route do to the ground: scale a soft
+     * step with an arm and a hand, and lay what the pocket holds with a hand. Read at request
+     * time, like the breath: the next search sees the blocks the last one spent.
+     */
+    private MoveCapabilities routeCapabilities() {
+        AgentProfile profile = this.person.profile();
+        boolean hand = profile.b(ProfileAspect.BODY_CAN_BUILD);
+        boolean arm = profile.b(ProfileAspect.BODY_CAN_DIG);
+        return capabilities()
+                .withScaling(this.level.scales() && hand && arm)
+                .withLaid(this.level.builds() && hand ? Laying.carried(this.person.inventory()) : 0);
+    }
+
+    /**
      * How many cells this body may swim with its head under, on the breath it has RIGHT NOW.
      *
      * <p>Read live rather than from the species: plan a tunnel on a full lungful and it is a
@@ -1732,7 +1804,7 @@ public final class Navigator {
                         boolean reachedGoal, int index, String gait, int stuckTicks,
                         int noMoveTicks, int groundedTicks, int lastLeapPressIndex,
                         int repathsLeft, int integrityCheckedIndex, int proactiveRepathCooldown,
-                        String failure, List<Doorways.Passed> doors) {
+                        String failure, List<Doorways.Passed> doors, String level) {
     }
 
     /** What this navigator would need to carry on the same walk. */
@@ -1743,7 +1815,7 @@ public final class Navigator {
                 this.index, this.gait.name(), this.stuckTicks, this.noMoveTicks,
                 this.groundedTicks, this.lastLeapPressIndex, this.repathsLeft,
                 this.integrityCheckedIndex, this.proactiveRepathCooldown, this.failure.name(),
-                this.doorways.held());
+                this.doorways.held(), this.level.name());
     }
 
     /**
@@ -1766,6 +1838,7 @@ public final class Navigator {
         this.integrityCheckedIndex = saved.integrityCheckedIndex();
         this.proactiveRepathCooldown = saved.proactiveRepathCooldown();
         this.failure = MoveFailure.valueOf(saved.failure());
+        this.level = WalkLevel.valueOf(saved.level());
         this.doorways.restore(saved.doors());
         this.pending = null;
         this.grid = this.state == State.FOLLOWING && this.goal != null

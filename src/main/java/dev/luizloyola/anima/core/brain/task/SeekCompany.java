@@ -7,6 +7,7 @@ import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.social.speech.Speech;
 
 /**
@@ -71,7 +72,7 @@ public final class SeekCompany implements PrimitiveTask {
                         "went over to " + being.knownAs());
             }
             Pos at = being.pos();
-            walk = new GoTo(at.x(), at.y(), at.z(), Gait.WALK);
+            walk = new GoTo(at.x(), at.y(), at.z(), Gait.WALK, WalkLevel.WALK_ONLY);
         }
         TaskStatus status = walk.tick(ctx);
         if (status != TaskStatus.SUCCESS) {

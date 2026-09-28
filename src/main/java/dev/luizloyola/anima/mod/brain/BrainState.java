@@ -27,6 +27,7 @@ import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiSensorCore;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.sense.Setbacks;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.nav.MoveType;
 import dev.luizloyola.anima.core.nav.Waypoint;
 import dev.luizloyola.anima.mod.nav.Doorways;
@@ -277,11 +278,14 @@ public final class BrainState {
                     .forGetter(Navigator.Walk::failure),
             // Optional and empty by default: a walk saved before bodies swung doors had none.
             PASSED_DOOR.listOf().optionalFieldOf("doors", List.of())
-                    .forGetter(Navigator.Walk::doors)
+                    .forGetter(Navigator.Walk::doors),
+            // A walk saved before walks had levels was a plain one, which may scale.
+            Codec.STRING.optionalFieldOf("level", WalkLevel.SCALE.name())
+                    .forGetter(Navigator.Walk::level)
     ).apply(n, (state, goal, waypoints, reached, index, gait, stuck, noMove, grounded, lastLeap,
-                repaths, integrity, cooldown, failure, doors) -> new Navigator.Walk(state,
+                repaths, integrity, cooldown, failure, doors, level) -> new Navigator.Walk(state,
                     goal.orElse(null), waypoints, reached, index, gait, stuck, noMove, grounded,
-                    lastLeap, repaths, integrity, cooldown, failure, doors)));
+                    lastLeap, repaths, integrity, cooldown, failure, doors, level)));
 
     /** One journal line. Categories round-trip by name; an unknown one errors rather than
      *  silently re-filing a line under the wrong subsystem. */

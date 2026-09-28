@@ -295,6 +295,9 @@ public final class ProfileAspect {
     public static final ProfileAspect BODY_CAN_CLIMB = register("body.can_climb", Kind.BOOL, 0, 1,
             "Whether this body climbs ladders and vines. False leaves a ladder shaft a hole and a "
                     + "ladder up a wall a wall.");
+    public static final ProfileAspect BODY_CAN_BUILD = register("body.can_build", Kind.BOOL, 0, 1,
+            "Whether this body has a hand to lay a block with: a deck across a gap, a pillar up a "
+                    + "wall, a soft step's lip put back. False, a walk allowed to build walks round.");
     public static final ProfileAspect ESCAPE_PRESSURE = register("escape.pressure", Kind.DOUBLE,
             0.0, 1.0,
             "How hard being shut in presses on this body. High by default: a body that cannot "

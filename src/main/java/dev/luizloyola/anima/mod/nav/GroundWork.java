@@ -1,0 +1,266 @@
+package dev.luizloyola.anima.mod.nav;
+
+import dev.luizloyola.anima.core.brain.act.BreakState;
+import dev.luizloyola.anima.core.brain.act.RiseState;
+import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.log.Category;
+import dev.luizloyola.anima.core.nav.MoveType;
+import dev.luizloyola.anima.core.nav.Waypoint;
+import dev.luizloyola.anima.mod.body.AgentBody;
+import dev.luizloyola.anima.mod.brain.AgentBlockBreaker;
+import dev.luizloyola.anima.mod.brain.AgentBlockPlacer;
+import dev.luizloyola.anima.mod.brain.AgentRiser;
+import java.util.HashMap;
+import java.util.Map;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
+
+/**
+ * The follower's hand on the blocks a route moves (docs/superpowers/specs/2026-09-28-bridging-design.md):
+ * lays a deck and steps onto it, rises on a pillar block, cuts a soft step and puts it back
+ * underfoot.
+ *
+ * <p><b>Read off the live world every tick, never off a remembered phase.</b> A deck already there
+ * is stepped onto, a lip already cut is climbed into, a notch already entered is filled under the
+ * feet — so a restart mid-act, or somebody else's hand, only moves where the act picks up.
+ *
+ * <p>The deck is laid from where the body stands, not from the lip: a Person is no player, and
+ * sneaking keeps no mob from walking off an edge. The placer reaches the cell from the middle of
+ * the one before it.
+ */
+final class GroundWork {
+
+    enum Result { WORKING, DONE, REFUSED }
+
+    /** How long one act may take before the follower gives it up — ten seconds of a lay that will not go. */
+    private static final int ACT_TIMEOUT = 200;
+    /** How near the middle of a waypoint the feet must be to have arrived on it. */
+    private static final double ARRIVED = 0.3;
+    /** The pace onto a deck just laid: the careful throttle, since it is the edge of a drop. */
+    private static final float ONTO_DECK = 0.45F;
+    /** How near the notch a body presses its jump into it. */
+    private static final double JUMP_RANGE = 1.2;
+
+    private final AgentBody person;
+    private final AgentBlockPlacer placer;
+    private int workingIndex = -1;
+    private int ticks;
+    /** Whether the riser or the arm is busy on this hand's account — only those are called off. */
+    private boolean ownsRiser;
+    private boolean ownsBreaker;
+    /**
+     * What each cell a scale cut held, so the same block goes back. Not saved: after a restart the
+     * step is put back from whatever soft ground the body carries.
+     */
+    private final Map<BlockPos, String> cut = new HashMap<>();
+    private String why = "";
+
+    GroundWork(AgentBody person) {
+        this.person = person;
+        this.placer = new AgentBlockPlacer(person);
+    }
+
+    /** Calls off whatever this hand started — the route changed, or the walk ended. */
+    void reset() {
+        if (this.ownsRiser && this.person.riser().state() == RiseState.RISING) {
+            this.person.riser().abort();
+        }
+        if (this.ownsBreaker && this.person.blockBreaker().state() == BreakState.BREAKING) {
+            this.person.blockBreaker().abort();
+        }
+        this.ownsRiser = false;
+        this.ownsBreaker = false;
+        this.workingIndex = -1;
+        this.ticks = 0;
+        this.cut.clear();
+    }
+
+    /** Why the last act was refused, for the journal. */
+    String why() {
+        return this.why;
+    }
+
+    /**
+     * One tick of the act that enters waypoint {@code index}, {@code to}, from the cell {@code from}.
+     * {@link Result#DONE} once the body stands on it.
+     */
+    Result tick(int index, BlockPos from, Waypoint to) {
+        if (index != this.workingIndex) {
+            this.workingIndex = index;
+            this.ticks = 0;
+        }
+        if (++this.ticks > ACT_TIMEOUT) {
+            return refuse("gave up on the " + name(to) + " at " + at(to));
+        }
+        if (arrived(to)) {
+            this.person.driveSneak(false);
+            return Result.DONE;
+        }
+        return switch (to.move()) {
+            case BRIDGE -> bridge(to);
+            case PILLAR -> pillar(to);
+            case SCALE -> scale(from, to);
+            default -> Result.DONE;
+        };
+    }
+
+    private Result bridge(Waypoint to) {
+        Level level = this.person.level();
+        BlockPos deck = new BlockPos(to.x(), to.y() - 1, to.z());
+        this.person.driveSneak(true);
+        if (level.getBlockState(deck).canBeReplaced()) {
+            this.person.stopMoving();
+            this.person.faceBlock(deck);
+            String item = Laying.pick(this.person.inventory());
+            if (item == null) {
+                return refuse("nothing to lay at " + deck.toShortString());
+            }
+            if (!this.placer.place(item, new Pos(deck.getX(), deck.getY(), deck.getZ()))) {
+                return refuse("the deck at " + deck.toShortString() + " would not go");
+            }
+            log("laid", "a deck of " + item + " at " + deck.toShortString());
+            return Result.WORKING;
+        }
+        steer(to, ONTO_DECK);
+        return Result.WORKING;
+    }
+
+    private Result pillar(Waypoint to) {
+        AgentRiser riser = this.person.riser();
+        if (riser.state() == RiseState.RISING) {
+            return Result.WORKING; // the riser drives the legs; it ticks after the Navigator
+        }
+        if (riser.state() == RiseState.FAILED && this.ownsRiser) {
+            this.ownsRiser = false;
+            riser.abort();
+            return refuse("the pillar at " + at(to) + " would not rise");
+        }
+        BlockPos feet = this.person.blockPosition();
+        if (feet.getX() != to.x() || feet.getZ() != to.z()) {
+            steer(to, ONTO_DECK);
+            return Result.WORKING;
+        }
+        if (feet.getY() >= to.y() || !this.person.onGround()) {
+            this.person.stopMoving();
+            return Result.WORKING; // up already, settling
+        }
+        String item = Laying.pick(this.person.inventory());
+        if (item == null) {
+            return refuse("nothing to rise on at " + at(to));
+        }
+        if (!riser.up(item)) {
+            return refuse("the pillar at " + at(to) + " would not start");
+        }
+        this.ownsRiser = true;
+        log("rising", "on " + item + " at " + feet.toShortString());
+        return Result.WORKING;
+    }
+
+    /**
+     * A scale from {@code from}: its lip cut from the top down, a jump into the notch, and the cut
+     * blocks laid back one at a time under the feet.
+     */
+    private Result scale(BlockPos from, Waypoint to) {
+        AgentRiser riser = this.person.riser();
+        if (riser.state() == RiseState.RISING) {
+            return Result.WORKING;
+        }
+        if (riser.state() == RiseState.FAILED && this.ownsRiser) {
+            this.ownsRiser = false;
+            riser.abort();
+            return refuse("the step at " + at(to) + " would not go back");
+        }
+        BlockPos feet = this.person.blockPosition();
+        int floor = from.getY();
+        if (feet.getX() == to.x() && feet.getZ() == to.z() && feet.getY() > floor) {
+            if (feet.getY() >= to.y() || !this.person.onGround()) {
+                this.person.stopMoving();
+                return Result.WORKING;
+            }
+            String item = Laying.putBack(this.person.inventory(), this.cut.get(feet));
+            if (item == null) {
+                return refuse("nothing to put back at " + feet.toShortString());
+            }
+            if (!riser.up(item)) {
+                return refuse("the step at " + feet.toShortString() + " would not go back");
+            }
+            this.ownsRiser = true;
+            return Result.WORKING;
+        }
+        AgentBlockBreaker breaker = this.person.blockBreaker();
+        if (breaker.state() == BreakState.BREAKING) {
+            this.person.stopMoving();
+            return Result.WORKING;
+        }
+        if (breaker.state() == BreakState.FAILED && this.ownsBreaker) {
+            this.ownsBreaker = false;
+            breaker.abort();
+            return refuse("the step at " + at(to) + " would not break");
+        }
+        Level level = this.person.level();
+        for (int y = to.y() - 1; y > floor; y--) {
+            BlockPos cell = new BlockPos(to.x(), y, to.z());
+            BlockState state = level.getBlockState(cell);
+            if (!state.canBeReplaced()) {
+                this.person.stopMoving();
+                this.cut.putIfAbsent(cell, BuiltInRegistries.ITEM.getKey(state.getBlock().asItem()).toString());
+                if (!breaker.begin(new Pos(cell.getX(), cell.getY(), cell.getZ()))) {
+                    return refuse("could not reach the step at " + cell.toShortString());
+                }
+                this.ownsBreaker = true;
+                log("scaling", "cut " + cell.toShortString());
+                return Result.WORKING;
+            }
+        }
+        // All cut: up one into the notch.
+        steer(to, 1.0F);
+        Vec3 pos = this.person.position();
+        double dx = to.x() + 0.5 - pos.x;
+        double dz = to.z() + 0.5 - pos.z;
+        if (this.person.onGround() && feet.getY() <= floor && dx * dx + dz * dz < JUMP_RANGE * JUMP_RANGE) {
+            this.person.driveJump();
+        }
+        return Result.WORKING;
+    }
+
+    private boolean arrived(Waypoint to) {
+        BlockPos feet = this.person.blockPosition();
+        if (feet.getX() != to.x() || feet.getZ() != to.z() || feet.getY() != to.y()
+                || !this.person.onGround()) {
+            return false;
+        }
+        Vec3 pos = this.person.position();
+        double dx = to.x() + 0.5 - pos.x;
+        double dz = to.z() + 0.5 - pos.z;
+        return dx * dx + dz * dz <= ARRIVED * ARRIVED || to.move() != MoveType.BRIDGE;
+    }
+
+    private void steer(Waypoint to, float throttle) {
+        Vec3 pos = this.person.position();
+        float heading = (float) (Mth.atan2(to.z() + 0.5 - pos.z, to.x() + 0.5 - pos.x)
+                * Mth.RAD_TO_DEG) - 90.0F;
+        this.person.driveForward(heading, throttle);
+    }
+
+    private Result refuse(String why) {
+        this.why = why;
+        log("refused", why);
+        return Result.REFUSED;
+    }
+
+    private void log(String event, String detail) {
+        this.person.journal().record(Category.PATHFIND, event, detail);
+    }
+
+    private static String name(Waypoint to) {
+        return to.move().name().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    private static String at(Waypoint to) {
+        return "(" + to.x() + ", " + to.y() + ", " + to.z() + ")";
+    }
+}

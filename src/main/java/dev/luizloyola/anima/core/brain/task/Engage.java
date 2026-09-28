@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -124,7 +125,7 @@ public final class Engage implements PrimitiveTask {
         if (leg == null || leg.x() != at.x() || leg.y() != at.y() || leg.z() != at.z()) {
             dropLeg(ctx);
             leg = new GoTo(at.x(), at.y(), at.z(),
-                    seen.distance() > SPRINT_BEYOND ? Gait.SPRINT : Gait.WALK);
+                    seen.distance() > SPRINT_BEYOND ? Gait.SPRINT : Gait.WALK, WalkLevel.WALK_ONLY);
             legFrom = seen.distance();
         }
         if (leg.tick(ctx) == TaskStatus.RUNNING) {

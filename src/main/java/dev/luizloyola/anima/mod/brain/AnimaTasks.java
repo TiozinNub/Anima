@@ -25,8 +25,10 @@ import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.WanderStep;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.social.speech.Speech;
 import net.minecraft.core.UUIDUtil;
+import java.util.Optional;
 
 /**
  * How Anima's own tasks write themselves down, registered with {@link TaskCodecs}.
@@ -193,8 +195,11 @@ public final class AnimaTasks {
                 Codec.INT.fieldOf("y").forGetter(GoTo::y),
                 Codec.INT.fieldOf("z").forGetter(GoTo::z),
                 GAIT.fieldOf("gait").forGetter(GoTo::gait),
-                Codec.BOOL.fieldOf("issued").forGetter(GoTo::issued)
-        ).apply(t, (x, y, z, gait, issued) -> new GoTo(x, y, z, gait).resume(issued))));
+                Codec.BOOL.fieldOf("issued").forGetter(GoTo::issued),
+                // Absent from a walk saved before walks had levels: its pace decides, as it would.
+                Codec.STRING.optionalFieldOf("level").forGetter(g -> Optional.of(g.level().name()))
+        ).apply(t, (x, y, z, gait, issued, level) -> new GoTo(x, y, z, gait,
+                level.map(WalkLevel::valueOf).orElse(WalkLevel.of(gait))).resume(issued))));
 
         // No state of its own: an escape step is re-decided from where the body now stands, which
         // is the same reason it is one step rather than a compiled plan (see EscapeStep).
