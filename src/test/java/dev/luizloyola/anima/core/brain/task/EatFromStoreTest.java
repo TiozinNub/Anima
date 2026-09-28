@@ -117,7 +117,25 @@ class EatFromStoreTest {
         assertEquals(1, ctx.consumer.beginCalls);
         assertEquals("minecraft:bread", ctx.percepts.inventory.get(ctx.consumer.lastSlot).id(),
                 "the bite is the bread just fetched");
-        assertEquals(2, ctx.containers.boxes.get(at).get(0).count(), "one loaf taken, two left");
+        assertTrue(ctx.containers.boxes.get(at).isEmpty(),
+                "twelve short at five a loaf is three loaves, taken in one opening");
+        assertEquals(List.of(at), ctx.containers.opened);
+    }
+
+    @Test
+    void aMealIsWhatFillsTheBarAtTheRichestFoodSeenInStore() {
+        assertEquals(6, EatFromStore.mealSize(ctx), "nothing seen: a berry's worth a piece, 12 short");
+
+        store(new Pos(6, 64, 0), true, ItemStack.of("minecraft:sweet_berries", 20, 64));
+        ctx.percepts.food("minecraft:sweet_berries", new FoodValue(2, 0.4F, false));
+        assertEquals(6, EatFromStore.mealSize(ctx));
+
+        store(new Pos(-6, 64, 0), true, BREAD);
+        assertEquals(3, EatFromStore.mealSize(ctx),
+                "taken at bread's worth, so however it is filled it is never more than a full bar");
+
+        ctx.percepts.metabolism.setFoodLevel(19);
+        assertEquals(1, EatFromStore.mealSize(ctx));
     }
 
     @Test
