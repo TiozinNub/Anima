@@ -156,9 +156,9 @@ K3	853	-49	28	870	-49	28	false	block	LAVA MOAT 5 wide, 3 below	block	false
 K4	853	-49	40	870	-47	40	false	block	LEDGE 2 up across a 3 gap	build	true
 K5	854	-57	52	870	-49	52	false	block	PIT 8 deep, stone walls	build	true
 K6	854	-59	64	870	-49	64	false	block	CREVICE 1 wide, 10 deep	build	true
-K7	853	-49	76	870	-47	76	false	build	GRASS STEP 2 high	build	true
-K8	853	-49	88	870	-46	88	false	build	GRASS STEP 3 high	build	true
-K9	853	-49	100	870	-41	100	false	build	STEEP GRASS SLOPE, 2 up per block x4	build	true
+K7	853	-49	76	870	-47	76	true	build	GRASS STEP 2 high	build	true
+K8	853	-49	88	870	-46	88	true	build	GRASS STEP 3 high	build	true
+K9	853	-49	100	870	-41	100	true	build	STEEP GRASS SLOPE, 2 up per block x4	build	true
 K10	853	-49	112	870	-45	112	false	block	GRASS WALL 4 high	build	true
 K11	853	-49	124	870	-47	124	false	block	GRASS STEP 2 high, a pond behind the lip	build	true
 K12	853	-49	136	870	-47	136	false	block	DIRT PATH STEP 2 high	build	true
