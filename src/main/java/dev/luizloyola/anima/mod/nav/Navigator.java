@@ -1672,6 +1672,7 @@ public final class Navigator {
             case WATER -> "drained";
             case ROOM -> "filled in";
             case HOLD -> "nothing to climb";
+            case LAYABLE -> "nowhere to lay a block";
         };
         return phrase + " at " + need.x() + ", " + need.y() + ", " + need.z();
     }

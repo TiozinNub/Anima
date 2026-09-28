@@ -370,6 +370,11 @@ public final class WorldSnapshot implements NavGrid {
         return climbFloor(packedAt(level.getBlockState(pos), level, pos));
     }
 
+    /** {@link NavGrid#layable} of a single live cell, under {@link #classifyAt}'s rules. */
+    public static boolean layableAt(Level level, BlockPos pos) {
+        return layable(packedAt(level.getBlockState(pos), level, pos));
+    }
+
     /** {@link NavGrid#hatch} of a single live cell. */
     public static boolean hatchAt(Level level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
