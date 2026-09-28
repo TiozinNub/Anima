@@ -181,8 +181,9 @@ class PathfinderBuildTest {
         assertFalse(find(grid, 2, 1, 2, 4, 5, 2, EMPTY_HANDED).reachedGoal());
         Path path = find(grid, 2, 1, 2, 4, 5, 2, carrying(8));
         assertTrue(path.reachedGoal());
-        assertEquals(4, count(path, MoveType.PILLAR));
-        assertEquals(4, path.laid());
+        // Four up is three blocks and a jump: the last block of rise is the body's own.
+        assertEquals(3, count(path, MoveType.PILLAR));
+        assertEquals(3, path.laid());
         assertWalkable(grid, path, 2, 1, 2, carrying(8));
     }
 
@@ -194,7 +195,7 @@ class PathfinderBuildTest {
                 "555");
         Path path = find(grid, 1, 1, 1, 2, 5, 1, carrying(8));
         assertTrue(path.reachedGoal());
-        assertEquals(4, count(path, MoveType.PILLAR));
+        assertEquals(3, count(path, MoveType.PILLAR));
     }
 
     @Test
@@ -283,9 +284,15 @@ class PathfinderBuildTest {
 
     // ── who never builds ─────────────────────────────────────────────────────────────────────
 
+    /**
+     * Unbounded: a survey never proves a prison against the edge of a capture, so this pit's walls
+     * have to be the world's.
+     */
     @Test
     void aSurveyOfAPitStaysSealedWithBlocksInHand() {
-        NavGrid pit = bounded("555", "515", "555");
+        AsciiWorld pit = AsciiWorld.of("555", "515", "555");
+        assertTrue(Pathfinder.find(pit, PathRequest.of(1, 1, 1, 2, 5, 1, carrying(16))).reachedGoal(),
+                "the body could build its way out");
         assertTrue(Pathfinder.survey(pit, PathRequest.of(1, 1, 1, 0, 0, 0, carrying(16))).sealed(),
                 "a survey asks whether the body can walk out, not whether it could build out");
     }
