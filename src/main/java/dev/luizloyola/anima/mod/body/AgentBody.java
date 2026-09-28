@@ -67,7 +67,8 @@ public interface AgentBody {
 
     /**
      * Shows this body's carried goods to {@code player}, answering whether there was a screen to
-     * show. What {@code /anima inv see} and a spectator's right-click drive.
+     * show. What {@code /anima inv see}, a spectator's right-click and a creative player's
+     * empty-handed sneak-right-click drive.
      *
      * <p><b>False by default, because Anima draws nothing.</b> The inventory is the library's; a
      * MENU over it is the consuming mod's, built from its own screen handler and its own

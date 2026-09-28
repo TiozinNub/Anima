@@ -55,6 +55,10 @@ public final class PlayerTaps {
                 return body.showInventory(talker) ? InteractionResult.SUCCESS : InteractionResult.PASS;
             }
             if (!player.getItemInHand(hand).isEmpty()) return InteractionResult.PASS;
+            // A builder's shortcut past /anima inv see; without the sneak a creative click still taps.
+            if (player.isCreative() && player.isSecondaryUseActive() && body.showInventory(talker)) {
+                return InteractionResult.SUCCESS;
+            }
             return tap(talker, body);
         });
     }
