@@ -17,6 +17,7 @@ import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.CrowdSteering;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.MoveType;
+import dev.luizloyola.anima.core.nav.LaidBlocks;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.nav.NavDomain;
@@ -260,6 +261,8 @@ public final class Navigator {
     private WalkLevel level = WalkLevel.SCALE;
     /** Where the current order may stand at all, when whoever gave it fenced it; never saved. */
     private @Nullable NavDomain fence;
+    /** The deck runs this order has crossed and counted — once each per order. */
+    private final java.util.Set<Integer> decksCounted = new java.util.HashSet<>();
     private @Nullable CompletableFuture<Path> pending;
 
     public Navigator(AgentBody person) {
@@ -291,6 +294,7 @@ public final class Navigator {
         this.gait = gait;
         this.level = level;
         this.fence = fence;
+        this.decksCounted.clear();
         this.goal = goal;
         this.repathsLeft = MAX_REPATHS;
         requestPath();
@@ -585,11 +589,13 @@ public final class Navigator {
         this.routeFrom = start;
         MoveCapabilities body = routeCapabilities();
         NavDomain where = this.fence != null ? this.fence : NavDomain.EVERYWHERE;
+        java.util.Set<Long> pillars = body.canScale() ? recordedPillars(start, this.goal)
+                : java.util.Set.of();
         PathfinderService.Dispatched dispatched = PathfinderService.inThread()
                 ? PathfinderService.computeNow(level(), who, start, this.goal,
-                        body, DangerFields.of(this.person), troubles(), where)
+                        body, DangerFields.of(this.person), troubles(), where, pillars)
                 : PathfinderService.request(level(), who, start, this.goal,
-                        body, DangerFields.of(this.person), troubles(), where);
+                        body, DangerFields.of(this.person), troubles(), where, pillars);
         this.grid = dispatched.snapshot();
         this.pending = dispatched.result();
     }
@@ -787,7 +793,7 @@ public final class Navigator {
         // A waypoint whose floor the leg itself lays, or cuts and puts back: the hand does it, at
         // its own pace and against its own clock — a body standing still to lay a block is working,
         // not wedged, so neither stuck counter runs.
-        if (waypoint.move().rebuildsFloor()) {
+        if (waypoint.move().worked()) {
             tickGroundWork(waypoint, isLast);
             return;
         }
@@ -995,6 +1001,39 @@ public final class Navigator {
             this.person.driveJump();
             this.lastLeapPressIndex = this.index;
         }
+    }
+
+    /**
+     * The recorded pillar blocks around a route, as the search's packed cells — checked against the
+     * world first, so a block somebody broke is forgotten rather than planned on.
+     */
+    private java.util.Set<Long> recordedPillars(BlockPos start, BlockPos goal) {
+        LaidBlocks laid = LaidBlocksData.get(level().getServer()).laid();
+        if (laid.rows().isEmpty()) {
+            return java.util.Set.of();
+        }
+        int reach = 48;
+        java.util.Set<Long> cells = new java.util.HashSet<>();
+        for (LaidBlocks.Row row : laid.rows()) {
+            Pos at = row.at();
+            if (row.kind() != LaidBlocks.Kind.PILLAR
+                    || at.x() < Math.min(start.getX(), goal.getX()) - reach
+                    || at.x() > Math.max(start.getX(), goal.getX()) + reach
+                    || at.z() < Math.min(start.getZ(), goal.getZ()) - reach
+                    || at.z() > Math.max(start.getZ(), goal.getZ()) + reach) {
+                continue;
+            }
+            BlockPos cell = new BlockPos(at.x(), at.y(), at.z());
+            if (!level().isLoaded(cell)) {
+                continue;
+            }
+            if (level().getBlockState(cell).canBeReplaced()) {
+                laid.remove(at); // gone: broken by somebody, or never replaced after a rebuild
+                continue;
+            }
+            cells.add(LaidBlocks.cell(at.x(), at.y(), at.z()));
+        }
+        return cells;
     }
 
     private void tickGroundWork(Waypoint waypoint, boolean isLast) {
@@ -1334,7 +1373,7 @@ public final class Navigator {
             }
             // A floor the route lays or puts back is arrived on, once the hand is done: passing its
             // plane beside the gap is not standing on it.
-            if (current.move().rebuildsFloor()) {
+            if (current.move().worked()) {
                 return;
             }
             // Nor a corner that wraps something harmful: from up to 0.6 short of it, the line to
@@ -1590,7 +1629,22 @@ public final class Navigator {
         return Math.max(Math.abs(waypoint.x() - fromX), Math.abs(waypoint.z() - fromZ));
     }
 
+    /**
+     * One more walk across a recorded crossing, when the waypoint just reached stands on one of its
+     * decks — counted once per order, so a builder can tell which crude bridges are used.
+     */
+    private void countDeck(Waypoint reached) {
+        LaidBlocks laid = LaidBlocksData.get(level().getServer()).laid();
+        laid.at(new Pos(reached.x(), reached.y() - 1, reached.z()))
+                .filter(row -> row.kind() == LaidBlocks.Kind.DECK)
+                .filter(row -> this.decksCounted.add(row.run()))
+                .ifPresent(row -> laid.walked(row.run(), level().getGameTime()));
+    }
+
     private void advance(boolean wasLast) {
+        if (this.path != null && this.index < this.path.waypoints().size()) {
+            countDeck(this.path.waypoints().get(this.index));
+        }
         this.stuckTicks = 0;
         if (!wasLast) {
             this.index++;

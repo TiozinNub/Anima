@@ -54,7 +54,12 @@ public enum MoveType {
      * nothing is spent and nothing is left — but the floor the waypoint stands on is one the leg
      * put back ({@link #rebuildsFloor()}).
      */
-    SCALE;
+    SCALE,
+    /**
+     * Down one, by breaking the recorded pillar block underfoot and dropping with it — the way a
+     * pillar is cleaned up, by whoever goes down it. The cut is the waypoint's own feet cell.
+     */
+    LOWER;
 
     /**
      * Whether entering this waypoint lays a block — always into the cell directly under it, which
@@ -71,6 +76,11 @@ public enum MoveType {
      */
     public boolean rebuildsFloor() {
         return lays() || this == SCALE;
+    }
+
+    /** Whether entering this waypoint needs the hand: something laid, cut, or both. */
+    public boolean worked() {
+        return rebuildsFloor() || this == LOWER;
     }
 
     /**

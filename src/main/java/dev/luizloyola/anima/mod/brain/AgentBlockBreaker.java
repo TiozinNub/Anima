@@ -61,6 +61,8 @@ public final class AgentBlockBreaker implements BlockBreaker {
     private @Nullable BlockState begunOn;
     /** Accumulated progress 0..1 (vanilla's destroy-progress scale). */
     private float progress;
+    /** Whether the finished break goes into the hand rather than onto the ground — {@link #pry}. */
+    private boolean intoHand;
     /** Last crack stage broadcast (0–9), or -1 when none is showing. */
     private int sentStage = -1;
 
@@ -82,7 +84,23 @@ public final class AgentBlockBreaker implements BlockBreaker {
         this.target = pos;
         this.begunOn = blockState;
         this.progress = 0.0F;
+        this.intoHand = false;
         this.state = BreakState.BREAKING;
+        return true;
+    }
+
+    /**
+     * {@link #begin}, with the block taken into the hand as it comes loose instead of dropped — a
+     * careful pick. What a body does with a recorded pillar's block, climbing beside the pillar or
+     * going down it: a drop let fall down a column already emptied lands out of reach two blocks
+     * later, and a climber with nothing in its pocket runs dry halfway up. Not saved: a restart
+     * mid-pick finishes as an ordinary break.
+     */
+    public boolean pry(Pos cell) {
+        if (!begin(cell)) {
+            return false;
+        }
+        this.intoHand = true;
         return true;
     }
 
@@ -143,7 +161,20 @@ public final class AgentBlockBreaker implements BlockBreaker {
             if (!held.isEmpty() && hardness > 0.0F) {
                 held.hurtAndBreak(1, person.entity(), net.minecraft.world.entity.EquipmentSlot.MAINHAND);
             }
-            level.destroyBlock(target, drops, person.entity());
+            if (this.intoHand && drops && level instanceof net.minecraft.server.level.ServerLevel server) {
+                for (ItemStack drop : net.minecraft.world.level.block.Block.getDrops(now, server, target,
+                        level.getBlockEntity(target), person.entity(), held)) {
+                    dev.luizloyola.anima.core.inv.ItemStack left = person.inventory().add(
+                            ItemStacks.toCore(drop, level.registryAccess()));
+                    if (!left.isEmpty()) {
+                        net.minecraft.world.level.block.Block.popResource(level, target,
+                                ItemStacks.toVanilla(left, level.registryAccess()));
+                    }
+                }
+                level.destroyBlock(target, false, person.entity());
+            } else {
+                level.destroyBlock(target, drops, person.entity());
+            }
             person.metabolism().exhaust(EXHAUSTION_PER_BLOCK);
             state = BreakState.FINISHED;
             return;

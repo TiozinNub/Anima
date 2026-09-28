@@ -116,8 +116,15 @@ public final class PathfinderService {
     public static Dispatched request(ServerLevel level, @Nullable AgentId who, BlockPos start,
             BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
             NavDomain fence) {
+        return request(level, who, start, goal, body, danger, setbacks, fence, java.util.Set.of());
+    }
+
+    /** As above, knowing of the recorded pillar blocks around the route — see {@code PathRequest}. */
+    public static Dispatched request(ServerLevel level, @Nullable AgentId who, BlockPos start,
+            BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
+            NavDomain fence, java.util.Set<Long> pillars) {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
-        PathRequest pathRequest = buildRequest(snapshot, start, goal, body, danger, who, setbacks).within(fence);
+        PathRequest pathRequest = buildRequest(snapshot, start, goal, body, danger, who, setbacks).within(fence).near(pillars);
         String handle = who == null ? "?" : who.shortText();
         CompletableFuture<Path> result = CompletableFuture.supplyAsync(() -> {
             Path path = Pathfinder.find(snapshot, pathRequest);
@@ -149,9 +156,16 @@ public final class PathfinderService {
     public static Dispatched computeNow(ServerLevel level, @Nullable AgentId who, BlockPos start,
             BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
             NavDomain fence) {
+        return computeNow(level, who, start, goal, body, danger, setbacks, fence, java.util.Set.of());
+    }
+
+    /** As above, knowing of the recorded pillar blocks around the route — see {@code PathRequest}. */
+    public static Dispatched computeNow(ServerLevel level, @Nullable AgentId who, BlockPos start,
+            BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
+            NavDomain fence, java.util.Set<Long> pillars) {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
         Path path = Pathfinder.find(snapshot,
-                buildRequest(snapshot, start, goal, body, danger, who, setbacks).within(fence));
+                buildRequest(snapshot, start, goal, body, danger, who, setbacks).within(fence).near(pillars));
         return new Dispatched(CompletableFuture.completedFuture(path), snapshot);
     }
 

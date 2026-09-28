@@ -64,6 +64,11 @@ public final class PathIntegrity {
             addLaid(needs, to.x(), to.y(), to.z(), profile);
             return needs;
         }
+        if (to.move() == MoveType.LOWER) {
+            // The pillar block the body stands on is broken under it: solid now, open after.
+            addLowered(needs, to.x(), to.y(), to.z(), profile);
+            return needs;
+        }
         if (to.move() == MoveType.SCALE) {
             // The cut cells, from the notch up: soft now, empty mid-scale, put back after. LAYABLE
             // takes all three, so a lip half cut is not a route broken.
@@ -105,6 +110,10 @@ public final class PathIntegrity {
             } else if (from.move() == MoveType.CLIMB) {
                 // Stepping off a ladder sideways: the near end is a hold, which has no footing.
                 addHold(needs, from.x(), from.y(), from.z(), profile);
+            } else if (from.move() == MoveType.LOWER) {
+                // Stepping off the foot of a pillar just gone down: its cell held the block until
+                // the body broke it, so a look ahead finds it solid.
+                addLowered(needs, from.x(), from.y(), from.z(), profile);
             } else if (from.move().rebuildsFloor()) {
                 // Stepping off a deck or a scaled step: its floor is a block the route has not
                 // laid, or put back, yet when the follower looks ahead, which FOOTING would read as
@@ -192,6 +201,15 @@ public final class PathIntegrity {
                                 MoveCapabilities profile) {
         needs.add(new CellNeed(x, y - 1, z, CellNeed.Need.LAYABLE));
         for (int i = 0; i <= profile.topCell(0.0); i++) {
+            needs.add(new CellNeed(x, y + i, z, CellNeed.Need.CLEAR));
+        }
+    }
+
+    /** Appends what a lowering needs: its own cell solid or already opened, and room above it. */
+    private static void addLowered(List<CellNeed> needs, int x, int y, int z,
+                                   MoveCapabilities profile) {
+        needs.add(new CellNeed(x, y, z, CellNeed.Need.LAYABLE));
+        for (int i = 1; i <= profile.topCell(0.0); i++) {
             needs.add(new CellNeed(x, y + i, z, CellNeed.Need.CLEAR));
         }
     }

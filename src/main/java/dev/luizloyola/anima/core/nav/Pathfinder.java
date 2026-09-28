@@ -179,6 +179,8 @@ public final class Pathfinder {
     private static final double SCALE_COST = 5.0;
     /** The highest step a scale climbs. Four up is a cliff, not a step. */
     private static final int MAX_SCALE = 3;
+    /** One {@link MoveType#LOWER}: the block underfoot broken, and a drop of one with it. */
+    private static final double LOWER_COST = 3.0;
     /** Decks in one run. Past this a gap is not crossed but spanned, and that is the builder's work. */
     private static final int SPAN_CAP = 16;
     /** Pillar blocks in one run — the forest crevice a settler could not leave was twelve deep. */
@@ -329,6 +331,11 @@ public final class Pathfinder {
          */
         int laid;
         int layRun;
+        /**
+         * Blocks taken on the way: a recorded pillar's, climbed beside or eaten going down. What
+         * the pocket must pay is what was laid less what was taken.
+         */
+        int taken;
         boolean closed;
     }
 
@@ -379,6 +386,13 @@ public final class Pathfinder {
      * survey or a count of room never builds its way out of the question it was asked.
      */
     private final int layBudget;
+    /**
+     * Whether this is {@link #find}'s second search, the one that may move blocks: lay what the
+     * pocket holds, and take a recorded pillar's.
+     */
+    private final boolean building;
+    /** {@link PathRequest#pillars()}, read once. */
+    private final java.util.Set<Long> pillars;
     /** {@link #hazardBelow}'s memo: every deck across a ravine reads the same kind of gap. */
     private final CellTable.Flags gapCache = new CellTable.Flags(256);
     /** What the route to the goal cost, when this search reached it — {@link #worthBuilding}. */
@@ -410,11 +424,13 @@ public final class Pathfinder {
     private int southSide;
 
     private Pathfinder(NavGrid grid, PathRequest request) {
-        this(grid, request, 0);
+        this(grid, request, 0, false);
     }
 
-    private Pathfinder(NavGrid grid, PathRequest request, int layBudget) {
+    private Pathfinder(NavGrid grid, PathRequest request, int layBudget, boolean building) {
         this.layBudget = layBudget;
+        this.building = building;
+        this.pillars = request.pillars();
         this.grid = grid;
         this.profile = request.profile();
         this.danger = request.danger();
@@ -442,11 +458,24 @@ public final class Pathfinder {
         Pathfinder first = new Pathfinder(grid, request);
         Path path = first.search(request);
         int budget = Math.min(request.profile().maxLaid(), ROUTE_CAP);
-        if (budget <= 0 || !first.worthBuilding(path, request)) {
+        // A recorded pillar is used with nothing in the pocket, by any walk that may scale: it only
+        // moves blocks the record says are temporary.
+        boolean reuse = request.profile().canScale() && !request.pillars().isEmpty();
+        if ((budget <= 0 && !reuse) || !first.worthBuilding(path, request)) {
             return path;
         }
-        Path built = new Pathfinder(grid, request, budget).search(request);
-        return built.reachedGoal() && built.laid() > 0 ? built : path;
+        Path built = new Pathfinder(grid, request, budget, true).search(request);
+        return built.reachedGoal() && movesBlocks(built) ? built : path;
+    }
+
+    /** Whether a route lays or takes anything — a building route that does neither is the first. */
+    private static boolean movesBlocks(Path path) {
+        for (Waypoint waypoint : path.waypoints()) {
+            if (waypoint.move().lays() || waypoint.move() == MoveType.LOWER) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -777,10 +806,11 @@ public final class Pathfinder {
         for (int[] d : CARDINALS) {
             cardinalNeighbor(current, node, x, y, z, from, d[0], d[1]);
         }
-        if (this.layBudget > 0) {
+        if (this.building) {
             pillarNeighbor(current, node, x, y, z);
+            lowerNeighbor(current, node, x, y, z);
         }
-        if (node.move.lays()) {
+        if (node.move.lays() || node.move == MoveType.LOWER) {
             // Standing on a block the grid has not got. Leaps, strides, diagonals, climbs and
             // strokes all read this cell's floor from the grid, so only the moves that know better
             // leave from here: the cardinal steps, and laying another.
@@ -1274,7 +1304,7 @@ public final class Pathfinder {
             }
         }
         // Open air all the way down, with nowhere in reach to land.
-        if (this.layBudget > 0) {
+        if (this.building) {
             bridgeNeighbor(current, node, x, y, z, nx, nz);
         }
     }
@@ -1287,7 +1317,7 @@ public final class Pathfinder {
      * does not replace, never over anything harmful.
      */
     private void bridgeNeighbor(long current, Node node, int x, int y, int z, int nx, int nz) {
-        if (node.laid >= this.layBudget
+        if (node.laid - node.taken >= this.layBudget
                 || (node.move == MoveType.BRIDGE && node.layRun >= SPAN_CAP)) {
             return;
         }
@@ -1305,7 +1335,10 @@ public final class Pathfinder {
      * may build from stacking toward whatever it cannot otherwise reach.
      */
     private void pillarNeighbor(long current, Node node, int x, int y, int z) {
-        if (node.laid >= this.layBudget
+        // Beside a recorded pillar the block comes from the pillar, not the pocket: taken from one
+        // level above the feet, so its drop lands on the pillar block below it and is picked up.
+        int take = recordedBeside(x, y + 1, z) && this.grid.cell(x, y, z) != CellType.OBSTACLE ? 1 : 0;
+        if ((take == 0 && node.laid - node.taken >= this.layBudget)
                 || (node.move == MoveType.PILLAR && node.layRun >= PILLAR_CAP)) {
             return;
         }
@@ -1314,7 +1347,35 @@ public final class Pathfinder {
         if (node.move.inWater() || isWater(x, y, z)) return;
         if (!this.grid.layable(x, y, z) || !roomy(x, y + 1, z) || !fits(x, y + 1, z, 0.0)) return;
         if (!againstFace(x, y, z) && !againstFace(x, y + 1, z)) return;
-        relax(current, node, pack(x, y + 1, z), y + 1, MoveType.PILLAR, PILLAR_COST);
+        relax(current, node, pack(x, y + 1, z), y + 1, MoveType.PILLAR, PILLAR_COST, 0, NO_PARENT,
+                take);
+    }
+
+    /** Whether a cardinal side of this cell holds a recorded pillar block, with something under it. */
+    private boolean recordedBeside(int x, int y, int z) {
+        if (this.pillars.isEmpty()) {
+            return false;
+        }
+        for (int[] d : CARDINALS) {
+            int fx = x + d[0];
+            int fz = z + d[1];
+            if (this.pillars.contains(pack(fx, y, fz)) && this.grid.cell(fx, y - 1, fz) == CellType.GROUND) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Down one onto the next block of a recorded pillar, or the ground it stands on, by breaking
+     * the pillar block underfoot. Only a recorded one: natural ground broken underfoot is the
+     * escape's business, with its own look at where the body lands. The record is what says it here.
+     */
+    private void lowerNeighbor(long current, Node node, int x, int y, int z) {
+        if (this.pillars.isEmpty() || node.surface16 != 0) return;
+        if (!this.pillars.contains(pack(x, y - 1, z))) return;
+        if (this.grid.cell(x, y - 2, z) != CellType.GROUND) return;
+        relax(current, node, pack(x, y - 1, z), y - 1, MoveType.LOWER, LOWER_COST, 0, NO_PARENT, 1);
     }
 
     /**
@@ -1972,6 +2033,12 @@ public final class Pathfinder {
 
     private void relax(long current, Node from, long neighbor, double footing, MoveType move,
                        double cost, int submergedRun, long takeoff) {
+        relax(current, from, neighbor, footing, move, cost, submergedRun, takeoff, 0);
+    }
+
+    /** @param take blocks this move takes from a recorded pillar — see {@link Node#taken} */
+    private void relax(long current, Node from, long neighbor, double footing, MoveType move,
+                       double cost, int submergedRun, long takeoff, int take) {
         int ny = unpackY(neighbor);
         if (!this.domain.contains(unpackX(neighbor), ny, unpackZ(neighbor))) {
             return; // outside the fence there is no world, not merely a worse one
@@ -2000,6 +2067,7 @@ public final class Pathfinder {
                 + toll;
         int laid = from.laid + (move.lays() ? 1 : 0);
         int layRun = !move.lays() ? 0 : from.move == move ? from.layRun + 1 : 1;
+        int taken = from.taken + take;
         Node node = this.nodes.get(neighbor);
         if (node == null) {
             node = new Node();
@@ -2011,6 +2079,7 @@ public final class Pathfinder {
             node.takeoff = takeoff;
             node.laid = laid;
             node.layRun = layRun;
+            node.taken = taken;
             this.nodes.put(neighbor, node);
         } else if (!node.closed && g < node.g) {
             node.g = g;
@@ -2021,6 +2090,7 @@ public final class Pathfinder {
             node.takeoff = takeoff;
             node.laid = laid;
             node.layRun = layRun;
+            node.taken = taken;
         } else {
             return;
         }

@@ -57,6 +57,8 @@ public final class AnimaRecords {
         StoreGuard.guard("contacts", ContactData.ID, ContactData::get);
         StoreGuard.guard("graves", Graves.ID, Graves::get);
         StoreGuard.guard("places", PlacesData.ID, PlacesData::get);
+        StoreGuard.guard("laid", dev.luizloyola.anima.mod.nav.LaidBlocksData.ID,
+                dev.luizloyola.anima.mod.nav.LaidBlocksData::get);
         StoreGuard.guard("encounters", EncounterData.ID, EncounterData::get);
     }
 }
