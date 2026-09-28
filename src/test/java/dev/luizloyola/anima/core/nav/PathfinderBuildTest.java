@@ -360,6 +360,7 @@ class PathfinderBuildTest {
         Path path = Pathfinder.find(grid, PathRequest.of(0, 5, 1, 3, 1, 3, SCALER).near(thePillar()));
         assertTrue(path.reachedGoal());
         assertEquals(4, count(path, MoveType.LOWER), () -> "every block of it, eaten on the way down: " + path.waypoints());
+        assertEquals(-4, path.spent(), "every block gone down is in the hand");
         assertWalkable(grid, path, 0, 5, 1, SCALER);
     }
 

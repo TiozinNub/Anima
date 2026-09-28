@@ -427,6 +427,7 @@
   "anima.command.inv.not_carried": "%s has no %s to equip.",
   "anima.command.inv.equipped": "%s equipped %s (%s)",
   "anima.command.inv.cleared": "%s inventory cleared.",
+  "anima.command.inv.count": "%s holds %s %s",
   "anima.command.select.nobody_near": "Nobody with a mind within %s blocks.",
   "anima.command.select.dead": "%s is dead — nothing left to command.",
   "anima.command.select.not_loaded": "Selected %s isn't loaded — /anima select clear, or select someone else.",

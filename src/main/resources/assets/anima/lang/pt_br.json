@@ -427,6 +427,7 @@
   "anima.command.inv.not_carried": "%s não tem %s para equipar.",
   "anima.command.inv.equipped": "%s equipou %s (%s)",
   "anima.command.inv.cleared": "Inventário de %s esvaziado.",
+  "anima.command.inv.count": "%s tem %s %s",
   "anima.command.select.nobody_near": "Ninguém com uma mente a até %s blocos.",
   "anima.command.select.dead": "%s está morto — não há mais o que comandar.",
   "anima.command.select.not_loaded": "%s, o selecionado, não está carregado — /anima select clear, ou selecione outro.",

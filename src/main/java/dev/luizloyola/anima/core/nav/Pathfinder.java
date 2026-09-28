@@ -2387,7 +2387,8 @@ public final class Pathfinder {
             key = node.parent;
             node = this.nodes.get(key);
         }
-        return new Path(new ArrayList<>(chain), reachedGoal, sealed, reachableCells, restCells);
+        return new Path(new ArrayList<>(chain), reachedGoal, sealed, reachableCells, restCells,
+                this.nodes.get(end).taken);
     }
 
     private Waypoint runUpOf(long takeoff) {

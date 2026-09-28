@@ -106,5 +106,6 @@ class PathfinderCarveTest {
     void aCarveNeedsNoBlocks() {
         Path path = find(grassStep().bounded(), 5, 3);
         assertEquals(0, path.laid());
+        assertEquals(-1, path.spent(), "the carved lip is kept: the pocket gains one");
     }
 }

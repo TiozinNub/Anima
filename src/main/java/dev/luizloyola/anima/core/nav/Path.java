@@ -23,11 +23,19 @@ import java.util.List;
  * @param restCells   how many of those the body could stop in — on its feet, not afloat and not
  *                    hanging on a ladder. A search over a flooded channel closes a thousand cells and
  *                    finds three of these
+ * @param taken       blocks the route puts in the hand: a carved lip, a pillar block gone down or
+ *                    taken to climb beside it — see {@link #spent()}
  */
 public record Path(List<Waypoint> waypoints, boolean reachedGoal, boolean sealed,
-                   int reachableCells, int restCells) {
+                   int reachableCells, int restCells, int taken) {
     public Path {
         waypoints = List.copyOf(waypoints);
+    }
+
+    /** A searched path that takes nothing into the hand. */
+    public Path(List<Waypoint> waypoints, boolean reachedGoal, boolean sealed, int reachableCells,
+                int restCells) {
+        this(waypoints, reachedGoal, sealed, reachableCells, restCells, 0);
     }
 
     /**
@@ -45,6 +53,14 @@ public record Path(List<Waypoint> waypoints, boolean reachedGoal, boolean sealed
 
     public Waypoint last() {
         return this.waypoints.get(this.waypoints.size() - 1);
+    }
+
+    /**
+     * What walking this route costs the pocket: the blocks it lays less the blocks it takes into the
+     * hand. Below zero when it gains, as a carve or a pillar gone down does.
+     */
+    public int spent() {
+        return laid() - this.taken;
     }
 
     /** How many blocks walking this route lays — see {@link MoveType#lays()}. */

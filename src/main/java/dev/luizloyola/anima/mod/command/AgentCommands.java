@@ -1167,6 +1167,10 @@ public final class AgentCommands {
                                         .executes(AgentCommands::invSee))
                                 .then(Commands.literal("clear")
                                         .executes(ctx -> invClear(ctx)))
+                                .then(Commands.literal("count")
+                                        .then(Commands.argument("item", ItemArgument.item(registryAccess))
+                                                .executes(ctx -> invCount(ctx,
+                                                        ItemArgument.getItem(ctx, "item")))))
                                 .then(Commands.literal("give")
                                         .then(Commands.argument("item", ItemArgument.item(registryAccess))
                                                 .executes(ctx -> invGive(ctx,
@@ -2294,6 +2298,22 @@ public final class AgentCommands {
                     .withStyle(ChatFormatting.GRAY)));
         }
         return occupied.size();
+    }
+
+    /**
+     * How many of an item the subject carries, as the reply and the command's result — what the
+     * gauntlet reads to learn how many blocks each runner spent.
+     */
+    private static int invCount(CommandContext<CommandSourceStack> ctx, ItemInput input)
+            throws CommandSyntaxException {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        String id = ItemStacks.templateOf(input, source.registryAccess()).id();
+        int held = person.inventory().count(id);
+        Replies.send(source, () -> Component.translatable("anima.command.inv.count",
+                person.entity().getName(), held, id).withStyle(ChatFormatting.AQUA));
+        return held;
     }
 
     /** Adds {@code count} of the given item to the resolved Person, reporting anything that didn't fit. */
