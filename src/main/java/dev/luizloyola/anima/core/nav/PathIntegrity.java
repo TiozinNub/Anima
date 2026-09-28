@@ -205,12 +205,15 @@ public final class PathIntegrity {
         }
     }
 
-    /** Appends what a lowering needs: its own cell solid or already opened, and room above it. */
+    /**
+     * Appends what a lowering needs: its own cell and the column above it solid or already opened.
+     * The column above held the pillar blocks the steps before this one break, so a look ahead
+     * finds them solid and after it finds them gone, and both are the route going as planned.
+     */
     private static void addLowered(List<CellNeed> needs, int x, int y, int z,
                                    MoveCapabilities profile) {
-        needs.add(new CellNeed(x, y, z, CellNeed.Need.LAYABLE));
-        for (int i = 1; i <= profile.topCell(0.0); i++) {
-            needs.add(new CellNeed(x, y + i, z, CellNeed.Need.CLEAR));
+        for (int i = 0; i <= profile.topCell(0.0); i++) {
+            needs.add(new CellNeed(x, y + i, z, CellNeed.Need.LAYABLE));
         }
     }
 

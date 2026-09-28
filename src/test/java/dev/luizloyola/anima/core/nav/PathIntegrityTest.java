@@ -54,7 +54,7 @@ class PathIntegrityTest {
                 new Waypoint(3, 11, 7, MoveType.WALK), new Waypoint(3, 10, 7, MoveType.LOWER), PERSON);
         assertEquals(List.of(
                 new CellNeed(3, 10, 7, CellNeed.Need.LAYABLE),
-                new CellNeed(3, 11, 7, CellNeed.Need.CLEAR)), needs);
+                new CellNeed(3, 11, 7, CellNeed.Need.LAYABLE)), needs);
     }
 
     @Test
