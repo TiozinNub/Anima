@@ -44,11 +44,17 @@ public final class PlayerTaps {
         UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> {
             if (level.isClientSide() || hand != InteractionHand.MAIN_HAND
                     || !(player instanceof ServerPlayer talker)
-                    || !player.getItemInHand(hand).isEmpty()
                     || !(entity instanceof AgentBody body)
                     || body.agentId() == null || !body.entity().isAlive()) {
                 return InteractionResult.PASS;
             }
+            // A spectator is not there to talk to, so the click opens the inventory instead, look-only
+            // because vanilla refuses a spectator's slot clicks. Fabric fires this before vanilla's
+            // own spectator check, hence the ask here.
+            if (player.isSpectator()) {
+                return body.showInventory(talker) ? InteractionResult.SUCCESS : InteractionResult.PASS;
+            }
+            if (!player.getItemInHand(hand).isEmpty()) return InteractionResult.PASS;
             return tap(talker, body);
         });
     }
