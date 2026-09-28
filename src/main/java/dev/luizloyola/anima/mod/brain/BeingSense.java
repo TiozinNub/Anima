@@ -214,6 +214,11 @@ public final class BeingSense {
         return sensor.countPeers(who);
     }
 
+    /** @see BeingSensorCore#attackedLately */
+    public boolean attackedLately(BeingId who) {
+        return sensor.attackedLately(who);
+    }
+
     /** Whether calling {@code whom} again would just be shouting twice. */
     public boolean calledLately(BeingId whom) {
         return sensor.calledLately(whom, person.level().getGameTime());

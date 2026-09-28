@@ -89,6 +89,14 @@ public interface Percepts {
     boolean calledLately(BeingId whom);
 
     /**
+     * Whether {@code who} attacked this body recently enough that the mark still holds
+     * ({@code senses.attack_decay_ticks}). Whoever it is, it reads aggressive for as long.
+     */
+    default boolean attackedLately(BeingId who) {
+        return false;
+    }
+
+    /**
      * Nearby people — the {@link Being.Kind#PERSON} view over {@link #beings()}: other Persons
      * And live players, one list, indistinguishable. The substrate every social
      * behavior stands on.

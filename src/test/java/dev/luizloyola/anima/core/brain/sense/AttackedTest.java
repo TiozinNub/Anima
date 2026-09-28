@@ -83,6 +83,25 @@ class AttackedTest {
     }
 
     @Test
+    @DisplayName("a player who hits reads aggressive though their body never does, then lets go")
+    void anAgentThatAttacksIsAggressiveForAsLongAsTheMark() {
+        BeingReading player = new BeingReading(shooter, Being.Kind.AGENT, "person", "Steve", null,
+                false, new Pos(3, 64, 0), 3.0, Being.HUMANOID_EYE_HEIGHT, true,
+                Being.Locomotion.STILL, false, false, false,
+                false, Being.Gear.NONE, Being.Activity.IDLE);
+        sensor.heard(player, 100L, true);
+        assertFalse(only().aggressive(), "a player standing there is nobody's enemy");
+
+        sensor.attacked(player, 110L, true);
+        assertTrue(only().aggressive(), "the hit names the species and says what they are doing");
+        assertTrue(sensor.attackedLately(shooter));
+
+        int grudge = TestSpecies.PROFILE.i(ProfileAspect.SENSES_ATTACK_DECAY_TICKS);
+        sensor.tick(new Pos(0, 64, 0), 0, 0, 110L + grudge + 1, new NoWorld());
+        assertFalse(sensor.attackedLately(shooter), "no grudge past the mark — that is later work");
+    }
+
+    @Test
     @DisplayName("the mark outlives the other channels, then lets go")
     void theGrudgeDecaysOnItsOwnMuchSlowerClock() {
         sensor.attacked(at(new Pos(10, 64, 0), 10.0), 100L, false);

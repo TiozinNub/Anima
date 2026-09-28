@@ -196,6 +196,11 @@ public final class AgentPercepts implements Percepts {
         return this.beings.get();
     }
 
+    @Override
+    public boolean attackedLately(BeingId who) {
+        return this.person.beingSense().attackedLately(who);
+    }
+
     /** Delegates to the sensor's own guardrail memory. */
     @Override
     public boolean calledLately(BeingId whom) {

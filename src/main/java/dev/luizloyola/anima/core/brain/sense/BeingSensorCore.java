@@ -364,6 +364,12 @@ public final class BeingSensorCore {
     }
 
     /** Whether calling that one again would just be shouting twice. */
+    /** Whether {@code who} attacked this body and the mark has not yet decayed. */
+    public boolean attackedLately(BeingId who) {
+        Track track = tracks.get(who);
+        return track != null && track.attackedAt != NEVER;
+    }
+
     public boolean calledLately(BeingId whom, long now) {
         Track track = tracks.get(whom);
         return track != null && track.calledAt != NEVER
@@ -905,9 +911,11 @@ public final class BeingSensorCore {
         boolean seen = tier == Being.Identified.INDIVIDUAL;
         // The mask rule's one explicit exception: below SPECIES exposes UNKNOWN — or HOSTILE
         // when aggression is known anyway: being shot says nothing about who did it and
-        // everything about whether to run.
+        // everything about whether to run. And whatever attacked is aggressive while the mark
+        // lasts, at every tier: a player's body never reads aggressive by itself, and a player
+        // who hits is exactly as dangerous as a zombie that does (combat spec, decision 7).
         boolean attacked = track.attackedAt != NEVER;
-        boolean aggressive = speciesKnown ? r.aggressive() : attacked;
+        boolean aggressive = (speciesKnown && r.aggressive()) || attacked;
         return new Being(r.id(),
                 speciesKnown ? r.kind() : (attacked ? Being.Kind.HOSTILE : Being.Kind.UNKNOWN),
                 speciesKnown ? r.species() : "",

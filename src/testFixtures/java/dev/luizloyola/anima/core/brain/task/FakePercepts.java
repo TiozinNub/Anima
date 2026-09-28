@@ -75,6 +75,8 @@ public final class FakePercepts implements Percepts {
     public double reach = 4.5;
     /** Who this fake body has called lately — seeded by guardrail tests. */
     public final java.util.Set<BeingId> called = new java.util.HashSet<>();
+    /** Who hit this body lately — {@link #attackedLately}. */
+    public final java.util.Set<BeingId> attackers = new java.util.HashSet<>();
     private final Map<String, FoodValue> foodById = new HashMap<>();
     private final Map<String, FoodValue> cookedById = new HashMap<>();
 
@@ -111,6 +113,11 @@ public final class FakePercepts implements Percepts {
     @Override
     public List<Being> beings() {
         return beings;
+    }
+
+    @Override
+    public boolean attackedLately(BeingId who) {
+        return attackers.contains(who);
     }
 
     @Override
