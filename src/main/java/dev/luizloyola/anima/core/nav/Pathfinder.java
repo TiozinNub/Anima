@@ -403,6 +403,8 @@ public final class Pathfinder {
     private final boolean building;
     /** {@link PathRequest#pillars()}, read once. */
     private final java.util.Set<Long> pillars;
+    /** Columns where nothing is laid or cut — see {@link HandsOff}. */
+    private final HandsOff handsOff;
     /** {@link #hazardBelow}'s memo: every deck across a ravine reads the same kind of gap. */
     private final CellTable.Flags gapCache = new CellTable.Flags(256);
     /** What the route to the goal cost, when this search reached it — {@link #worthBuilding}. */
@@ -441,6 +443,7 @@ public final class Pathfinder {
         this.layBudget = layBudget;
         this.building = building;
         this.pillars = request.pillars();
+        this.handsOff = request.handsOff();
         this.grid = grid;
         this.profile = request.profile();
         this.danger = request.danger();
@@ -1327,6 +1330,7 @@ public final class Pathfinder {
      * does not replace, never over anything harmful.
      */
     private void bridgeNeighbor(long current, Node node, int x, int y, int z, int nx, int nz) {
+        if (this.handsOff.contains(nx, nz)) return;
         if (node.laid - node.taken >= this.layBudget
                 || (node.move == MoveType.BRIDGE && node.layRun >= SPAN_CAP)) {
             return;
@@ -1345,6 +1349,7 @@ public final class Pathfinder {
      * may build from stacking toward whatever it cannot otherwise reach.
      */
     private void pillarNeighbor(long current, Node node, int x, int y, int z) {
+        if (this.handsOff.contains(x, z)) return;
         // Beside a recorded pillar the block comes from the pillar, not the pocket: taken from one
         // level above the feet, the level the body is about to rise to.
         int take = recordedBeside(x, y + 1, z) && this.grid.cell(x, y, z) != CellType.OBSTACLE ? 1 : 0;
@@ -1405,7 +1410,7 @@ public final class Pathfinder {
         if (this.profile.jumpHeight() < 1 || !roomy(x, y + this.profile.topCell(0.0) + 1, z)) return;
         int nx = x + dx;
         int nz = z + dz;
-        if (this.grid.cell(nx, y, nz) != CellType.GROUND) return;
+        if (this.grid.cell(nx, y, nz) != CellType.GROUND || this.handsOff.contains(nx, nz)) return;
         for (int rise = 2; rise <= MAX_SCALE; rise++) {
             int lip = y + rise - 1;
             if (!this.grid.soft(nx, lip, nz) || touchesLiquid(nx, lip, nz)) return;

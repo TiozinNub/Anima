@@ -10,6 +10,7 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.sense.SetbackField;
 import dev.luizloyola.anima.core.brain.sense.Setbacks;
 import dev.luizloyola.anima.core.log.Category;
+import dev.luizloyola.anima.core.nav.HandsOff;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.mod.brain.DangerFields;
 import dev.luizloyola.anima.core.nav.CellNeed;
@@ -591,11 +592,13 @@ public final class Navigator {
         NavDomain where = this.fence != null ? this.fence : NavDomain.EVERYWHERE;
         java.util.Set<Long> pillars = body.canScale() ? recordedPillars(start, this.goal)
                 : java.util.Set.of();
+        HandsOff handsOff = body.canScale() ? WorkFence.around(level(), start, this.goal)
+                : HandsOff.NONE;
         PathfinderService.Dispatched dispatched = PathfinderService.inThread()
                 ? PathfinderService.computeNow(level(), who, start, this.goal,
-                        body, DangerFields.of(this.person), troubles(), where, pillars)
+                        body, DangerFields.of(this.person), troubles(), where, pillars, handsOff)
                 : PathfinderService.request(level(), who, start, this.goal,
-                        body, DangerFields.of(this.person), troubles(), where, pillars);
+                        body, DangerFields.of(this.person), troubles(), where, pillars, handsOff);
         this.grid = dispatched.snapshot();
         this.pending = dispatched.result();
     }

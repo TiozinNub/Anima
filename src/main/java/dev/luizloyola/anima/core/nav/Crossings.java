@@ -72,7 +72,8 @@ public final class Crossings {
     private static PathRequest withBody(PathRequest request, MoveCapabilities body) {
         return new PathRequest(request.startX(), request.startY(), request.startZ(), request.goalX(),
                 request.goalY(), request.goalZ(), body, request.danger(), request.domain(),
-                request.maxNodes(), request.variety(), request.setbacks(), request.pillars());
+                request.maxNodes(), request.variety(), request.setbacks(), request.pillars(),
+                request.handsOff());
     }
 
     /** A route's walked length, waypoint to waypoint — the builder's measure, not the search's cost. */

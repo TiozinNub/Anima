@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.sense.DangerField;
 import dev.luizloyola.anima.core.brain.sense.SetbackField;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
+import dev.luizloyola.anima.core.nav.HandsOff;
 import dev.luizloyola.anima.core.nav.NavDomain;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.CellType;
@@ -116,15 +117,20 @@ public final class PathfinderService {
     public static Dispatched request(ServerLevel level, @Nullable AgentId who, BlockPos start,
             BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
             NavDomain fence) {
-        return request(level, who, start, goal, body, danger, setbacks, fence, java.util.Set.of());
+        return request(level, who, start, goal, body, danger, setbacks, fence, java.util.Set.of(),
+                HandsOff.NONE);
     }
 
-    /** As above, knowing of the recorded pillar blocks around the route — see {@code PathRequest}. */
+    /**
+     * As above, knowing of the recorded pillar blocks around the route and the columns it may not
+     * lay or cut in — see {@code PathRequest}.
+     */
     public static Dispatched request(ServerLevel level, @Nullable AgentId who, BlockPos start,
             BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
-            NavDomain fence, java.util.Set<Long> pillars) {
+            NavDomain fence, java.util.Set<Long> pillars, HandsOff handsOff) {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
-        PathRequest pathRequest = buildRequest(snapshot, start, goal, body, danger, who, setbacks).within(fence).near(pillars);
+        PathRequest pathRequest = buildRequest(snapshot, start, goal, body, danger, who, setbacks)
+                .within(fence).near(pillars).keepingOff(handsOff);
         String handle = who == null ? "?" : who.shortText();
         CompletableFuture<Path> result = CompletableFuture.supplyAsync(() -> {
             Path path = Pathfinder.find(snapshot, pathRequest);
@@ -156,16 +162,17 @@ public final class PathfinderService {
     public static Dispatched computeNow(ServerLevel level, @Nullable AgentId who, BlockPos start,
             BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
             NavDomain fence) {
-        return computeNow(level, who, start, goal, body, danger, setbacks, fence, java.util.Set.of());
+        return computeNow(level, who, start, goal, body, danger, setbacks, fence, java.util.Set.of(),
+                HandsOff.NONE);
     }
 
-    /** As above, knowing of the recorded pillar blocks around the route — see {@code PathRequest}. */
+    /** As above, knowing of recorded pillars and the columns it may not lay or cut in. */
     public static Dispatched computeNow(ServerLevel level, @Nullable AgentId who, BlockPos start,
             BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
-            NavDomain fence, java.util.Set<Long> pillars) {
+            NavDomain fence, java.util.Set<Long> pillars, HandsOff handsOff) {
         WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
-        Path path = Pathfinder.find(snapshot,
-                buildRequest(snapshot, start, goal, body, danger, who, setbacks).within(fence).near(pillars));
+        Path path = Pathfinder.find(snapshot, buildRequest(snapshot, start, goal, body, danger, who,
+                setbacks).within(fence).near(pillars).keepingOff(handsOff));
         return new Dispatched(CompletableFuture.completedFuture(path), snapshot);
     }
 

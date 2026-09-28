@@ -138,6 +138,36 @@ class PathfinderBuildTest {
         assertEquals(0, path.laid());
     }
 
+    // ── the fence: where nothing is laid or cut ──────────────────────────────────────────────
+
+    @Test
+    void aFencedGapIsNotBridged() {
+        HandsOff site = HandsOff.columns(java.util.List.of(new int[] {6, 0, 6, 2}));
+        Path path = Pathfinder.find(gap(6), PathRequest.of(1, 1, 1, 10, 1, 1, carrying(6)).keepingOff(site));
+        assertFalse(path.reachedGoal(), "one deck of the six would be inside somebody's site");
+        assertEquals(0, path.laid());
+    }
+
+    @Test
+    void aFencedLipIsNeitherScaledNorCarved() {
+        String row = "111333";
+        NavGrid step = AsciiWorld.of(row, row, row).soft(3, 0, 0, 5, 1, 2).regrows(3, 2, 0, 5, 2, 2)
+                .bounded();
+        MoveCapabilities scaler = TestBodies.BIPED.withScaling(true);
+        assertTrue(Pathfinder.find(step, PathRequest.of(1, 1, 1, 5, 3, 1, scaler)).reachedGoal());
+        HandsOff field = HandsOff.columns(java.util.List.of(new int[] {3, 0, 5, 2}));
+        assertFalse(Pathfinder.find(step, PathRequest.of(1, 1, 1, 5, 3, 1, scaler).keepingOff(field))
+                .reachedGoal(), "a field's edge is somebody's");
+    }
+
+    @Test
+    void noPillarRisesInsideTheFence() {
+        NavGrid pit = pitWithAPillar().bounded();
+        HandsOff all = HandsOff.columns(java.util.List.of(new int[] {0, 0, 4, 4}));
+        assertFalse(Pathfinder.find(pit, PathRequest.of(2, 1, 2, 2, 5, 0, carrying(8)).keepingOff(all))
+                .reachedGoal());
+    }
+
     // ── goals nothing may be built toward ────────────────────────────────────────────────────
 
     @Test
