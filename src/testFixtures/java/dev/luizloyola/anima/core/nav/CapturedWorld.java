@@ -17,7 +17,8 @@ import java.util.Map;
  * per non-passable cell in world coordinates; {@code #} comments ignored. A fifth field carries what
  * a code does not say: a {@link CellType#STEP}'s surface in sixteenths (required), a
  * {@link CellType#GROUND}'s ramps, a {@link CellType#DOOR}'s doorway code, a {@link CellType#CLIMB}'s
- * floor (absent means none); a {@code hatch x y z} line marks a hatch.
+ * floor (absent means none); a {@code hatch x y z} line marks a hatch, a {@code soft x y z} line
+ * soft ground.
  * Unmentioned cells inside the box are {@link CellType#PASSABLE}, everything outside
  * {@link CellType#OBSTACLE}, per the {@link NavGrid} contract. World coordinates let a query
  * recorded in-game replay verbatim.
@@ -35,10 +36,12 @@ public final class CapturedWorld implements NavGrid {
     private final Map<Long, Integer> payloads;
     private final boolean doors;
     private final java.util.Set<Long> hatches;
+    private final java.util.Set<Long> soft;
 
     private CapturedWorld(int minX, int minY, int minZ, int maxX, int maxY, int maxZ,
                           Map<Long, CellType> cells, Map<Long, Double> surfaces,
-                          Map<Long, Integer> payloads, java.util.Set<Long> hatches) {
+                          Map<Long, Integer> payloads, java.util.Set<Long> hatches,
+                          java.util.Set<Long> soft) {
         this.minX = minX;
         this.minY = minY;
         this.minZ = minZ;
@@ -49,6 +52,7 @@ public final class CapturedWorld implements NavGrid {
         this.surfaces = surfaces;
         this.payloads = payloads;
         this.hatches = hatches;
+        this.soft = soft;
         this.doors = cells.containsValue(CellType.DOOR);
     }
 
@@ -59,6 +63,7 @@ public final class CapturedWorld implements NavGrid {
         Map<Long, Double> surfaces = new HashMap<>();
         Map<Long, Integer> payloads = new HashMap<>();
         java.util.Set<Long> hatches = new java.util.HashSet<>();
+        java.util.Set<Long> soft = new java.util.HashSet<>();
         int lineNo = 0;
         for (String raw : lines) {
             lineNo++;
@@ -75,6 +80,11 @@ public final class CapturedWorld implements NavGrid {
             String[] parts = line.split("\\s+");
             if (parts[0].equals("hatch") && parts.length == 4) {
                 hatches.add(Pathfinder.pack(parse(parts[1], lineNo), parse(parts[2], lineNo),
+                        parse(parts[3], lineNo)));
+                continue;
+            }
+            if (parts[0].equals("soft") && parts.length == 4) {
+                soft.add(Pathfinder.pack(parse(parts[1], lineNo), parse(parts[2], lineNo),
                         parse(parts[3], lineNo)));
                 continue;
             }
@@ -101,7 +111,7 @@ public final class CapturedWorld implements NavGrid {
             throw new IllegalArgumentException("capture has no '# box minX minY minZ maxX maxY maxZ' header");
         }
         return new CapturedWorld(box[0], box[1], box[2], box[3], box[4], box[5], cells, surfaces,
-                payloads, hatches);
+                payloads, hatches, soft);
     }
 
     private static int[] ints(String text, int count, int lineNo) {
@@ -154,6 +164,11 @@ public final class CapturedWorld implements NavGrid {
     @Override
     public boolean hatch(int x, int y, int z) {
         return this.hatches.contains(Pathfinder.pack(x, y, z));
+    }
+
+    @Override
+    public boolean soft(int x, int y, int z) {
+        return this.soft.contains(Pathfinder.pack(x, y, z));
     }
 
     @Override

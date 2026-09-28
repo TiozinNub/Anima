@@ -29,7 +29,8 @@ import java.util.List;
  *       on ({@link CellNeed.Need#HOLD}) under an open column.
  *   <li><b>Laying moves</b> ({@link MoveType#lays()}): the cell under the waypoint stays
  *       {@link CellNeed.Need#LAYABLE} under an open column — and so does the near end of a level
- *       step leaving one.
+ *       step leaving one. A {@link MoveType#SCALE}'s cut cells are LAYABLE likewise, from the notch
+ *       up.
  * </ul>
  *
  * <p>Re-derived from waypoint geometry rather than recorded by the search, so it mirrors what
@@ -63,6 +64,17 @@ public final class PathIntegrity {
             addLaid(needs, to.x(), to.y(), to.z(), profile);
             return needs;
         }
+        if (to.move() == MoveType.SCALE) {
+            // The cut cells, from the notch up: soft now, empty mid-scale, put back after. LAYABLE
+            // takes all three, so a lip half cut is not a route broken.
+            for (int y = from.y() + 1; y < to.y(); y++) {
+                needs.add(new CellNeed(to.x(), y, to.z(), CellNeed.Need.LAYABLE));
+            }
+            for (int i = 0; i <= profile.topCell(0.0); i++) {
+                needs.add(new CellNeed(to.x(), to.y() + i, to.z(), CellNeed.Need.CLEAR));
+            }
+            return needs;
+        }
         if (to.move() == MoveType.WALK
                 || (to.move() == MoveType.RUNUP && from.y() == to.y())) {
             // Level ground move: watch the standable floor + body column under every cell the feet
@@ -93,9 +105,10 @@ public final class PathIntegrity {
             } else if (from.move() == MoveType.CLIMB) {
                 // Stepping off a ladder sideways: the near end is a hold, which has no footing.
                 addHold(needs, from.x(), from.y(), from.z(), profile);
-            } else if (from.move().lays()) {
-                // Stepping off a deck: its floor is a block the route has not laid yet when the
-                // follower looks ahead, which FOOTING would read as the route broken.
+            } else if (from.move().rebuildsFloor()) {
+                // Stepping off a deck or a scaled step: its floor is a block the route has not
+                // laid, or put back, yet when the follower looks ahead, which FOOTING would read as
+                // the route broken.
                 addLaid(needs, from.x(), from.y(), from.z(), profile);
             } else {
                 addStandable(needs, from.x(), from.y(), from.z(), profile,

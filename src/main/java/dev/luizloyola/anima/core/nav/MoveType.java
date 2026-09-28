@@ -47,7 +47,14 @@ public enum MoveType {
      */
     BRIDGE,
     /** Up one in place: jump, lay a block in the cell just left, land on it — the riser's move. */
-    PILLAR;
+    PILLAR,
+    /**
+     * Up two or three onto a step of soft ground: the top block (or two) of the step broken, a
+     * jump into the notch, and the same blocks laid back underfoot. The world ends as it began, so
+     * nothing is spent and nothing is left — but the floor the waypoint stands on is one the leg
+     * put back ({@link #rebuildsFloor()}).
+     */
+    SCALE;
 
     /**
      * Whether entering this waypoint lays a block — always into the cell directly under it, which
@@ -55,6 +62,15 @@ public enum MoveType {
      */
     public boolean lays() {
         return this == BRIDGE || this == PILLAR;
+    }
+
+    /**
+     * Whether the floor under this waypoint is one the leg itself puts there — laid, or cut and
+     * put back. Such a floor is missing while the leg runs, and whatever looks ahead must not read
+     * that as the route breaking.
+     */
+    public boolean rebuildsFloor() {
+        return lays() || this == SCALE;
     }
 
     /**

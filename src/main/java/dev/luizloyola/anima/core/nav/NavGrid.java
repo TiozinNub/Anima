@@ -103,6 +103,17 @@ public interface NavGrid {
         return cell(x, y, z) == CellType.PASSABLE;
     }
 
+    /**
+     * Whether this {@link CellType#GROUND} cell is soft: dirt, grass and their kin, which a hand
+     * breaks in under a second and which drop themselves (or dirt) to be put back —
+     * {@code #anima:soft_ground}. What a {@link MoveType#SCALE} may cut.
+     *
+     * <p>The default is none, correct for a drawn grid that did not say.
+     */
+    default boolean soft(int x, int y, int z) {
+        return false;
+    }
+
     /** A heading as a bit, for {@link #ramps}: toward -z. */
     int NORTH = 1;
     /** Toward +z. */

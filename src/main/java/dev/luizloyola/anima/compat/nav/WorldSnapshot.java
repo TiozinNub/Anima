@@ -64,6 +64,13 @@ public final class WorldSnapshot implements NavGrid {
      */
     private static final int TRAPDOOR = 1 << 9;
 
+    /**
+     * The dirt family a hand may cut and put back — vanilla's own tags, which moved between
+     * versions, gathered into one of Anima's. See {@link NavGrid#soft}.
+     */
+    private static final TagKey<Block> SOFT_GROUND =
+            TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("anima", "soft_ground"));
+
     /** Hand-swung trapdoors: the wooden ones and copper. Vanilla has no tag that says it. */
     private static final TagKey<Block> HAND_TRAPDOORS =
             TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("anima", "hand_trapdoors"));
@@ -97,9 +104,15 @@ public final class WorldSnapshot implements NavGrid {
      * other reading of a cell changes. See {@link NavGrid#layable}.
      */
     private static final int FIXED = 1 << 7;
+    /** The same bit on a {@link CellType#GROUND} cell: soft ground. See {@link NavGrid#soft}. */
+    private static final int SOFT = 1 << 7;
 
     static boolean layable(int packed) {
         return type(packed) == CellType.PASSABLE && (packed & FIXED) == 0;
+    }
+
+    static boolean soft(int packed) {
+        return type(packed) == CellType.GROUND && (packed & SOFT) != 0;
     }
 
     static CellType type(int packed) {
@@ -368,6 +381,11 @@ public final class WorldSnapshot implements NavGrid {
     /** {@link NavGrid#climbFloor} of a single live cell, under {@link #classifyAt}'s rules. */
     public static boolean climbFloorAt(Level level, BlockPos pos) {
         return climbFloor(packedAt(level.getBlockState(pos), level, pos));
+    }
+
+    /** {@link NavGrid#soft} of a single live cell, under {@link #classifyAt}'s rules. */
+    public static boolean softAt(Level level, BlockPos pos) {
+        return soft(packedAt(level.getBlockState(pos), level, pos));
     }
 
     /** {@link NavGrid#layable} of a single live cell, under {@link #classifyAt}'s rules. */
@@ -726,7 +744,7 @@ public final class WorldSnapshot implements NavGrid {
                         ? pack(CellType.DOOR, 0)
                         : pack(CellType.OBSTACLE, 0);
             }
-            return pack(CellType.GROUND, rampsOf(shape));
+            return (byte) (pack(CellType.GROUND, rampsOf(shape)) | (state.is(SOFT_GROUND) ? SOFT : 0));
         }
         if (surface <= 0.0) {
             // Collision the body's footprint never meets, because it hugs one face of the cell. A
@@ -824,6 +842,12 @@ public final class WorldSnapshot implements NavGrid {
     public boolean layable(int x, int y, int z) {
         int index = slot(x, y, z);
         return index >= 0 && layable(this.cells[index]);
+    }
+
+    @Override
+    public boolean soft(int x, int y, int z) {
+        int index = slot(x, y, z);
+        return index >= 0 && soft(this.cells[index]);
     }
 
     /**

@@ -32,17 +32,20 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
  * @param maxLaid    blocks it may lay on one route, to bridge a gap or pillar up. Body STATE, like
  *                   {@code maxSubmerged}: read off the pocket at request time, and zero for a walk
  *                   that did not ask to build. Zero refuses building
+ * @param canScale   whether this walk may scale a soft step — cut its lip, climb into the notch,
+ *                   put the lip back underfoot. Needs an arm and a hand, and a walk that allows it;
+ *                   read at request time like {@code maxLaid}
  */
 public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
                                boolean canSwim, int maxSubmerged, boolean canOpenDoors,
-                               boolean canClimb, int maxLaid) {
+                               boolean canClimb, int maxLaid, boolean canScale) {
 
-    /** A body that lays nothing — every caller that has not asked to build. */
+    /** A body that moves no ground — every caller that has not asked to build or scale. */
     public MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
                             boolean canSwim, int maxSubmerged, boolean canOpenDoors,
                             boolean canClimb) {
         this(height, jumpHeight, maxDrop, maxLeap, canSwim, maxSubmerged, canOpenDoors, canClimb,
-                0);
+                0, false);
     }
 
     /**
@@ -109,7 +112,15 @@ public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int m
     /** The same body with {@code blocks} it may lay on this route. */
     public MoveCapabilities withLaid(int blocks) {
         return new MoveCapabilities(this.height, this.jumpHeight, this.maxDrop, this.maxLeap,
-                this.canSwim, this.maxSubmerged, this.canOpenDoors, this.canClimb, blocks);
+                this.canSwim, this.maxSubmerged, this.canOpenDoors, this.canClimb, blocks,
+                this.canScale);
+    }
+
+    /** The same body, allowed or not to scale a soft step on this route. */
+    public MoveCapabilities withScaling(boolean scale) {
+        return new MoveCapabilities(this.height, this.jumpHeight, this.maxDrop, this.maxLeap,
+                this.canSwim, this.maxSubmerged, this.canOpenDoors, this.canClimb, this.maxLaid,
+                scale);
     }
 
     /** Reads one body's capabilities out of its resolved profile, here and now. */

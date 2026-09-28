@@ -11,8 +11,8 @@ import org.junit.jupiter.api.Test;
  * found when a body may build and they beat the way round, and never where the spec's safety
  * lines say no.
  *
- * <p>Every map is {@link #bounded}: a drawn map reads OBSTACLE past its rows, and a pillar would
- * lean on that as a wall. A capture's edge is out of bounds, and so is this one's.
+ * <p>Every map is {@link AsciiWorld#bounded}: a drawn map reads OBSTACLE past its rows, and a
+ * pillar would lean on that as a wall. A capture's edge is out of bounds, and so is this one's.
  */
 class PathfinderBuildTest {
 
@@ -22,36 +22,9 @@ class PathfinderBuildTest {
         return TestBodies.BIPED.withLaid(blocks);
     }
 
-    /** The map drawn by {@code rows}, its edge the edge of the world as a capture's is. */
+    /** The map drawn by {@code rows}, its edge the edge of the world. */
     private static NavGrid bounded(String... rows) {
-        return bounded(AsciiWorld.of(rows), rows);
-    }
-
-    /** {@code world}, drawn by {@code rows} and then filled, bounded like {@link #bounded(String...)}. */
-    private static NavGrid bounded(AsciiWorld world, String[] rows) {
-        int depth = rows.length;
-        int width = rows[0].length();
-        return new NavGrid() {
-            @Override
-            public CellType cell(int x, int y, int z) {
-                return world.cell(x, y, z);
-            }
-
-            @Override
-            public double surface(int x, int y, int z) {
-                return world.surface(x, y, z);
-            }
-
-            @Override
-            public boolean layable(int x, int y, int z) {
-                return world.layable(x, y, z);
-            }
-
-            @Override
-            public boolean inBounds(int x, int y, int z) {
-                return x >= 0 && x < width && z >= 0 && z < depth;
-            }
-        };
+        return AsciiWorld.of(rows).bounded();
     }
 
     private static Path find(NavGrid grid, int sx, int sy, int sz, int gx, int gy, int gz,
@@ -208,7 +181,7 @@ class PathfinderBuildTest {
                 .fill(0, 1, 2, 2, 20, 2, CellType.GROUND)
                 .fill(0, 1, 1, 0, 20, 1, CellType.GROUND)
                 .fill(2, 1, 1, 2, 20, 1, CellType.GROUND);
-        Path path = find(bounded(deep, rows), 1, 1, 1, 2, 21, 1, carrying(32));
+        Path path = find(deep.bounded(), 1, 1, 1, 2, 21, 1, carrying(32));
         assertFalse(path.reachedGoal(), "past the cap a shaft is not climbed by stacking");
     }
 
@@ -219,8 +192,8 @@ class PathfinderBuildTest {
         AsciiWorld world = AsciiWorld.of(rows)
                 .step(3, 1, 0, 3, 1, 2, 0.5)
                 .step(3, 2, 0, 3, 2, 2, 0.5);
-        assertFalse(find(bounded(world, rows), 1, 1, 1, 5, 1, 1, EMPTY_HANDED).reachedGoal());
-        Path path = find(bounded(world, rows), 1, 1, 1, 5, 1, 1, carrying(4));
+        assertFalse(find(world.bounded(), 1, 1, 1, 5, 1, 1, EMPTY_HANDED).reachedGoal());
+        Path path = find(world.bounded(), 1, 1, 1, 5, 1, 1, carrying(4));
         assertTrue(path.reachedGoal());
         assertEquals(1, count(path, MoveType.PILLAR));
     }
@@ -230,7 +203,7 @@ class PathfinderBuildTest {
     void noTowerIsBuiltInTheOpen() {
         String[] rows = {"1111111", "1111111", "1111111", "1111111", "1111111"};
         AsciiWorld world = AsciiWorld.of(rows).fill(3, 4, 2, 3, 4, 2, CellType.GROUND);
-        Path path = find(bounded(world, rows), 0, 1, 2, 3, 5, 2, carrying(16));
+        Path path = find(world.bounded(), 0, 1, 2, 3, 5, 2, carrying(16));
         assertFalse(path.reachedGoal());
         assertEquals(0, path.laid());
     }
@@ -265,7 +238,7 @@ class PathfinderBuildTest {
     void aDeckIsLaidFromASlabOnABlock() {
         String[] rows = {"111    111", "111    111", "111    111"};
         AsciiWorld world = AsciiWorld.of(rows).step(2, 1, 0, 2, 1, 2, 0.5);
-        assertTrue(find(bounded(world, rows), 1, 1, 1, 8, 1, 1, carrying(16)).reachedGoal(),
+        assertTrue(find(world.bounded(), 1, 1, 1, 8, 1, 1, carrying(16)).reachedGoal(),
                 "the block under the slab is what the deck is laid against");
     }
 
@@ -273,7 +246,7 @@ class PathfinderBuildTest {
     void noDeckIsLaidFromASlabOverAir() {
         String[] rows = {"11     111", "11     111", "11     111"};
         AsciiWorld world = AsciiWorld.of(rows).step(2, 1, 0, 2, 1, 2, 0.5);
-        assertFalse(find(bounded(world, rows), 0, 1, 1, 8, 1, 1, carrying(16)).reachedGoal(),
+        assertFalse(find(world.bounded(), 0, 1, 1, 8, 1, 1, carrying(16)).reachedGoal(),
                 "a slab with nothing under it has no side to lay against");
     }
 
@@ -281,7 +254,7 @@ class PathfinderBuildTest {
     void aCellHoldingSomethingIsNeverLaidInto() {
         String[] rows = {"111    111", "111    111", "111    111"};
         AsciiWorld world = AsciiWorld.of(rows).fixed(4, 0, 0, 4, 0, 2);
-        Path path = find(bounded(world, rows), 1, 1, 1, 8, 1, 1, carrying(16));
+        Path path = find(world.bounded(), 1, 1, 1, 8, 1, 1, carrying(16));
         assertFalse(path.reachedGoal());
         assertEquals(0, path.laid());
     }

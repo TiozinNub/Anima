@@ -44,8 +44,11 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 class GauntletPathTest {
 
-    /** The body every expectation was recorded for — the Person's declared capabilities. */
-    private static final MoveCapabilities BODY = TestBodies.BIPED;
+    /**
+     * The body every expectation was recorded for — the Person's declared capabilities, on a walk
+     * allowed to scale a soft step, which a hand does with nothing in the pocket.
+     */
+    private static final MoveCapabilities BODY = TestBodies.BIPED.withScaling(true);
 
     private record Station(String id, int sx, int sy, int sz, int gx, int gy, int gz,
                            String plans, String title, String plansBlocks) {

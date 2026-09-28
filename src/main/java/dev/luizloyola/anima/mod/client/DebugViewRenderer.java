@@ -840,7 +840,7 @@ public final class DebugViewRenderer {
             // one cell long has its own shape to say so without needing a colour of its own.
             case SWIM, DIVE, SURFACE -> SWIM_COLOR;
             case CLIMB -> CLIMB_COLOR; // a ladder's brown
-            case BRIDGE, PILLAR -> BUILD_COLOR;
+            case BRIDGE, PILLAR, SCALE -> BUILD_COLOR;
         };
     }
 

@@ -172,6 +172,13 @@ public final class Pathfinder {
     private static final double LAY_COST = 6.0;
     /** One {@link MoveType#PILLAR} step: the jump and the lay, and a block left standing. */
     private static final double PILLAR_COST = 7.0;
+    /**
+     * Each block of a {@link MoveType#SCALE} cut and put back: dirt by hand is three quarters of a
+     * second, then a jump and a lay. A two-block step is one, a three-block step two.
+     */
+    private static final double SCALE_COST = 5.0;
+    /** The highest step a scale climbs. Four up is a cliff, not a step. */
+    private static final int MAX_SCALE = 3;
     /** Decks in one run. Past this a gap is not crossed but spanned, and that is the builder's work. */
     private static final int SPAN_CAP = 16;
     /** Pillar blocks in one run — the forest crevice a settler could not leave was twelve deep. */
@@ -779,6 +786,11 @@ public final class Pathfinder {
             // leave from here: the cardinal steps, and laying another.
             return;
         }
+        if (this.profile.canScale()) {
+            for (int[] d : CARDINALS) {
+                scaleNeighbor(current, node, x, y, z, d[0], d[1]);
+            }
+        }
         if (this.profile.canClimb()) {
             climbNeighbors(current, node, x, y, z, holding);
         }
@@ -1303,6 +1315,44 @@ public final class Pathfinder {
         if (!this.grid.layable(x, y, z) || !roomy(x, y + 1, z) || !fits(x, y + 1, z, 0.0)) return;
         if (!againstFace(x, y, z) && !againstFace(x, y + 1, z)) return;
         relax(current, node, pack(x, y + 1, z), y + 1, MoveType.PILLAR, PILLAR_COST);
+    }
+
+    /**
+     * Up a step of soft ground two or three high: its top block (or two) cut, a jump into the notch,
+     * the same blocks laid back underfoot. Needs nothing in the pocket and leaves the world as it
+     * found it, so it takes none of the building search's guards — it is an ordinary move of any
+     * walk allowed it. The step must stand on ground, for the notch to have a floor; nothing it cuts
+     * may touch water or anything harmful, which would pour into the notch; and nothing may sit on
+     * the lip, which would fall when it is cut.
+     */
+    private void scaleNeighbor(long current, Node node, int x, int y, int z, int dx, int dz) {
+        if (node.surface16 != 0 || node.move.inWater() || isWater(x, y, z)) return;
+        if (this.profile.jumpHeight() < 1 || !roomy(x, y + this.profile.topCell(0.0) + 1, z)) return;
+        int nx = x + dx;
+        int nz = z + dz;
+        if (this.grid.cell(nx, y, nz) != CellType.GROUND) return;
+        for (int rise = 2; rise <= MAX_SCALE; rise++) {
+            int lip = y + rise - 1;
+            if (!this.grid.soft(nx, lip, nz) || touchesLiquid(nx, lip, nz)) return;
+            double to = footing(nx, y + rise, nz);
+            if (to == y + rise) {
+                relax(current, node, pack(nx, y + rise, nz), to, MoveType.SCALE,
+                        SCALE_COST * (rise - 1));
+                return;
+            }
+            if (to != NO_FOOTING) return; // something on the lip: a carpet, a snow layer
+        }
+    }
+
+    /** Whether a side of this cell holds water or anything harmful. */
+    private boolean touchesLiquid(int x, int y, int z) {
+        for (int[] d : CARDINALS) {
+            CellType side = this.grid.cell(x + d[0], y, z + d[1]);
+            if (side == CellType.WATER || side == CellType.DANGER) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

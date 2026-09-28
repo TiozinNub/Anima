@@ -127,6 +127,7 @@ public final class NavDump {
                         + CellType.DOOR.name() + ", its doorway code; a "
                         + CellType.CLIMB.name() + " with a floor on top, 1\n");
                 out.write("# a line 'hatch x y z' marks a shut trapdoor over a ladder\n");
+                out.write("# a line 'soft x y z' marks soft ground a hand may cut and put back\n");
 
                 BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
                 for (int x = min.getX(); x <= max.getX(); x++) {
@@ -147,6 +148,9 @@ public final class NavDump {
                             }
                             out.write(type.code() + " " + x + " " + y + " " + z
                                     + payload(level, pos, type) + "\n");
+                            if (type == CellType.GROUND && WorldSnapshot.softAt(level, pos)) {
+                                out.write("soft " + x + " " + y + " " + z + "\n");
+                            }
                             if (WorldSnapshot.hatchAt(level, pos)) {
                                 out.write("hatch " + x + " " + y + " " + z + "\n");
                             }

@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:dirt",
+    {
+      "id": "#minecraft:substrate_overworld",
+      "required": false
+    }
+  ]
+}

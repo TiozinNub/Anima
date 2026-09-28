@@ -31,6 +31,7 @@ public final class AsciiWorld implements NavGrid {
     private final Map<Long, Integer> payloads = new HashMap<>();
     private final java.util.Set<Long> hatches = new java.util.HashSet<>();
     private final java.util.Set<Long> fixed = new java.util.HashSet<>();
+    private final java.util.Set<Long> soft = new java.util.HashSet<>();
 
     private AsciiWorld(String[] rows) {
         this.rows = rows;
@@ -105,6 +106,52 @@ public final class AsciiWorld implements NavGrid {
             }
         }
         return this;
+    }
+
+    /**
+     * This map with its edge the edge of the world, as a capture's is: past the drawn rows
+     * {@link NavGrid#inBounds} says no. The map itself keeps the default and reads its edge as
+     * walls — which a pillar would lean on.
+     */
+    public NavGrid bounded() {
+        AsciiWorld map = this;
+        int depth = this.rows.length;
+        int width = 0;
+        for (String row : this.rows) {
+            width = Math.max(width, row.length());
+        }
+        int w = width;
+        return new NavGrid() {
+            @Override public CellType cell(int x, int y, int z) { return map.cell(x, y, z); }
+            @Override public double surface(int x, int y, int z) { return map.surface(x, y, z); }
+            @Override public int ramps(int x, int y, int z) { return map.ramps(x, y, z); }
+            @Override public int doorway(int x, int y, int z) { return map.doorway(x, y, z); }
+            @Override public boolean hatch(int x, int y, int z) { return map.hatch(x, y, z); }
+            @Override public boolean climbFloor(int x, int y, int z) { return map.climbFloor(x, y, z); }
+            @Override public boolean hasDoors() { return map.hasDoors(); }
+            @Override public boolean layable(int x, int y, int z) { return map.layable(x, y, z); }
+            @Override public boolean soft(int x, int y, int z) { return map.soft(x, y, z); }
+            @Override public boolean inBounds(int x, int y, int z) {
+                return x >= 0 && x < w && z >= 0 && z < depth;
+            }
+        };
+    }
+
+    /** Ground cells through the inclusive box that are soft — see {@link NavGrid#soft}. */
+    public AsciiWorld soft(int x1, int y1, int z1, int x2, int y2, int z2) {
+        for (int x = x1; x <= x2; x++) {
+            for (int y = y1; y <= y2; y++) {
+                for (int z = z1; z <= z2; z++) {
+                    this.soft.add(Pathfinder.pack(x, y, z));
+                }
+            }
+        }
+        return this;
+    }
+
+    @Override
+    public boolean soft(int x, int y, int z) {
+        return cell(x, y, z) == CellType.GROUND && this.soft.contains(Pathfinder.pack(x, y, z));
     }
 
     @Override
