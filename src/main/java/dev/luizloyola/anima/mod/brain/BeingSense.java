@@ -178,10 +178,12 @@ public final class BeingSense {
         Pos feetPos = new Pos(feet.getX(), feet.getY(), feet.getZ());
         // Anything that has stopped being IN the WORLD goes now, before anything reads the sense;
         // everything else fades through the linger. A spectator dropped late is a ghost carried for
-        // fifteen seconds that still counts as company and still gets looked at. Swept over what is
-        // already tracked, never over the world.
+        // fifteen seconds that still counts as company and still gets looked at, and a body that
+        // died or blew up is a death — loud enough to know of — not a zombie remembered standing
+        // there, run from for the length of the linger after every kill (2026-09-28). Swept over
+        // what is already tracked, never over the world.
         bodies.entrySet().removeIf(tracked -> {
-            if (!absent(tracked.getValue())) {
+            if (!absent(tracked.getValue()) && !destroyed(tracked.getValue())) {
                 return false;
             }
             sensor.forget(tracked.getKey());
@@ -468,6 +470,15 @@ public final class BeingSense {
      * body did not, so a player seen in survival and then switched to spectator stayed a live
      * reading forever.
      */
+    /**
+     * Dead, dying, or gone for good: killed, blown up, despawned. A body carried off by an
+     * unloading chunk is not destroyed, and keeps its object permanence.
+     */
+    static boolean destroyed(LivingEntity body) {
+        return body.isDeadOrDying() || body.isRemoved() && body.getRemovalReason() != null
+                && body.getRemovalReason().shouldDestroy();
+    }
+
     static boolean absent(LivingEntity body) {
         return body instanceof Player player && player.isSpectator();
     }
