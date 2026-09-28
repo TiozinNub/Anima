@@ -51,7 +51,7 @@ class GauntletPathTest {
     private static final MoveCapabilities BODY = TestBodies.BIPED.withScaling(true);
 
     private record Station(String id, int sx, int sy, int sz, int gx, int gy, int gz,
-                           String plans, String title, String plansBlocks) {
+                           String plans, String title, String plansBlocks, String spentBlocks) {
     }
 
     /** The second layer's body: the first one, with a stack of blocks it may lay. */
@@ -87,7 +87,8 @@ class GauntletPathTest {
             out.add(new Station(f[0],
                     Integer.parseInt(f[1]), Integer.parseInt(f[2]), Integer.parseInt(f[3]),
                     Integer.parseInt(f[4]), Integer.parseInt(f[5]), Integer.parseInt(f[6]),
-                    f[7], f.length > 9 ? f[9] : "", f.length > 11 ? f[11] : "?"));
+                    f[7], f.length > 9 ? f[9] : "", f.length > 11 ? f[11] : "?",
+                    f.length > 12 ? f[12] : "?"));
         }
         return out;
     }
@@ -139,6 +140,22 @@ class GauntletPathTest {
                 () -> s.id() + " (" + s.title() + "): with blocks in hand the planner changed its "
                         + "mind about whether it can reach " + s.gx() + " " + s.gy() + " " + s.gz()
                         + ". If that was the point of your change, re-record the row.");
+    }
+
+    /**
+     * What the route with blocks costs the pocket, locked like the verdicts: a change in how blocks
+     * are laid, taken or carved moves this number, and the message says by how much.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("stations")
+    void plannerBlockUseIsUnchanged(Station s) {
+        int spent = withBlocks(s).spent();
+        int recorded = Integer.parseInt(s.spentBlocks());
+        assertEquals(recorded, spent,
+                () -> s.id() + " (" + s.title() + "): the route with blocks now spends " + spent
+                        + " from the pocket, " + (spent > recorded ? "+" : "") + (spent - recorded)
+                        + " on the recorded " + recorded + ". If that was the point of your change, "
+                        + "re-record the row.");
     }
 
     /** The first layer's walkability rule, for routes that lay: each lay is a cell there is room for. */
@@ -534,7 +551,7 @@ class GauntletPathTest {
     @Test
     void report() throws IOException {
         StringBuilder out = new StringBuilder(
-                "# id\tplans\trecorded\ttitle\tplansBlocks\trecordedBlocks\n");
+                "# id\tplans\trecorded\ttitle\tplansBlocks\trecordedBlocks\tspentBlocks\trecordedSpent\n");
         int agree = 0;
         for (Station s : stations) {
             boolean actual = plans(s);
@@ -544,6 +561,7 @@ class GauntletPathTest {
             out.append(s.id()).append('\t').append(actual).append('\t')
                     .append(s.plans()).append('\t').append(s.title()).append('\t')
                     .append(withBlocks(s).reachedGoal()).append('\t').append(s.plansBlocks())
+                    .append('\t').append(withBlocks(s).spent()).append('\t').append(s.spentBlocks())
                     .append('\n');
         }
         Path file = Path.of("build", "gauntlet-plans.tsv");
@@ -561,7 +579,8 @@ class GauntletPathTest {
     @Test
     void everyStationIsRecorded() {
         List<String> unrecorded = stations.stream()
-                .filter(s -> !recorded(s.plans()) || !recorded(s.plansBlocks()))
+                .filter(s -> !recorded(s.plans()) || !recorded(s.plansBlocks())
+                        || !s.spentBlocks().matches("-?\\d+"))
                 .map(Station::id).toList();
         assertTrue(unrecorded.isEmpty(),
                 () -> "stations with no recorded verdict: " + unrecorded
