@@ -162,6 +162,9 @@ K9	853	-49	100	870	-41	100	true	build	STEEP GRASS SLOPE, 2 up per block x4	build
 K10	853	-49	112	870	-45	112	false	block	GRASS WALL 4 high	build	true
 K11	853	-49	124	870	-47	124	false	block	GRASS STEP 2 high, a pond behind the lip	build	true
 K12	853	-49	136	870	-47	136	false	block	DIRT PATH STEP 2 high	build	true
+K13	854	-57	148	870	-49	148	true	build	PIT 8 deep, a recorded pillar in the corner	build	true
+K14	853	-49	159	856	-57	160	true	build	on top of a recorded pillar, 8 up	build	true
+K15	854	-57	172	870	-49	172	false	block	PIT 8 deep, an unrecorded pillar in the corner	build	true
 I1.1	795	-49	4	801	-49	4	true	reach	STAND ON IT: stone	reach	true
 I1.2	795	-49	9	801	-49	9	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=bottom]	reach	true
 I1.3	795	-49	14	801	-49	14	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=top]	reach	true

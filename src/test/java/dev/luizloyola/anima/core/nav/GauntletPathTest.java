@@ -96,9 +96,17 @@ class GauntletPathTest {
         return stations.stream();
     }
 
+    /**
+     * A station's request, carrying the capture's recorded pillars as a walk in the world carries the
+     * record's: K13 and K14 are about them, and they are not terrain.
+     */
+    private static PathRequest ask(Station s, MoveCapabilities body) {
+        return PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), body).near(world.pillars());
+    }
+
     private static boolean plans(Station s) {
         return Pathfinder.find(world,
-                PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).reachedGoal();
+                ask(s, BODY)).reachedGoal();
     }
 
     /**
@@ -121,7 +129,7 @@ class GauntletPathTest {
 
     private static dev.luizloyola.anima.core.nav.Path withBlocks(Station s) {
         return Pathfinder.find(world,
-                PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BLOCKS).within(lane(s)));
+                ask(s, BLOCKS).within(lane(s)));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -165,6 +173,19 @@ class GauntletPathTest {
     }
 
     /**
+     * The recorded pillars, by a hand with nothing in it: K13 climbs out of the pit on blocks taken
+     * off one, K14 goes down one breaking it, and K15 — K13 with its pillar unrecorded — is the
+     * control, refused by the lock.
+     */
+    @Test
+    void aRecordedPillarIsClimbedBesideAndGoneDown() {
+        assertTrue(routeOf("K13").stream().anyMatch(w -> w.move() == MoveType.PILLAR),
+                () -> "K13 leaves the pit without a block off the pillar: " + routeOf("K13"));
+        assertTrue(routeOf("K14").stream().anyMatch(w -> w.move() == MoveType.LOWER),
+                () -> "K14 reaches the floor without going down the pillar: " + routeOf("K14"));
+    }
+
+    /**
      * A handful of {@link PathRequest#varying} seeds — one per imaginary settler. Variety is an
      * opinion about what ground costs to cross and must never amount to a capability: Which body
      * is asking cannot decide whether a place can be reached. 186 real stations, half of them
@@ -178,7 +199,7 @@ class GauntletPathTest {
         boolean canonical = plans(s);
         for (long variety : VARIETIES) {
             boolean seeded = Pathfinder.find(world,
-                    PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)
+                    ask(s, BODY)
                             .varying(variety)).reachedGoal();
             assertEquals(canonical, seeded,
                     () -> s.id() + " (" + s.title() + "): seed " + variety + " disagrees with the "
@@ -238,7 +259,7 @@ class GauntletPathTest {
     @MethodSource("stations")
     void everyPlannedRouteIsWalkableInTheWorldItWasPlannedIn(Station s) {
         List<Waypoint> route = Pathfinder.find(world,
-                PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+                ask(s, BODY)).waypoints();
         // The body's own cell is where the first edge comes from. Its surface is zero by the same
         // reasoning startIsStandable pins: a station pad is a full block.
         Waypoint previous = new Waypoint(s.sx(), s.sy(), s.sz(), MoveType.WALK);
@@ -272,7 +293,7 @@ class GauntletPathTest {
             Station s = stations.stream().filter(st -> st.id().equals(id)).findFirst()
                     .orElseThrow(() -> new AssertionError("no station " + id));
             List<Waypoint> route = Pathfinder.find(world,
-                    PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+                    ask(s, BODY)).waypoints();
             boolean backsUp = route.stream().anyMatch(w -> w.move() == MoveType.RUNUP);
             if (id.equals("A1.R")) {
                 assertFalse(backsUp,
@@ -312,7 +333,7 @@ class GauntletPathTest {
             Station s = stations.stream().filter(st -> st.id().equals(id)).findFirst()
                     .orElseThrow(() -> new AssertionError("no station " + id));
             var result = Pathfinder.find(world,
-                    PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY));
+                    ask(s, BODY));
             if (!result.reachedGoal()) {
                 // A refusal is the reachability lock's business. Read as a shortcut it is nonsense:
                 // a partial route stops early, so of course it misses rows. Caught the day A13
@@ -353,7 +374,7 @@ class GauntletPathTest {
             // Not `Path path = …`: this file imports java.nio.file.Path for the report writer,
             // which shadows the one the search returns.
             List<Waypoint> route = Pathfinder.find(world,
-                    PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+                    ask(s, BODY)).waypoints();
             assertTrue(route.stream().noneMatch(w -> w.move() == MoveType.LEAP),
                     id + " (" + s.title() + ") is solved by leaping, so it measures leaps rather "
                             + "than diagonals: " + route);
@@ -370,7 +391,7 @@ class GauntletPathTest {
         Station s = stations.stream().filter(st -> st.id().equals("G11")).findFirst()
                 .orElseThrow(() -> new AssertionError("no station G11"));
         List<Waypoint> route = Pathfinder.find(world,
-                PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+                ask(s, BODY)).waypoints();
         for (int[] corner : new int[][] {{753, 123}, {753, 124}}) {
             assertTrue(route.stream().anyMatch(w -> w.x() == corner[0] && w.z() == corner[1]),
                     () -> "G11 never turns at (" + corner[0] + ", " + corner[1] + "): " + route);
@@ -405,7 +426,7 @@ class GauntletPathTest {
     void theUnderwaterTunnelIsActuallySwumUnder() {
         Station s = stations.stream().filter(st -> st.id().equals("E6")).findFirst().orElseThrow();
         List<Waypoint> route = Pathfinder.find(world,
-                PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+                ask(s, BODY)).waypoints();
         assertTrue(route.stream().anyMatch(w -> w.move() == MoveType.DIVE),
                 "E6 is reached without ever going under: " + route);
     }
@@ -416,7 +437,7 @@ class GauntletPathTest {
             Station s = stations.stream().filter(st -> st.id().equals(id)).findFirst()
                     .orElseThrow(() -> new AssertionError("no station " + id));
             List<Waypoint> route = Pathfinder.find(world,
-                    PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).waypoints();
+                    ask(s, BODY)).waypoints();
             assertTrue(route.stream().anyMatch(w -> world.cell(w.x(), w.y(), w.z()) == CellType.WATER),
                     id + " (" + s.title() + ") is reached without ever standing in water, so it "
                             + "measures something other than what its name says: " + route);
@@ -487,7 +508,7 @@ class GauntletPathTest {
         Station s = stations.stream().filter(st -> st.id().equals(id)).findFirst()
                 .orElseThrow(() -> new AssertionError("no station " + id));
         dev.luizloyola.anima.core.nav.Path path = Pathfinder.find(world,
-                PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY));
+                ask(s, BODY));
         assertTrue(path.reachedGoal(), id + " (" + s.title() + ") is not reached at all");
         return path.waypoints();
     }
