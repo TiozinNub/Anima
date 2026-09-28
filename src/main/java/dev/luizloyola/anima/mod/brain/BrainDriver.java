@@ -21,7 +21,7 @@ import dev.luizloyola.anima.core.brain.instinct.ConverseInstinct;
 import dev.luizloyola.anima.core.brain.instinct.Drives;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.instinct.EscapeInstinct;
-import dev.luizloyola.anima.core.brain.instinct.FleeInstinct;
+import dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct;
 import dev.luizloyola.anima.core.brain.instinct.UnburdenInstinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
@@ -356,6 +356,17 @@ public final class BrainDriver {
             }
 
             @Override
+            public String reconsider(BrainContext c, Task root) {
+                return roaming.reconsider(c, root);
+            }
+
+            @Override
+            public void ended(BrainContext c, Task root,
+                              dev.luizloyola.anima.core.brain.task.TaskStatus status) {
+                roaming.ended(c, root, status);
+            }
+
+            @Override
             public String key() {
                 return roaming.key();
             }
@@ -369,7 +380,7 @@ public final class BrainDriver {
         // flee/eat tie must resolve to fleeing. Escape sits straight behind it — everything below
         // is a want about somewhere the body cannot currently get to.
         this.arbiter = new Arbiter(List.of(
-                new FleeInstinct(), new EscapeInstinct(), Drives.EAT,
+                new FightOrFlightInstinct(), new EscapeInstinct(), Drives.EAT,
                 // After eating, before talking: a body that cannot carry anything sorts its hands
                 // out before it stops to chat. Position decides exact ties only.
                 new UnburdenInstinct(),

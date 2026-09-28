@@ -83,6 +83,19 @@ public final class ProfileAspect {
     public static final ProfileAspect FLEE_APPROACH_BONUS = register("instincts.flee_approach_bonus", Kind.DOUBLE, 1.0, 4.0,
             "Pressure multiplier when a threat is measurably closing in — how strongly this body "
                     + "reads being followed as being hunted.");
+    public static final ProfileAspect FIGHT_START_RATIO = register("instincts.fight_start_ratio", Kind.DOUBLE, 0.0, 100.0,
+            "How lopsided a fight must be before this body takes it on, as how long the threats "
+                    + "would take to kill it over how long it would take to kill its target. 2 "
+                    + "means it would last twice as long. A body that never fights sets this high.");
+    public static final ProfileAspect FIGHT_QUIT_RATIO = register("instincts.fight_quit_ratio", Kind.DOUBLE, 0.0, 100.0,
+            "The same balance, below which this body breaks off a fight it is already in. "
+                    + "Lower than the start, or a close fight flips between fighting and running.");
+    public static final ProfileAspect FIGHT_CORNERED_RATIO = register("instincts.fight_cornered_ratio", Kind.DOUBLE, 0.0, 100.0,
+            "The balance this body fights at when nothing can be outrun: running from something "
+                    + "faster buys nothing, so it takes worse odds.");
+    public static final ProfileAspect FIGHT_BLAST_LINE = register("instincts.fight_blast_line", Kind.DOUBLE, 0.0, 1.0,
+            "How close to going off a lit explosive must be, weighing its fuse and its distance, "
+                    + "before this body runs whatever the balance says. 0 flees at the first hiss.");
     public static final ProfileAspect WANDER_IDLE_PRESSURE = register("instincts.wander_idle_pressure", Kind.DOUBLE, 0.0, 1.0,
             "This body's do-something floor. Every real drive must beat it; at 0 an unbothered "
                     + "body stands still, which is a perfectly good way for some things to be.");

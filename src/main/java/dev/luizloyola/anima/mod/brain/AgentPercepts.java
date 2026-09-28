@@ -16,7 +16,11 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
+import dev.luizloyola.anima.compat.agent.Fighters;
+import dev.luizloyola.anima.compat.agent.Melee;
 import dev.luizloyola.anima.core.brain.sense.Being;
+import dev.luizloyola.anima.core.brain.sense.Combatant;
+import net.minecraft.world.entity.LivingEntity;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Drop;
 import dev.luizloyola.anima.core.brain.sense.FoodLookup;
@@ -199,6 +203,40 @@ public final class AgentPercepts implements Percepts {
     @Override
     public boolean attackedLately(BeingId who) {
         return this.person.beingSense().attackedLately(who);
+    }
+
+    /** Read live off the body, but only for a being this body perceives right now. */
+    @Override
+    public java.util.Optional<Combatant> combatant(BeingId who) {
+        if (!(this.person.level() instanceof ServerLevel level) || !perceives(who)) {
+            return java.util.Optional.empty();
+        }
+        LivingEntity body = AgentStriker.find(level, who);
+        if (body == null || body.level() != level) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.ofNullable(Fighters.read(body, true));
+    }
+
+    /** This body, hitting with the weapon its arm would draw rather than whatever it holds. */
+    @Override
+    public java.util.Optional<Combatant> selfAsCombatant() {
+        Combatant body = Fighters.read(this.person.entity(), this.person.metabolism().canSprint());
+        if (body == null) {
+            return java.util.Optional.empty();
+        }
+        Melee.Hit hit = this.person.striker().bestHit();
+        return java.util.Optional.of(new Combatant(body.health(), body.maxHealth(), body.armor(),
+                body.toughness(), hit.damage(), hit.perSecond(), body.pace(), 0.0, 0.0));
+    }
+
+    private boolean perceives(BeingId who) {
+        for (Being being : beings()) {
+            if (being.id().equals(who)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Delegates to the sensor's own guardrail memory. */

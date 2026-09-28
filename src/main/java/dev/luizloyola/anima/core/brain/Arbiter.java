@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.history.History;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.task.TaskExecutor;
+import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.TaskStatus;
 import dev.luizloyola.anima.core.inv.ItemCall;
 import dev.luizloyola.anima.core.log.Category;
@@ -265,6 +266,20 @@ public final class Arbiter {
                 ? new Bid("work", candidate.priority())
                 : secondDrive;
 
+        // 2d. A drive may change its mind about the root it is running — fight or flight turns
+        //     from a fight it would lose. Ended here and granted afresh below, the same tick; a
+        //     change of mind is neither a failure nor an ending, so it pays no cooldown and
+        //     records no doing.
+        if (active != null && !workRunning && executor.root() != null) {
+            String reason = active.reconsider(ctx, executor.root());
+            if (reason != null) {
+                ctx.journal().record(Category.BRAIN, active.describe(), "changed its mind — " + reason);
+                executor.cancel(ctx);
+                active = null;
+                grantedDeed = null;
+            }
+        }
+
         // 3 & 4. Work never preempts mid-flight; a drive cuts a running errand only past the
         // PREEMPT bar, and the claim survives the cut.
         if (!executor.isBusy()) {
@@ -315,6 +330,7 @@ public final class Arbiter {
             grantedDeed = active.doing(ctx); // a grant restored from a save
         }
         boolean busyBefore = executor.isBusy();
+        Task running = executor.root();
         executor.tick(ctx);
         if (busyBefore && !executor.isBusy()) {
             if (workRunning) {
@@ -347,6 +363,9 @@ public final class Arbiter {
                     lastFailureReason = reason;
                 }
                 cooldowns[indexOf(active)] = active.failCooldown();
+                if (running != null) {
+                    active.ended(ctx, running, TaskStatus.FAILED);
+                }
                 // Reported from here, not the driver: the cooldown and the terminal status are both
                 // known only here. Dormant in every board today — see WorkSource#driveFailed.
                 work.driveFailed(active, reason, ctx);
@@ -356,6 +375,9 @@ public final class Arbiter {
                 lastFailed = null;
                 lastFailureReason = "";
                 history.record(grantedDeed, ctx.percepts().time());
+                if (running != null) {
+                    active.ended(ctx, running, TaskStatus.SUCCESS);
+                }
             }
             active = null; // next tick's idle-grant re-arbitrates
             grantedDeed = null;

@@ -77,6 +77,11 @@ public final class FakePercepts implements Percepts {
     public final java.util.Set<BeingId> called = new java.util.HashSet<>();
     /** Who hit this body lately — {@link #attackedLately}. */
     public final java.util.Set<BeingId> attackers = new java.util.HashSet<>();
+    /** How each perceived body stands in a fight — {@link #combatant}. */
+    public final java.util.Map<BeingId, dev.luizloyola.anima.core.brain.sense.Combatant> combatants =
+            new java.util.HashMap<>();
+    /** This body in a fight; empty means it cannot size itself up. */
+    public dev.luizloyola.anima.core.brain.sense.Combatant self;
     private final Map<String, FoodValue> foodById = new HashMap<>();
     private final Map<String, FoodValue> cookedById = new HashMap<>();
 
@@ -118,6 +123,16 @@ public final class FakePercepts implements Percepts {
     @Override
     public boolean attackedLately(BeingId who) {
         return attackers.contains(who);
+    }
+
+    @Override
+    public java.util.Optional<dev.luizloyola.anima.core.brain.sense.Combatant> combatant(BeingId who) {
+        return java.util.Optional.ofNullable(combatants.get(who));
+    }
+
+    @Override
+    public java.util.Optional<dev.luizloyola.anima.core.brain.sense.Combatant> selfAsCombatant() {
+        return java.util.Optional.ofNullable(self);
     }
 
     @Override

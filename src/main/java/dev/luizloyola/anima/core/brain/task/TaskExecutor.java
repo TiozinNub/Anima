@@ -82,6 +82,12 @@ public final class TaskExecutor {
     }
 
     private Task root;
+
+    /** The tree being executed, or null while idle. */
+    public @Nullable Task root() {
+        return root;
+    }
+
     /** The expansion path, outermost first; empty while the current position is the root itself. */
     private final List<Frame> stack = new ArrayList<>();
     private String lastDescription;

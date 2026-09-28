@@ -99,6 +99,34 @@ public final class AgentStriker implements Striker {
     @Override
     public boolean draw() {
         Inventory inv = body.inventory();
+        int choice = choose();
+        if (choice == ToolChoice.KEEP_HAND) {
+            return false;
+        }
+        if (choice == ToolChoice.BARE_HAND) {
+            inv.stow();
+            return inv.mainHand().isEmpty(); // a full pack keeps the hand as it is
+        }
+        inv.wield(choice);
+        return true;
+    }
+
+    /** The hit of the weapon {@link #draw} would put in hand: what a fight would be fought with. */
+    public Melee.Hit bestHit() {
+        Inventory inv = body.inventory();
+        LivingEntity self = body.entity();
+        int choice = choose();
+        int slot = choice == ToolChoice.KEEP_HAND
+                ? Inventory.HOTBAR_START + inv.selectedSlot() : choice;
+        ItemStack stack = choice == ToolChoice.BARE_HAND
+                ? ItemStack.EMPTY
+                : ItemStacks.toVanilla(inv.get(slot), self.level().registryAccess());
+        return Melee.hit(self, stack);
+    }
+
+    /** {@link WeaponChoice} over the pack as it is now. */
+    private int choose() {
+        Inventory inv = body.inventory();
         LivingEntity self = body.entity();
         HolderLookup.Provider registries = self.level().registryAccess();
         List<WeaponChoice.Candidate> pack = new ArrayList<>();
@@ -109,17 +137,8 @@ public final class AgentStriker implements Striker {
                         Melee.damagePerSecond(self, ItemStacks.toVanilla(core, registries))));
             }
         }
-        int choice = WeaponChoice.choose(pack, Inventory.HOTBAR_START + inv.selectedSlot(),
+        return WeaponChoice.choose(pack, Inventory.HOTBAR_START + inv.selectedSlot(),
                 Melee.damagePerSecond(self, ItemStack.EMPTY));
-        if (choice == ToolChoice.KEEP_HAND) {
-            return false;
-        }
-        if (choice == ToolChoice.BARE_HAND) {
-            inv.stow();
-            return inv.mainHand().isEmpty(); // a full pack keeps the hand as it is
-        }
-        inv.wield(choice);
-        return true;
     }
 
     /** The charge counter, for the body's save: a reload must not cost a fighter its warmup. */
@@ -132,14 +151,15 @@ public final class AgentStriker implements Striker {
         adoptHand = true; // the hand may be filled after this, and what was held is still held
     }
 
-    /**
-     * The body this id names, dying or not. A creature's id and a player's are the entity's own
-     * uuid; an agent's is its agent id, found through the loaded bodies.
-     */
     private @Nullable LivingEntity find(BeingId id) {
-        if (!(body.level() instanceof ServerLevel level)) {
-            return null;
-        }
+        return body.level() instanceof ServerLevel level ? find(level, id) : null;
+    }
+
+    /**
+     * The body a being id names in {@code level}, dying or not. A creature's id and a player's are
+     * the entity's own uuid; an agent's is its agent id, found through the loaded bodies.
+     */
+    public static @Nullable LivingEntity find(ServerLevel level, BeingId id) {
         if (level.getEntity(id.value()) instanceof LivingEntity living) {
             return living;
         }

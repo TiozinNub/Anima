@@ -9,7 +9,7 @@ import dev.luizloyola.anima.core.agent.SpeciesKnobs;
 import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.board.SiteClaims;
-import dev.luizloyola.anima.core.brain.instinct.FleeInstinct;
+import dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import dev.luizloyola.anima.core.brain.knowledge.CrescentSampler;
 import dev.luizloyola.anima.core.brain.knowledge.PoiSensorCore;
@@ -74,14 +74,14 @@ class DefaultsPreserveLegacyConstantsTest {
         ConfigStore store = new ConfigStore(set);
         AgentProfile held = knobs.profile(store); // as an organ holds it, for the body's whole life
 
-        assertEquals(16.0, FleeInstinct.range(held));
+        assertEquals(16.0, FightOrFlightInstinct.range(held));
         assertEquals(12, CrescentSampler.radius(held));
 
         store.install(set.defaults()
                 .with(knobs.knob(ProfileAspect.FLEE_RANGE), 30.0)
                 .with(knobs.knob(ProfileAspect.PLACES_RADIUS), 20.0));
 
-        assertEquals(30.0, FleeInstinct.range(held),
+        assertEquals(30.0, FightOrFlightInstinct.range(held),
                 "the same object must see the new file; caching it would strand the agent");
         assertEquals(20, CrescentSampler.radius(held));
     }
@@ -93,8 +93,8 @@ class DefaultsPreserveLegacyConstantsTest {
 
         assertEquals(0.1, Arbiter.stickiness(profile));
         assertEquals(0.6, Arbiter.preempt(profile));
-        assertEquals(16.0, FleeInstinct.range(profile));
-        assertEquals(12.0, FleeInstinct.ramp(profile));
+        assertEquals(16.0, FightOrFlightInstinct.range(profile));
+        assertEquals(12.0, FightOrFlightInstinct.ramp(profile));
         assertEquals(0.15, WanderInstinct.idlePressure(profile));
         assertEquals(8, WanderInstinct.defaultRadius(profile));
         assertEquals(12, CrescentSampler.radius(profile));

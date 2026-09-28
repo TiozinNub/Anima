@@ -15,7 +15,7 @@ import java.util.random.RandomGenerator;
  * {@link WanderStep} pattern turned to flight, a {@link CompoundTask} with one always-applicable,
  * cost-{@code 0} method, so the roll happens at DECOMPOSE time against fresh percepts.
  *
- * <p><b>The escape vector.</b> Every perceived AGGRESSIVE being (the same set {@code FleeInstinct}
+ * <p><b>The escape vector.</b> Every perceived AGGRESSIVE being (the same set {@code FightOrFlightInstinct}
  * prices) is weighted {@code 1/distance²} (closest dominates, twice as far a quarter) into a
  * centroid; the direction is the unit vector from it through their position, the target
  * {@link #FLEE_LEG} along that, with independent {@code +/-}{@link #JITTER} per horizontal axis
@@ -27,11 +27,11 @@ import java.util.random.RandomGenerator;
  * between legs.
  *
  * <p><b>SUCCESS just ends the leg.</b> While the pressure stays on top the arbiter re-grants
- * {@link dev.luizloyola.anima.core.brain.instinct.FleeInstinct}, and a fresh {@code FleeStep}
+ * {@link dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct}, and a fresh {@code FleeStep}
  * re-aims from the CURRENT threat positions. Escape ends by pressure decay (out of
- * {@link dev.luizloyola.anima.core.brain.instinct.FleeInstinct#RANGE}), never a scripted finish; a
+ * {@link dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct#RANGE}), never a scripted finish; a
  * FAILED leg retries almost immediately with a fresh roll, never a patch — see
- * {@link dev.luizloyola.anima.core.brain.instinct.FleeInstinct#failCooldown()}.
+ * {@link dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct#failCooldown()}.
  */
 public final class FleeStep implements CompoundTask {
 

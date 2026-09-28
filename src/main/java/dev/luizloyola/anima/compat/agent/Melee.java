@@ -70,13 +70,20 @@ public final class Melee {
         return Mth.clamp((chargeTicks(body) + 0.5F) / delay, 0.0F, 1.0F);
     }
 
+    /** One hit of a weapon: what it deals before armour, and how many land a second at full charge. */
+    public record Hit(double damage, double perSecond) {
+        public double damagePerSecond() {
+            return damage * perSecond;
+        }
+    }
+
     /**
-     * What {@code weapon} in hand would deal a second at full charge: attack damage times attack
-     * speed, from the body's own base values and the item's main-hand modifiers. Everything else on
-     * the body — potions, what it holds now — would move every candidate alike, so it is left out.
+     * What {@code weapon} in hand would deal at full charge: attack damage and attack speed, from
+     * the body's own base values and the item's main-hand modifiers. Everything else on the body —
+     * potions, what it holds now — would move every candidate alike, so it is left out.
      * Enchantments are left out too.
      */
-    public static double damagePerSecond(LivingEntity body, ItemStack weapon) {
+    public static Hit hit(LivingEntity body, ItemStack weapon) {
         double[] damage = {base(body, Attributes.ATTACK_DAMAGE), 0.0, 1.0};
         double[] speed = {base(body, Attributes.ATTACK_SPEED), 0.0, 1.0};
         weapon.forEachModifier(EquipmentSlot.MAINHAND, (attribute, modifier) -> {
@@ -86,7 +93,11 @@ public final class Melee {
                 apply(speed, modifier);
             }
         });
-        return total(damage) * total(speed);
+        return new Hit(total(damage), total(speed));
+    }
+
+    public static double damagePerSecond(LivingEntity body, ItemStack weapon) {
+        return hit(body, weapon).damagePerSecond();
     }
 
     private static double base(LivingEntity body, Holder<Attribute> attribute) {

@@ -18,6 +18,9 @@ public final class Doings {
     /** Slot: what was run from — a species, or {@link #SOMETHING} when it was never made out. */
     public static final Doing FLEEING = register(new Doing(
             "fleeing", "anima.doing.fleeing", List.of("from"), true));
+    /** Slot: what was fought — a species, or {@link #SOMETHING}. Recorded when it went down. */
+    public static final Doing FIGHTING = register(new Doing(
+            "fighting", "anima.doing.fighting", List.of("whom"), true));
     public static final Doing GETTING_UNSTUCK = register(new Doing(
             "getting_unstuck", "anima.doing.getting_unstuck", List.of(), true));
     public static final Doing EATING = register(new Doing(

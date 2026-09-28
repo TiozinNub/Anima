@@ -15,7 +15,7 @@ import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.ConsumeState;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.instinct.Drives;
-import dev.luizloyola.anima.core.brain.instinct.FleeInstinct;
+import dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import dev.luizloyola.anima.core.brain.sense.Pos;
@@ -89,7 +89,7 @@ class ArbiterTest {
     /**
      * An instinct with settable pressure and a root FACTORY — every grant records a fresh root.
      * {@link #failCooldownOverride} pins an emergency drive's shortened cooldown per test (see
-     * {@link FleeInstinct#FAIL_COOLDOWN}).
+     * {@link FightOrFlightInstinct#FAIL_COOLDOWN}).
      */
     private static final class FakeInstinct implements Instinct {
         final String name;
@@ -100,6 +100,9 @@ class ArbiterTest {
         double budget = Double.POSITIVE_INFINITY;
         boolean yields;
         Deed deed = Deed.of(FakeDoings.DID_IT);
+        /** What {@link #reconsider} answers for the running root; null keeps it. */
+        java.util.function.Function<Task, String> rethink = root -> null;
+        final List<String> endings = new ArrayList<>();
 
         FakeInstinct(String name, double pressure, Supplier<Task> factory) {
             this.name = name;
@@ -140,21 +143,31 @@ class ArbiterTest {
         }
 
         @Override
+        public String reconsider(BrainContext ctx, Task root) {
+            return rethink.apply(root);
+        }
+
+        @Override
+        public void ended(BrainContext ctx, Task root, TaskStatus status) {
+            endings.add((root instanceof Step step ? step.name : String.valueOf(root)) + " " + status);
+        }
+
+        @Override
         public String describe() {
             return name;
         }
     }
 
     /**
-     * A real {@link FleeInstinct} with grant recording spliced on: instance freshness
+     * A real {@link FightOrFlightInstinct} with grant recording spliced on: instance freshness
      * ({@link #grantedRoots}) cannot be observed from outside the arbiter/executor otherwise.
      */
     private static final class SpyingFlee implements Instinct {
-        private final FleeInstinct real;
+        private final FightOrFlightInstinct real;
         final List<Task> grantedRoots = new ArrayList<>();
 
         SpyingFlee(RandomGenerator random) {
-            this.real = new FleeInstinct();
+            this.real = new FightOrFlightInstinct();
         }
 
         @Override
@@ -205,6 +218,34 @@ class ArbiterTest {
 
     private static final Deed FLED_ZOMBIE = Deed.of(Doings.FLEEING, Slot.entity("zombie"));
     private static final Deed FLED_SPIDER = Deed.of(Doings.FLEEING, Slot.entity("spider"));
+
+    @Test
+    void aDriveThatChangesItsMindIsGrantedAfreshTheSameTickWithNoCooldown() {
+        FakeInstinct mind = new FakeInstinct("fight or flight", 0.8,
+                () -> new Step("stance", 50, TaskStatus.SUCCESS));
+        Arbiter arbiter = new Arbiter(List.of(mind));
+        arbiter.tick(ctx);
+        Step first = (Step) mind.grantedRoots.get(0);
+
+        mind.rethink = root -> root == first ? "three more arrived" : null;
+        arbiter.tick(ctx);
+
+        assertEquals(1, first.cancels, "the old answer is stopped, not left running");
+        assertEquals(2, mind.grantedRoots.size(), "and the drive is asked again at once");
+        assertEquals(1, ((Step) mind.grantedRoots.get(1)).ticks, "its new root runs this tick");
+        assertTrue(mind.endings.isEmpty(), "a change of mind is neither a success nor a failure");
+        assertTrue(arbiter.history().recent(0).isEmpty(), "and nothing was done to remember");
+    }
+
+    @Test
+    void aDriveHearsHowItsRootEnded() {
+        FakeInstinct mind = new FakeInstinct("fight or flight", 0.8,
+                () -> new Step("fight", 0, TaskStatus.FAILED));
+        Arbiter arbiter = new Arbiter(List.of(mind));
+        arbiter.tick(ctx);
+
+        assertEquals(List.of("fight FAILED"), mind.endings);
+    }
 
     @Test
     void aDriveThatSucceedsIsRememberedAsItWasGranted() {
@@ -554,7 +595,7 @@ class ArbiterTest {
     }
 
     /**
-     * The emergency-drive shape (e.g. {@link FleeInstinct#FAIL_COOLDOWN}): the arbiter reads
+     * The emergency-drive shape (e.g. {@link FightOrFlightInstinct#FAIL_COOLDOWN}): the arbiter reads
      * {@code active.failCooldown()}, never a fixed constant of its own.
      */
     @Test
@@ -741,7 +782,7 @@ class ArbiterTest {
     @Test
     void aCloseThreatPreemptsAMidChewEatWhichSitsOutItsCooldownBeforeTheNextBite() {
         Arbiter arbiter = new Arbiter(List.of(
-                Drives.EAT, new WanderInstinct(), new FleeInstinct()));
+                Drives.EAT, new WanderInstinct(), new FightOrFlightInstinct()));
 
         // Peckish (below PREEMPT) with bread in hand -> Eat outbids idle Wander and starts a bite.
         ctx.percepts.food("minecraft:bread", new FoodValue(5, 6.0F, false));
@@ -758,7 +799,7 @@ class ArbiterTest {
 
         arbiter.tick(ctx); // t2: Flee preempts mid-chew
         assertEquals(1, ctx.consumer.abortCalls, "the chew was cancelled -- ConsumeItem.cancel aborts it");
-        assertTrue(arbiter.describe().contains("flee") && arbiter.describe().contains("(active)"), arbiter.describe());
+        assertTrue(arbiter.describe().contains("fight or flight") && arbiter.describe().contains("(active)"), arbiter.describe());
         assertEquals(1, ctx.mover.moveToCalls, "FleeStep's GoTo takes the legs");
         assertEquals(dev.luizloyola.anima.core.nav.Gait.SPRINT, ctx.mover.lastGait,
                 "the flee leg sprints");
@@ -788,7 +829,7 @@ class ArbiterTest {
     @Test
     void aHungryWalkerCutOffMidBiteKeepsFleeingInsteadOfStoppingToEatAgain() {
         Arbiter arbiter = new Arbiter(List.of(
-                Drives.EAT, new WanderInstinct(), new FleeInstinct()));
+                Drives.EAT, new WanderInstinct(), new FightOrFlightInstinct()));
         ctx.percepts.food("minecraft:bread", new FoodValue(5, 6.0F, false));
         ctx.percepts.inventory.set(0, ItemStack.of("minecraft:bread", 10, 64));
         ctx.percepts.metabolism.setFoodLevel(6);
@@ -804,7 +845,7 @@ class ArbiterTest {
         ctx.consumer.setState(ConsumeState.CONSUMING);
 
         ctx.percepts.beings = List.of(FakePercepts.monsterAt(behind, 8.0, true)); // 1.3 * 8/12 = 0.87
-        for (int t = 3; t <= 2 + FleeInstinct.FAIL_COOLDOWN; t++) {
+        for (int t = 3; t <= 2 + FightOrFlightInstinct.FAIL_COOLDOWN; t++) {
             arbiter.tick(ctx);
             assertEquals(0, ctx.consumer.abortCalls, "flee still cooling at tick " + t);
         }
@@ -818,14 +859,14 @@ class ArbiterTest {
             arbiter.tick(ctx);
             assertEquals(1, ctx.consumer.beginCalls, "no second bite at tick " + t);
         }
-        assertTrue(arbiter.describe().contains("flee 0.58 (active)"), arbiter.describe());
+        assertTrue(arbiter.describe().contains("fight or flight 0.58 (active)"), arbiter.describe());
 
         arbiter.tick(ctx); // t114
         assertEquals(2, ctx.consumer.beginCalls, "hunger gets its turn once the cooldown is served");
     }
 
     /**
-     * Nothing out-bids {@link FleeInstinct}, so it wins every re-arbitration; each re-grant builds
+     * Nothing out-bids {@link FightOrFlightInstinct}, so it wins every re-arbitration; each re-grant builds
      * a FRESH {@code FleeStep} (never a cached tree), re-aimed at the threat's position NOW.
      */
     @Test

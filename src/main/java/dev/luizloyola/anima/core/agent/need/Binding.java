@@ -5,7 +5,7 @@ import java.util.Objects;
 
 /**
  * What a need does to behaviour — the answer to "what does Vigor do?", read from the registry
- * instead of by reading {@code FleeInstinct}.
+ * instead of by reading {@code FightOrFlightInstinct}.
  *
  * <p><b>Two verbs, because one is not enough</b> (decision: Luiz, 2026-08-06). A {@link Verb#DRIVE}
  * proposes something to do and bids the need's pressure to do it; a {@link Verb#MODULATE} proposes

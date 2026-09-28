@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.TestSpecies;
-import dev.luizloyola.anima.core.brain.instinct.FleeInstinct;
+import dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -55,14 +55,14 @@ class AttackedTest {
         sensor.attacked(at(new Pos(4, 64, 0), 4.0), 100L, false);
         Being being = only();
 
-        double pressure = FleeInstinct.pressureOf(TestSpecies.PROFILE, TestDanger.TABLE, being);
+        double pressure = FightOrFlightInstinct.pressureOf(TestSpecies.PROFILE, TestDanger.TABLE, being);
         assertTrue(pressure > 0.0,
                 "an agent standing calmly in arrow fire is the failure this key exists to stop");
 
         // Priced by the hostile key, not by "a mob I have no opinion about".
         DangerTable indifferent = TestDanger.TABLE.withOverrides(
                 java.util.Map.of(DangerTable.DEFAULT_KEY, 1.0, DangerTable.HOSTILE_KEY, 0.0));
-        assertEquals(0.0, FleeInstinct.pressureOf(TestSpecies.PROFILE, indifferent, being), 1e-9);
+        assertEquals(0.0, FightOrFlightInstinct.pressureOf(TestSpecies.PROFILE, indifferent, being), 1e-9);
     }
 
     @Test

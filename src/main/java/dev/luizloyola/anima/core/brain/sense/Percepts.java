@@ -50,7 +50,7 @@ public interface Percepts {
     /**
      * Everything living they currently perceive — one list across every kind (see {@link Being}):
      * persons, monsters, neutrals, herds, villagers, and the yet-unmade-out somethings, each
-     * masked to its achieved identification tier. {@code FleeInstinct} prices the AGGRESSIVE
+     * masked to its achieved identification tier. {@code FightOrFlightInstinct} prices the AGGRESSIVE
      * entries of this same list. Nearest-first is not guaranteed.
      */
     List<Being> beings();
@@ -94,6 +94,22 @@ public interface Percepts {
      */
     default boolean attackedLately(BeingId who) {
         return false;
+    }
+
+    /**
+     * How {@code who} stands in a fight, read off its body — empty for anything not perceived, or
+     * not a living body (a herd, a remembered track whose body is gone).
+     */
+    default java.util.Optional<Combatant> combatant(BeingId who) {
+        return java.util.Optional.empty();
+    }
+
+    /**
+     * How this body stands in a fight: its own health and armour, the hits of the weapon it would
+     * draw, and the pace of the best gait it has left in it.
+     */
+    default java.util.Optional<Combatant> selfAsCombatant() {
+        return java.util.Optional.empty();
     }
 
     /**

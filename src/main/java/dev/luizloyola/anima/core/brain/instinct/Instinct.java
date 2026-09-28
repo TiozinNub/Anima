@@ -4,6 +4,8 @@ import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.history.History;
 import dev.luizloyola.anima.core.brain.task.Task;
+import dev.luizloyola.anima.core.brain.task.TaskStatus;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Layer 1 of the brain — a reactive drive that bids, every tick, to be what they do right now. Each
@@ -60,6 +62,20 @@ public interface Instinct {
      */
     default boolean yields(BrainContext ctx) {
         return false;
+    }
+
+    /**
+     * Why the root this drive was granted is no longer its answer, or null while it still is. Asked
+     * every tick while this drive holds the wheel; a reason ends that root at once and the arbiter
+     * grants afresh the same tick, so {@link #root} is asked again. Most drives commit to a root
+     * until it ends. Fight or flight changes its mind mid-fight.
+     */
+    default @Nullable String reconsider(BrainContext ctx, Task root) {
+        return null;
+    }
+
+    /** The root this drive was granted reached a terminal status: SUCCESS or FAILED. */
+    default void ended(BrainContext ctx, Task root, TaskStatus status) {
     }
 
     /** One-word drive name for the debug readout — {@code "eat"}, {@code "wander"}. */
