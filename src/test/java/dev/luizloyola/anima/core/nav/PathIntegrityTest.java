@@ -29,6 +29,46 @@ class PathIntegrityTest {
     }
 
     @Test
+    void aDeckIsWatchedAsSomewhereToLayABlockUnderAClearColumn() {
+        List<CellNeed> needs = PathIntegrity.edgeNeeds(
+                new Waypoint(3, 10, 7, MoveType.WALK), new Waypoint(4, 10, 7, MoveType.BRIDGE), PERSON);
+        assertEquals(List.of(
+                new CellNeed(4, 9, 7, CellNeed.Need.LAYABLE),
+                new CellNeed(4, 10, 7, CellNeed.Need.CLEAR),
+                new CellNeed(4, 11, 7, CellNeed.Need.CLEAR)), needs);
+    }
+
+    @Test
+    void aPillarBlockIsTheCellTheBodyRisesOutOf() {
+        List<CellNeed> needs = PathIntegrity.edgeNeeds(
+                new Waypoint(3, 10, 7, MoveType.WALK), new Waypoint(3, 11, 7, MoveType.PILLAR), PERSON);
+        assertEquals(List.of(
+                new CellNeed(3, 10, 7, CellNeed.Need.LAYABLE),
+                new CellNeed(3, 11, 7, CellNeed.Need.CLEAR),
+                new CellNeed(3, 12, 7, CellNeed.Need.CLEAR)), needs);
+    }
+
+    @Test
+    void steppingOffADeckDoesNotAskItsFloorForFooting() {
+        // Looked at ahead of the lay, the deck is still a gap: FOOTING there would re-plan the
+        // route on the tick before the body built what it needs.
+        List<CellNeed> needs = PathIntegrity.edgeNeeds(
+                new Waypoint(4, 10, 7, MoveType.BRIDGE), new Waypoint(5, 10, 7, MoveType.WALK), PERSON);
+        assertTrue(needs.contains(new CellNeed(4, 9, 7, CellNeed.Need.LAYABLE)));
+        assertFalse(needs.contains(new CellNeed(4, 10, 7, CellNeed.Need.FOOTING)));
+    }
+
+    @Test
+    void somewhereToLayHoldsBeforeTheLayAndAfterIt() {
+        CellNeed deck = new CellNeed(1, 0, 0, CellNeed.Need.LAYABLE);
+        assertTrue(NavGrids.satisfies(AsciiWorld.of("1 1"), deck), "the gap before the lay");
+        assertTrue(NavGrids.satisfies(AsciiWorld.of("111"), deck), "the block after it");
+        assertFalse(NavGrids.satisfies(AsciiWorld.of("1 1").fixed(1, 0, 0, 1, 0, 0), deck),
+                "a torch put there since");
+        assertFalse(NavGrids.satisfies(AsciiWorld.of("1W1"), deck), "water let in since");
+    }
+
+    @Test
     void strideWatchesEveryDeckCellBetweenTheWaypoints() {
         // Every cell a stride crosses is watched, not just the endpoints destination-only
         // watching saw — so a block pulled from a bridge's middle is caught.

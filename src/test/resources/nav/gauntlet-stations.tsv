@@ -11,228 +11,229 @@
 # lane's goal pad with the station they are named after, and the in-world score asks
 # only whether SOMEBODY is standing on it. One line, ids last - report.py reads it.
 # headless-only: A1.R A2.R A3.R A4.R
-# `expectBlocks` is the same question for the second layer, every runner carrying a
-# stack of dirt it may lay. Last, so it shifts no column the Java suite parses by index.
-# id	startX	startY	startZ	goalX	goalY	goalZ	plans	expect	title	expectBlocks
-A1	601	-49	4	618	-49	4	true	reach	gap 1	reach
-A1.R	607	-49	4	618	-49	4	true	reach	gap 1, STARTING on the takeoff - a hop needs no run-up	reach
-A2	601	-49	16	618	-49	16	true	reach	gap 2	reach
-A2.R	607	-49	16	618	-49	16	true	reach	gap 2, STARTING on the takeoff - must back up to run	reach
-A3	601	-49	28	618	-49	28	true	reach	gap 3	reach
-A3.R	607	-49	28	618	-49	28	true	reach	gap 3, STARTING on the takeoff - must back up to run	reach
-A4	601	-49	40	618	-49	40	false	block	gap 4	build
-A4.R	607	-49	40	618	-49	40	false	block	gap 4, STARTING on the takeoff - out of reach either way	build
-A5	601	-49	52	618	-50	52	false	reach	gap 2 -> land 1 DOWN	reach
-A6	601	-49	64	618	-48	64	false	reach	gap 2 -> land 1 UP	reach
-A7	601	-49	76	618	-51	76	false	reach	gap 4 -> land 2 DOWN	reach
-A8	601	-49	88	618	-49	88	true	reach	corner-diagonal staircase	reach
-A9	601	-49	100	618	-49	100	true	reach	gap 2 onto 1-wide pillars	reach
-A10	601	-49	112	618	-49	112	true	reach	chained gap-1 pillars	reach
-A11	601	-49	124	618	-49	124	true	reach	gap 3 onto 1-wide pillars	reach
-A12	601	-49	136	618	-49	136	true	reach	SERPENTINE, gaps 1-2	reach
-A13	601	-49	148	618	-49	148	false	reach	SERPENTINE, gaps 2-3	reach
-A14	601	-49	160	618	-49	160	false	reach	gap-1 pillars, ALTERNATING height	reach
-A15	601	-49	172	618	-45	172	false	reach	gap-1 pillar STAIRCASE up	reach
-A16	601	-49	184	618	-53	184	false	reach	gap-1 pillar STAIRCASE down	reach
-A17	601	-49	196	618	-49	196	false	reach	DIAGONAL pillar hops	reach
-A18	601	-49	208	618	-49	208	false	block	gap 4 between SLAB-topped banks	build
-B1	625	-49	4	642	-45	4	true	reach	step UP x4 (full blocks)	reach
-B2	625	-49	16	642	-53	16	true	reach	step DOWN x4 (full blocks)	reach
-B3	625	-49	28	642	-45	28	true	reach	DIAGONAL staircase UP x4	reach
-B4	625	-49	40	642	-53	40	true	reach	DIAGONAL staircase DOWN x4	reach
-B5	625	-49	52	642	-45	52	true	reach	STAIR BLOCKS up x4	reach
-B6	625	-49	64	642	-53	64	true	reach	STAIR BLOCKS down x4	reach
-B7	625	-49	76	642	-47	76	true	reach	HALF-STEP slab ramp (+0.5 x4)	reach
-B8	625	-49	88	642	-49	88	true	reach	one bottom slab (0.5 bump)	reach
-B9	625	-49	100	642	-49	100	false	block	wall 2 high	build
-B10	625	-49	112	642	-49	112	true	reach	SNOW LAYER ramp 1..8	reach
-B11	625	-49	124	642	-49	124	true	reach	soft tops: path/farm/soul/honey	reach
-B12	625	-49	136	642	-49	136	true	reach	closed-trapdoor floor	reach
-B13	625	-49	148	642	-49	148	true	reach	2-high tunnel, plain floor	reach
-B14	625	-49	160	642	-49	160	false	block	2-high tunnel, SLAB floor	build
-B15	625	-49	172	642	-49	172	true	reach	2-high tunnel, CARPET floor	reach
-B16	625	-49	184	642	-48	184	false	block	block topped with a SLAB (1.5 - too high)	build
-B17	625	-49	196	642	-48	196	true	reach	block topped with a CARPET (1.06 - clears)	reach
-B18	625	-49	208	642	-49	208	false	block	wall 2 high, CARPET on top	build
-B19	625	-49	220	642	-49	220	false	block	SLAB floor under a SLAB ceiling	build
-B20	625	-49	232	642	-45	232	true	reach	STAIRS up x4 under a roof, 3 clear over every tread	reach
-B21	625	-49	244	642	-48	244	false	block	STAIR up into a 1-high gap	block
-B22	625	-49	256	642	-53	256	true	reach	STAIRS down x4 under a roof, 3 clear over every tread	reach
-C1	649	-49	4	666	-49	4	true	reach	1-wide bridge, 14 long	reach
-C2	649	-49	16	666	-49	16	true	reach	1-wide bridge + gap 1	reach
-C3	649	-49	28	666	-49	28	true	reach	2-wide bridge	reach
-C4	649	-49	40	666	-49	40	true	reach	1-wide STAIR-BLOCK bridge	reach
-C5	649	-49	52	666	-49	52	true	reach	1-wide bottom-slab bridge	reach
-C6	649	-49	64	666	-49	64	true	reach	RAILED 1-wide bridge	reach
-C7	649	-49	76	666	-49	76	true	reach	1-wide bridge with a DIAGONAL dogleg	reach
-C8	649	-49	88	666	-45	88	true	reach	1-wide ASCENDING bridge	reach
-C9	649	-49	100	666	-49	100	true	reach	1-wide bridge, 90 deg corner	reach
-D1	673	-49	4	690	-43	4	true	reach	LADDER up 6	reach
-D2	673	-49	16	690	-49	16	true	reach	LADDER down 6 & up 6 (pit)	reach
-D3	673	-49	28	690	-43	28	true	reach	VINES up 6	reach
-D4	673	-49	40	690	-43	40	true	reach	SCAFFOLDING tower up 6	reach
-D5	673	-49	52	690	-43	52	false	block	OPEN-TRAPDOOR ladder up 6	build
-D6	673	-49	64	690	-49	64	false	reach	1-tall CRAWL tunnel	reach
-D7	673	-49	76	690	-47	76	true	reach	up 2 via helper block	reach
-D8	673	-49	88	690	-49	88	false	block	wall 3 high, no aid	build
-D9	673	-49	100	690	-43	100	true	reach	LADDER up a shaft through a floor	reach
-D10	673	-49	112	690	-43	112	false	block	LADDER two rungs short of the top	build
-D11	673	-49	124	690	-43	124	false	block	LADDER up 6, a block over the top rung	build
-D12	673	-49	136	690	-43	136	true	reach	LADDER up through a shut TRAPDOOR hatch	reach
-D13	673	-49	148	690	-55	148	true	reach	LADDER down through a shut TRAPDOOR hatch	reach
-D14	673	-49	160	690	-55	160	true	reach	SCAFFOLDING down a tower	reach
-D15	673	-49	172	690	-43	172	false	block	IRON TRAPDOOR over a ladder	build
-D16	673	-49	184	690	-43	184	false	block	TRAPDOOR over a ladder facing ANOTHER way	build
-D17	673	-49	196	690	-53	196	true	reach	LADDER down into a room 3 tall	reach
-D18	673	-49	208	690	-52	208	true	reach	LADDER down into a room 2 tall	reach
-E1	697	-49	4	714	-49	4	true	reach	wade: water 1 deep, 8 long	reach
-E2	697	-49	16	714	-49	16	true	reach	deep water, 9 long	reach
-E3	697	-49	28	714	-49	28	true	reach	water gap 2	reach
-E4	697	-49	40	714	-57	40	true	reach	drop 8 INTO water	reach
-E5	697	-49	52	714	-48	52	false	block	climb out onto a 1-block bank	build
-E6	697	-49	64	714	-49	64	true	reach	UNDERWATER tunnel, 5 long	reach
-E7	697	-49	76	714	-44	76	true	reach	WATERFALL climb 5	reach
-E8	697	-49	88	714	-44	88	false	reach	swim UP a still 5-block column	reach
-E9	697	-49	100	714	-49	100	true	reach	BLUE ICE run, 12 long	reach
-E10	697	-49	112	714	-49	112	true	reach	LILY PADS across 8 of water	reach
-F1	721	-49	4	738	-49	4	true	reach	CLOSED oak door (blocks)	reach
-F2	721	-49	16	738	-49	16	true	reach	OPEN oak door (clear)	reach
-F3	721	-49	28	738	-49	28	true	reach	CLOSED fence gate	reach
-F4	721	-49	40	738	-49	40	true	reach	OPEN fence gate	reach
-F5	721	-49	52	738	-49	52	false	block	fence line	build
-F6	721	-49	64	738	-49	64	false	block	cobblestone wall line	build
-F7	721	-49	76	738	-49	76	true	reach	iron bars line	reach
-F8	721	-49	88	738	-49	88	true	reach	iron door + button	reach
-F9	721	-49	100	738	-49	100	true	reach	carpet floor, 8 long	reach
-F10	721	-49	112	738	-49	112	true	reach	plates / rails / string	reach
-F11	721	-49	124	738	-49	124	true	reach	cobweb, 4 long	reach
-F12	721	-49	136	738	-49	136	true	reach	OPEN door that LOOKS CLOSED	reach
-F13	721	-49	148	738	-49	148	true	reach	CLOSED door that LOOKS OPEN	reach
-F14	721	-49	160	738	-48	160	true	reach	CLOSED door up a step	reach
-F15	721	-49	172	738	-49	172	true	reach	CLOSED double door	reach
-F16	721	-49	184	738	-49	184	true	reach	iron door + LEVER	reach
-F17	721	-49	196	738	-49	196	true	reach	iron door + PRESSURE PLATES	reach
-F18	721	-49	208	738	-49	208	false	block	iron door, BUTTON on the FAR side only	build
-F19	721	-49	220	738	-49	220	true	reach	door in the CORNER of an L	reach
-G1	745	-49	4	762	-49	4	false	block	lava pool 6 wide	block
-G2	745	-49	16	762	-49	16	true	reach	lava + 1-wide obsidian bridge	reach
-G3	745	-49	28	762	-49	28	true	reach	lava gap 2 (leap it)	reach
-G4	745	-49	40	762	-49	40	false	block	cactus row	block
-G5	745	-49	52	762	-49	52	false	block	campfire row	block
-G6	745	-49	64	762	-49	64	false	block	magma floor, 4 long	block
-G7	745	-49	76	762	-49	76	false	block	powder snow patch	block
-G8	745	-49	88	762	-49	88	false	block	fire on netherrack	block
-G9	745	-49	100	762	-49	100	false	block	sweet berry bushes	block
-G10	745	-49	112	762	-49	112	true	reach	1-wide safe lane in lava	reach
-G11	745	-49	124	762	-49	124	true	reach	chicane through berry bushes	reach
-H1	769	-49	4	786	-50	4	true	reach	drop 1	reach
-H2	769	-49	16	786	-52	16	true	reach	drop 3	reach
-H3	769	-49	28	786	-53	28	false	reach	drop 4	reach
-H4	769	-49	40	786	-55	40	false	reach	drop 6	reach
-H5	769	-49	52	786	-59	52	false	reach	drop 10	reach
-H6	769	-49	64	786	-53	64	true	reach	drop 4 into 1-deep water	reach
-H7	769	-49	76	786	-52	77	true	reach	drop 3, DIAGONAL only	reach
-H8	769	-49	88	786	-55	88	true	reach	staircase down x6	reach
-H9	769	-49	100	786	-55	100	false	reach	drop 6 onto slime	reach
-H10	769	-49	112	786	-57	112	false	reach	drop 8 onto hay	reach
-H11	769	-49	124	786	-52	124	false	reach	drop 3 taken off a bottom SLAB (3.5)	reach
-J1	829	-49	4	846	-49	4	true	reach	corner diagonals over VOID	reach
-J2	829	-49	16	846	-49	16	true	reach	corner diagonals, flanks FLOORED	reach
-J3	829	-49	28	846	-49	28	false	block	corner diagonal, both flanks WALLED	build
-J4	829	-49	40	846	-49	40	true	reach	corner diagonal, one flank a CARPET	reach
-J5	829	-49	52	846	-49	52	false	block	corner diagonal through FIRE	block
-J6	829	-49	64	843	-48	65	true	reach	diagonal step +0.5 SLAB	reach
-J7	829	-49	76	843	-49	77	true	reach	diagonal step -0.5 SLAB	reach
-J8	829	-49	88	843	-48	89	true	reach	diagonal JUMP up a full block	reach
-J9	829	-49	100	843	-49	101	true	reach	diagonal DROP of 1	reach
-J10	829	-49	112	843	-47	113	false	block	diagonal rise of TWO blocks	build
-J11	829	-49	124	843	-49	125	false	reach	diagonal LEAP over a 1-gap	reach
-J12	829	-49	136	843	-49	137	false	reach	diagonal LEAP over a 2-gap	reach
-J13	829	-49	148	846	-49	146	true	reach	chained corner diagonals (zigzag)	reach
-K1	853	-49	4	870	-49	4	true	reach	RAVINE 5 wide, a 1-wide rim round it	reach
-K2	853	-49	16	864	-46	16	false	block	goal IN THE AIR over a ravine	block
-K3	853	-49	28	870	-49	28	false	block	LAVA MOAT 5 wide, 3 below	block
-K4	853	-49	40	870	-47	40	false	block	LEDGE 2 up across a 3 gap	build
-K5	854	-57	52	870	-49	52	false	block	PIT 8 deep, stone walls	build
-K6	854	-59	64	870	-49	64	false	block	CREVICE 1 wide, 10 deep	build
-K7	853	-49	76	870	-47	76	false	build	GRASS STEP 2 high	build
-K8	853	-49	88	870	-46	88	false	build	GRASS STEP 3 high	build
-K9	853	-49	100	870	-41	100	false	build	STEEP GRASS SLOPE, 2 up per block x4	build
-K10	853	-49	112	870	-45	112	false	block	GRASS WALL 4 high	build
-K11	853	-49	124	870	-47	124	false	block	GRASS STEP 2 high, a pond behind the lip	build
-K12	853	-49	136	870	-47	136	false	block	DIRT PATH STEP 2 high	build
-I1.1	795	-49	4	801	-49	4	true	reach	STAND ON IT: stone	reach
-I1.2	795	-49	9	801	-49	9	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=bottom]	reach
-I1.3	795	-49	14	801	-49	14	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=top]	reach
-I1.4	795	-49	19	801	-49	19	true	reach	STAND ON IT: smooth_stone_slab[type=bottom]	reach
-I1.5	795	-49	24	801	-49	24	true	reach	STAND ON IT: smooth_stone_slab[type=top]	reach
-I1.6	795	-49	29	801	-49	29	true	reach	STAND ON IT: oak_trapdoor[facing=north,half=bottom,open=false]	reach
-I1.7	795	-49	34	801	-49	34	true	reach	STAND ON IT: oak_trapdoor[facing=north,half=top,open=false]	reach
-I1.8	795	-49	39	801	-49	39	true	reach	STAND ON IT: snow[layers=2]	reach
-I1.9	795	-49	44	801	-49	44	true	reach	STAND ON IT: snow[layers=5]	reach
-I1.10	795	-49	49	801	-49	49	true	reach	STAND ON IT: snow[layers=7]	reach
-I1.11	795	-49	54	801	-49	54	true	reach	STAND ON IT: dirt_path	reach
-I1.12	795	-49	59	801	-49	59	true	reach	STAND ON IT: farmland[moisture=7]	reach
-I1.13	795	-49	64	801	-49	64	true	reach	STAND ON IT: soul_sand	reach
-I1.14	795	-49	69	801	-49	69	true	reach	STAND ON IT: mud	reach
-I1.15	795	-49	74	801	-49	74	true	reach	STAND ON IT: honey_block	reach
-I1.16	795	-49	79	801	-49	79	true	reach	STAND ON IT: slime_block	reach
-I1.17	795	-49	84	801	-49	84	true	reach	STAND ON IT: blue_ice	reach
-I1.18	795	-49	89	801	-49	89	false	block	STAND ON IT: powder_snow	build
-I1.19	795	-49	94	801	-49	94	false	block	STAND ON IT: magma_block	build
-I1.20	795	-49	99	801	-49	99	true	reach	STAND ON IT: chest[facing=east,type=single]	reach
-I1.21	795	-49	104	801	-49	104	true	reach	STAND ON IT: hopper[facing=down]	reach
-I1.22	795	-49	109	801	-49	109	false	reach	STAND ON IT: cauldron	reach
-I1.23	795	-49	114	801	-49	114	false	reach	STAND ON IT: composter[level=0]	reach
-I1.24	795	-49	119	801	-49	119	true	reach	STAND ON IT: enchanting_table	reach
-I1.25	795	-49	124	801	-49	124	true	reach	STAND ON IT: anvil[facing=north]	reach
-I1.26	795	-49	129	801	-49	129	true	reach	STAND ON IT: grindstone[face=floor,facing=north]	reach
-I1.27	795	-49	134	801	-49	134	true	reach	STAND ON IT: lectern[facing=north,has_book=false]	reach
-I1.28	795	-49	139	801	-49	139	true	reach	STAND ON IT: stonecutter[facing=north]	reach
-I1.29	795	-49	144	801	-49	144	true	reach	STAND ON IT: daylight_detector[inverted=false,power=0]	reach
-I1.30	795	-49	149	801	-49	149	true	reach	STAND ON IT: end_portal_frame[eye=false,facing=north]	reach
-I1.31	795	-49	154	801	-49	154	true	reach	STAND ON IT: brewing_stand	reach
-I1.32	795	-49	159	801	-49	159	true	reach	STAND ON IT: bell[attachment=floor,facing=north]	reach
-I1.33	795	-49	164	801	-49	164	false	reach	STAND ON IT: campfire[lit=false,facing=north]	reach
-I1.34	795	-49	169	801	-49	169	true	reach	STAND ON IT: sculk_shrieker[can_summon=false,shrieking=false]	reach
-I1.35	795	-49	174	801	-49	174	true	reach	STAND ON IT: scaffolding[bottom=true,distance=0]	reach
-I1.36	795	-49	179	801	-49	179	true	reach	STAND ON IT: turtle_egg[eggs=1,hatch=0]	reach
-I1.37	795	-49	184	801	-49	184	true	reach	STAND ON IT: sea_lantern	reach
-I1.38	795	-49	189	801	-49	189	true	reach	STAND ON IT: snow[layers=8]	reach
-I2.1	811	-49	4	817	-49	4	true	reach	WALK THROUGH IT: air	reach
-I2.2	811	-49	9	817	-49	9	false	block	WALK THROUGH IT: oak_fence	build
-I2.3	811	-49	14	817	-49	14	false	block	WALK THROUGH IT: cobblestone_wall[up=true]	build
-I2.4	811	-49	19	817	-49	19	true	reach	WALK THROUGH IT: iron_bars	reach
-I2.5	811	-49	24	817	-49	24	true	reach	WALK THROUGH IT: glass_pane	reach
-I2.6	811	-49	29	817	-49	29	true	reach	WALK THROUGH IT: oak_fence_gate[facing=east,open=true]	reach
-I2.7	811	-49	34	817	-49	34	true	reach	WALK THROUGH IT: oak_fence_gate[facing=east,open=false]	reach
-I2.8	811	-49	39	817	-49	39	false	block	WALK THROUGH IT: oak_trapdoor[facing=west,half=bottom,open=true]	build
-I2.9	811	-49	44	817	-49	44	true	reach	WALK THROUGH IT: ladder[facing=south]	reach
-I2.10	811	-49	49	817	-49	49	true	reach	WALK THROUGH IT: vine[north=true]	reach
-I2.11	811	-49	54	817	-49	54	true	reach	WALK THROUGH IT: cobweb	reach
-I2.12	811	-49	59	817	-49	59	true	reach	WALK THROUGH IT: white_carpet	reach
-I2.13	811	-49	64	817	-49	64	true	reach	WALK THROUGH IT: moss_carpet	reach
-I2.14	811	-49	69	817	-49	69	true	reach	WALK THROUGH IT: snow[layers=1]	reach
-I2.15	811	-49	74	817	-49	74	true	reach	WALK THROUGH IT: stone_pressure_plate	reach
-I2.16	811	-49	79	817	-49	79	true	reach	WALK THROUGH IT: light_weighted_pressure_plate	reach
-I2.17	811	-49	84	817	-49	84	true	reach	WALK THROUGH IT: rail[shape=north_south]	reach
-I2.18	811	-49	89	817	-49	89	true	reach	WALK THROUGH IT: tripwire	reach
-I2.19	811	-49	94	817	-49	94	true	reach	WALK THROUGH IT: redstone_wire	reach
-I2.20	811	-49	99	817	-49	99	true	reach	WALK THROUGH IT: repeater[facing=east,delay=1]	reach
-I2.21	811	-49	104	817	-49	104	true	reach	WALK THROUGH IT: comparator[facing=east]	reach
-I2.22	811	-49	109	817	-49	109	true	reach	WALK THROUGH IT: torch	reach
-I2.23	811	-49	114	817	-49	114	true	reach	WALK THROUGH IT: lantern[hanging=false]	reach
-I2.24	811	-49	119	817	-49	119	true	reach	WALK THROUGH IT: iron_chain[axis=y]	reach
-I2.25	811	-49	124	817	-49	124	true	reach	WALK THROUGH IT: end_rod[facing=up]	reach
-I2.26	811	-49	129	817	-49	129	true	reach	WALK THROUGH IT: flower_pot	reach
-I2.27	811	-49	134	817	-49	134	true	reach	WALK THROUGH IT: decorated_pot[facing=north]	reach
-I2.28	811	-49	139	817	-49	139	true	reach	WALK THROUGH IT: lever[face=floor,facing=north]	reach
-I2.29	811	-49	144	817	-49	144	true	reach	WALK THROUGH IT: stone_button[face=floor,facing=north]	reach
-I2.30	811	-49	149	817	-49	149	true	reach	WALK THROUGH IT: short_grass	reach
-I2.31	811	-49	154	817	-49	154	false	block	WALK THROUGH IT: sweet_berry_bush[age=3]	build
-I2.32	811	-49	159	817	-49	159	true	reach	WALK THROUGH IT: bamboo[age=1,leaves=none,stage=1]	reach
-I2.33	811	-49	164	817	-49	164	true	reach	WALK THROUGH IT: big_dripleaf[facing=east,tilt=none]	reach
-I2.34	811	-49	169	817	-49	169	true	reach	WALK THROUGH IT: azalea	reach
-I2.35	811	-49	174	817	-49	174	true	reach	WALK THROUGH IT: pointed_dripstone[thickness=tip,vertical_direction=up]	reach
-I2.36	811	-49	179	817	-49	179	true	reach	WALK THROUGH IT: amethyst_cluster[facing=up,waterlogged=false]	reach
-I2.37	811	-49	184	817	-49	184	true	reach	WALK THROUGH IT: piston[facing=up,extended=false]	reach
+# `expectBlocks` and `plansBlocks` are the same two for the second layer, every runner
+# carrying a stack of dirt it may lay, its search fenced to its own lane. Last, so they
+# shift no column the Java suite parses by index.
+# id	startX	startY	startZ	goalX	goalY	goalZ	plans	expect	title	expectBlocks	plansBlocks
+A1	601	-49	4	618	-49	4	true	reach	gap 1	reach	?
+A1.R	607	-49	4	618	-49	4	true	reach	gap 1, STARTING on the takeoff - a hop needs no run-up	reach	?
+A2	601	-49	16	618	-49	16	true	reach	gap 2	reach	?
+A2.R	607	-49	16	618	-49	16	true	reach	gap 2, STARTING on the takeoff - must back up to run	reach	?
+A3	601	-49	28	618	-49	28	true	reach	gap 3	reach	?
+A3.R	607	-49	28	618	-49	28	true	reach	gap 3, STARTING on the takeoff - must back up to run	reach	?
+A4	601	-49	40	618	-49	40	false	block	gap 4	build	?
+A4.R	607	-49	40	618	-49	40	false	block	gap 4, STARTING on the takeoff - out of reach either way	build	?
+A5	601	-49	52	618	-50	52	false	reach	gap 2 -> land 1 DOWN	reach	?
+A6	601	-49	64	618	-48	64	false	reach	gap 2 -> land 1 UP	reach	?
+A7	601	-49	76	618	-51	76	false	reach	gap 4 -> land 2 DOWN	reach	?
+A8	601	-49	88	618	-49	88	true	reach	corner-diagonal staircase	reach	?
+A9	601	-49	100	618	-49	100	true	reach	gap 2 onto 1-wide pillars	reach	?
+A10	601	-49	112	618	-49	112	true	reach	chained gap-1 pillars	reach	?
+A11	601	-49	124	618	-49	124	true	reach	gap 3 onto 1-wide pillars	reach	?
+A12	601	-49	136	618	-49	136	true	reach	SERPENTINE, gaps 1-2	reach	?
+A13	601	-49	148	618	-49	148	false	reach	SERPENTINE, gaps 2-3	reach	?
+A14	601	-49	160	618	-49	160	false	reach	gap-1 pillars, ALTERNATING height	reach	?
+A15	601	-49	172	618	-45	172	false	reach	gap-1 pillar STAIRCASE up	reach	?
+A16	601	-49	184	618	-53	184	false	reach	gap-1 pillar STAIRCASE down	reach	?
+A17	601	-49	196	618	-49	196	false	reach	DIAGONAL pillar hops	reach	?
+A18	601	-49	208	618	-49	208	false	block	gap 4 between SLAB-topped banks	build	?
+B1	625	-49	4	642	-45	4	true	reach	step UP x4 (full blocks)	reach	?
+B2	625	-49	16	642	-53	16	true	reach	step DOWN x4 (full blocks)	reach	?
+B3	625	-49	28	642	-45	28	true	reach	DIAGONAL staircase UP x4	reach	?
+B4	625	-49	40	642	-53	40	true	reach	DIAGONAL staircase DOWN x4	reach	?
+B5	625	-49	52	642	-45	52	true	reach	STAIR BLOCKS up x4	reach	?
+B6	625	-49	64	642	-53	64	true	reach	STAIR BLOCKS down x4	reach	?
+B7	625	-49	76	642	-47	76	true	reach	HALF-STEP slab ramp (+0.5 x4)	reach	?
+B8	625	-49	88	642	-49	88	true	reach	one bottom slab (0.5 bump)	reach	?
+B9	625	-49	100	642	-49	100	false	block	wall 2 high	build	?
+B10	625	-49	112	642	-49	112	true	reach	SNOW LAYER ramp 1..8	reach	?
+B11	625	-49	124	642	-49	124	true	reach	soft tops: path/farm/soul/honey	reach	?
+B12	625	-49	136	642	-49	136	true	reach	closed-trapdoor floor	reach	?
+B13	625	-49	148	642	-49	148	true	reach	2-high tunnel, plain floor	reach	?
+B14	625	-49	160	642	-49	160	false	block	2-high tunnel, SLAB floor	build	?
+B15	625	-49	172	642	-49	172	true	reach	2-high tunnel, CARPET floor	reach	?
+B16	625	-49	184	642	-48	184	false	block	block topped with a SLAB (1.5 - too high)	build	?
+B17	625	-49	196	642	-48	196	true	reach	block topped with a CARPET (1.06 - clears)	reach	?
+B18	625	-49	208	642	-49	208	false	block	wall 2 high, CARPET on top	build	?
+B19	625	-49	220	642	-49	220	false	block	SLAB floor under a SLAB ceiling	build	?
+B20	625	-49	232	642	-45	232	true	reach	STAIRS up x4 under a roof, 3 clear over every tread	reach	?
+B21	625	-49	244	642	-48	244	false	block	STAIR up into a 1-high gap	block	?
+B22	625	-49	256	642	-53	256	true	reach	STAIRS down x4 under a roof, 3 clear over every tread	reach	?
+C1	649	-49	4	666	-49	4	true	reach	1-wide bridge, 14 long	reach	?
+C2	649	-49	16	666	-49	16	true	reach	1-wide bridge + gap 1	reach	?
+C3	649	-49	28	666	-49	28	true	reach	2-wide bridge	reach	?
+C4	649	-49	40	666	-49	40	true	reach	1-wide STAIR-BLOCK bridge	reach	?
+C5	649	-49	52	666	-49	52	true	reach	1-wide bottom-slab bridge	reach	?
+C6	649	-49	64	666	-49	64	true	reach	RAILED 1-wide bridge	reach	?
+C7	649	-49	76	666	-49	76	true	reach	1-wide bridge with a DIAGONAL dogleg	reach	?
+C8	649	-49	88	666	-45	88	true	reach	1-wide ASCENDING bridge	reach	?
+C9	649	-49	100	666	-49	100	true	reach	1-wide bridge, 90 deg corner	reach	?
+D1	673	-49	4	690	-43	4	true	reach	LADDER up 6	reach	?
+D2	673	-49	16	690	-49	16	true	reach	LADDER down 6 & up 6 (pit)	reach	?
+D3	673	-49	28	690	-43	28	true	reach	VINES up 6	reach	?
+D4	673	-49	40	690	-43	40	true	reach	SCAFFOLDING tower up 6	reach	?
+D5	673	-49	52	690	-43	52	false	block	OPEN-TRAPDOOR ladder up 6	build	?
+D6	673	-49	64	690	-49	64	false	reach	1-tall CRAWL tunnel	reach	?
+D7	673	-49	76	690	-47	76	true	reach	up 2 via helper block	reach	?
+D8	673	-49	88	690	-49	88	false	block	wall 3 high, no aid	build	?
+D9	673	-49	100	690	-43	100	true	reach	LADDER up a shaft through a floor	reach	?
+D10	673	-49	112	690	-43	112	false	block	LADDER two rungs short of the top	build	?
+D11	673	-49	124	690	-43	124	false	block	LADDER up 6, a block over the top rung	build	?
+D12	673	-49	136	690	-43	136	true	reach	LADDER up through a shut TRAPDOOR hatch	reach	?
+D13	673	-49	148	690	-55	148	true	reach	LADDER down through a shut TRAPDOOR hatch	reach	?
+D14	673	-49	160	690	-55	160	true	reach	SCAFFOLDING down a tower	reach	?
+D15	673	-49	172	690	-43	172	false	block	IRON TRAPDOOR over a ladder	build	?
+D16	673	-49	184	690	-43	184	false	block	TRAPDOOR over a ladder facing ANOTHER way	build	?
+D17	673	-49	196	690	-53	196	true	reach	LADDER down into a room 3 tall	reach	?
+D18	673	-49	208	690	-52	208	true	reach	LADDER down into a room 2 tall	reach	?
+E1	697	-49	4	714	-49	4	true	reach	wade: water 1 deep, 8 long	reach	?
+E2	697	-49	16	714	-49	16	true	reach	deep water, 9 long	reach	?
+E3	697	-49	28	714	-49	28	true	reach	water gap 2	reach	?
+E4	697	-49	40	714	-57	40	true	reach	drop 8 INTO water	reach	?
+E5	697	-49	52	714	-48	52	false	block	climb out onto a 1-block bank	build	?
+E6	697	-49	64	714	-49	64	true	reach	UNDERWATER tunnel, 5 long	reach	?
+E7	697	-49	76	714	-44	76	true	reach	WATERFALL climb 5	reach	?
+E8	697	-49	88	714	-44	88	false	reach	swim UP a still 5-block column	reach	?
+E9	697	-49	100	714	-49	100	true	reach	BLUE ICE run, 12 long	reach	?
+E10	697	-49	112	714	-49	112	true	reach	LILY PADS across 8 of water	reach	?
+F1	721	-49	4	738	-49	4	true	reach	CLOSED oak door (blocks)	reach	?
+F2	721	-49	16	738	-49	16	true	reach	OPEN oak door (clear)	reach	?
+F3	721	-49	28	738	-49	28	true	reach	CLOSED fence gate	reach	?
+F4	721	-49	40	738	-49	40	true	reach	OPEN fence gate	reach	?
+F5	721	-49	52	738	-49	52	false	block	fence line	build	?
+F6	721	-49	64	738	-49	64	false	block	cobblestone wall line	build	?
+F7	721	-49	76	738	-49	76	true	reach	iron bars line	reach	?
+F8	721	-49	88	738	-49	88	true	reach	iron door + button	reach	?
+F9	721	-49	100	738	-49	100	true	reach	carpet floor, 8 long	reach	?
+F10	721	-49	112	738	-49	112	true	reach	plates / rails / string	reach	?
+F11	721	-49	124	738	-49	124	true	reach	cobweb, 4 long	reach	?
+F12	721	-49	136	738	-49	136	true	reach	OPEN door that LOOKS CLOSED	reach	?
+F13	721	-49	148	738	-49	148	true	reach	CLOSED door that LOOKS OPEN	reach	?
+F14	721	-49	160	738	-48	160	true	reach	CLOSED door up a step	reach	?
+F15	721	-49	172	738	-49	172	true	reach	CLOSED double door	reach	?
+F16	721	-49	184	738	-49	184	true	reach	iron door + LEVER	reach	?
+F17	721	-49	196	738	-49	196	true	reach	iron door + PRESSURE PLATES	reach	?
+F18	721	-49	208	738	-49	208	false	block	iron door, BUTTON on the FAR side only	build	?
+F19	721	-49	220	738	-49	220	true	reach	door in the CORNER of an L	reach	?
+G1	745	-49	4	762	-49	4	false	block	lava pool 6 wide	block	?
+G2	745	-49	16	762	-49	16	true	reach	lava + 1-wide obsidian bridge	reach	?
+G3	745	-49	28	762	-49	28	true	reach	lava gap 2 (leap it)	reach	?
+G4	745	-49	40	762	-49	40	false	block	cactus row	block	?
+G5	745	-49	52	762	-49	52	false	block	campfire row	block	?
+G6	745	-49	64	762	-49	64	false	block	magma floor, 4 long	block	?
+G7	745	-49	76	762	-49	76	false	block	powder snow patch	block	?
+G8	745	-49	88	762	-49	88	false	block	fire on netherrack	block	?
+G9	745	-49	100	762	-49	100	false	block	sweet berry bushes	block	?
+G10	745	-49	112	762	-49	112	true	reach	1-wide safe lane in lava	reach	?
+G11	745	-49	124	762	-49	124	true	reach	chicane through berry bushes	reach	?
+H1	769	-49	4	786	-50	4	true	reach	drop 1	reach	?
+H2	769	-49	16	786	-52	16	true	reach	drop 3	reach	?
+H3	769	-49	28	786	-53	28	false	reach	drop 4	reach	?
+H4	769	-49	40	786	-55	40	false	reach	drop 6	reach	?
+H5	769	-49	52	786	-59	52	false	reach	drop 10	reach	?
+H6	769	-49	64	786	-53	64	true	reach	drop 4 into 1-deep water	reach	?
+H7	769	-49	76	786	-52	77	true	reach	drop 3, DIAGONAL only	reach	?
+H8	769	-49	88	786	-55	88	true	reach	staircase down x6	reach	?
+H9	769	-49	100	786	-55	100	false	reach	drop 6 onto slime	reach	?
+H10	769	-49	112	786	-57	112	false	reach	drop 8 onto hay	reach	?
+H11	769	-49	124	786	-52	124	false	reach	drop 3 taken off a bottom SLAB (3.5)	reach	?
+J1	829	-49	4	846	-49	4	true	reach	corner diagonals over VOID	reach	?
+J2	829	-49	16	846	-49	16	true	reach	corner diagonals, flanks FLOORED	reach	?
+J3	829	-49	28	846	-49	28	false	block	corner diagonal, both flanks WALLED	build	?
+J4	829	-49	40	846	-49	40	true	reach	corner diagonal, one flank a CARPET	reach	?
+J5	829	-49	52	846	-49	52	false	block	corner diagonal through FIRE	block	?
+J6	829	-49	64	843	-48	65	true	reach	diagonal step +0.5 SLAB	reach	?
+J7	829	-49	76	843	-49	77	true	reach	diagonal step -0.5 SLAB	reach	?
+J8	829	-49	88	843	-48	89	true	reach	diagonal JUMP up a full block	reach	?
+J9	829	-49	100	843	-49	101	true	reach	diagonal DROP of 1	reach	?
+J10	829	-49	112	843	-47	113	false	block	diagonal rise of TWO blocks	build	?
+J11	829	-49	124	843	-49	125	false	reach	diagonal LEAP over a 1-gap	reach	?
+J12	829	-49	136	843	-49	137	false	reach	diagonal LEAP over a 2-gap	reach	?
+J13	829	-49	148	846	-49	146	true	reach	chained corner diagonals (zigzag)	reach	?
+K1	853	-49	4	870	-49	4	true	reach	RAVINE 5 wide, a 1-wide rim round it	reach	?
+K2	853	-49	16	864	-46	16	false	block	goal IN THE AIR over a ravine	block	?
+K3	853	-49	28	870	-49	28	false	block	LAVA MOAT 5 wide, 3 below	block	?
+K4	853	-49	40	870	-47	40	false	block	LEDGE 2 up across a 3 gap	build	?
+K5	854	-57	52	870	-49	52	false	block	PIT 8 deep, stone walls	build	?
+K6	854	-59	64	870	-49	64	false	block	CREVICE 1 wide, 10 deep	build	?
+K7	853	-49	76	870	-47	76	false	build	GRASS STEP 2 high	build	?
+K8	853	-49	88	870	-46	88	false	build	GRASS STEP 3 high	build	?
+K9	853	-49	100	870	-41	100	false	build	STEEP GRASS SLOPE, 2 up per block x4	build	?
+K10	853	-49	112	870	-45	112	false	block	GRASS WALL 4 high	build	?
+K11	853	-49	124	870	-47	124	false	block	GRASS STEP 2 high, a pond behind the lip	build	?
+K12	853	-49	136	870	-47	136	false	block	DIRT PATH STEP 2 high	build	?
+I1.1	795	-49	4	801	-49	4	true	reach	STAND ON IT: stone	reach	?
+I1.2	795	-49	9	801	-49	9	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=bottom]	reach	?
+I1.3	795	-49	14	801	-49	14	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=top]	reach	?
+I1.4	795	-49	19	801	-49	19	true	reach	STAND ON IT: smooth_stone_slab[type=bottom]	reach	?
+I1.5	795	-49	24	801	-49	24	true	reach	STAND ON IT: smooth_stone_slab[type=top]	reach	?
+I1.6	795	-49	29	801	-49	29	true	reach	STAND ON IT: oak_trapdoor[facing=north,half=bottom,open=false]	reach	?
+I1.7	795	-49	34	801	-49	34	true	reach	STAND ON IT: oak_trapdoor[facing=north,half=top,open=false]	reach	?
+I1.8	795	-49	39	801	-49	39	true	reach	STAND ON IT: snow[layers=2]	reach	?
+I1.9	795	-49	44	801	-49	44	true	reach	STAND ON IT: snow[layers=5]	reach	?
+I1.10	795	-49	49	801	-49	49	true	reach	STAND ON IT: snow[layers=7]	reach	?
+I1.11	795	-49	54	801	-49	54	true	reach	STAND ON IT: dirt_path	reach	?
+I1.12	795	-49	59	801	-49	59	true	reach	STAND ON IT: farmland[moisture=7]	reach	?
+I1.13	795	-49	64	801	-49	64	true	reach	STAND ON IT: soul_sand	reach	?
+I1.14	795	-49	69	801	-49	69	true	reach	STAND ON IT: mud	reach	?
+I1.15	795	-49	74	801	-49	74	true	reach	STAND ON IT: honey_block	reach	?
+I1.16	795	-49	79	801	-49	79	true	reach	STAND ON IT: slime_block	reach	?
+I1.17	795	-49	84	801	-49	84	true	reach	STAND ON IT: blue_ice	reach	?
+I1.18	795	-49	89	801	-49	89	false	block	STAND ON IT: powder_snow	build	?
+I1.19	795	-49	94	801	-49	94	false	block	STAND ON IT: magma_block	build	?
+I1.20	795	-49	99	801	-49	99	true	reach	STAND ON IT: chest[facing=east,type=single]	reach	?
+I1.21	795	-49	104	801	-49	104	true	reach	STAND ON IT: hopper[facing=down]	reach	?
+I1.22	795	-49	109	801	-49	109	false	reach	STAND ON IT: cauldron	reach	?
+I1.23	795	-49	114	801	-49	114	false	reach	STAND ON IT: composter[level=0]	reach	?
+I1.24	795	-49	119	801	-49	119	true	reach	STAND ON IT: enchanting_table	reach	?
+I1.25	795	-49	124	801	-49	124	true	reach	STAND ON IT: anvil[facing=north]	reach	?
+I1.26	795	-49	129	801	-49	129	true	reach	STAND ON IT: grindstone[face=floor,facing=north]	reach	?
+I1.27	795	-49	134	801	-49	134	true	reach	STAND ON IT: lectern[facing=north,has_book=false]	reach	?
+I1.28	795	-49	139	801	-49	139	true	reach	STAND ON IT: stonecutter[facing=north]	reach	?
+I1.29	795	-49	144	801	-49	144	true	reach	STAND ON IT: daylight_detector[inverted=false,power=0]	reach	?
+I1.30	795	-49	149	801	-49	149	true	reach	STAND ON IT: end_portal_frame[eye=false,facing=north]	reach	?
+I1.31	795	-49	154	801	-49	154	true	reach	STAND ON IT: brewing_stand	reach	?
+I1.32	795	-49	159	801	-49	159	true	reach	STAND ON IT: bell[attachment=floor,facing=north]	reach	?
+I1.33	795	-49	164	801	-49	164	false	reach	STAND ON IT: campfire[lit=false,facing=north]	reach	?
+I1.34	795	-49	169	801	-49	169	true	reach	STAND ON IT: sculk_shrieker[can_summon=false,shrieking=false]	reach	?
+I1.35	795	-49	174	801	-49	174	true	reach	STAND ON IT: scaffolding[bottom=true,distance=0]	reach	?
+I1.36	795	-49	179	801	-49	179	true	reach	STAND ON IT: turtle_egg[eggs=1,hatch=0]	reach	?
+I1.37	795	-49	184	801	-49	184	true	reach	STAND ON IT: sea_lantern	reach	?
+I1.38	795	-49	189	801	-49	189	true	reach	STAND ON IT: snow[layers=8]	reach	?
+I2.1	811	-49	4	817	-49	4	true	reach	WALK THROUGH IT: air	reach	?
+I2.2	811	-49	9	817	-49	9	false	block	WALK THROUGH IT: oak_fence	build	?
+I2.3	811	-49	14	817	-49	14	false	block	WALK THROUGH IT: cobblestone_wall[up=true]	build	?
+I2.4	811	-49	19	817	-49	19	true	reach	WALK THROUGH IT: iron_bars	reach	?
+I2.5	811	-49	24	817	-49	24	true	reach	WALK THROUGH IT: glass_pane	reach	?
+I2.6	811	-49	29	817	-49	29	true	reach	WALK THROUGH IT: oak_fence_gate[facing=east,open=true]	reach	?
+I2.7	811	-49	34	817	-49	34	true	reach	WALK THROUGH IT: oak_fence_gate[facing=east,open=false]	reach	?
+I2.8	811	-49	39	817	-49	39	false	block	WALK THROUGH IT: oak_trapdoor[facing=west,half=bottom,open=true]	build	?
+I2.9	811	-49	44	817	-49	44	true	reach	WALK THROUGH IT: ladder[facing=south]	reach	?
+I2.10	811	-49	49	817	-49	49	true	reach	WALK THROUGH IT: vine[north=true]	reach	?
+I2.11	811	-49	54	817	-49	54	true	reach	WALK THROUGH IT: cobweb	reach	?
+I2.12	811	-49	59	817	-49	59	true	reach	WALK THROUGH IT: white_carpet	reach	?
+I2.13	811	-49	64	817	-49	64	true	reach	WALK THROUGH IT: moss_carpet	reach	?
+I2.14	811	-49	69	817	-49	69	true	reach	WALK THROUGH IT: snow[layers=1]	reach	?
+I2.15	811	-49	74	817	-49	74	true	reach	WALK THROUGH IT: stone_pressure_plate	reach	?
+I2.16	811	-49	79	817	-49	79	true	reach	WALK THROUGH IT: light_weighted_pressure_plate	reach	?
+I2.17	811	-49	84	817	-49	84	true	reach	WALK THROUGH IT: rail[shape=north_south]	reach	?
+I2.18	811	-49	89	817	-49	89	true	reach	WALK THROUGH IT: tripwire	reach	?
+I2.19	811	-49	94	817	-49	94	true	reach	WALK THROUGH IT: redstone_wire	reach	?
+I2.20	811	-49	99	817	-49	99	true	reach	WALK THROUGH IT: repeater[facing=east,delay=1]	reach	?
+I2.21	811	-49	104	817	-49	104	true	reach	WALK THROUGH IT: comparator[facing=east]	reach	?
+I2.22	811	-49	109	817	-49	109	true	reach	WALK THROUGH IT: torch	reach	?
+I2.23	811	-49	114	817	-49	114	true	reach	WALK THROUGH IT: lantern[hanging=false]	reach	?
+I2.24	811	-49	119	817	-49	119	true	reach	WALK THROUGH IT: iron_chain[axis=y]	reach	?
+I2.25	811	-49	124	817	-49	124	true	reach	WALK THROUGH IT: end_rod[facing=up]	reach	?
+I2.26	811	-49	129	817	-49	129	true	reach	WALK THROUGH IT: flower_pot	reach	?
+I2.27	811	-49	134	817	-49	134	true	reach	WALK THROUGH IT: decorated_pot[facing=north]	reach	?
+I2.28	811	-49	139	817	-49	139	true	reach	WALK THROUGH IT: lever[face=floor,facing=north]	reach	?
+I2.29	811	-49	144	817	-49	144	true	reach	WALK THROUGH IT: stone_button[face=floor,facing=north]	reach	?
+I2.30	811	-49	149	817	-49	149	true	reach	WALK THROUGH IT: short_grass	reach	?
+I2.31	811	-49	154	817	-49	154	false	block	WALK THROUGH IT: sweet_berry_bush[age=3]	build	?
+I2.32	811	-49	159	817	-49	159	true	reach	WALK THROUGH IT: bamboo[age=1,leaves=none,stage=1]	reach	?
+I2.33	811	-49	164	817	-49	164	true	reach	WALK THROUGH IT: big_dripleaf[facing=east,tilt=none]	reach	?
+I2.34	811	-49	169	817	-49	169	true	reach	WALK THROUGH IT: azalea	reach	?
+I2.35	811	-49	174	817	-49	174	true	reach	WALK THROUGH IT: pointed_dripstone[thickness=tip,vertical_direction=up]	reach	?
+I2.36	811	-49	179	817	-49	179	true	reach	WALK THROUGH IT: amethyst_cluster[facing=up,waterlogged=false]	reach	?
+I2.37	811	-49	184	817	-49	184	true	reach	WALK THROUGH IT: piston[facing=up,extended=false]	reach	?

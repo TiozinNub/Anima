@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.brain.sense.Pos;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +35,12 @@ import org.junit.jupiter.params.provider.MethodSource;
  * <p>The {@code plans} column is a lock, not a prediction — what the planner does today, measured,
  * so adding diagonal jumps should flip the stations about diagonal jumps. Nothing asserts
  * the current answer is the right one; several are known gaps, named in the station titles.
+ *
+ * <p><b>Two layers.</b> Every station is asked again by a body carrying blocks it may lay
+ * ({@link #BLOCKS}), locked in its own column, {@code plansBlocks}. That search is fenced to its
+ * station's lane ({@link #lane}): the course keeps lanes apart with the void, and a body that may
+ * build crosses the void — round a lava pool through the air beside it, or into the next lane — which
+ * answers no station's question.
  */
 class GauntletPathTest {
 
@@ -41,8 +48,14 @@ class GauntletPathTest {
     private static final MoveCapabilities BODY = TestBodies.BIPED;
 
     private record Station(String id, int sx, int sy, int sz, int gx, int gy, int gz,
-                           String plans, String title) {
+                           String plans, String title, String plansBlocks) {
     }
+
+    /** The second layer's body: the first one, with a stack of blocks it may lay. */
+    private static final MoveCapabilities BLOCKS = BODY.withLaid(64);
+
+    /** One fence per station, built once — see the class doc. */
+    private static final Map<String, NavDomain> LANES = new java.util.HashMap<>();
 
     private static CapturedWorld world;
     private static List<Station> stations;
@@ -71,7 +84,7 @@ class GauntletPathTest {
             out.add(new Station(f[0],
                     Integer.parseInt(f[1]), Integer.parseInt(f[2]), Integer.parseInt(f[3]),
                     Integer.parseInt(f[4]), Integer.parseInt(f[5]), Integer.parseInt(f[6]),
-                    f[7], f.length > 9 ? f[9] : ""));
+                    f[7], f.length > 9 ? f[9] : "", f.length > 11 ? f[11] : "?"));
         }
         return out;
     }
@@ -83,6 +96,69 @@ class GauntletPathTest {
     private static boolean plans(Station s) {
         return Pathfinder.find(world,
                 PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BODY)).reachedGoal();
+    }
+
+    /**
+     * The station's own lane, every height: its start and goal columns widened by the two cells either
+     * side a lane runs to. Every lane and gallery stub runs along one axis, so this is the lane.
+     */
+    private static NavDomain lane(Station s) {
+        return LANES.computeIfAbsent(s.id(), id -> {
+            List<Pos> cells = new ArrayList<>();
+            for (int x = Math.min(s.sx(), s.gx()) - 2; x <= Math.max(s.sx(), s.gx()) + 2; x++) {
+                for (int z = Math.min(s.sz(), s.gz()) - 2; z <= Math.max(s.sz(), s.gz()) + 2; z++) {
+                    for (int y = -64; y <= -30; y++) {
+                        cells.add(new Pos(x, y, z));
+                    }
+                }
+            }
+            return NavDomain.of(cells);
+        });
+    }
+
+    private static dev.luizloyola.anima.core.nav.Path withBlocks(Station s) {
+        return Pathfinder.find(world,
+                PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), BLOCKS).within(lane(s)));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("stations")
+    void plannerVerdictWithBlocksIsUnchanged(Station s) {
+        assertEquals(Boolean.parseBoolean(s.plansBlocks()), withBlocks(s).reachedGoal(),
+                () -> s.id() + " (" + s.title() + "): with blocks in hand the planner changed its "
+                        + "mind about whether it can reach " + s.gx() + " " + s.gy() + " " + s.gz()
+                        + ". If that was the point of your change, re-record the row.");
+    }
+
+    /** The first layer's walkability rule, for routes that lay: each lay is a cell there is room for. */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("stations")
+    void everyBuiltRouteIsWalkableInTheWorldItWasPlannedIn(Station s) {
+        List<Waypoint> route = withBlocks(s).waypoints();
+        Waypoint previous = new Waypoint(s.sx(), s.sy(), s.sz(), MoveType.WALK);
+        for (Waypoint to : route) {
+            Waypoint from = previous;
+            for (CellNeed need : PathIntegrity.edgeNeeds(from, to, BLOCKS)) {
+                assertTrue(NavGrids.satisfies(world, need),
+                        () -> s.id() + " (" + s.title() + "): the built route asks for " + need.need()
+                                + " at " + need.x() + " " + need.y() + " " + need.z()
+                                + " on the edge into " + to.move() + " " + to.x() + " " + to.y()
+                                + " " + to.z() + ". Full route: " + route);
+            }
+            previous = to;
+        }
+    }
+
+    /**
+     * K1's rim is a short way round, and a body with blocks must still take it: reaching the pad by
+     * bridging is a false pass there.
+     */
+    @Test
+    void theRimRoundTheRavineIsWalkedNotBridged() {
+        Station s = stations.stream().filter(st -> st.id().equals("K1")).findFirst().orElseThrow();
+        dev.luizloyola.anima.core.nav.Path path = withBlocks(s);
+        assertTrue(path.reachedGoal(), "K1 is reached");
+        assertEquals(0, path.laid(), () -> "K1 is reached by laying: " + path.waypoints());
     }
 
     /**
@@ -415,7 +491,8 @@ class GauntletPathTest {
 
     @Test
     void report() throws IOException {
-        StringBuilder out = new StringBuilder("# id\tplans\trecorded\ttitle\n");
+        StringBuilder out = new StringBuilder(
+                "# id\tplans\trecorded\ttitle\tplansBlocks\trecordedBlocks\n");
         int agree = 0;
         for (Station s : stations) {
             boolean actual = plans(s);
@@ -423,7 +500,9 @@ class GauntletPathTest {
                 agree++;
             }
             out.append(s.id()).append('\t').append(actual).append('\t')
-                    .append(s.plans()).append('\t').append(s.title()).append('\n');
+                    .append(s.plans()).append('\t').append(s.title()).append('\t')
+                    .append(withBlocks(s).reachedGoal()).append('\t').append(s.plansBlocks())
+                    .append('\n');
         }
         Path file = Path.of("build", "gauntlet-plans.tsv");
         Files.createDirectories(file.getParent());
@@ -432,11 +511,15 @@ class GauntletPathTest {
                 + " stations match their recorded verdict -> " + file.toAbsolutePath());
     }
 
+    private static boolean recorded(String verdict) {
+        return "true".equals(verdict) || "false".equals(verdict);
+    }
+
     /** A row nobody recorded is a row nobody looked at; an all-{@code ?} table would pass. */
     @Test
     void everyStationIsRecorded() {
         List<String> unrecorded = stations.stream()
-                .filter(s -> !"true".equals(s.plans()) && !"false".equals(s.plans()))
+                .filter(s -> !recorded(s.plans()) || !recorded(s.plansBlocks()))
                 .map(Station::id).toList();
         assertTrue(unrecorded.isEmpty(),
                 () -> "stations with no recorded verdict: " + unrecorded

@@ -1,6 +1,8 @@
 package dev.luizloyola.anima.compat.nav;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.nav.CellType;
 import net.minecraft.SharedConstants;
@@ -47,6 +49,24 @@ class BlockSurfaceTest {
     private static void assertStep(BlockState state, double surface, String what) {
         assertEquals(CellType.STEP, typeOf(state), what + " is a floor inside its own cell");
         assertEquals(surface, surfaceOf(state), 1.0e-9, what + " surface height");
+    }
+
+    private static boolean layable(BlockState state) {
+        return WorldSnapshot.layable(WorldSnapshot.classifyLive(state, EmptyBlockGetter.INSTANCE, BlockPos.ZERO));
+    }
+
+    /**
+     * Both are passable; only one takes a laid block. A placement replaces grass and would have to
+     * break a torch, and laying never breaks anything.
+     */
+    @Test
+    void airAndGrassTakeALaidBlockATorchAndARailDoNot() {
+        assertTrue(layable(Blocks.AIR.defaultBlockState()));
+        assertTrue(layable(Blocks.SHORT_GRASS.defaultBlockState()));
+        assertEquals(CellType.PASSABLE, typeOf(Blocks.TORCH.defaultBlockState()));
+        assertFalse(layable(Blocks.TORCH.defaultBlockState()));
+        assertFalse(layable(Blocks.RAIL.defaultBlockState()));
+        assertFalse(layable(Blocks.STONE.defaultBlockState()), "a solid block is not somewhere to lay");
     }
 
     @Test
