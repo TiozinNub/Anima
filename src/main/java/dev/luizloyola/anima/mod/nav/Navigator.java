@@ -1080,7 +1080,8 @@ public final class Navigator {
         this.arrivalRadius = radius;
         double vertical = verticalGap(dy);
         if (horizontalSq + vertical * vertical <= radius * radius
-                && (!isLast || this.person.onGround())) {
+                && (!isLast || this.person.onGround())
+                && !tooHighToLeaveClimb(pos.y, this.index)) {
             if (isLast && !isSettled()) {
                 this.person.stopMoving();
                 return;
@@ -1208,7 +1209,8 @@ public final class Navigator {
                 continue;
             }
             if (feet.getX() == w.x() && feet.getZ() == w.z()
-                    && atWaypointHeight(y - w.feetY(), w.move(), isWet())) {
+                    && atWaypointHeight(y - w.feetY(), w.move(), isWet())
+                    && !tooHighToLeaveClimb(y, j)) {
                 this.index = Math.min(j + 1, last);
                 this.stuckTicks = 0;
                 return;
@@ -1257,6 +1259,7 @@ public final class Navigator {
             double forward = (offX * segX + offZ * segZ) / segLen;
             double lateral = Math.abs(offX * segZ - offZ * segX) / segLen;
             if (!atWaypointHeight(aboveWaypoint(pos, current), current.move(), isWet())
+                    || tooHighToLeaveClimb(pos.y, this.index)
                     || forward <= 0.0 || forward > 2.5 || lateral > 0.6) {
                 return;
             }
@@ -1358,6 +1361,30 @@ public final class Navigator {
         // target cell, and widening it here would let a descent claim a cell it is still a block
         // short of — one more way down a column a body already ratchets down too easily.
         return verticalGap(dy) < 0.5;
+    }
+
+    /** {@link #headAboveClimbExit} for waypoint {@code j} of the path being followed. */
+    private boolean tooHighToLeaveClimb(double feetY, int j) {
+        List<Waypoint> waypoints = this.path.waypoints();
+        return waypoints.get(j).move() == MoveType.CLIMB && j + 1 < waypoints.size()
+                && headAboveClimbExit(feetY, waypoints.get(j), waypoints.get(j + 1), capabilities());
+    }
+
+    /**
+     * Whether a body with its feet at {@code feetY} is still too high to step sideways off
+     * {@code climb} toward {@code next}. The standing band claims a climb nearly a block above it.
+     * Coming down into a low room, that sent the head into the lip of the floor overhead, and on a
+     * ladder pushing against a face climbs: back up, off on top, strayed, the same path again.
+     *
+     * <p>The room past the exit is only promised {@code clearCells} tall, from the higher of the two
+     * waypoints: a drop crosses at the climb's height, a step up at its own.
+     */
+    static boolean headAboveClimbExit(double feetY, Waypoint climb, Waypoint next,
+                                      MoveCapabilities caps) {
+        if (next.x() == climb.x() && next.z() == climb.z()) {
+            return false;
+        }
+        return feetY + caps.height() > Math.max(climb.y(), next.y()) + caps.clearCells();
     }
 
     /**
