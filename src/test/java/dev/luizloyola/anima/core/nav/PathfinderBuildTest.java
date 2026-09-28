@@ -74,6 +74,27 @@ class PathfinderBuildTest {
     }
 
     @Test
+    void theBuilderReadsWhereABridgeWouldFit() {
+        NavGrid grid = longWayRound();
+        java.util.List<Crossings.Crossing> fits = Crossings.between(grid,
+                PathRequest.of(1, 1, 1, 10, 1, 1, EMPTY_HANDED), 16);
+        assertEquals(1, fits.size());
+        Crossings.Crossing crossing = fits.get(0);
+        assertEquals(4, crossing.span());
+        assertEquals(0, crossing.deckY());
+        assertEquals(3, crossing.from().x(), "it leaves from the last ground before the gap");
+        assertEquals(8, crossing.to().x(), "and reaches the first ground after it");
+        assertTrue(crossing.saves() > 20, "a bridge saves most of the way round: " + crossing.saves());
+    }
+
+    @Test
+    void noBridgeFitsWhereTheWayRoundIsAsGood() {
+        String[] rows = {"1111    1111", "1111    1111", "111111111111", "1111    1111"};
+        assertTrue(Crossings.between(bounded(rows), PathRequest.of(1, 1, 1, 10, 1, 1, EMPTY_HANDED), 16)
+                .isEmpty());
+    }
+
+    @Test
     void aGapWithAShortWayRoundIsWalkedRound() {
         String[] rows = {"1111    1111", "1111    1111", "111111111111", "1111    1111"};
         Path path = find(bounded(rows), 1, 1, 1, 10, 1, 1, carrying(16));
