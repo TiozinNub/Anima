@@ -297,6 +297,11 @@ final class GroundWork {
             return Result.WORKING; // grass spreading changed the block: cut it again
         }
         BlockPos lip = new BlockPos(to.x(), to.y(), to.z());
+        BlockPos feet = this.person.blockPosition();
+        if (feet.getY() >= to.y() && this.person.onGround()) {
+            steer(to, ONTO_DECK); // up already, a column over: never cut from above
+            return Result.WORKING;
+        }
         if (!this.person.level().getBlockState(lip).canBeReplaced()) {
             this.person.stopMoving();
             if (!breaker.pry(pos(lip))) {
@@ -307,7 +312,6 @@ final class GroundWork {
             return Result.WORKING;
         }
         steer(to, 1.0F);
-        BlockPos feet = this.person.blockPosition();
         Vec3 pos = this.person.position();
         double dx = to.x() + 0.5 - pos.x;
         double dz = to.z() + 0.5 - pos.z;
@@ -399,6 +403,11 @@ final class GroundWork {
                 return refuse("the step at " + at(to) + " would not break");
             }
             return Result.WORKING; // the loop below starts the cut again
+        }
+        if (feet.getY() >= to.y() && this.person.onGround()) {
+            // Up, but a column past the step: cutting now would take its lip out from behind.
+            steer(to, ONTO_DECK);
+            return Result.WORKING;
         }
         Level level = this.person.level();
         for (int y = to.y() - 1; y > floor; y--) {
