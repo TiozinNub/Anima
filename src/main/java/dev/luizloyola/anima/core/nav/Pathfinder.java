@@ -1596,6 +1596,9 @@ public final class Pathfinder {
         // block further than this body agreed to.
         double depth = -rise;
         if (depth > this.profile.maxDrop()) return;
+        // Off a recorded pillar a body goes down it, not over the side: that is what cleans it up,
+        // and a drop a column nearer the goal left three blocks of it standing.
+        if (this.building && this.pillars.contains(pack(x, y - 1, z))) return;
         if (ramped(x, y, z, from, nx, ny, nz, to)) {
             relax(current, node, pack(nx, ny, nz), to, MoveType.WALK,
                     WALK_COST * terrainFactor(x, y, z, nx, ny, nz));
@@ -1688,6 +1691,9 @@ public final class Pathfinder {
         }
         double depth = -rise;
         if (depth > this.profile.maxDrop()) return;
+        // Off a recorded pillar a body goes down it, not over the side: that is what cleans it up,
+        // and a drop a column nearer the goal left three blocks of it standing.
+        if (this.building && this.pillars.contains(pack(x, y - 1, z))) return;
         relax(current, node, pack(nx, ny, nz), to, MoveType.DROP,
                 Math.max(DIAGONAL_COST, dropCost(depth)) * terrainFactor(x, y, z, nx, ny, nz));
     }
