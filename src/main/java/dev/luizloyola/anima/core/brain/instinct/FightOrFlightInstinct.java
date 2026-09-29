@@ -11,6 +11,7 @@ import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Combatant;
 import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
+import dev.luizloyola.anima.core.brain.sense.Sides;
 import dev.luizloyola.anima.core.brain.task.Fight;
 import dev.luizloyola.anima.core.brain.task.FleeStep;
 import dev.luizloyola.anima.core.brain.task.Task;
@@ -159,15 +160,19 @@ public final class FightOrFlightInstinct implements Instinct {
         Percepts percepts = ctx.percepts();
         double max = 0.0;
         for (Being being : percepts.beings()) {
+            if (!being.aggressive()) {
+                continue;
+            }
+            Combatant them = percepts.combatant(being.id()).orElse(null);
             double pressure = pressureOf(ctx.profile(), ctx.danger(), being,
-                    percepts.attackedLately(being.id()));
+                    percepts.attackedLately(being.id()), them);
             if (pressure <= 0.0) {
                 continue;
             }
-            double blast = percepts.combatant(being.id())
-                    .map(them -> blast(being.distance(), them))
-                    .orElse(0.0);
-            max = Math.max(max, Math.max(pressure, blast));
+            double blast = them == null ? 0.0 : blast(being.distance(), them);
+            // Shut out, it presses nothing; a burning fuse is the one thing a wall does not stop.
+            max = Math.max(max, Sides.shutOut(percepts, being, them) ? blast
+                    : Math.max(pressure, blast));
         }
         return max;
     }
@@ -177,16 +182,27 @@ public final class FightOrFlightInstinct implements Instinct {
         return pressureOf(profile, danger, being, false);
     }
 
-    /** One being's contribution — public so tests and debug readouts price fear the same way. */
+    /** {@link #pressureOf(AgentProfile, DangerTable, Being, boolean, Combatant)}, unsized. */
     public static double pressureOf(AgentProfile profile, DangerTable danger, Being being,
                                     boolean attackedMe) {
+        return pressureOf(profile, danger, being, attackedMe, null);
+    }
+
+    /**
+     * One being's contribution — public so tests and debug readouts price fear the same way.
+     *
+     * @param them the being sized up, when there is a body to size up: whether it shoots is read
+     *             off it, so a skeleton is feared from range before its bow is seen
+     */
+    public static double pressureOf(AgentProfile profile, DangerTable danger, Being being,
+                                    boolean attackedMe, @Nullable Combatant them) {
         if (!being.aggressive()) {
             return 0.0; // masked tiers read non-aggressive: unmade-out things exert nothing
         }
         // Reach is the weapon's, not a multiple of ours. Something that shoots is feared from as
         // far as this body can perceive it at all; something that has to reach you is feared from
         // its own flee range.
-        double reach = ranged(danger, being)
+        double reach = ranged(danger, being) || them != null && them.shoots()
                 ? profile.i(ProfileAspect.SENSES_RADIUS)
                 : range(profile);
         double ramped = clamp01((reach - being.distance()) / ramp(profile));
@@ -274,16 +290,32 @@ public final class FightOrFlightInstinct implements Instinct {
         double bestKillTime = Double.POSITIVE_INFINITY;
         java.util.Set<BeingId> perceived = new java.util.HashSet<>();
         java.util.Set<BeingId> countedNow = new java.util.HashSet<>();
+        boolean inside = false;
+        boolean outside = false;
         for (Being being : percepts.beings()) {
             perceived.add(being.id());
+            if (!being.aggressive()) {
+                continue;
+            }
             boolean attackedMe = percepts.attackedLately(being.id());
-            double fear = pressureOf(profile, ctx.danger(), being, attackedMe);
+            Combatant live = percepts.combatant(being.id()).orElse(null);
+            double fear = pressureOf(profile, ctx.danger(), being, attackedMe, live);
             if (fear <= 0.0) {
                 continue;
             }
-            Combatant them = percepts.combatant(being.id())
-                    .map(live -> sizeUp(being.id(), live))
-                    .orElse(null);
+            if (Sides.shutOut(percepts, being, live)) {
+                // It cannot join the fight, so it weighs nothing in it (shelter spec, decision 7).
+                outside = true;
+                counted.remove(being.id());
+                if (live != null) {
+                    blast = Math.max(blast, blast(being.distance(), live));
+                    fuseBurning |= live.fuse() > 0.0
+                            && being.distance() < live.blastReach() + FUSE_MARGIN;
+                }
+                continue;
+            }
+            inside = true;
+            Combatant them = live == null ? null : sizeUp(being.id(), live);
             if (them == null) {
                 continue; // no body to size up: gone, dying, or a sound with nothing behind it
             }
@@ -314,7 +346,9 @@ public final class FightOrFlightInstinct implements Instinct {
         shown.keySet().retainAll(perceived);
         counted.entrySet().removeIf(entry -> now - entry.getValue() > PACK_MEMORY_TICKS
                 || !shown.containsKey(entry.getKey()));
-        if (me != null) {
+        // A threat remembered but not perceived is left out in a shelter: to join a fight in here
+        // it would have to come in, and that is seen or heard.
+        if (me != null && !percepts.enclosure().shelter()) {
             for (Map.Entry<BeingId, Long> entry : counted.entrySet()) {
                 if (countedNow.contains(entry.getKey())) {
                     continue;
@@ -329,31 +363,35 @@ public final class FightOrFlightInstinct implements Instinct {
         if (!fuseBurning) {
             waitingOutFuse = false;
         }
+        // In a shelter with one threat in and more outside, running is running into them.
+        boolean nowhere = inside && outside;
+        boolean cornered = !outrunsAll || nowhere;
         Stance stance;
         if (blast >= profile.d(ProfileAspect.FIGHT_BLAST_LINE)) {
             waitingOutFuse = true;
-            stance = new Stance(false, null, 0.0, !outrunsAll, blast,
+            stance = new Stance(false, null, 0.0, cornered, blast,
                     String.format(Locale.ROOT, "running from a lit explosive (%.2f)", blast));
         } else if (waitingOutFuse && fuseBurning) {
             // The blast line alone flips a body back and forth at its edge, and walks it back
             // into a fuse still burning — the creeper's only runs down past 7 blocks.
-            stance = new Stance(false, null, 0.0, !outrunsAll, blast,
+            stance = new Stance(false, null, 0.0, cornered, blast,
                     "running until the fuse goes out");
         } else if (me == null || best == null) {
-            stance = new Stance(false, null, 0.0, !outrunsAll, blast, "running: nothing to fight");
+            stance = new Stance(false, null, 0.0, cornered, blast, "running: nothing to fight");
         } else {
             double dieTime = theirDamagePerSecond > 0.0
                     ? me.health() / theirDamagePerSecond : Double.POSITIVE_INFINITY;
             double balance = dieTime / bestKillTime;
             double line = profile.d(best.id().equals(fighting)
                     ? ProfileAspect.FIGHT_QUIT_RATIO : ProfileAspect.FIGHT_START_RATIO);
-            if (!outrunsAll) {
+            if (cornered) {
                 line = Math.min(line, profile.d(ProfileAspect.FIGHT_CORNERED_RATIO));
             }
             boolean fight = balance >= line;
-            String odds = String.format(Locale.ROOT, "kills it in %s, would be killed in %s%s",
-                    seconds(bestKillTime), seconds(dieTime), outrunsAll ? "" : ", cannot outrun it");
-            stance = new Stance(fight, fight ? best : null, balance, !outrunsAll, blast,
+            String odds = String.format(Locale.ROOT, "kills it in %s, would be killed in %s%s%s",
+                    seconds(bestKillTime), seconds(dieTime), outrunsAll ? "" : ", cannot outrun it",
+                    nowhere ? ", nowhere to run but out" : "");
+            stance = new Stance(fight, fight ? best : null, balance, cornered, blast,
                     (fight ? "fighting " : "running from ") + name(best) + ": " + odds);
         }
         memo = stance;
@@ -372,7 +410,8 @@ public final class FightOrFlightInstinct implements Instinct {
                 Math.max(live.armor(), known.armor()), Math.max(live.toughness(), known.toughness()),
                 hitsHarder(live, known) ? live.damage() : known.damage(),
                 hitsHarder(live, known) ? live.hitsPerSecond() : known.hitsPerSecond(),
-                live.pace(), live.fuse(), live.blastReach());
+                live.pace(), live.fuse(), live.blastReach(), live.entry(), live.small(),
+                live.shoots());
         shown.put(who, judged);
         return judged;
     }
@@ -431,9 +470,11 @@ public final class FightOrFlightInstinct implements Instinct {
         Percepts percepts = ctx.percepts();
         for (Being being : percepts.beings()) {
             if (being.id().equals(who)) {
-                return pressureOf(ctx.profile(), ctx.danger(), being,
-                        percepts.attackedLately(who)) > 0.0
-                        && percepts.combatant(who).isPresent();
+                Combatant them = percepts.combatant(who).orElse(null);
+                return them != null
+                        && pressureOf(ctx.profile(), ctx.danger(), being,
+                                percepts.attackedLately(who), them) > 0.0
+                        && !Sides.shutOut(percepts, being, them);
             }
         }
         return false;
@@ -461,6 +502,9 @@ public final class FightOrFlightInstinct implements Instinct {
         Being scariest = null;
         double max = 0.0;
         for (Being being : ctx.percepts().beings()) {
+            if (!being.aggressive() || Sides.shutOut(ctx.percepts(), being)) {
+                continue;
+            }
             double pressure = pressureOf(ctx.profile(), ctx.danger(), being,
                     ctx.percepts().attackedLately(being.id()));
             if (pressure > max) {

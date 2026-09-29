@@ -4,9 +4,12 @@ import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.DangerField;
+import dev.luizloyola.anima.core.brain.sense.Enclosure;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.brain.sense.Sides;
 import dev.luizloyola.anima.core.nav.Gait;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.random.RandomGenerator;
 
@@ -27,6 +30,9 @@ import java.util.random.RandomGenerator;
  * pause between legs except to look back, and {@link LookBack} decides for itself whether it may.
  * The look is the leg's last step rather than a grant of its own because a flight whose threats have
  * fallen out of range bids nothing at the boundary, and would never get to look.
+ *
+ * <p><b>In a shelter</b> (shelter spec) only the threats on this side are run from, and the leg ends
+ * in the room's least frightening cell — {@link #keepAway} — holding still once it is there.
  *
  * <p><b>SUCCESS just ends the leg.</b> While the pressure stays on top the arbiter re-grants
  * {@link dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct}, and a fresh {@code FleeStep}
@@ -68,6 +74,9 @@ public final class FleeStep implements CompoundTask {
     /** How much more frightening a cover cell may be before hiding stops being worth it. */
     private static final double COVER_TOLERANCE = 0.05;
 
+    /** How long a body in the best corner of a shelter holds before it weighs the room again. */
+    static final int HOLD_TICKS = 10;
+
     private final List<Method> methods;
 
     public FleeStep() {
@@ -101,7 +110,7 @@ public final class FleeStep implements CompoundTask {
             Pos here = ctx.percepts().position();
             List<Being> threats = new ArrayList<>();
             for (Being being : ctx.percepts().beings()) {
-                if (being.aggressive()) {
+                if (being.aggressive() && !Sides.shutOut(ctx.percepts(), being)) {
                     threats.add(being);
                 }
             }
@@ -111,8 +120,20 @@ public final class FleeStep implements CompoundTask {
             int jitterZ = random.nextInt(2 * JITTER + 1) - JITTER;
             DangerField field = DangerField.of(ctx.danger(), ctx.percepts().beings(),
                     ctx.knowledge(), ctx.percepts().time(), DangerField.FADE_TICKS);
+            Enclosure space = ctx.percepts().enclosure();
+            if (space.shelter() && space.covers(here)) {
+                Pos goal = keepAway(space, here, field);
+                if (goal.equals(here)) {
+                    // Already as far off as the room allows: hold and watch, rather than order a
+                    // walk to the cell it stands on four times a second.
+                    return List.of(new Idle(HOLD_TICKS), new LookBack());
+                }
+                return List.of(new GoTo(goal.x(), goal.y(), goal.z(), Gait.SPRINT)
+                        .leavingShelter(), new LookBack());
+            }
             Pos goal = safest(ctx, here, threats, direction, jitterX, jitterZ, field);
-            return List.of(new GoTo(goal.x(), goal.y(), goal.z(), Gait.SPRINT), new LookBack());
+            return List.of(new GoTo(goal.x(), goal.y(), goal.z(), Gait.SPRINT).leavingShelter(),
+                    new LookBack());
         }
 
         @Override
@@ -153,6 +174,39 @@ public final class FleeStep implements CompoundTask {
         return takeCoverFrom(ctx, here, threats)
                 .filter(cover -> field.at(cover) <= ceiling)
                 .orElse(best);
+    }
+
+    /**
+     * Where to run inside a shelter: its least frightening cell (shelter spec). The field counts
+     * every threat, shut out or not, so a cell by the door with a crowd behind it is priced as one.
+     * A way out is taken only when the cell past a door is quieter than every cell in here. Ties go
+     * to the nearest, so the answer does not depend on the order the space was found in.
+     */
+    static Pos keepAway(Enclosure shelter, Pos here, DangerField field) {
+        List<Pos> options = new ArrayList<>(shelter.space());
+        for (Pos door : shelter.doors()) {
+            for (int[] step : AXES) {
+                Pos in = new Pos(door.x() + step[0], door.y(), door.z() + step[1]);
+                Pos past = new Pos(door.x() - step[0], door.y(), door.z() - step[1]);
+                if (shelter.covers(in) && !shelter.covers(past)) {
+                    options.add(past);
+                }
+            }
+        }
+        return options.stream()
+                .min(Comparator.<Pos>comparingDouble(field::at)
+                        .thenComparingInt(cell -> distanceSq(cell, here))
+                        .thenComparingInt(Pos::x).thenComparingInt(Pos::y).thenComparingInt(Pos::z))
+                .orElse(here);
+    }
+
+    private static final int[][] AXES = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+
+    private static int distanceSq(Pos a, Pos b) {
+        int dx = a.x() - b.x();
+        int dy = a.y() - b.y();
+        int dz = a.z() - b.z();
+        return dx * dx + dy * dy + dz * dz;
     }
 
     /** The candidate cells one leg away, fanned around the escape heading. */

@@ -260,13 +260,15 @@ public final class EscapeStep implements CompoundTask {
         Pos here = ctx.percepts().position();
         List<Task> tasks = new ArrayList<>(option.cuts().size() + 2);
         if (!here.equals(option.from())) {
-            tasks.add(new GoTo(option.from().x(), option.from().y(), option.from().z()));
+            tasks.add(new GoTo(option.from().x(), option.from().y(), option.from().z())
+                    .leavingShelter());
         }
         for (Pos cut : option.cuts()) {
             tasks.add(new BreakBlock(cut.x(), cut.y(), cut.z()));
         }
         if (option.into() != null) {
-            tasks.add(new GoTo(option.into().x(), option.into().y(), option.into().z()));
+            tasks.add(new GoTo(option.into().x(), option.into().y(), option.into().z())
+                    .leavingShelter());
         }
         return tasks;
     }
@@ -364,7 +366,7 @@ public final class EscapeStep implements CompoundTask {
             Pos to = air(ctx);
             narrate(ctx, "escape", "swimming up for air at (" + to.x() + ", " + to.y() + ", "
                     + to.z() + ")");
-            return List.of(new GoTo(to.x(), to.y(), to.z()));
+            return List.of(new GoTo(to.x(), to.y(), to.z()).leavingShelter());
         }
 
         @Override

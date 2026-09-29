@@ -86,6 +86,15 @@ public record Enclosure(Openness openness, Holes holes, boolean roofed, @Nullabl
         return this.space.contains(cell);
     }
 
+    /**
+     * {@link #contains}, a cell up or down allowed: a goal named by the floor under it, or a body
+     * standing on a slab, is still where it is.
+     */
+    public boolean covers(Pos cell) {
+        return contains(cell) || contains(new Pos(cell.x(), cell.y() + 1, cell.z()))
+                || contains(new Pos(cell.x(), cell.y() - 1, cell.z()));
+    }
+
     /** Whether two answers say the same thing about the space, whenever they were given. */
     public boolean sameAs(Enclosure other) {
         return this.openness == other.openness && this.holes == other.holes

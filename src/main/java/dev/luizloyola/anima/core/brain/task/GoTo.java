@@ -4,6 +4,8 @@ import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
+import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.brain.sense.Sides;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.WalkLevel;
 import java.util.Locale;
@@ -28,6 +30,10 @@ import java.util.Locale;
  *
  * <p><b>What it may do to the ground</b> is its {@link WalkLevel}: unsaid, the pace decides — a
  * plain walk may scale a soft step, a stroll or a sprint may not. A walk that should build says so.
+ *
+ * <p><b>Staying in.</b> A walk out of a shelter while something the body would fear waits outside
+ * is refused before it starts, {@link MoveFailure#SHELTERING} (shelter spec, decision 11). Flight,
+ * escape, a fight and a dev command walk out anyway: they ask {@link #leavingShelter()}.
  */
 public final class GoTo implements PrimitiveTask {
 
@@ -44,6 +50,8 @@ public final class GoTo implements PrimitiveTask {
     private final Gait gait;
     private final WalkLevel level;
     private boolean issued;
+    /** Whether this walk goes out whatever waits outside — see the class doc. */
+    private boolean leavesShelter;
     /**
      * Why the walk died, captured on the tick it is observed. Not persisted, and it does not need
      * to be: the executor asks for it in the same tick this task returns FAILED, so it never
@@ -70,9 +78,20 @@ public final class GoTo implements PrimitiveTask {
         this.level = level;
     }
 
+    /** This walk, going out of a shelter whatever waits outside — see the class doc. */
+    public GoTo leavingShelter() {
+        this.leavesShelter = true;
+        return this;
+    }
+
     @Override
     public TaskStatus tick(BrainContext ctx) {
         if (!issued) {
+            if (!leavesShelter && Sides.keepsIn(ctx.percepts(), ctx.profile(), ctx.danger(),
+                    new Pos(x, y, z))) {
+                this.failure = MoveFailure.SHELTERING;
+                return TaskStatus.FAILED;
+            }
             issued = true;
             ctx.actuators().mover().moveTo(x, y, z, gait, level.underWork(ctx.walksMayBuild()));
             // Look where you are about to go: eyes reaching the destination before the legs is what
@@ -155,6 +174,10 @@ public final class GoTo implements PrimitiveTask {
 
     public boolean issued() {
         return issued;
+    }
+
+    public boolean leavesShelter() {
+        return leavesShelter;
     }
 
     /** Puts a saved mid-walk back — see the note above. */

@@ -125,7 +125,8 @@ public final class Engage implements PrimitiveTask {
         if (leg == null || leg.x() != at.x() || leg.y() != at.y() || leg.z() != at.z()) {
             dropLeg(ctx);
             leg = new GoTo(at.x(), at.y(), at.z(),
-                    seen.distance() > SPRINT_BEYOND ? Gait.SPRINT : Gait.WALK, WalkLevel.WALK_ONLY);
+                    seen.distance() > SPRINT_BEYOND ? Gait.SPRINT : Gait.WALK, WalkLevel.WALK_ONLY)
+                    .leavingShelter();
             legFrom = seen.distance();
         }
         if (leg.tick(ctx) == TaskStatus.RUNNING) {

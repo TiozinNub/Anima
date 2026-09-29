@@ -58,7 +58,12 @@ public enum MoveFailure {
      * something else, the support gone, nothing left in the pocket, a step that would not break.
      * Appended, as every value here must be.
      */
-    LAY_REFUSED("nowhere to lay a block");
+    LAY_REFUSED("nowhere to lay a block"),
+    /**
+     * Not started: the walk would leave a shelter while something the body would fear waits
+     * outside (shelter spec, decision 11). The legs never report it; {@code GoTo} refuses first.
+     */
+    SHELTERING("staying in: something waits outside");
 
     private final String description;
 

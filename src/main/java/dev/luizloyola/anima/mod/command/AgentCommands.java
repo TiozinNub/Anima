@@ -1476,7 +1476,8 @@ public final class AgentCommands {
         CommandSourceStack source = ctx.getSource();
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
-        boolean autoDisabled = person.brain().run(new GoTo(pos.getX(), pos.getY(), pos.getZ()));
+        boolean autoDisabled = person.brain().run(
+                new GoTo(pos.getX(), pos.getY(), pos.getZ()).leavingShelter());
         Component suffix = autoDisabledNote(autoDisabled);
         OpJournal.record(source, person.agentId(), "given a walk to " + pos.toShortString()
                 + (autoDisabled ? ", autonomy off" : ""));

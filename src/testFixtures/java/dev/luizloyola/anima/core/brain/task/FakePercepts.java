@@ -67,6 +67,13 @@ public final class FakePercepts implements Percepts {
     public Surroundings surroundings;
     /** What the legs last found out about being shut in — settable; defaults to nothing known. */
     public Confinement confinement = Confinement.NONE;
+    /** The space this body stands in; unknown unless a test builds one. */
+    public dev.luizloyola.anima.core.brain.sense.Enclosure enclosure =
+            dev.luizloyola.anima.core.brain.sense.Enclosure.UNKNOWN;
+    /** Beings heard battering a door down. */
+    public final java.util.Set<BeingId> battering = new java.util.HashSet<>();
+    /** Beings with no line to this body; everything else reaches it. */
+    public final java.util.Set<BeingId> blind = new java.util.HashSet<>();
     /** Whether walks keep failing stranded from here — settable; defaults to no. */
     public boolean strandedHere;
     /** A settler's eyes and arm, unless a test says otherwise. */
@@ -282,6 +289,21 @@ public final class FakePercepts implements Percepts {
     @Override
     public Confinement confinement() {
         return confinement;
+    }
+
+    @Override
+    public dev.luizloyola.anima.core.brain.sense.Enclosure enclosure() {
+        return enclosure;
+    }
+
+    @Override
+    public boolean batteringLately(BeingId who) {
+        return battering.contains(who);
+    }
+
+    @Override
+    public boolean reaches(BeingId who) {
+        return !blind.contains(who);
     }
 
     @Override

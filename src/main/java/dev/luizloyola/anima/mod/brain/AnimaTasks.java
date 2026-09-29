@@ -197,9 +197,13 @@ public final class AnimaTasks {
                 GAIT.fieldOf("gait").forGetter(GoTo::gait),
                 Codec.BOOL.fieldOf("issued").forGetter(GoTo::issued),
                 // Absent from a walk saved before walks had levels: its pace decides, as it would.
-                Codec.STRING.optionalFieldOf("level").forGetter(g -> Optional.of(g.level().name()))
-        ).apply(t, (x, y, z, gait, issued, level) -> new GoTo(x, y, z, gait,
-                level.map(WalkLevel::valueOf).orElse(WalkLevel.of(gait))).resume(issued))));
+                Codec.STRING.optionalFieldOf("level").forGetter(g -> Optional.of(g.level().name())),
+                Codec.BOOL.optionalFieldOf("leavesShelter", false).forGetter(GoTo::leavesShelter)
+        ).apply(t, (x, y, z, gait, issued, level, leaves) -> {
+            GoTo walk = new GoTo(x, y, z, gait,
+                    level.map(WalkLevel::valueOf).orElse(WalkLevel.of(gait))).resume(issued);
+            return leaves ? walk.leavingShelter() : walk;
+        })));
 
         // No state of its own: an escape step is re-decided from where the body now stands, which
         // is the same reason it is one step rather than a compiled plan (see EscapeStep).

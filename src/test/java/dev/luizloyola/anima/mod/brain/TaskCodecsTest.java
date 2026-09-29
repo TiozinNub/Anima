@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.mod.brain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -70,6 +71,15 @@ class TaskCodecsTest {
         // that loses it re-issues the order, which is a body visibly hesitating.
         GoTo before = new GoTo(1, 2, 3, Gait.WALK).resume(true);
         assertTrue(assertInstanceOf(GoTo.class, roundTrip(before)).issued());
+    }
+
+    @Test
+    void aWalkAllowedOutOfAShelterStillIsAfterAReload() {
+        // Flight and escape walk out whatever waits outside; a reload that forgot it would have a
+        // body mid-flight refuse its own leg.
+        assertTrue(assertInstanceOf(GoTo.class,
+                roundTrip(new GoTo(1, 2, 3).leavingShelter())).leavesShelter());
+        assertFalse(assertInstanceOf(GoTo.class, roundTrip(new GoTo(1, 2, 3))).leavesShelter());
     }
 
     @Test
