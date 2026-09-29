@@ -30,7 +30,9 @@ class HistoryCodecTest {
     void whatFightOrFlightRemembersRoundTrips() {
         var memory = new dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct.Memory(
                 java.util.Map.of(dev.luizloyola.anima.core.brain.sense.BeingId.of(java.util.UUID.randomUUID()),
-                        new dev.luizloyola.anima.core.brain.sense.Combatant(20, 20, 8, 2, 8, 1.6, 0.28, 0, 0)),
+                        new dev.luizloyola.anima.core.brain.sense.Combatant(20, 20, 8, 2, 8, 1.6, 0.28, 0, 0,
+                                dev.luizloyola.anima.core.brain.sense.Combatant.Entry.OPENS_DOORS,
+                                true, true)),
                 java.util.Map.of(dev.luizloyola.anima.core.brain.sense.BeingId.of(java.util.UUID.randomUUID()),
                         4200L),
                 java.util.Map.of(dev.luizloyola.anima.core.brain.sense.BeingId.of(java.util.UUID.randomUUID()),

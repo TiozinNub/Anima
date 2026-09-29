@@ -68,8 +68,15 @@ public final class BrainState {
             Codec.DOUBLE.fieldOf("hitsPerSecond").forGetter(Combatant::hitsPerSecond),
             Codec.DOUBLE.fieldOf("pace").forGetter(Combatant::pace),
             Codec.DOUBLE.fieldOf("fuse").forGetter(Combatant::fuse),
-            Codec.DOUBLE.fieldOf("blastReach").forGetter(Combatant::blastReach)
-    ).apply(c, Combatant::new));
+            Codec.DOUBLE.fieldOf("blastReach").forGetter(Combatant::blastReach),
+            // Absent from a fight saved before bodies were read for how they get in.
+            Codec.STRING.optionalFieldOf("entry", Combatant.Entry.WALKS.name())
+                    .forGetter(them -> them.entry().name()),
+            Codec.BOOL.optionalFieldOf("small", false).forGetter(Combatant::small),
+            Codec.BOOL.optionalFieldOf("shoots", false).forGetter(Combatant::shoots)
+    ).apply(c, (health, maxHealth, armor, toughness, damage, hits, pace, fuse, blast, entry,
+            small, shoots) -> new Combatant(health, maxHealth, armor, toughness, damage, hits, pace,
+            fuse, blast, Combatant.Entry.valueOf(entry), small, shoots)));
 
     private record Shown(BeingId who, Combatant as) {
     }

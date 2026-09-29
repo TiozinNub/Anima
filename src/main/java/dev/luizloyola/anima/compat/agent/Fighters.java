@@ -1,7 +1,10 @@
 package dev.luizloyola.anima.compat.agent;
 
 import dev.luizloyola.anima.core.brain.sense.Combatant;
+import java.util.Set;
 import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -9,6 +12,7 @@ import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ProjectileWeaponItem;
 import org.jspecify.annotations.Nullable;
 
@@ -42,6 +46,14 @@ public final class Fighters {
     static final double ARROWS_PER_SECOND = 0.5;
     /** A creeper's explosion power: its default {@code ExplosionRadius}. */
     static final double CREEPER_POWER = 3.0;
+
+    /** What nothing stops: a vex has no collision while it moves, an enderman teleports. */
+    private static final Set<String> PASSES_WALLS = Set.of("minecraft:vex", "minecraft:enderman");
+
+    /** What shoots with nothing in its hand to see. */
+    private static final Set<String> SHOOTS_BARE_HANDED = Set.of("minecraft:blaze",
+            "minecraft:ghast", "minecraft:breeze", "minecraft:shulker", "minecraft:witch",
+            "minecraft:wither");
 
     private Fighters() {
     }
@@ -77,7 +89,39 @@ public final class Fighters {
             pace = value(body, Attributes.MOVEMENT_SPEED) * WALK_PER_SPEED * (canSprint ? SPRINT : 1.0);
         }
         return new Combatant(body.getHealth(), body.getMaxHealth(), body.getArmorValue(),
-                value(body, Attributes.ARMOR_TOUGHNESS), damage, hits, pace, fuse, blastReach);
+                value(body, Attributes.ARMOR_TOUGHNESS), damage, hits, pace, fuse, blastReach,
+                entry(body), body.getBbWidth() < 1.0F && body.getBbHeight() < 1.0F, shoots(body));
+    }
+
+    /**
+     * How {@code body} gets in behind walls (shelter spec, decision 14): read off it, so a modded
+     * mob answers for itself. A zombie's navigation opens doors only to walk up to one it means to
+     * break, which is heard, not read (decision 9).
+     */
+    private static Combatant.Entry entry(LivingEntity body) {
+        if (!(body instanceof Mob mob)) {
+            return Combatant.Entry.PASSES_WALLS; // a player digs
+        }
+        if (mob.noPhysics || PASSES_WALLS.contains(species(mob))) {
+            return Combatant.Entry.PASSES_WALLS;
+        }
+        if (mob.getNavigation().getNodeEvaluator().canOpenDoors()
+                && !mob.getType().builtInRegistryHolder().is(EntityTypeTags.ZOMBIES)) {
+            return Combatant.Entry.OPENS_DOORS;
+        }
+        return Combatant.Entry.WALKS;
+    }
+
+    /** Whether it hurts from range: a bow, a crossbow or a trident in hand, or a bare-handed shooter. */
+    private static boolean shoots(LivingEntity body) {
+        return body instanceof Mob mob
+                && (mob.getMainHandItem().getItem() instanceof ProjectileWeaponItem
+                        || mob.getMainHandItem().is(Items.TRIDENT)
+                        || SHOOTS_BARE_HANDED.contains(species(mob)));
+    }
+
+    private static String species(Mob mob) {
+        return BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString();
     }
 
     private static double value(LivingEntity body, Holder<Attribute> attribute) {

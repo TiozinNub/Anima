@@ -14,10 +14,32 @@ package dev.luizloyola.anima.core.brain.sense;
  * @param pace         blocks a tick at its best chasing or running gait
  * @param fuse         0 to 1: how far a creeper's fuse has run; 0 for everything else
  * @param blastReach   blocks within which its explosion hurts; 0 for everything that does not
+ * @param entry        how it gets past a wall and a shut door (shelter spec, 2026-09-28)
+ * @param small        whether it fits a gap one block wide and one high
+ * @param shoots       whether it hurts from range: a bow or a trident in hand, or a species that
+ *                     shoots bare-handed (a blaze, a ghast)
  */
 public record Combatant(double health, double maxHealth, double armor, double toughness,
                         double damage, double hitsPerSecond, double pace,
-                        double fuse, double blastReach) {
+                        double fuse, double blastReach, Entry entry, boolean small, boolean shoots) {
+
+    /** How a body gets in to somebody behind walls. */
+    public enum Entry {
+        /** Walls and shut doors stop it: most things. */
+        WALKS,
+        /** It opens wooden doors: a piglin, a raiding vindicator. Only no way in at all stops it. */
+        OPENS_DOORS,
+        /** Nothing stops it: a vex, an enderman, a player who digs. */
+        PASSES_WALLS
+    }
+
+    /** A walker of ordinary size that does not shoot — the fight numbers alone. */
+    public Combatant(double health, double maxHealth, double armor, double toughness,
+                     double damage, double hitsPerSecond, double pace,
+                     double fuse, double blastReach) {
+        this(health, maxHealth, armor, toughness, damage, hitsPerSecond, pace, fuse, blastReach,
+                Entry.WALKS, false, false);
+    }
 
     /** Damage a second at full rate, against a victim wearing this much armour. */
     public double damagePerSecondAgainst(double victimArmor, double victimToughness) {
