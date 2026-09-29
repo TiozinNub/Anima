@@ -17,6 +17,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gameevent.GameEvent;
+import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -44,6 +45,13 @@ public final class AgentRiser implements Riser {
     /** Half-throttle scuff: at ~0.1 of a block per tick the body cannot cross from outside the
      *  tolerance on one side to outside it on the other, so it settles in the middle. */
     private static final float CENTRE_THROTTLE = 0.5F;
+
+    /**
+     * Horizontal speed, blocks a tick, a body jumps from. Faster, and the jump carries it off the
+     * cell it is laying under: a body run up to a pillar beside a trunk flew a block past its own
+     * block and gave up against it (Beatrice on the forest, 2026-09-29).
+     */
+    private static final double STILL = 0.02;
 
     /**
      * Consecutive dead steps from the same cell before {@link #up} refuses, routing the caller
@@ -96,6 +104,8 @@ public final class AgentRiser implements Riser {
                 || !level.getBlockState(feet).canBeReplaced()) {
             return false; 
         }
+        // A sprint turns every jump into a lunge forward; nobody laying a block under themselves runs.
+        person.driveSprint(false);
         this.base = feet;
         this.itemId = itemId;
         this.ticks = 0;
@@ -122,6 +132,10 @@ public final class AgentRiser implements Riser {
         }
         if (centring && !stepToMiddle()) {
             return; // still shuffling (or the step just died trying) — no jump input this tick
+        }
+        if (!jumped() && moving()) {
+            brake();
+            return; // planted first: the jump goes straight up from the middle of the cell
         }
         person.faceBlock(base); 
         person.entity().setJumping(true); // held-space semantics: aiStep jumps them when grounded
@@ -153,6 +167,23 @@ public final class AgentRiser implements Riser {
         if (++ticks > STEP_TIMEOUT_TICKS) {
             fail("never cleared block height above " + base.toShortString());
         }
+    }
+
+    /** Whether the body has left the ground for this step already. */
+    private boolean jumped() {
+        return person.entity().getY() > base.getY() + 0.01 || !person.entity().onGround();
+    }
+
+    private boolean moving() {
+        Vec3 v = person.entity().getDeltaMovement();
+        return v.x * v.x + v.z * v.z > STILL * STILL;
+    }
+
+    /** Feet planted: no input, and what is left of a run spent at once, as a body stops to jump. */
+    private void brake() {
+        person.stopMoving();
+        Vec3 v = person.entity().getDeltaMovement();
+        person.entity().setDeltaMovement(0.0, v.y, 0.0);
     }
 
     /**

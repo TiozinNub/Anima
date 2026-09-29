@@ -193,6 +193,16 @@ final class GroundWork {
         BlockPos feet = this.person.blockPosition();
         if (feet.getX() != to.x() || feet.getZ() != to.z()) {
             steer(to, ONTO_DECK);
+            // Laid, but carried off it: the block is a step now, and the way back is up onto it.
+            BlockPos laid = new BlockPos(to.x(), to.y() - 1, to.z());
+            Vec3 pos = this.person.position();
+            double dx = to.x() + 0.5 - pos.x;
+            double dz = to.z() + 0.5 - pos.z;
+            if (this.person.onGround() && feet.getY() == laid.getY()
+                    && !this.person.level().getBlockState(laid).canBeReplaced()
+                    && dx * dx + dz * dz < JUMP_RANGE * JUMP_RANGE) {
+                this.person.driveJump();
+            }
             return Result.WORKING;
         }
         if (feet.getY() >= to.y() || !this.person.onGround()) {

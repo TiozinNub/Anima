@@ -1048,6 +1048,9 @@ public final class Navigator {
     }
 
     private void tickGroundWork(Waypoint waypoint, boolean isLast) {
+        // Nobody lays a block at a run: a sprint left over from the last leg is a lunge in every
+        // jump the hand makes, and it carried a body off the pillar it had just laid.
+        this.person.driveSprint(false);
         BlockPos from;
         if (this.index > 0) {
             Waypoint previous = this.path.waypoints().get(this.index - 1);
