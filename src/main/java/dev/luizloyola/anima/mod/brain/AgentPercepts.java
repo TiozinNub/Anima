@@ -239,6 +239,45 @@ public final class AgentPercepts implements Percepts {
                 body.toughness(), hit.damage(), perSecond, body.pace(), 0.0, 0.0));
     }
 
+    @Override
+    public boolean batteringLately(BeingId who) {
+        return this.person.level() instanceof ServerLevel level
+                && BreakIns.lately(who.value(), level.getGameTime(),
+                        this.person.profile().i(ProfileAspect.SENSES_LINGER_TICKS))
+                && perceives(who);
+    }
+
+    /** How long a line of sight is taken as read — the sense's own re-check pace, not every tick. */
+    private static final int REACH_TICKS = 10;
+
+    /** One reading of {@link #reaches}, and when. */
+    private record Reach(boolean reaches, long at) {
+    }
+
+    private final java.util.Map<BeingId, Reach> reach = new java.util.HashMap<>();
+
+    /**
+     * Vanilla's own {@code hasLineOfSight}, from the being to this body: what a mob targets along,
+     * an arrow flies along and a creeper keeps its fuse lit along.
+     */
+    @Override
+    public boolean reaches(BeingId who) {
+        if (!(this.person.level() instanceof ServerLevel level)) {
+            return true;
+        }
+        long now = level.getGameTime();
+        Reach known = this.reach.get(who);
+        if (known != null && now - known.at() < REACH_TICKS) {
+            return known.reaches();
+        }
+        LivingEntity body = AgentStriker.find(level, who);
+        boolean reaches = body == null || body.level() != level
+                || body.hasLineOfSight(this.person.entity());
+        this.reach.values().removeIf(old -> now - old.at() >= REACH_TICKS);
+        this.reach.put(who, new Reach(reaches, now));
+        return reaches;
+    }
+
     private boolean perceives(BeingId who) {
         for (Being being : beings()) {
             if (being.id().equals(who)) {

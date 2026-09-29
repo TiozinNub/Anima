@@ -162,6 +162,23 @@ public interface Percepts {
     }
 
     /**
+     * Whether this being has lately been heard battering a door down — a zombie breaking in, which
+     * no wall or shut door keeps out for long. Nothing heard by default.
+     */
+    default boolean batteringLately(BeingId who) {
+        return false;
+    }
+
+    /**
+     * Whether this being could hit this body from where it stands: vanilla's own line of sight for
+     * a mob, what an arrow flies along and what a creeper needs to keep its fuse lit. Glass, leaves
+     * and fences stop it. Yes by default, which is the safe answer for something that shoots.
+     */
+    default boolean reaches(BeingId who) {
+        return true;
+    }
+
+    /**
      * Whether this body's own walks keep failing stranded from about here — the suspicion that sends
      * {@link #confinement} looking wider (see {@code Setbacks.enclosed}). Nothing known by default.
      */
