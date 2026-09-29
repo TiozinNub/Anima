@@ -1226,6 +1226,10 @@ public final class AgentCommands {
         return Commands.literal(name)
                 .executes(ctx -> navGoto(ctx, BlockPosArgument.getLoadedBlockPos(ctx, "pos"), level,
                         null))
+                // At a run, as the wand's shift-click sends one: momentum is part of the question.
+                .then(Commands.literal("run")
+                        .executes(ctx -> navGoto(ctx, BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+                                level, null, Gait.SPRINT)))
                 .then(Commands.literal("within")
                         .then(Commands.argument("from", ColumnPosArgument.columnPos())
                                 .then(Commands.argument("to", ColumnPosArgument.columnPos())
@@ -1241,11 +1245,17 @@ public final class AgentCommands {
 
     private static int navGoto(CommandContext<CommandSourceStack> ctx, BlockPos pos, WalkLevel level,
                                @Nullable NavDomain fence) {
+        return navGoto(ctx, pos, level, fence, Gait.WALK);
+    }
+
+    private static int navGoto(CommandContext<CommandSourceStack> ctx, BlockPos pos, WalkLevel level,
+                               @Nullable NavDomain fence, Gait gait) {
         CommandSourceStack source = ctx.getSource();
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
-        person.navigator().pathTo(pos, Gait.WALK, level, fence);
-        OpJournal.record(source, person.agentId(), "walked to " + pos.toShortString() + " by hand"
+        person.navigator().pathTo(pos, gait, level, fence);
+        OpJournal.record(source, person.agentId(), (gait == Gait.SPRINT ? "ran" : "walked") + " to "
+                + pos.toShortString() + " by hand"
                 + (level == WalkLevel.SCALE ? "" : " (" + level.name().toLowerCase(Locale.ROOT) + ")"));
         Replies.send(source, () -> Component.translatable("anima.command.nav.goto",
                 person.entity().getName(), pos.toShortString()).withStyle(ChatFormatting.AQUA));
