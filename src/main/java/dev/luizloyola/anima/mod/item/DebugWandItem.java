@@ -2,6 +2,7 @@ package dev.luizloyola.anima.mod.item;
 
 import dev.luizloyola.anima.compat.Players;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.mod.command.AgentSelection;
 import dev.luizloyola.anima.mod.debug.DebugLayer;
@@ -10,6 +11,7 @@ import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.body.AgentBodies;
 import java.util.EnumSet;
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -76,7 +78,10 @@ public class DebugWandItem extends Item {
         Vec3 target = Vec3.atBottomCenterOf(context.getClickedPos().relative(context.getClickedFace()));
         // The gait is advisory all the way down — the follower still slows for careful ground and
         // still takes a leap's run-up at full speed — so a run is a request, not a cliff dive.
-        agent.navigateTo(target, hurry ? Gait.SPRINT : Gait.WALK);
+        // An operator's order may do whatever a walk may, laying blocks from the pocket included:
+        // at the gait's own level a wand walk never bridged or pillared (Luiz, 2026-09-29).
+        agent.navigator().pathTo(BlockPos.containing(target), hurry ? Gait.SPRINT : Gait.WALK,
+                WalkLevel.BUILD, null);
         Players.overlay(player, Component.translatable(
                 hurry ? "item.anima.debug_wand.running" : "item.anima.debug_wand.moving",
                 agent.entity().getName(), (int) target.x, (int) target.y, (int) target.z));
