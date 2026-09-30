@@ -31,6 +31,7 @@ import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.social.speech.Speech;
 import net.minecraft.core.UUIDUtil;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -388,9 +389,13 @@ public final class AnimaTasks {
                         Codec.STRING.fieldOf("item")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.PlaceBlock::itemId),
                         POS.fieldOf("at")
-                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceBlock::target)
-                ).apply(t, (item, at) -> new dev.luizloyola.anima.core.brain.task.PlaceBlock(
-                        item, at.x(), at.y(), at.z()))));
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceBlock::target),
+                        Codec.STRING.optionalFieldOf("block", "")
+                                .forGetter(p -> p.placing().block()),
+                        Codec.unboundedMap(Codec.STRING, Codec.STRING).optionalFieldOf("orientation", Map.of())
+                                .forGetter(p -> p.placing().orientation())
+                ).apply(t, (item, at, block, orientation) -> new dev.luizloyola.anima.core.brain.task.PlaceBlock(
+                        new dev.luizloyola.anima.core.brain.act.Placing(item, at, block, orientation)))));
 
         TaskCodecs.register("anima:note_place", dev.luizloyola.anima.core.brain.task.NotePlace.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

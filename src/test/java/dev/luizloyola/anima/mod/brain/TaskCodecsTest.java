@@ -197,6 +197,25 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aPlaceComesBackWithTheBlockAndTheWayItFaces() {
+        var before = new dev.luizloyola.anima.core.brain.task.PlaceBlock(
+                new dev.luizloyola.anima.core.brain.act.Placing("minecraft:torch", new Pos(3, 65, -7),
+                        "minecraft:wall_torch", java.util.Map.of("facing", "south")));
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PlaceBlock.class, roundTrip(before));
+        assertEquals(before.placing(), after.placing());
+    }
+
+    @Test
+    void aPlaceSavedBeforeItHadAnOrientationStillLoads() {
+        var saved = com.google.gson.JsonParser.parseString(
+                "{\"task\":\"anima:place\",\"item\":\"minecraft:dirt\",\"at\":{\"x\":1,\"y\":2,\"z\":3}}");
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PlaceBlock.class,
+                TaskCodecs.codec().parse(JsonOps.INSTANCE, saved).getOrThrow());
+        assertEquals(dev.luizloyola.anima.core.brain.act.Placing.of("minecraft:dirt", new Pos(1, 2, 3)),
+                after.placing());
+    }
+
+    @Test
     void everyRegisteredTypeIsReachableFromAnInstance() {
         // The dispatch is by concrete class; a type registered under a key its instances do not
         // map back to would encode fine and fail to parse, which is the worst way round.

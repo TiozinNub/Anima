@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.act.Placing;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 
 /**
@@ -11,18 +12,19 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
  */
 public final class PlaceBlock implements PrimitiveTask {
 
-    private final String itemId;
-    private final Pos target;
+    private final Placing placing;
 
     public PlaceBlock(String itemId, int x, int y, int z) {
-        this.itemId = itemId;
-        this.target = new Pos(x, y, z);
+        this(Placing.of(itemId, new Pos(x, y, z)));
+    }
+
+    public PlaceBlock(Placing placing) {
+        this.placing = placing;
     }
 
     @Override
     public TaskStatus tick(BrainContext ctx) {
-        return ctx.actuators().placer().place(itemId, target)
-                ? TaskStatus.SUCCESS : TaskStatus.FAILED;
+        return ctx.actuators().placer().place(placing) ? TaskStatus.SUCCESS : TaskStatus.FAILED;
     }
 
     @Override
@@ -32,21 +34,24 @@ public final class PlaceBlock implements PrimitiveTask {
 
     @Override
     public String describe() {
-        return "place " + itemId + " at (" + target.x() + ", " + target.y() + ", " + target.z() + ")";
+        return "place " + placing;
     }
 
     @Override
     public String failureDetail() {
-        return "could not place " + itemId + " at (" + target.x() + ", " + target.y() + ", "
-                + target.z() + ")";
+        return "could not place " + placing;
+    }
+
+    public Placing placing() {
+        return placing;
     }
 
     public String itemId() {
-        return itemId;
+        return placing.itemId();
     }
 
     public Pos target() {
-        return target;
+        return placing.cell();
     }
 
     /**

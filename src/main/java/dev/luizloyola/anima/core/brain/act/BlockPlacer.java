@@ -9,8 +9,15 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
  * consumed from the CARRIED INVENTORY — the source of truth, the equipment mirror follows) or
  * refuses and returns {@code false} — nothing carried, target occupied, the block can't survive
  * there, out of reach — with nothing changed.
+ *
+ * <p>A cell already holding the same block takes it again where vanilla counts it — a second
+ * candle, a slab made double — and a door or a bed places its other half, as they do for a player.
  */
 public interface BlockPlacer {
-    /** Place one {@code itemId} block at the cell; true exactly when the world changed. */
-    boolean place(String itemId, Pos target);
+    /** True exactly when the world changed. */
+    boolean place(Placing placing);
+
+    default boolean place(String itemId, Pos target) {
+        return place(Placing.of(itemId, target));
+    }
 }

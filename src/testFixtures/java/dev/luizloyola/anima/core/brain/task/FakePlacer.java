@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.act.BlockPlacer;
+import dev.luizloyola.anima.core.brain.act.Placing;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,14 +15,16 @@ public final class FakePlacer implements BlockPlacer {
     }
 
     public final List<Placement> placed = new ArrayList<>();
+    public final List<Placing> placings = new ArrayList<>();
     public boolean refuse;
 
     @Override
-    public boolean place(String itemId, Pos target) {
+    public boolean place(Placing placing) {
         if (refuse) {
             return false;
         }
-        placed.add(new Placement(itemId, target));
+        placed.add(new Placement(placing.itemId(), placing.cell()));
+        placings.add(placing);
         return true;
     }
 }

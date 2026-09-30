@@ -110,6 +110,8 @@ import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.commands.arguments.coordinates.Vec3Argument;
+import net.minecraft.commands.arguments.blocks.BlockInput;
+import net.minecraft.commands.arguments.blocks.BlockStateArgument;
 import net.minecraft.commands.arguments.item.ItemArgument;
 import net.minecraft.commands.arguments.item.ItemInput;
 import net.minecraft.core.BlockPos;
@@ -717,6 +719,19 @@ public final class AgentCommands {
                                         .then(Commands.argument("on", BoolArgumentType.bool())
                                                 .executes(ctx -> brainWander(ctx,
                                                         BoolArgumentType.getBool(ctx, "on")))));
+    }
+
+    /**
+     * {@code brain place <pos> <block>}: place one block as a settler would, from where the body
+     * stands — the item carried, the properties written out set as its orientation. Mounted beside
+     * {@link #brain()} by whoever has the registries to parse a block.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> place(CommandBuildContext registryAccess) {
+        return Commands.literal("place")
+                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                        .then(Commands.argument("block", BlockStateArgument.block(registryAccess))
+                                .executes(ctx -> brainPlace(ctx, BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+                                        BlockStateArgument.getBlock(ctx, "block")))));
     }
 
     /**
@@ -1540,6 +1555,40 @@ public final class AgentCommands {
                 person.entity().getName(), person.brain().describe())
                 .append(suffix).withStyle(ChatFormatting.AQUA));
         return 1;
+    }
+
+    private static int brainPlace(CommandContext<CommandSourceStack> ctx, BlockPos pos, BlockInput input) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        net.minecraft.world.level.block.state.BlockState state = input.getState();
+        net.minecraft.world.item.Item item = state.getBlock().asItem();
+        if (item == net.minecraft.world.item.Items.AIR) {
+            Replies.fail(source, Component.translatable("anima.command.brain.not_placeable",
+                    state.getBlock().getName()));
+            return 0;
+        }
+        Map<String, String> orientation = new LinkedHashMap<>();
+        for (net.minecraft.world.level.block.state.properties.Property<?> property : input.getDefinedProperties()) {
+            orientation.put(property.getName(), valueName(state, property));
+        }
+        dev.luizloyola.anima.core.brain.act.Placing placing = new dev.luizloyola.anima.core.brain.act.Placing(
+                net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString(),
+                new Pos(pos.getX(), pos.getY(), pos.getZ()),
+                net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(),
+                orientation);
+        boolean autoDisabled = person.brain().run(new dev.luizloyola.anima.core.brain.task.PlaceBlock(placing));
+        OpJournal.record(source, person.agentId(), "given a block to place: " + placing
+                + (autoDisabled ? ", autonomy off" : ""));
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                person.entity().getName(), person.brain().describe())
+                .append(autoDisabledNote(autoDisabled)).withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
+    private static <T extends Comparable<T>> String valueName(net.minecraft.world.level.block.state.BlockState state,
+                                                             net.minecraft.world.level.block.state.properties.Property<T> property) {
+        return property.getName(state.getValue(property));
     }
 
     /**
