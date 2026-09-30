@@ -73,10 +73,14 @@ public final class BrainState {
             Codec.STRING.optionalFieldOf("entry", Combatant.Entry.WALKS.name())
                     .forGetter(them -> them.entry().name()),
             Codec.BOOL.optionalFieldOf("small", false).forGetter(Combatant::small),
-            Codec.BOOL.optionalFieldOf("shoots", false).forGetter(Combatant::shoots)
+            Codec.BOOL.optionalFieldOf("shoots", false).forGetter(Combatant::shoots),
+            // Absent from a fight saved before a blow could pierce armour or leave poison.
+            Codec.BOOL.optionalFieldOf("piercing", false).forGetter(Combatant::piercing),
+            Codec.INT.optionalFieldOf("lingerTicks", 0).forGetter(Combatant::lingerTicks)
     ).apply(c, (health, maxHealth, armor, toughness, damage, hits, pace, fuse, blast, entry,
-            small, shoots) -> new Combatant(health, maxHealth, armor, toughness, damage, hits, pace,
-            fuse, blast, Combatant.Entry.valueOf(entry), small, shoots)));
+            small, shoots, piercing, linger) -> new Combatant(health, maxHealth, armor, toughness,
+            damage, hits, pace, fuse, blast, Combatant.Entry.valueOf(entry), small, shoots,
+            piercing, linger)));
 
     private record Shown(BeingId who, Combatant as) {
     }

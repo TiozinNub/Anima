@@ -21,10 +21,8 @@ import org.jspecify.annotations.Nullable;
  * where vanilla keeps them in a goal rather than on the body, they are the goal's constants:
  *
  * <ul>
- *   <li>a mob lands a melee hit every 20 ticks ({@code MeleeAttackGoal}), for its
- *       {@code attack_damage}, which already carries its weapon;</li>
- *   <li>a bow or crossbow in a mob's hand is an arrow of about 4 every 40 ticks — a skeleton's
- *       interval below hard difficulty;</li>
+ *   <li>how a mob hurts, and how often, is {@link MobAttacks}: read off its goals where they hold
+ *       it, from the mob attack reference (2026-09-30) where only code does;</li>
  *   <li>a mob chases at about {@code movement_speed² / 0.454} blocks a tick ({@code Mob.setSpeed}
  *       also sets the forward input, so the attribute counts twice); a player or an agent walks at
  *       {@code movement_speed × 2.16} and sprints 1.3 times that;</li>
@@ -40,10 +38,6 @@ public final class Fighters {
     /** Blocks a tick one point of {@code movement_speed} walks a player-shaped body. */
     static final double WALK_PER_SPEED = 2.16;
     static final double SPRINT = 1.3;
-    /** A mob's melee cooldown, as hits a second. */
-    static final double MOB_HITS_PER_SECOND = 1.0;
-    static final double ARROW_DAMAGE = 4.0;
-    static final double ARROWS_PER_SECOND = 0.5;
     /** A creeper's explosion power: its default {@code ExplosionRadius}. */
     static final double CREEPER_POWER = 3.0;
 
@@ -72,14 +66,16 @@ public final class Fighters {
         double pace;
         double fuse = 0.0;
         double blastReach = 0.0;
+        boolean piercing = false;
+        int linger = 0;
         if (body instanceof Mob mob) {
             double speed = value(mob, Attributes.MOVEMENT_SPEED);
             pace = speed * speed / 0.454;
-            hits = damage > 0.0 ? MOB_HITS_PER_SECOND : 0.0;
-            if (mob.getMainHandItem().getItem() instanceof ProjectileWeaponItem) {
-                damage = ARROW_DAMAGE;
-                hits = ARROWS_PER_SECOND;
-            }
+            MobAttacks.Attack attack = MobAttacks.of(mob);
+            damage = attack.damage();
+            hits = attack.perSecond();
+            piercing = attack.piercing();
+            linger = attack.lingerTicks();
             if (mob instanceof Creeper creeper) {
                 fuse = Mth.clamp(creeper.getSwelling(1.0F), 0.0F, 1.0F);
                 blastReach = 2.0 * CREEPER_POWER * (creeper.isPowered() ? 2.0 : 1.0);
@@ -90,7 +86,8 @@ public final class Fighters {
         }
         return new Combatant(body.getHealth(), body.getMaxHealth(), body.getArmorValue(),
                 value(body, Attributes.ARMOR_TOUGHNESS), damage, hits, pace, fuse, blastReach,
-                entry(body), body.getBbWidth() < 1.0F && body.getBbHeight() < 1.0F, shoots(body));
+                entry(body), body.getBbWidth() < 1.0F && body.getBbHeight() < 1.0F, shoots(body),
+                piercing, linger);
     }
 
     /**

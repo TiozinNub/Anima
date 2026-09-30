@@ -675,7 +675,32 @@ public final class AgentCommands {
     }
 
     public static LiteralArgumentBuilder<CommandSourceStack> probe() {
-        return Commands.literal("probe").then(ProbeDump.node());
+        return Commands.literal("probe").then(ProbeDump.node())
+                .then(Commands.literal("combatant")
+                        .then(Commands.argument("target", EntityArgument.entity())
+                                .executes(ctx -> probeCombatant(ctx.getSource(),
+                                        EntityArgument.getEntity(ctx, "target")))));
+    }
+
+    /** How a body stands in a fight as fight or flight reads it: the blow, its rhythm, what it leaves. */
+    private static int probeCombatant(CommandSourceStack source, Entity target) {
+        dev.luizloyola.anima.core.brain.sense.Combatant them = target instanceof LivingEntity living
+                ? dev.luizloyola.anima.compat.agent.Fighters.read(living, true) : null;
+        if (them == null) {
+            Replies.send(source, () -> Component.translatable("anima.command.probe.combatant.none",
+                    target.getName()).withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        String interval = them.hitsPerSecond() > 0.0
+                ? String.format(Locale.ROOT, "%.1f", 20.0 / them.hitsPerSecond()) : "-";
+        Replies.send(source, () -> Component.translatable("anima.command.probe.combatant",
+                target.getName(), String.format(Locale.ROOT, "%.2f", them.damage()), interval,
+                String.format(Locale.ROOT, "%.2f", them.damagePerSecondAgainst(0.0, 0.0)),
+                Component.translatable(them.piercing()
+                        ? "anima.command.probe.combatant.piercing" : "anima.command.probe.combatant.armoured"),
+                them.lingerTicks() > 0 ? String.valueOf(them.lingerTicks()) : "-",
+                String.format(Locale.ROOT, "%.3f", them.pace())));
+        return 1;
     }
 
     /**

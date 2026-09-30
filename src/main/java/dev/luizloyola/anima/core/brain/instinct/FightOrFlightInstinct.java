@@ -9,6 +9,7 @@ import dev.luizloyola.anima.core.brain.history.Whom;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Combatant;
+import dev.luizloyola.anima.core.brain.sense.Incoming;
 import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.brain.sense.Sides;
@@ -281,7 +282,7 @@ public final class FightOrFlightInstinct implements Instinct {
         unreachable.values().removeIf(until -> until <= now);
         AgentProfile profile = ctx.profile();
         Combatant me = percepts.selfAsCombatant().orElse(null);
-        double theirDamagePerSecond = 0.0;
+        java.util.List<Combatant> hitting = new java.util.ArrayList<>();
         double blast = 0.0;
         boolean fuseBurning = false;
         boolean outrunsAll = true;
@@ -327,7 +328,7 @@ public final class FightOrFlightInstinct implements Instinct {
             }
             counted.put(being.id(), now);
             countedNow.add(being.id());
-            theirDamagePerSecond += them.damagePerSecondAgainst(me.armor(), me.toughness());
+            hitting.add(them);
             if (!outruns(me, them)) {
                 outrunsAll = false;
             }
@@ -355,7 +356,7 @@ public final class FightOrFlightInstinct implements Instinct {
                     continue;
                 }
                 Combatant them = shown.get(entry.getKey());
-                theirDamagePerSecond += them.damagePerSecondAgainst(me.armor(), me.toughness());
+                hitting.add(them);
                 if (!outruns(me, them)) {
                     outrunsAll = false;
                 }
@@ -380,6 +381,7 @@ public final class FightOrFlightInstinct implements Instinct {
         } else if (me == null || best == null) {
             stance = new Stance(false, null, 0.0, cornered, blast, "running: nothing to fight");
         } else {
+            double theirDamagePerSecond = Incoming.perSecond(hitting, me.armor(), me.toughness());
             double dieTime = theirDamagePerSecond > 0.0
                     ? me.health() / theirDamagePerSecond : Double.POSITIVE_INFINITY;
             double balance = dieTime / bestKillTime;
@@ -412,7 +414,9 @@ public final class FightOrFlightInstinct implements Instinct {
                 hitsHarder(live, known) ? live.damage() : known.damage(),
                 hitsHarder(live, known) ? live.hitsPerSecond() : known.hitsPerSecond(),
                 live.pace(), live.fuse(), live.blastReach(), live.entry(), live.small(),
-                live.shoots());
+                live.shoots(), hitsHarder(live, known) ? live.piercing() : known.piercing(),
+                Math.max(live.lingerTicks(), known.lingerTicks()) > 0
+                        ? positiveMin(live.lingerTicks(), known.lingerTicks()) : 0);
         shown.put(who, judged);
         return judged;
     }
@@ -421,6 +425,11 @@ public final class FightOrFlightInstinct implements Instinct {
     private static boolean outruns(Combatant me, Combatant them) {
         boolean dangerous = them.hitsPerSecond() > 0.0 || them.blastReach() > 0.0;
         return !dangerous || them.pace() <= me.pace();
+    }
+
+    /** The shorter of two linger periods, where 0 means none. */
+    private static int positiveMin(int a, int b) {
+        return a <= 0 ? b : b <= 0 ? a : Math.min(a, b);
     }
 
     private static boolean hitsHarder(Combatant a, Combatant b) {

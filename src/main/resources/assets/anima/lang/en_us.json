@@ -605,5 +605,9 @@
   "anima.talk.busy.you": "You're still talking to %s.",
   "anima.talk.busy.now": "%s is busy right now.",
   "anima.talk.busy.them": "%s is already talking to someone.",
-  "tag.item.anima.bridging_blocks": "Bridging Blocks"
+  "tag.item.anima.bridging_blocks": "Bridging Blocks",
+  "anima.command.probe.combatant": "%s: %s a blow every %s ticks (%s/s unarmoured), %s; lingers every %s ticks; chases at %s b/t",
+  "anima.command.probe.combatant.none": "%s is not a body that fights.",
+  "anima.command.probe.combatant.piercing": "ignores armour",
+  "anima.command.probe.combatant.armoured": "armour stops it"
 }

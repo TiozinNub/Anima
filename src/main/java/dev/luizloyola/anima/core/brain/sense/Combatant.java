@@ -18,10 +18,15 @@ package dev.luizloyola.anima.core.brain.sense;
  * @param small        whether it fits a gap one block wide and one high
  * @param shoots       whether it hurts from range: a bow or a trident in hand, or a species that
  *                     shoots bare-handed (a blaze, a ghast)
+ * @param piercing     whether its blow ignores armour: a witch's Harming, an evoker's fangs
+ * @param lingerTicks  what its blows leave behind while it keeps landing them — poison, wither,
+ *                     fire — as one point of armour-piercing damage every this many ticks; 0 for
+ *                     none
  */
 public record Combatant(double health, double maxHealth, double armor, double toughness,
                         double damage, double hitsPerSecond, double pace,
-                        double fuse, double blastReach, Entry entry, boolean small, boolean shoots) {
+                        double fuse, double blastReach, Entry entry, boolean small, boolean shoots,
+                        boolean piercing, int lingerTicks) {
 
     /** How a body gets in to somebody behind walls. */
     public enum Entry {
@@ -33,17 +38,33 @@ public record Combatant(double health, double maxHealth, double armor, double to
         PASSES_WALLS
     }
 
+    /** A blow that armour stops and leaves nothing behind. */
+    public Combatant(double health, double maxHealth, double armor, double toughness,
+                     double damage, double hitsPerSecond, double pace,
+                     double fuse, double blastReach, Entry entry, boolean small, boolean shoots) {
+        this(health, maxHealth, armor, toughness, damage, hitsPerSecond, pace, fuse, blastReach,
+                entry, small, shoots, false, 0);
+    }
+
     /** A walker of ordinary size that does not shoot — the fight numbers alone. */
     public Combatant(double health, double maxHealth, double armor, double toughness,
                      double damage, double hitsPerSecond, double pace,
                      double fuse, double blastReach) {
         this(health, maxHealth, armor, toughness, damage, hitsPerSecond, pace, fuse, blastReach,
-                Entry.WALKS, false, false);
+                Entry.WALKS, false, false, false, 0);
     }
 
-    /** Damage a second at full rate, against a victim wearing this much armour. */
+    /**
+     * Damage a second at full rate, against a victim wearing this much armour, its blows alone.
+     * Several attackers, or a blow and what it leaves, do not add up: see {@link Incoming}.
+     */
     public double damagePerSecondAgainst(double victimArmor, double victimToughness) {
-        return afterArmor(damage, victimArmor, victimToughness) * hitsPerSecond;
+        return hit(victimArmor, victimToughness) * hitsPerSecond;
+    }
+
+    /** One blow, against a victim wearing this much armour. */
+    public double hit(double victimArmor, double victimToughness) {
+        return piercing ? damage : afterArmor(damage, victimArmor, victimToughness);
     }
 
     /**
