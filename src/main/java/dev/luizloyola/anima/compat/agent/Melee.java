@@ -1,8 +1,10 @@
 package dev.luizloyola.anima.compat.agent;
 
+import dev.luizloyola.anima.core.brain.act.WeaponChoice;
 import dev.luizloyola.anima.mixin.LivingEntityAttackStrengthAccessor;
 import java.util.function.Predicate;
 import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
@@ -22,6 +24,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.Weapon;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.phys.Vec3;
 
@@ -81,7 +84,7 @@ public final class Melee {
      * What {@code weapon} in hand would deal at full charge: attack damage and attack speed, from
      * the body's own base values and the item's main-hand modifiers. Everything else on the body —
      * potions, what it holds now — would move every candidate alike, so it is left out.
-     * Enchantments are left out too.
+     * Enchantments are left out too: they depend on the target.
      */
     public static Hit hit(LivingEntity body, ItemStack weapon) {
         double[] damage = {base(body, Attributes.ATTACK_DAMAGE), 0.0, 1.0};
@@ -94,6 +97,32 @@ public final class Melee {
             }
         });
         return new Hit(total(damage), total(speed));
+    }
+
+    /**
+     * {@link #hit(LivingEntity, ItemStack)} against {@code target}: what the enchantments add
+     * against it too, as a full-charge blow gets them — Smite against the undead, Sharpness always.
+     */
+    public static Hit hit(ServerLevel level, LivingEntity body, ItemStack weapon, LivingEntity target) {
+        Hit plain = hit(body, weapon);
+        float base = (float) plain.damage();
+        float enchanted = EnchantmentHelper.modifyDamage(level, weapon, target, source(body, weapon), base);
+        return new Hit(plain.damage() + Math.max(0.0F, enchanted - base), plain.perSecond());
+    }
+
+    /**
+     * Blows {@code weapon} has left before it breaks, the breaking one included: its remaining
+     * durability over the wear a blow costs it ({@code weapon} component: a sword 1, a tool 2).
+     * Unbreaking is left out, so this never overcounts. {@link WeaponChoice#UNBREAKING} for a stack
+     * that does not wear.
+     */
+    public static int blowsLeft(ItemStack weapon) {
+        Weapon wear = weapon.get(DataComponents.WEAPON);
+        if (wear == null || wear.itemDamagePerAttack() <= 0 || !weapon.isDamageableItem()) {
+            return WeaponChoice.UNBREAKING;
+        }
+        int remaining = weapon.getMaxDamage() - weapon.getDamageValue();
+        return Math.max(1, Mth.ceil((float) remaining / wear.itemDamagePerAttack()));
     }
 
     public static double damagePerSecond(LivingEntity body, ItemStack weapon) {
@@ -146,12 +175,7 @@ public final class Melee {
         }
         ItemStack weapon = body.getWeaponItem();
         float baseDamage = (float) body.getAttributeValue(Attributes.ATTACK_DAMAGE);
-        //? if >=26.2 {
-        /*DamageSource source = weapon.getDamageSource(body);
-        *///?} else {
-        DamageSource source = weapon.getDamageSource(body,
-                () -> body.damageSources().mobAttack(body));
-        //?}
+        DamageSource source = source(body, weapon);
         float charge = charge(body);
         float magicBoost = charge
                 * (EnchantmentHelper.modifyDamage(level, weapon, target, source, baseDamage) - baseDamage);
@@ -254,6 +278,15 @@ public final class Melee {
         }
         level.sendParticles(ParticleTypes.SWEEP_ATTACK, body.getX() + facing.x, body.getY(0.5),
                 body.getZ() + facing.z, 0, facing.x, 0.0, facing.z, 0.0);
+    }
+
+    /** The damage a blow with {@code weapon} deals is of this kind: a mob's attack unless the item says. */
+    private static DamageSource source(LivingEntity body, ItemStack weapon) {
+        //? if >=26.2 {
+        /*return weapon.getDamageSource(body);
+        *///?} else {
+        return weapon.getDamageSource(body, () -> body.damageSources().mobAttack(body));
+        //?}
     }
 
     private static void sound(ServerLevel level, LivingEntity body, SoundEvent sound) {

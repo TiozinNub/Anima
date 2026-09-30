@@ -334,7 +334,7 @@ public final class FightOrFlightInstinct implements Instinct {
             if (unreachable.containsKey(being.id())) {
                 continue;
             }
-            double killTime = killTime(me, being, them);
+            double killTime = killTime(percepts.selfAsCombatant(being.id()).orElse(me), being, them);
             double value = fear * (attackedMe ? ATTACKER_BONUS : 1.0) / (1.0 + killTime)
                     * (being.id().equals(fighting) ? TARGET_STICKINESS : 1.0);
             if (best == null || value > bestValue) {

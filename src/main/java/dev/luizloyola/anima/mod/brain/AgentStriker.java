@@ -4,6 +4,7 @@ import dev.luizloyola.anima.compat.agent.Melee;
 import dev.luizloyola.anima.compat.inv.ItemStacks;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.Metabolism;
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.act.Striker;
 import dev.luizloyola.anima.core.brain.act.Sweep;
 import dev.luizloyola.anima.core.brain.act.ToolChoice;
@@ -19,6 +20,7 @@ import java.util.List;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
@@ -97,9 +99,9 @@ public final class AgentStriker implements Striker {
     }
 
     @Override
-    public boolean draw() {
+    public boolean draw(BeingId target) {
         Inventory inv = body.inventory();
-        int choice = choose();
+        int choice = choose(find(target));
         if (choice == ToolChoice.KEEP_HAND) {
             return false;
         }
@@ -111,21 +113,25 @@ public final class AgentStriker implements Striker {
         return true;
     }
 
-    /** The hit of the weapon {@link #draw} would put in hand: what a fight would be fought with. */
-    public Melee.Hit bestHit() {
+    /**
+     * The hit of the weapon {@link #draw} would put in hand against {@code target}: what a fight
+     * with it would be fought with. Wear is left out — the balance weighs a whole fight, not one
+     * weapon's last blows.
+     */
+    public Melee.Hit bestHit(@Nullable LivingEntity target) {
         Inventory inv = body.inventory();
         LivingEntity self = body.entity();
-        int choice = choose();
+        int choice = choose(target);
         int slot = choice == ToolChoice.KEEP_HAND
                 ? Inventory.HOTBAR_START + inv.selectedSlot() : choice;
         ItemStack stack = choice == ToolChoice.BARE_HAND
                 ? ItemStack.EMPTY
                 : ItemStacks.toVanilla(inv.get(slot), self.level().registryAccess());
-        return Melee.hit(self, stack);
+        return measure(self, stack, target);
     }
 
-    /** {@link WeaponChoice} over the pack as it is now. */
-    private int choose() {
+    /** {@link WeaponChoice} over the pack as it is now, against {@code target} if there is one. */
+    private int choose(@Nullable LivingEntity target) {
         Inventory inv = body.inventory();
         LivingEntity self = body.entity();
         HolderLookup.Provider registries = self.level().registryAccess();
@@ -133,12 +139,25 @@ public final class AgentStriker implements Striker {
         for (int slot = 0; slot < Inventory.ARMOR_START; slot++) {
             dev.luizloyola.anima.core.inv.ItemStack core = inv.get(slot);
             if (!core.isEmpty()) {
-                pack.add(new WeaponChoice.Candidate(slot,
-                        Melee.damagePerSecond(self, ItemStacks.toVanilla(core, registries))));
+                ItemStack stack = ItemStacks.toVanilla(core, registries);
+                Melee.Hit hit = measure(self, stack, target);
+                pack.add(new WeaponChoice.Candidate(slot, hit.damage(), hit.perSecond(),
+                        Melee.blowsLeft(stack)));
             }
         }
-        return WeaponChoice.choose(pack, Inventory.HOTBAR_START + inv.selectedSlot(),
-                Melee.damagePerSecond(self, ItemStack.EMPTY));
+        Melee.Hit fist = Melee.hit(self, ItemStack.EMPTY);
+        WeaponChoice.Candidate bare = new WeaponChoice.Candidate(ToolChoice.BARE_HAND,
+                fist.damage(), fist.perSecond(), WeaponChoice.UNBREAKING);
+        WeaponChoice.Foe foe = target == null || target.isDeadOrDying() ? null
+                : new WeaponChoice.Foe(target.getHealth(), target.getArmorValue(),
+                        target.getAttributeValue(Attributes.ARMOR_TOUGHNESS));
+        return WeaponChoice.choose(pack, Inventory.HOTBAR_START + inv.selectedSlot(), bare, foe,
+                body.profile().i(ProfileAspect.HANDLING_STACK_TICKS) / 20.0);
+    }
+
+    private static Melee.Hit measure(LivingEntity self, ItemStack stack, @Nullable LivingEntity target) {
+        return target != null && self.level() instanceof ServerLevel level
+                ? Melee.hit(level, self, stack, target) : Melee.hit(self, stack);
     }
 
     /** The charge counter, for the body's save: a reload must not cost a fighter its warmup. */

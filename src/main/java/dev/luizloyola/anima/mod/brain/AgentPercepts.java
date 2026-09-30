@@ -226,11 +226,24 @@ public final class AgentPercepts implements Percepts {
     /** This body, hitting with the weapon its arm would draw rather than whatever it holds. */
     @Override
     public java.util.Optional<Combatant> selfAsCombatant() {
+        return selfAgainst(null);
+    }
+
+    /** Only for a being this body perceives: the arm would not know whom it was sizing up for. */
+    @Override
+    public java.util.Optional<Combatant> selfAsCombatant(BeingId against) {
+        if (!(this.person.level() instanceof ServerLevel level) || !perceives(against)) {
+            return selfAsCombatant();
+        }
+        return selfAgainst(AgentStriker.find(level, against));
+    }
+
+    private java.util.Optional<Combatant> selfAgainst(@org.jspecify.annotations.Nullable LivingEntity target) {
         Combatant body = Fighters.read(this.person.entity(), this.person.metabolism().canSprint());
         if (body == null) {
             return java.util.Optional.empty();
         }
-        Melee.Hit hit = this.person.striker().bestHit();
+        Melee.Hit hit = this.person.striker().bestHit(target);
         // In a standing fight its blows land the held part of a reaction after each charge.
         double hold = this.person.profile().i(ProfileAspect.COMBAT_REACTION_HOLD_TICKS);
         double perSecond = hit.perSecond() > 0.0

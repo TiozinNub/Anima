@@ -48,10 +48,11 @@ public interface Striker {
     boolean strike(BeingId target);
 
     /**
-     * Puts the pack's best weapon in hand ({@link WeaponChoice}); true when the hand changed. A
-     * hand that just changed has not charged, whatever {@link #charge} said a moment ago.
+     * Puts the pack's best weapon against {@code target} in hand ({@link WeaponChoice}); true when
+     * the hand changed. A hand that just changed has not charged, whatever {@link #charge} said a
+     * moment ago.
      */
-    boolean draw();
+    boolean draw(BeingId target);
 
     /** A body with no fighting arm: nothing is ever in reach. */
     Striker NONE = new Striker() {
@@ -71,7 +72,7 @@ public interface Striker {
         }
 
         @Override
-        public boolean draw() {
+        public boolean draw(BeingId target) {
             return false;
         }
     };

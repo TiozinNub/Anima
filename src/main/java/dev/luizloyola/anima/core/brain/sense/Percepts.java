@@ -113,6 +113,14 @@ public interface Percepts {
     }
 
     /**
+     * {@link #selfAsCombatant()} with the weapon its arm would draw against {@code against} — a
+     * Smite sword for a zombie, say — and its hit counting what the enchantments add against it.
+     */
+    default java.util.Optional<Combatant> selfAsCombatant(BeingId against) {
+        return selfAsCombatant();
+    }
+
+    /**
      * Nearby people — the {@link Being.Kind#PERSON} view over {@link #beings()}: other Persons
      * And live players, one list, indistinguishable. The substrate every social
      * behavior stands on.

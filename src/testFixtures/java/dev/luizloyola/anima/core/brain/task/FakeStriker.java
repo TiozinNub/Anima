@@ -44,7 +44,7 @@ public final class FakeStriker implements Striker {
     }
 
     @Override
-    public boolean draw() {
+    public boolean draw(BeingId target) {
         draws++;
         boolean changed = drawChanges;
         drawChanges = false;

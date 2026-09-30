@@ -82,7 +82,7 @@ public final class Engage implements PrimitiveTask {
         boolean asked = false;
         boolean handChanged = false;
         if (!drawn) {
-            handChanged = arm.draw();
+            handChanged = arm.draw(target);
             asked = true;
             drawn = true;
         }
@@ -95,7 +95,7 @@ public final class Engage implements PrimitiveTask {
             if (reaction < 0) {
                 reaction = whole; // came into reach: the reaction starts now, charged or not
                 if (!asked) {
-                    handChanged = arm.draw(); // the last blow may have broken the weapon
+                    handChanged = arm.draw(target); // the last blow may have broken the weapon
                 }
             }
             // A hand that changed this tick has not charged, whatever the counter said a moment ago.
