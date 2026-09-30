@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.AgentProfile;
@@ -128,6 +129,66 @@ class BlockKindTest {
 
         assertTrue(events.stream().noneMatch(e -> e.type() == SenseEvent.Type.NOTED),
                 "declaring a block kind is not declaring that it matters: " + events);
+    }
+
+    @Test
+    @DisplayName("a consumer's kind of rock is ground to everybody else")
+    void aKindMayBeSolidGround() {
+        BlockKind rock = BlockKind.registerGround("test_rock");
+
+        assertTrue(BlockKind.OTHER.ground());
+        assertTrue(rock.ground());
+        assertFalse(GOURD.ground());
+        assertFalse(BlockKind.LOG.ground());
+        assertFalse(BlockKind.AIR.ground());
+        assertSame(rock, BlockKind.registerGround("test_rock"));
+        assertThrows(IllegalStateException.class, () -> BlockKind.register("test_rock"),
+                "two mods disagreeing about whether it holds a body up");
+    }
+
+    @Test
+    @DisplayName("a rule may take less of a mass than the operator's cap")
+    void aRuleMayCapItsOwnGrowth() {
+        GrowthRule capped = new GrowthRule() {
+            @Override
+            public PoiKind kind() {
+                return GourdRule.PATCH;
+            }
+
+            @Override
+            public boolean joins(Pos p, BlockKind kind, BlockProbe probe) {
+                return kind == GOURD;
+            }
+
+            @Override
+            public List<Evaluation> evaluate(Map<Pos, BlockKind> blocks, BlockProbe probe) {
+                return GourdRule.INSTANCE.evaluate(blocks, probe);
+            }
+
+            @Override
+            public int maxBlocks() {
+                return 5;
+            }
+        };
+        GrowthRules.register(GOURD, capped);
+        FakeProbe probe = new FakeProbe();
+        for (int dx = 0; dx < 5; dx++) {
+            for (int dz = 0; dz < 5; dz++) {
+                probe.set(2 + dx, FakeProbe.GROUND_Y + 1, 2 + dz, GOURD);
+            }
+        }
+
+        AgentKnowledge knowledge = new AgentKnowledge();
+        PoiSensorCore sensor = new PoiSensorCore(knowledge, eyed());
+        for (int tick = 1; tick <= 40; tick++) {
+            sensor.tick(HERE, AHEAD, tick, probe);
+        }
+
+        assertFalse(knowledge.all(GourdRule.PATCH).isEmpty());
+        for (PoiMemory memory : knowledge.all(GourdRule.PATCH)) {
+            assertEquals(5, memory.units(), "one growth took five of the twenty-five");
+            assertTrue(memory.partial(), "and says there is at least that much");
+        }
     }
 
     private static AgentProfile eyed() {

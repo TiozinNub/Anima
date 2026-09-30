@@ -44,7 +44,7 @@ public final class BlockKind {
     public static final BlockKind WATER = register("water");
 
     /** Something, with no better name for it — stone, dirt, a chest, a pumpkin nobody claimed. */
-    public static final BlockKind OTHER = register("other");
+    public static final BlockKind OTHER = registerGround("other");
 
     /**
      * Out of reach — unloaded chunk or outside the world. Growth stops here and marks the region
@@ -53,12 +53,14 @@ public final class BlockKind {
     public static final BlockKind UNKNOWN = register("unknown");
 
     private final String key;
+    private final boolean ground;
 
     /** Owned by {@link GrowthRules}: a field, not a map, because every probed column asks it. */
     GrowthRule growth;
 
-    private BlockKind(String key) {
+    private BlockKind(String key, boolean ground) {
         this.key = key;
+        this.ground = ground;
     }
 
     /**
@@ -68,7 +70,30 @@ public final class BlockKind {
      * @param key stable id, and what a listing shows
      */
     public static synchronized BlockKind register(String key) {
-        return REGISTERED.computeIfAbsent(key, BlockKind::new);
+        return register(key, false);
+    }
+
+    /**
+     * Declares a kind that is solid ground as much as {@link #OTHER} is — stone, a bee nest —
+     * so telling it apart takes nothing from whoever asks only whether a block would hold a body
+     * or a trunk up ({@link #ground()}).
+     */
+    public static synchronized BlockKind registerGround(String key) {
+        return register(key, true);
+    }
+
+    private static BlockKind register(String key, boolean ground) {
+        BlockKind existing = REGISTERED.get(key);
+        if (existing != null) {
+            if (existing.ground != ground) {
+                throw new IllegalStateException("block kind \"" + key + "\" is already registered "
+                        + (existing.ground ? "as" : "as not") + " ground");
+            }
+            return existing;
+        }
+        BlockKind kind = new BlockKind(key, ground);
+        REGISTERED.put(key, kind);
+        return kind;
     }
 
     public static synchronized Optional<BlockKind> byKey(String key) {
@@ -78,6 +103,15 @@ public final class BlockKind {
     /** Every registered kind, in registration order. */
     public static synchronized Collection<BlockKind> all() {
         return Collections.unmodifiableCollection(new LinkedHashMap<>(REGISTERED).values());
+    }
+
+    /**
+     * Solid ground: {@link #OTHER}, or a kind declared with {@link #registerGround}. What a trunk's
+     * foot or a body's footing is asked, rather than {@code == OTHER}, so a consumer's new kind of
+     * rock stays rock to everybody else.
+     */
+    public boolean ground() {
+        return this.ground;
     }
 
     /** Stable id — what a listing shows. */

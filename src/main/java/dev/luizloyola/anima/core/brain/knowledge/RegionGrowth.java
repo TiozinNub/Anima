@@ -178,7 +178,7 @@ public final class RegionGrowth {
         // Hoisted so one step is always bounded by one consistent pair of caps, even if a
         // reload lands mid-scan.
         int spreadCap = maxSpread(this.profile);
-        int blockCap = maxBlocks();
+        int blockCap = Math.min(maxBlocks(), rule.maxBlocks());
         boolean tall = rule.standsTall();
         int reads = 0;
         // Frontier cells visited this step, bounded alongside the reads: a cell whose neighbours

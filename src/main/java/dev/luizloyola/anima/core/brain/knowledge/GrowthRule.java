@@ -39,6 +39,16 @@ public interface GrowthRule {
     }
 
     /**
+     * The most blocks one growth of this rule takes, below the operator's
+     * {@link RegionGrowth#maxBlocks}. For a kind known by where it is rather than by its extent — a
+     * stone outcrop, not a lake — a small cap keeps a mountain from costing a body its whole
+     * perception budget. What the cap cuts is {@code partial}: there is at least this much.
+     */
+    default int maxBlocks() {
+        return Integer.MAX_VALUE;
+    }
+
+    /**
      * Judges the fully-grown collection and <b>individuates</b> it: one evaluation per distinct
      * thing the mass contains — a fused canopy is several trees, a lake is one body. Growth answers
      * "what is connected", this "how many things is that", so felling one tree of a grove does not
