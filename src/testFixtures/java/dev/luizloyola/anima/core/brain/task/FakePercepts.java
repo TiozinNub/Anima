@@ -89,6 +89,9 @@ public final class FakePercepts implements Percepts {
             new java.util.HashMap<>();
     /** This body in a fight; empty means it cannot size itself up. */
     public dev.luizloyola.anima.core.brain.sense.Combatant self;
+    /** This body against one target, where its arm would draw something else for it. */
+    public final java.util.Map<BeingId, dev.luizloyola.anima.core.brain.sense.Combatant> selfAgainst =
+            new java.util.HashMap<>();
     private final Map<String, FoodValue> foodById = new HashMap<>();
     private final Map<String, FoodValue> cookedById = new HashMap<>();
 
@@ -140,6 +143,11 @@ public final class FakePercepts implements Percepts {
     @Override
     public java.util.Optional<dev.luizloyola.anima.core.brain.sense.Combatant> selfAsCombatant() {
         return java.util.Optional.ofNullable(self);
+    }
+
+    @Override
+    public java.util.Optional<dev.luizloyola.anima.core.brain.sense.Combatant> selfAsCombatant(BeingId against) {
+        return java.util.Optional.ofNullable(selfAgainst.getOrDefault(against, self));
     }
 
     @Override

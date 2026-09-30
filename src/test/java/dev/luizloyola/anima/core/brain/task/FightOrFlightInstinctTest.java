@@ -199,6 +199,26 @@ class FightOrFlightInstinctTest {
     }
 
     @Test
+    void theReadoutShowsTheAnswerAndTheBalance() {
+        ctx.percepts.self = me(6, 1.6, 20);
+        add("zombie", 3, ZOMBIE);
+        next();
+
+        String status = mind.status();
+        assertTrue(status.startsWith("fighting "), status);
+        assertTrue(status.contains("— balance "), status);
+    }
+
+    @Test
+    void aWeaponThatHitsThisTargetHarderIsWhatTheBalanceWeighs() {
+        ctx.percepts.self = me(1, 4, 20); // bare-handed, it runs
+        Being zombie = add("zombie", 3, ZOMBIE);
+        ctx.percepts.selfAgainst.put(zombie.id(), me(6, 1.6, 20)); // a Smite sword, drawn for it
+
+        assertInstanceOf(Fight.class, next());
+    }
+
+    @Test
     void emptyHandedItRunsFromAZombieItCanOutpace() {
         ctx.percepts.self = me(1, 4, 20); // 1.25: it would win, only just
         add("zombie", 3, ZOMBIE);

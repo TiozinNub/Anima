@@ -501,6 +501,10 @@ public final class Arbiter {
                 sb.append(" (cooldown ").append(cooldowns[i]).append("t)");
             }
             lines.add(sb.toString());
+            String status = lastPressures[i] > 0.0 ? instinct.status() : null;
+            if (status != null) {
+                lines.add("  " + status);
+            }
         }
         if (claimedItem != null) {
             lines.add("work: " + claimedItem.describe()

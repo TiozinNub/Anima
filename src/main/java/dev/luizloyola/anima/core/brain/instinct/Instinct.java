@@ -74,6 +74,14 @@ public interface Instinct {
         return null;
     }
 
+    /**
+     * A second line for the brain readout, under the pressure line while there is any: what this
+     * drive last made of things, when its pressure alone does not say. Null for most.
+     */
+    default @Nullable String status() {
+        return null;
+    }
+
     /** The root this drive was granted reached a terminal status: SUCCESS or FAILED. */
     default void ended(BrainContext ctx, Task root, TaskStatus status) {
     }

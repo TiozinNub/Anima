@@ -537,6 +537,18 @@ public final class FightOrFlightInstinct implements Instinct {
         return "fight or flight";
     }
 
+    /** The last answer and the balance behind it: time to be killed over time to kill. */
+    @Override
+    public @Nullable String status() {
+        Stance stance = memo;
+        if (stance == null) {
+            return null;
+        }
+        return stance.balance() <= 0.0 ? stance.because() : String.format(Locale.ROOT,
+                "%s — balance %.2f%s", stance.because(), stance.balance(),
+                stance.cornered() ? ", cornered" : "");
+    }
+
     private static double clamp01(double v) {
         return Math.max(0.0, Math.min(1.0, v));
     }
