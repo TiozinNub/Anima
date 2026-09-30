@@ -23,7 +23,13 @@ public final class Landscape {
         LAVA
     }
 
-    private record Layer(Fluid fluid, int minCells, int size) {
+    /** A column the caller marks, by world coordinates. */
+    @FunctionalInterface
+    public interface Columns {
+        boolean test(int x, int z);
+    }
+
+    private record Layer(Object what, int minCells, int size) {
     }
 
     private final Terrain terrain;
@@ -49,7 +55,18 @@ public final class Landscape {
      */
     public double toFluid(Fluid fluid, int minCells, int size, int x, int z) {
         float[] layer = this.distances.computeIfAbsent(new Layer(fluid, minCells, size),
-                key -> squareMinimum(distanceTo(bodies(key.fluid(), key.minCells())), key.size()));
+                key -> squareMinimum(distanceTo(bodies(fluid, minCells)), size));
+        return layer[index(x, z)];
+    }
+
+    /**
+     * How far the closest column of the {@code size}×{@code size} square centred on {@code (x, z)}
+     * lies from the nearest column {@code marked} accepts. Worked out once per {@code key}, which
+     * names what is marked: the same key with a different test answers from the first.
+     */
+    public double toMarked(String key, Columns marked, int size, int x, int z) {
+        float[] layer = this.distances.computeIfAbsent(new Layer(key, 0, size),
+                ignored -> squareMinimum(distanceTo(mark(marked)), size));
         return layer[index(x, z)];
     }
 
@@ -74,6 +91,18 @@ public final class Landscape {
             throw new IndexOutOfBoundsException("(" + x + ", " + z + ") outside the landscape");
         }
         return row * this.w + col;
+    }
+
+    private boolean[] mark(Columns marked) {
+        boolean[] out = new boolean[this.w * this.d];
+        int x0 = this.terrain.minX();
+        int z0 = this.terrain.minZ();
+        for (int row = 0; row < this.d; row++) {
+            for (int col = 0; col < this.w; col++) {
+                out[row * this.w + col] = marked.test(x0 + col, z0 + row);
+            }
+        }
+        return out;
     }
 
     // ---- bodies --------------------------------------------------------------------------------

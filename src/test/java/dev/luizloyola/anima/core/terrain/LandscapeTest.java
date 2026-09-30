@@ -133,4 +133,12 @@ class LandscapeTest {
         assertEquals(33 * 33 - 17 * 17, around, "all of it flat, the footprint left out");
         assertTrue(land.flatAround(40, 30, 16, 17) < around, "water is not flat ground");
     }
+
+    @Test
+    void anyMarkedColumnsServeAsWell() {
+        Landscape land = landscape(level(81));
+
+        assertEquals(12, land.toMarked("post", (x, z) -> x == 60 && z == 40, 17, 40, 40), 1e-6);
+        assertEquals(Double.POSITIVE_INFINITY, land.toMarked("none", (x, z) -> false, 17, 40, 40));
+    }
 }
