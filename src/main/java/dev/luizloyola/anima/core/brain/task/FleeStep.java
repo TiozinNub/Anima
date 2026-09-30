@@ -2,7 +2,9 @@ package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
-import dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct;
+import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
+import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
+import dev.luizloyola.anima.core.brain.knowledge.ShelterNoter;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.Combatant;
 import dev.luizloyola.anima.core.brain.sense.DangerField;
@@ -44,6 +46,7 @@ import org.jspecify.annotations.Nullable;
  *
  * <p><b>In a space one shut door from a shelter</b>, with everything frightening outside it, the
  * body shuts the doors first when it gets to each before anything else does — {@link #shutPlan}.
+ * Outside, it runs for a shelter it remembers when it wins the race there — {@link #shelterToRunFor}.
  *
  * <p><b>SUCCESS just ends the leg.</b> While the pressure stays on top the arbiter re-grants
  * {@link dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct}, and a fresh {@code FleeStep}
@@ -88,13 +91,10 @@ public final class FleeStep implements CompoundTask {
     /** How long a body in the best corner of a shelter holds before it weighs the room again. */
     static final int HOLD_TICKS = 10;
 
-    /** How much sooner than any threat a body must get to a door to try shutting it: 1 s. */
-    static final int DOOR_MARGIN_TICKS = 20;
-
     private final List<Method> methods;
 
     public FleeStep() {
-        this.methods = List.of(new ShutTheDoor(), new Escape());
+        this.methods = List.of(new ShutTheDoor(), new RunForShelter(), new Escape());
     }
 
     @Override
@@ -200,6 +200,85 @@ public final class FleeStep implements CompoundTask {
         }
     }
 
+    /**
+     * Run for a remembered shelter and get in (shelter spec, rung 5). The walk judges its own route
+     * before committing to it ({@link RunToShelter}); once in, the body holds while the space is
+     * read, and the next leg shuts whatever door is still open.
+     */
+    private final class RunForShelter implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return shelterToRunFor(ctx) != null;
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            return 0.0;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            @Nullable PoiMemory way = shelterToRunFor(ctx);
+            if (way == null) {
+                return List.of();
+            }
+            Pos in = way.anchor();
+            Pos door = ShelterNoter.door(way);
+            ctx.journal().record(Category.BRAIN, describe(), String.format(Locale.ROOT,
+                    "running for the shelter behind the door at (%d, %d, %d), %.0f blocks off",
+                    door.x(), door.y(), door.z(),
+                    ShelterRace.distance(ctx.percepts().position(), in)));
+            return List.of(new RunToShelter(in.x(), in.y(), in.z()), new Idle(HOLD_TICKS));
+        }
+
+        @Override
+        public String describe() {
+            return "run for shelter";
+        }
+    }
+
+    /**
+     * The nearest shelter this body remembers that it could win the race to, or null. Within
+     * {@link RunToShelter#REACH} in a straight line, every threat pressing on it one the shelter
+     * keeps out and none inside it, and this body at the door a second ahead of all of them even
+     * on the straight line, the best any route can do. The route itself is judged on the way.
+     */
+    static @Nullable PoiMemory shelterToRunFor(BrainContext ctx) {
+        Enclosure space = ctx.percepts().enclosure();
+        Pos here = ctx.percepts().position();
+        if (space.shelter() && space.covers(here)) {
+            return null;
+        }
+        Combatant me = ctx.percepts().selfAsCombatant().orElse(null);
+        if (me == null || me.pace() <= 0.0) {
+            return null;
+        }
+        long now = ctx.percepts().time();
+        @Nullable PoiMemory best = null;
+        double bestDistance = Double.POSITIVE_INFINITY;
+        for (PoiMemory way : ctx.knowledge().sighted(PoiKind.SHELTER)) {
+            Pos in = way.anchor();
+            double distance = ShelterRace.distance(here, in);
+            if (distance > RunToShelter.REACH || distance >= bestDistance
+                    || way.bounds().contains(here) || space.covers(in)
+                    || ctx.knowledge().isAvoided(PoiKind.SHELTER, in, now)) {
+                continue;
+            }
+            Enclosure.Holes holes = ShelterNoter.smallGetsIn(way)
+                    ? Enclosure.Holes.SMALL : Enclosure.Holes.NONE;
+            List<ShelterRace.Runner> runners =
+                    ShelterRace.shutOutBy(ctx, me.pace(), holes, way.bounds()::contains);
+            if (runners == null || runners.isEmpty()
+                    || ShelterRace.lead(runners, in, distance / me.pace())
+                            < ShelterRace.DOOR_MARGIN_TICKS) {
+                continue;
+            }
+            best = way;
+            bestDistance = distance;
+        }
+        return best;
+    }
+
     /** One door to shut, and the cell inside it to shut it from. */
     record Stop(Pos door, Pos stand, double ticks) {
     }
@@ -223,11 +302,9 @@ public final class FleeStep implements CompoundTask {
     /**
      * How to shut this body in, or null when it cannot, or should not. It can when the space is one
      * the check found closeable and roofed once shut, and every threat pressing on the body is
-     * outside it and kept out by walls and shut doors. It should when it gets to every door,
-     * sprinting inside the space, {@link #DOOR_MARGIN_TICKS} before any threat could at its own pace
-     * in a straight line — the most generous a threat can be given.
-     *
-     * <p>A lit fuse is never shut out: a door does not stop a blast.
+     * outside it and kept out by walls and shut doors ({@link ShelterRace#shutOutBy}). It should when
+     * it gets to every door, sprinting inside the space, {@link ShelterRace#DOOR_MARGIN_TICKS} before
+     * any threat could.
      */
     static @Nullable Plan shutPlan(BrainContext ctx) {
         Enclosure space = ctx.percepts().enclosure();
@@ -240,23 +317,9 @@ public final class FleeStep implements CompoundTask {
         if (me == null || me.pace() <= 0.0) {
             return null;
         }
-        List<Being> pressing = new ArrayList<>();
-        List<Double> paces = new ArrayList<>();
-        for (Being being : ctx.percepts().beings()) {
-            Combatant them = ctx.percepts().combatant(being.id()).orElse(null);
-            if (FightOrFlightInstinct.pressureOf(ctx.profile(), ctx.danger(), being,
-                    ctx.percepts().attackedLately(being.id()), them) <= 0.0) {
-                continue;
-            }
-            if (space.covers(being.pos()) || them != null && them.fuse() > 0.0
-                    || !Sides.keptOut(Enclosure.Openness.OPENABLE, space.holes(), them)) {
-                return null;
-            }
-            pressing.add(being);
-            // Nothing to size up is taken for as quick as this body, which is generous to it.
-            paces.add(them == null ? me.pace() : them.pace());
-        }
-        if (pressing.isEmpty()) {
+        List<ShelterRace.Runner> runners =
+                ShelterRace.shutOutBy(ctx, me.pace(), space.holes(), space::covers);
+        if (runners == null || runners.isEmpty()) {
             return null;
         }
         List<Pos> doors = new ArrayList<>(space.doorsToShut());
@@ -270,7 +333,7 @@ public final class FleeStep implements CompoundTask {
             @Nullable Pos stand = null;
             int best = Integer.MAX_VALUE;
             for (Pos candidate : doors) {
-                for (Pos cell : besideDoor(space, candidate)) {
+                for (Pos cell : space.besideDoor(candidate)) {
                     Integer n = steps.get(cell);
                     if (n != null && n < best) {
                         best = n;
@@ -283,15 +346,11 @@ public final class FleeStep implements CompoundTask {
                 return null; // a door to shut with no cell beside it to shut it from
             }
             ticks += best / me.pace();
-            for (int i = 0; i < pressing.size(); i++) {
-                double theirs = paces.get(i) <= 0.0 ? Double.POSITIVE_INFINITY
-                        : Math.sqrt(distanceSq(pressing.get(i).pos(), door)) / paces.get(i);
-                double lead = theirs - ticks;
-                if (lead < DOOR_MARGIN_TICKS) {
-                    return null;
-                }
-                closest = Math.min(closest, lead);
+            double lead = ShelterRace.lead(runners, door, ticks);
+            if (lead < ShelterRace.DOOR_MARGIN_TICKS) {
+                return null;
             }
+            closest = Math.min(closest, lead);
             stops.add(new Stop(door, stand, ticks));
             doors.remove(door);
             at = stand;
@@ -307,25 +366,6 @@ public final class FleeStep implements CompoundTask {
         Pos up = new Pos(here.x(), here.y() + 1, here.z());
         return space.contains(up) ? up : new Pos(here.x(), here.y() - 1, here.z());
     }
-
-    /**
-     * The space's cells a door is shut from: beside it along either axis, or under or over it for
-     * a hatch, within a step up or down.
-     */
-    private static List<Pos> besideDoor(Enclosure space, Pos door) {
-        List<Pos> cells = new ArrayList<>();
-        for (int[] step : AROUND) {
-            for (int dy = -1; dy <= 1; dy++) {
-                Pos cell = new Pos(door.x() + step[0], door.y() + dy, door.z() + step[1]);
-                if (space.contains(cell)) {
-                    cells.add(cell);
-                }
-            }
-        }
-        return cells;
-    }
-
-    private static final int[][] AROUND = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {0, 0}};
 
     /**
      * Steps from {@code from} to every cell of the space, a cardinal step at a time, a step up or

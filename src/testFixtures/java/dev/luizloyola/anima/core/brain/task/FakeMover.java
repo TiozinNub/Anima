@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.act.Mover;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.WalkLevel;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +28,8 @@ public final class FakeMover implements Mover {
     public WalkLevel lastLevel;
     private MoveState state = MoveState.IDLE;
     private MoveFailure failure = MoveFailure.NONE;
+    /** What {@link #route()} reports: null until a test scripts one. */
+    public Path route;
 
     public void setState(MoveState state) {
         this.state = state;
@@ -57,6 +60,11 @@ public final class FakeMover implements Mover {
     @Override
     public MoveFailure failure() {
         return failure;
+    }
+
+    @Override
+    public Path route() {
+        return route;
     }
 
     @Override

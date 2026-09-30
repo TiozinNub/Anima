@@ -12,9 +12,8 @@ import java.util.Optional;
  *
  * <p><b>Open, not an enum</b>, because what is worth remembering is a question about the world a
  * consuming mod models: a mod {@link #register}s its own kinds, and the store, the growth
- * machinery and the merge rules never learn their names. Anima registers exactly one —
- * {@link #HERD} — because its being sense produces herd memories directly, without a block-growth
- * rule.
+ * machinery and the merge rules never learn their names. Anima registers only the kinds its own
+ * senses write without a block-growth rule: {@link #HERD}, {@link #DANGER} and {@link #SHELTER}.
  *
  * <p><b>Canonical per key</b>: {@link #register} returns the one instance for a key and refuses to
  * redefine it, so {@code ==} is safe and two mods cannot disagree about what {@code "tree"} means.
@@ -48,6 +47,15 @@ public final class PoiKind {
      * identity (one memory per thing, moved not duplicated) not distance.
      */
     public static final PoiKind DANGER = register("danger", 0, "", 6_000);
+
+    /**
+     * A way into a shelter (shelter spec, 2026-09-28): one memory per door of a roofed space that is
+     * shut all round, or would be once its doors are shut. The anchor is the cell just inside the
+     * door, the bounds the space's box, {@code units} its cells; {@code detail} names the door and
+     * whether small things get in ({@link ShelterNoter}). Written and disproven by the enclosure
+     * check alone, so merge radius 0 and no clock.
+     */
+    public static final PoiKind SHELTER = register("shelter", 0, " cells");
 
     /**
      * Whether one look at a column's surface settles a rumour of this kind — the only look the

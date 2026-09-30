@@ -250,6 +250,22 @@ public final class AnimaTasks {
                         Codec.INT.fieldOf("z").forGetter(task -> task.door().z())
                 ).apply(t, dev.luizloyola.anima.core.brain.task.ShutDoor::new)));
 
+        // Whether the route was judged rides along: a run restored mid-way does not judge the route
+        // a second time from wherever the reload left it.
+        TaskCodecs.register("anima:run_to_shelter",
+                dev.luizloyola.anima.core.brain.task.RunToShelter.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        Codec.INT.fieldOf("x").forGetter(task -> task.in().x()),
+                        Codec.INT.fieldOf("y").forGetter(task -> task.in().y()),
+                        Codec.INT.fieldOf("z").forGetter(task -> task.in().z()),
+                        Codec.BOOL.fieldOf("issued").forGetter(
+                                dev.luizloyola.anima.core.brain.task.RunToShelter::issued),
+                        Codec.BOOL.fieldOf("judged").forGetter(
+                                dev.luizloyola.anima.core.brain.task.RunToShelter::judged)
+                ).apply(t, (x, y, z, issued, judged) ->
+                        new dev.luizloyola.anima.core.brain.task.RunToShelter(x, y, z)
+                                .resume(issued, judged))));
+
         TaskCodecs.register("anima:gather", GatherNearbyDrops.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         ITEM_SPEC.fieldOf("spec").forGetter(GatherNearbyDrops::spec),

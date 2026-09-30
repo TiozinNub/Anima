@@ -1,7 +1,9 @@
 package dev.luizloyola.anima.core.brain.act;
 
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.WalkLevel;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The movement actuator port: core defines the interface in terms of what an NPC needs ("walk to
@@ -74,6 +76,16 @@ public interface Mover {
      */
     default boolean routing() {
         return false;
+    }
+
+    /**
+     * The route the legs are walking for the latest order, once it is worked out: null while it is
+     * still being searched for, and with no order at all. What a task reads to judge the way before
+     * it commits to it, as running for a shelter does. The default, for a mover with no routes to
+     * show, is null.
+     */
+    default @Nullable Path route() {
+        return null;
     }
 
     /**

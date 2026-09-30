@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.sense;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -94,6 +95,27 @@ public record Enclosure(Openness openness, Holes holes, boolean roofed, @Nullabl
         return contains(cell) || contains(new Pos(cell.x(), cell.y() + 1, cell.z()))
                 || contains(new Pos(cell.x(), cell.y() - 1, cell.z()));
     }
+
+    /**
+     * The space's cells a door is reached from inside: beside it along either axis, within a step
+     * up or down, then under or over it for a hatch. Cells beside it come first, so the first one
+     * is where a body stands to go through it or to shut it.
+     */
+    public List<Pos> besideDoor(Pos door) {
+        List<Pos> cells = new ArrayList<>();
+        for (int[] step : AROUND) {
+            for (int dy : STEPS) {
+                Pos cell = new Pos(door.x() + step[0], door.y() + dy, door.z() + step[1]);
+                if (this.space.contains(cell)) {
+                    cells.add(cell);
+                }
+            }
+        }
+        return cells;
+    }
+
+    private static final int[][] AROUND = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {0, 0}};
+    private static final int[] STEPS = {0, -1, 1};
 
     /** Whether two answers say the same thing about the space, whenever they were given. */
     public boolean sameAs(Enclosure other) {

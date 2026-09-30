@@ -3,6 +3,9 @@ package dev.luizloyola.anima.mod.nav;
 import dev.luizloyola.anima.compat.agent.Arms;
 import dev.luizloyola.anima.compat.nav.Doors;
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
+import dev.luizloyola.anima.core.agent.AgentId;
+import dev.luizloyola.anima.core.brain.knowledge.ShelterNoter;
+import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.Doorway;
 import dev.luizloyola.anima.core.nav.MoveType;
@@ -10,6 +13,7 @@ import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.Waypoint;
 import dev.luizloyola.anima.mod.body.AgentBody;
+import dev.luizloyola.anima.mod.brain.KnowledgeData;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -35,8 +39,8 @@ import org.jspecify.annotations.Nullable;
  * <p><b>How a door is left</b> (Luiz, 2026-09-26). A house's door is shut after passing, however it
  * was found. Any other door is put back as it was found: left open if it was open, shut again if it
  * was opened to pass. Bodies going through together leave it for each other, and the last one
- * through decides. Which doors are a house's is the consuming mod's to say ({@link HouseDoors});
- * until it says, none are.
+ * through decides. A house's doors are the ways into the shelters this body remembers, and any the
+ * consuming mod adds ({@link HouseDoors}).
  *
  * <p>Reads the LIVE world. The route was planned on a snapshot, and a door is exactly the block
  * that changes under a plan: somebody shuts it, somebody walks through it first.
@@ -64,7 +68,7 @@ public final class Doorways {
 
     /**
      * Whether a door is a house's — shut after passing, however it was found. The consuming mod
-     * answers from what its people have built; Anima has no notion of a house.
+     * answers from what its people have built, on top of the shelters each body remembers.
      */
     @FunctionalInterface
     public interface HouseDoors {
@@ -262,7 +266,7 @@ public final class Doorways {
                 continue; // somebody else is still going through: theirs to leave
             }
             boolean foundOpen = crossing != null ? crossing.foundOpen : door.foundOpen();
-            boolean want = !houseDoors.isHouseDoor(level, pos) && foundOpen;
+            boolean want = !houseDoor(level, pos) && foundOpen;
             if (open != want) {
                 settle(this.body, level, pos);
             }
@@ -282,6 +286,20 @@ public final class Doorways {
             settle(body, level, pos);
         }
         return Boolean.FALSE.equals(Doors.isOpen(level, pos));
+    }
+
+    /**
+     * Whether a door is a house's: the consuming mod says so, or it is a way into a shelter this body
+     * remembers, a stranger's included (shelter spec, decision 12).
+     */
+    private boolean houseDoor(ServerLevel level, BlockPos pos) {
+        if (houseDoors.isHouseDoor(level, pos)) {
+            return true;
+        }
+        AgentId self = this.body.agentId();
+        return self != null && ShelterNoter.knownDoor(
+                KnowledgeData.get(level.getServer()).registry().forPerson(self),
+                new Pos(pos.getX(), pos.getY(), pos.getZ()));
     }
 
     /** Puts a door the other way by whatever works it: a hand, or the lever that opened it. */

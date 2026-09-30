@@ -4,10 +4,12 @@ import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.act.Mover;
 import dev.luizloyola.anima.core.nav.Gait;
+import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.nav.Navigator;
 import net.minecraft.core.BlockPos;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The {@link Mover} actuator <em>adapter</em>: core tasks see a version-neutral movement port,
@@ -62,6 +64,16 @@ public final class AgentMover implements Mover {
     public boolean routing() {
         return this.person.navigator().state()
                 == dev.luizloyola.anima.mod.nav.Navigator.State.PATHING;
+    }
+
+    /** The Navigator's plan, once it has one: following it, or arrived at its end. */
+    @Override
+    public @Nullable Path route() {
+        Navigator navigator = this.person.navigator();
+        return switch (navigator.state()) {
+            case FOLLOWING, ARRIVED -> navigator.path();
+            case IDLE, PATHING, FAILED -> null;
+        };
     }
 
     @Override
