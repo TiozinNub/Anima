@@ -64,7 +64,7 @@ class HuntTest {
     }
 
     private Hunt hunt() {
-        return new Hunt(ReadyFood.SPEC, null);
+        return new Hunt(Food.SPEC, null);
     }
 
     @Test

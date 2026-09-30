@@ -463,9 +463,9 @@ class TaskCodecsTest {
         dev.luizloyola.anima.core.brain.task.SeekPrey seek = assertInstanceOf(
                 dev.luizloyola.anima.core.brain.task.SeekPrey.class,
                 roundTrip(new dev.luizloyola.anima.core.brain.task.SeekPrey(
-                        dev.luizloyola.anima.core.brain.task.ReadyFood.SPEC)
+                        dev.luizloyola.anima.core.brain.task.Food.SPEC)
                         .resume(new Pos(0, 64, 0), 3, 2, 11, null)));
-        assertEquals(dev.luizloyola.anima.core.brain.task.ReadyFood.SPEC, seek.wanted());
+        assertEquals(dev.luizloyola.anima.core.brain.task.Food.SPEC, seek.wanted());
         assertEquals(new Pos(0, 64, 0), seek.origin(), "the ground a failed search rests");
         assertEquals(3, seek.heading());
         assertEquals(2, seek.legs());
@@ -474,7 +474,7 @@ class TaskCodecsTest {
         dev.luizloyola.anima.core.brain.task.SeekPrey fresh = assertInstanceOf(
                 dev.luizloyola.anima.core.brain.task.SeekPrey.class,
                 roundTrip(new dev.luizloyola.anima.core.brain.task.SeekPrey(
-                        dev.luizloyola.anima.core.brain.task.ReadyFood.SPEC)));
+                        dev.luizloyola.anima.core.brain.task.Food.SPEC)));
         assertNull(fresh.origin(), "a search not yet started draws its heading on its first tick");
         assertEquals(-1, fresh.heading());
     }

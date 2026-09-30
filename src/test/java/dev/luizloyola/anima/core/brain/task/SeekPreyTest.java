@@ -47,19 +47,19 @@ class SeekPreyTest {
 
     @Test
     void itWalksFourLegsLooksAtEachAndRestsTheGround() {
-        SeekPrey seek = new SeekPrey(ReadyFood.SPEC);
+        SeekPrey seek = new SeekPrey(Food.SPEC);
 
         assertEquals(TaskStatus.FAILED, run(seek, 1000));
         assertEquals(SeekPrey.LEGS, ctx.mover.moveToCalls);
         assertEquals("found nothing to hunt", seek.failureDetail());
         assertTrue(ctx.knowledge.isAvoided(PoiKind.HERD, SeekPrey.restKey(ctx.percepts.position()),
                 ctx.percepts.time), "hunger asking again does not send it straight back out");
-        assertFalse(new Hunt(ReadyFood.SPEC, null).applicable(ctx));
+        assertFalse(new Hunt(Food.SPEC, null).applicable(ctx));
     }
 
     @Test
     void eachLegIsALegLongOnTheHeading() {
-        SeekPrey seek = new SeekPrey(ReadyFood.SPEC);
+        SeekPrey seek = new SeekPrey(Food.SPEC);
         seek.tick(ctx);
         double angle = seek.heading() * Math.PI / 4.0;
 
@@ -69,7 +69,7 @@ class SeekPreyTest {
 
     @Test
     void aCowInSightEndsIt() {
-        SeekPrey seek = new SeekPrey(ReadyFood.SPEC);
+        SeekPrey seek = new SeekPrey(Food.SPEC);
         run(seek, 5);
         ctx.percepts.beings = List.of(FakePercepts.animalAt(BeingId.of(UUID.randomUUID()), "cow",
                 new Pos(40, 64, 3), 12.0));
@@ -79,7 +79,7 @@ class SeekPreyTest {
 
     @Test
     void aLegThatCannotBeWalkedTurnsAQuarter() {
-        SeekPrey seek = new SeekPrey(ReadyFood.SPEC);
+        SeekPrey seek = new SeekPrey(Food.SPEC);
         ctx.mover.setState(MoveState.FAILED);
         seek.tick(ctx);
         int first = seek.heading();

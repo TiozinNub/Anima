@@ -19,6 +19,7 @@ public final class ReadyFoods {
         // Touched at init, not at start: a saved plan names the spec, and chunks load before a
         // server reports STARTED.
         ReadyFood.SPEC.name();
+        dev.luizloyola.anima.core.brain.task.Food.SPEC.name();
         ServerLifecycleEvents.SERVER_STARTING.register(server -> ReadyFood.install(new FoodLookup() {
             @Override
             public Optional<FoodValue> of(ItemStack stack) {

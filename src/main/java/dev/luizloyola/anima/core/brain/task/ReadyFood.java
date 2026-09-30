@@ -24,6 +24,11 @@ public final class ReadyFood {
         foods = lookup;
     }
 
+    /** The running server's food values, for {@link Food} — null with no server. */
+    static @Nullable FoodLookup lookup() {
+        return foods;
+    }
+
     /** Edible, with no better cooked form, and not a treat saved for starving. */
     static boolean isReady(FoodLookup lookup, ItemStack stack) {
         return lookup.of(stack).filter(food -> !EatSelection.isLastResort(lookup, food, stack))
