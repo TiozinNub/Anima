@@ -146,10 +146,9 @@ class BlockKindTest {
                 "two mods disagreeing about whether it holds a body up");
     }
 
-    @Test
-    @DisplayName("a rule may take less of a mass than the operator's cap")
-    void aRuleMayCapItsOwnGrowth() {
-        GrowthRule capped = new GrowthRule() {
+    /** The gourd rule, taking at most five of a mass, and filing what lies near a memory under it. */
+    private static GrowthRule capped(boolean oneNearIsEnough) {
+        return new GrowthRule() {
             @Override
             public PoiKind kind() {
                 return GourdRule.PATCH;
@@ -169,8 +168,18 @@ class BlockKindTest {
             public int maxBlocks() {
                 return 5;
             }
+
+            @Override
+            public boolean oneNearIsEnough() {
+                return oneNearIsEnough;
+            }
         };
-        GrowthRules.register(GOURD, capped);
+    }
+
+    @Test
+    @DisplayName("a rule may take less of a mass than the operator's cap")
+    void aRuleMayCapItsOwnGrowth() {
+        GrowthRules.register(GOURD, capped(false));
         FakeProbe probe = new FakeProbe();
         for (int dx = 0; dx < 5; dx++) {
             for (int dz = 0; dz < 5; dz++) {
@@ -188,6 +197,37 @@ class BlockKindTest {
         for (PoiMemory memory : knowledge.all(GourdRule.PATCH)) {
             assertEquals(5, memory.units(), "one growth took five of the twenty-five");
             assertTrue(memory.partial(), "and says there is at least that much");
+        }
+    }
+
+    @Test
+    @DisplayName("a rule known by where its things are grows once per merge radius, not per column")
+    void oneNearIsEnough() {
+        long grownEach = growthsOverAField(false);
+        long grownNear = growthsOverAField(true);
+
+        assertTrue(grownNear * 3 < grownEach, grownNear + " growths against " + grownEach);
+    }
+
+    /** Growths a body standing in a 21×21 field of gourds makes in 200 ticks. */
+    private static long growthsOverAField(boolean oneNearIsEnough) {
+        GrowthRules.register(GOURD, capped(oneNearIsEnough));
+        try {
+            FakeProbe probe = new FakeProbe();
+            for (int dx = -10; dx <= 10; dx++) {
+                for (int dz = -10; dz <= 10; dz++) {
+                    probe.set(dx, FakeProbe.GROUND_Y + 1, dz, GOURD);
+                }
+            }
+            PoiSensorCore sensor = new PoiSensorCore(new AgentKnowledge(), eyed());
+            long grown = 0;
+            for (int tick = 1; tick <= 200; tick++) {
+                grown += sensor.tick(HERE, AHEAD, tick, probe).stream()
+                        .filter(e -> e.type() == SenseEvent.Type.NOTED).count();
+            }
+            return grown;
+        } finally {
+            GrowthRules.reset();
         }
     }
 

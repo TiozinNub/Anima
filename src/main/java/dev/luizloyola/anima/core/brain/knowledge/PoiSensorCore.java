@@ -296,6 +296,9 @@ public final class PoiSensorCore {
             knowledge.disprove(column.x(), column.z());
             return reads;
         }
+        if (rule.oneNearIsEnough() && fileUnderNear(rule, kind, surface, now)) {
+            return reads;
+        }
         reads += RAY_COST;
         if (!probe.visibleFromEyes(surface)) {
             events.add(SenseEvent.overlooked(rule.kind(), surface));
@@ -345,6 +348,23 @@ public final class PoiSensorCore {
         active = new RegionGrowth(rule, surface, kind, profile);
         activeKey = key;
         return reads;
+    }
+
+    /**
+     * Files a sighting under this body's memory of the same kind within the merge radius, if it
+     * has one: claimed as that memory's, so the column's next probe is the fast path.
+     */
+    private boolean fileUnderNear(GrowthRule rule, BlockKind kind, Pos surface, long now) {
+        PoiMemory near = knowledge.nearest(rule.kind(), surface).orElse(null);
+        int radius = rule.kind().mergeRadius();
+        if (near == null || Math.abs(near.anchor().x() - surface.x()) > radius
+                || Math.abs(near.anchor().z() - surface.z()) > radius
+                || Math.abs(near.anchor().y() - surface.y()) > radius) {
+            return false;
+        }
+        claims.claimRegion(rule.kind(), near.anchor(), Map.of(surface, kind));
+        knowledge.refresh(rule.kind(), near.anchor(), now);
+        return true;
     }
 
     /**

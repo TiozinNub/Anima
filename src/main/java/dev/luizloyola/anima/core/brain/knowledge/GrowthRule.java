@@ -49,6 +49,16 @@ public interface GrowthRule {
     }
 
     /**
+     * Whether a thing of this kind already remembered within the kind's merge radius of a fresh
+     * sighting is the thing seen. The sighting is then filed under that memory — the merge's own
+     * answer — without a growth or a sight ray, so a body crossing a mountain of a kind known by
+     * where it is pays two reads a column, as on grass, not a flood each.
+     */
+    default boolean oneNearIsEnough() {
+        return false;
+    }
+
+    /**
      * Judges the fully-grown collection and <b>individuates</b> it: one evaluation per distinct
      * thing the mass contains — a fused canopy is several trees, a lake is one body. Growth answers
      * "what is connected", this "how many things is that", so felling one tree of a grove does not
