@@ -56,6 +56,13 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aShutComesBackWithItsDoor() {
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.ShutDoor.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.ShutDoor(4, -59, 0)));
+        assertEquals(new dev.luizloyola.anima.core.brain.sense.Pos(4, -59, 0), after.door());
+    }
+
+    @Test
     void aWalkComesBackWithItsDestination() {
         GoTo before = new GoTo(12, -60, -34);
         GoTo after = assertInstanceOf(GoTo.class, roundTrip(before));

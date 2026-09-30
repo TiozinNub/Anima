@@ -33,19 +33,28 @@ public final class Sides {
         if (!here.shelter() || here.covers(being.pos())) {
             return false;
         }
-        Combatant.Entry entry = them == null ? Combatant.Entry.WALKS : them.entry();
-        if (entry == Combatant.Entry.PASSES_WALLS
-                || entry == Combatant.Entry.OPENS_DOORS
-                        && here.openness() != Enclosure.Openness.CLOSED) {
-            return false;
-        }
-        if (them != null && them.small() && here.holes() != Enclosure.Holes.NONE) {
+        if (!keptOut(here.openness(), here.holes(), them)) {
             return false;
         }
         if (percepts.batteringLately(being.id())) {
             return false;
         }
         return !fromRange(being, them) || !percepts.reaches(being.id());
+    }
+
+    /**
+     * Whether walls and shut doors like these keep {@code them} out: a door-opener needs no way out
+     * at all, a small body no holes. Asked of the space as it stands, or as it would be once its
+     * doors are shut.
+     */
+    public static boolean keptOut(Enclosure.Openness openness, Enclosure.Holes holes,
+                                  @Nullable Combatant them) {
+        Combatant.Entry entry = them == null ? Combatant.Entry.WALKS : them.entry();
+        if (entry == Combatant.Entry.PASSES_WALLS
+                || entry == Combatant.Entry.OPENS_DOORS && openness != Enclosure.Openness.CLOSED) {
+            return false;
+        }
+        return them == null || !them.small() || holes == Enclosure.Holes.NONE;
     }
 
     /**

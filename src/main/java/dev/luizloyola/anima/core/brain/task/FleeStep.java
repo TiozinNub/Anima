@@ -2,16 +2,24 @@ package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
+import dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct;
 import dev.luizloyola.anima.core.brain.sense.Being;
+import dev.luizloyola.anima.core.brain.sense.Combatant;
 import dev.luizloyola.anima.core.brain.sense.DangerField;
 import dev.luizloyola.anima.core.brain.sense.Enclosure;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.sense.Sides;
+import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.random.RandomGenerator;
+import org.jspecify.annotations.Nullable;
 
 /**
  * One leg of a flight: aim away from whatever is pressing in, then run there — the
@@ -33,6 +41,9 @@ import java.util.random.RandomGenerator;
  *
  * <p><b>In a shelter</b> (shelter spec) only the threats on this side are run from, and the leg ends
  * in the room's least frightening cell — {@link #keepAway} — holding still once it is there.
+ *
+ * <p><b>In a space one shut door from a shelter</b>, with everything frightening outside it, the
+ * body shuts the doors first when it gets to each before anything else does — {@link #shutPlan}.
  *
  * <p><b>SUCCESS just ends the leg.</b> While the pressure stays on top the arbiter re-grants
  * {@link dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct}, and a fresh {@code FleeStep}
@@ -77,10 +88,13 @@ public final class FleeStep implements CompoundTask {
     /** How long a body in the best corner of a shelter holds before it weighs the room again. */
     static final int HOLD_TICKS = 10;
 
+    /** How much sooner than any threat a body must get to a door to try shutting it: 1 s. */
+    static final int DOOR_MARGIN_TICKS = 20;
+
     private final List<Method> methods;
 
     public FleeStep() {
-        this.methods = List.of(new Escape());
+        this.methods = List.of(new ShutTheDoor(), new Escape());
     }
 
     @Override
@@ -140,6 +154,202 @@ public final class FleeStep implements CompoundTask {
         public String describe() {
             return "escape";
         }
+    }
+
+    /**
+     * Shut the way in, when that is faster than anything coming through it (shelter spec, rung 4).
+     * Tried before running: out of a house that can be shut is the less safe way.
+     */
+    private final class ShutTheDoor implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return shutPlan(ctx) != null;
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            return 0.0;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            @Nullable Plan plan = shutPlan(ctx);
+            if (plan == null) {
+                return List.of(); // the contract says applicable was just true; nothing moved
+            }
+            List<Task> steps = new ArrayList<>();
+            Pos at = ctx.percepts().position();
+            for (Stop stop : plan.stops()) {
+                if (!stop.stand().equals(at)) {
+                    steps.add(new GoTo(stop.stand().x(), stop.stand().y(), stop.stand().z(),
+                            Gait.SPRINT));
+                }
+                steps.add(new ShutDoor(stop.door().x(), stop.door().y(), stop.door().z()));
+                at = stop.stand();
+            }
+            // Hold while the space is read again: until then it still reads as open, and a fresh
+            // leg would only shut the shut door again.
+            steps.add(new Idle(HOLD_TICKS));
+            ctx.journal().record(Category.BRAIN, describe(), plan.describe());
+            return steps;
+        }
+
+        @Override
+        public String describe() {
+            return "shut the door";
+        }
+    }
+
+    /** One door to shut, and the cell inside it to shut it from. */
+    record Stop(Pos door, Pos stand, double ticks) {
+    }
+
+    /**
+     * The doors to shut, nearest first, and how the race for each stands.
+     *
+     * @param closest the smallest lead over any threat at any door, in ticks
+     */
+    record Plan(List<Stop> stops, double closest) {
+        String describe() {
+            Stop first = stops.get(0);
+            return String.format(Locale.ROOT, "shutting %s at (%d, %d, %d), there in %.1f s, "
+                            + "%.1f s before anything else",
+                    stops.size() == 1 ? "the door" : stops.size() + " doors",
+                    first.door().x(), first.door().y(), first.door().z(), first.ticks() / 20.0,
+                    closest / 20.0);
+        }
+    }
+
+    /**
+     * How to shut this body in, or null when it cannot, or should not. It can when the space is one
+     * the check found closeable and roofed once shut, and every threat pressing on the body is
+     * outside it and kept out by walls and shut doors. It should when it gets to every door,
+     * sprinting inside the space, {@link #DOOR_MARGIN_TICKS} before any threat could at its own pace
+     * in a straight line — the most generous a threat can be given.
+     *
+     * <p>A lit fuse is never shut out: a door does not stop a blast.
+     */
+    static @Nullable Plan shutPlan(BrainContext ctx) {
+        Enclosure space = ctx.percepts().enclosure();
+        Pos here = ctx.percepts().position();
+        if (space.openness() != Enclosure.Openness.CLOSEABLE || !space.roofed()
+                || space.doorsToShut().isEmpty() || !space.covers(here)) {
+            return null;
+        }
+        Combatant me = ctx.percepts().selfAsCombatant().orElse(null);
+        if (me == null || me.pace() <= 0.0) {
+            return null;
+        }
+        List<Being> pressing = new ArrayList<>();
+        List<Double> paces = new ArrayList<>();
+        for (Being being : ctx.percepts().beings()) {
+            Combatant them = ctx.percepts().combatant(being.id()).orElse(null);
+            if (FightOrFlightInstinct.pressureOf(ctx.profile(), ctx.danger(), being,
+                    ctx.percepts().attackedLately(being.id()), them) <= 0.0) {
+                continue;
+            }
+            if (space.covers(being.pos()) || them != null && them.fuse() > 0.0
+                    || !Sides.keptOut(Enclosure.Openness.OPENABLE, space.holes(), them)) {
+                return null;
+            }
+            pressing.add(being);
+            // Nothing to size up is taken for as quick as this body, which is generous to it.
+            paces.add(them == null ? me.pace() : them.pace());
+        }
+        if (pressing.isEmpty()) {
+            return null;
+        }
+        List<Pos> doors = new ArrayList<>(space.doorsToShut());
+        List<Stop> stops = new ArrayList<>();
+        Pos at = standFloor(space, here);
+        double ticks = 0.0;
+        double closest = Double.POSITIVE_INFINITY;
+        while (!doors.isEmpty()) {
+            Map<Pos, Integer> steps = steps(space, at);
+            @Nullable Pos door = null;
+            @Nullable Pos stand = null;
+            int best = Integer.MAX_VALUE;
+            for (Pos candidate : doors) {
+                for (Pos cell : besideDoor(space, candidate)) {
+                    Integer n = steps.get(cell);
+                    if (n != null && n < best) {
+                        best = n;
+                        door = candidate;
+                        stand = cell;
+                    }
+                }
+            }
+            if (door == null) {
+                return null; // a door to shut with no cell beside it to shut it from
+            }
+            ticks += best / me.pace();
+            for (int i = 0; i < pressing.size(); i++) {
+                double theirs = paces.get(i) <= 0.0 ? Double.POSITIVE_INFINITY
+                        : Math.sqrt(distanceSq(pressing.get(i).pos(), door)) / paces.get(i);
+                double lead = theirs - ticks;
+                if (lead < DOOR_MARGIN_TICKS) {
+                    return null;
+                }
+                closest = Math.min(closest, lead);
+            }
+            stops.add(new Stop(door, stand, ticks));
+            doors.remove(door);
+            at = stand;
+        }
+        return new Plan(stops, closest);
+    }
+
+    /** The space's cell the body stands in: its feet, or the floor or head cell by it. */
+    private static Pos standFloor(Enclosure space, Pos here) {
+        if (space.contains(here)) {
+            return here;
+        }
+        Pos up = new Pos(here.x(), here.y() + 1, here.z());
+        return space.contains(up) ? up : new Pos(here.x(), here.y() - 1, here.z());
+    }
+
+    /**
+     * The space's cells a door is shut from: beside it along either axis, or under or over it for
+     * a hatch, within a step up or down.
+     */
+    private static List<Pos> besideDoor(Enclosure space, Pos door) {
+        List<Pos> cells = new ArrayList<>();
+        for (int[] step : AROUND) {
+            for (int dy = -1; dy <= 1; dy++) {
+                Pos cell = new Pos(door.x() + step[0], door.y() + dy, door.z() + step[1]);
+                if (space.contains(cell)) {
+                    cells.add(cell);
+                }
+            }
+        }
+        return cells;
+    }
+
+    private static final int[][] AROUND = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {0, 0}};
+
+    /**
+     * Steps from {@code from} to every cell of the space, a cardinal step at a time, a step up or
+     * down allowed. Longer than the diagonals a body takes, which only makes the race harder on it.
+     */
+    private static Map<Pos, Integer> steps(Enclosure space, Pos from) {
+        Map<Pos, Integer> steps = new HashMap<>();
+        ArrayDeque<Pos> queue = new ArrayDeque<>();
+        steps.put(from, 0);
+        queue.add(from);
+        while (!queue.isEmpty()) {
+            Pos cell = queue.poll();
+            int n = steps.get(cell);
+            for (int[] step : AXES) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    Pos next = new Pos(cell.x() + step[0], cell.y() + dy, cell.z() + step[1]);
+                    if (space.contains(next) && !steps.containsKey(next)) {
+                        steps.put(next, n + 1);
+                        queue.add(next);
+                    }
+                }
+            }
+        }
+        return steps;
     }
 
     /**

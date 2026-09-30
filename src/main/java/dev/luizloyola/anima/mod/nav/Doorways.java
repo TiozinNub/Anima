@@ -210,9 +210,13 @@ public final class Doorways {
     }
 
     private void swing(ServerLevel level, BlockPos cell) {
-        LivingEntity entity = this.body.entity();
+        swing(this.body, level, cell);
+    }
+
+    private static void swing(AgentBody body, ServerLevel level, BlockPos cell) {
+        LivingEntity entity = body.entity();
         if (Doors.swing(entity, level, cell)) {
-            this.body.faceBlock(cell);
+            body.faceBlock(cell);
             Arms.swingToInteract(entity, InteractionHand.MAIN_HAND);
         }
     }
@@ -260,17 +264,32 @@ public final class Doorways {
             boolean foundOpen = crossing != null ? crossing.foundOpen : door.foundOpen();
             boolean want = !houseDoors.isHouseDoor(level, pos) && foundOpen;
             if (open != want) {
-                settle(level, pos, want);
+                settle(this.body, level, pos);
             }
         }
     }
 
+    /**
+     * Shuts the door, gate or hatch at {@code pos} as {@code body}, answering whether it stands shut
+     * afterwards. Reach is the caller's to judge.
+     */
+    public static boolean shut(AgentBody body, ServerLevel level, BlockPos pos) {
+        Boolean open = Doors.isOpen(level, pos);
+        if (open == null) {
+            return false;
+        }
+        if (open) {
+            settle(body, level, pos);
+        }
+        return Boolean.FALSE.equals(Doors.isOpen(level, pos));
+    }
+
     /** Puts a door the other way by whatever works it: a hand, or the lever that opened it. */
-    private void settle(ServerLevel level, BlockPos pos, boolean open) {
+    private static void settle(AgentBody body, ServerLevel level, BlockPos pos) {
         int code = WorldSnapshot.classifyAt(level, pos) == CellType.DOOR
                 ? WorldSnapshot.doorwayAt(level, pos) : -1;
         if (code == -1 || Doorway.byHand(code)) {
-            swing(level, pos); // a hatch, a wooden door, a gate
+            swing(body, level, pos); // a hatch, a wooden door, a gate
             return;
         }
         // An iron door: a button or a plate lets go by itself; a lever stays where it was put.
@@ -278,9 +297,9 @@ public final class Doorways {
         for (Direction side : Direction.Plane.HORIZONTAL) {
             BlockPos lever = Doors.activatorFor(level, pos, state, side);
             if (lever != null && Doors.leverOn(level, lever) != null) {
-                if (Doors.press(this.body.entity(), level, lever)) {
-                    this.body.faceBlock(lever);
-                    Arms.swingToInteract(this.body.entity(), InteractionHand.MAIN_HAND);
+                if (Doors.press(body.entity(), level, lever)) {
+                    body.faceBlock(lever);
+                    Arms.swingToInteract(body.entity(), InteractionHand.MAIN_HAND);
                 }
                 return;
             }

@@ -14,4 +14,13 @@ public interface Hand {
 
     /** Use the block at the cell; true exactly when the world changed. Out of reach changes nothing. */
     boolean use(Pos target);
+
+    /**
+     * Shut the door, gate or hatch whose lowest cell is {@code door}: by hand, or by the lever that
+     * holds an iron door open. True when it stands shut afterwards, whether it was already; false
+     * out of reach, with no door there, or with one this body cannot shut.
+     */
+    default boolean shut(Pos door) {
+        return false;
+    }
 }

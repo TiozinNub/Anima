@@ -177,11 +177,11 @@ class ShelterSidesTest {
         shelter(Openness.OPENABLE, Holes.NONE, true);
         add(new Pos(1, 64, 1), 7, ZOMBIE);
         ctx.percepts.position = new Pos(6, 64, 6);
-        List<Task> leg = new FleeStep().methods().get(0).decompose(ctx);
+        List<Task> leg = FleeStepTest.method("escape").decompose(ctx);
         assertInstanceOf(Idle.class, leg.get(0), "the far corner is where it stands");
 
         ctx.percepts.position = HERE;
-        GoTo run = assertInstanceOf(GoTo.class, new FleeStep().methods().get(0).decompose(ctx).get(0));
+        GoTo run = assertInstanceOf(GoTo.class, FleeStepTest.method("escape").decompose(ctx).get(0));
         assertEquals(new Pos(6, 64, 6), new Pos(run.x(), run.y(), run.z()));
         assertTrue(run.leavesShelter(), "flight is never refused");
     }
@@ -204,6 +204,120 @@ class ShelterSidesTest {
         assertEquals(TaskStatus.RUNNING, new GoTo(5, 64, 5).tick(ctx), "a walk across the room");
         assertEquals(TaskStatus.RUNNING, new GoTo(3, 64, -10).leavingShelter().tick(ctx),
                 "flight, escape, a fight and a command go out anyway");
+    }
+
+    // ── shutting the door (rung 4) ───────────────────────────────────────────────────────────
+
+    /** A Person's sprint, blocks a tick. */
+    private static final Combatant SPRINTER = new Combatant(20, 20, 0, 0, 1, 4, 0.28, 0, 0);
+    /** Twelve blocks out from the door, straight north. */
+    private static final Pos TWELVE_OUT = new Pos(3, 64, -13);
+
+    @Test
+    void withTheDoorOpenAndAZombieComingItShutsTheDoorBeforeRunning() {
+        ctx.percepts.self = SPRINTER;
+        shelter(Openness.CLOSEABLE, Holes.NONE, true);
+        add(TWELVE_OUT, 12, ZOMBIE);
+        Method shut = new FleeStep().methods().get(0);
+        assertEquals("shut the door", shut.describe(), "tried before escape");
+        assertTrue(shut.applicable(ctx));
+        List<Task> plan = shut.decompose(ctx);
+        GoTo run = assertInstanceOf(GoTo.class, plan.get(0));
+        assertEquals(new Pos(3, 64, 0), new Pos(run.x(), run.y(), run.z()), "the cell inside it");
+        assertFalse(run.leavesShelter());
+        assertEquals(DOOR, assertInstanceOf(ShutDoor.class, plan.get(1)).door());
+        assertInstanceOf(Idle.class, plan.get(2), "then holds while the space is read again");
+    }
+
+    @Test
+    void besideTheDoorAlreadyItShutsItWithoutAWalk() {
+        ctx.percepts.self = SPRINTER;
+        shelter(Openness.CLOSEABLE, Holes.NONE, true);
+        add(TWELVE_OUT, 12, ZOMBIE);
+        ctx.percepts.position = new Pos(3, 64, 0);
+        assertInstanceOf(ShutDoor.class, FleeStepTest.method("shut the door").decompose(ctx).get(0));
+    }
+
+    @Test
+    void tooLateToShutItRunsInstead() {
+        ctx.percepts.self = SPRINTER;
+        shelter(Openness.CLOSEABLE, Holes.NONE, true);
+        add(new Pos(3, 64, -3), 6, ZOMBIE); // two blocks from the door: 17 ticks, against 11 + 20
+        assertEquals(null, FleeStep.shutPlan(ctx));
+        add(TWELVE_OUT, 12, ZOMBIE);
+        assertEquals(null, FleeStep.shutPlan(ctx), "one close is enough to lose the race");
+    }
+
+    @Test
+    void theRaceIsMeasuredAtEachThreatsOwnPace() {
+        ctx.percepts.self = SPRINTER;
+        shelter(Openness.CLOSEABLE, Holes.NONE, true);
+        // Six blocks off: a zombie needs 51 ticks, a spider at 0.3 a tick needs 20.
+        add(new Pos(3, 64, -7), 10, ZOMBIE);
+        assertTrue(FleeStep.shutPlan(ctx) != null);
+        ctx.percepts.beings = List.of();
+        add(new Pos(3, 64, -7), 10, new Combatant(16, 16, 0, 0, 2, 1, 0.3, 0, 0));
+        assertEquals(null, FleeStep.shutPlan(ctx));
+    }
+
+    @Test
+    void itShutsOnlyWhatAShutDoorKeepsOut() {
+        ctx.percepts.self = SPRINTER;
+        shelter(Openness.CLOSEABLE, Holes.NONE, true);
+        add(INSIDE, 3, ZOMBIE);
+        assertEquals(null, FleeStep.shutPlan(ctx), "one already inside");
+
+        ctx.percepts.beings = List.of();
+        add(TWELVE_OUT, 12, entering(Combatant.Entry.OPENS_DOORS, false, false));
+        assertEquals(null, FleeStep.shutPlan(ctx), "a piglin opens it again");
+
+        ctx.percepts.beings = List.of();
+        shelter(Openness.CLOSEABLE, Holes.SMALL, true);
+        add(TWELVE_OUT, 12, entering(Combatant.Entry.WALKS, true, false));
+        assertEquals(null, FleeStep.shutPlan(ctx), "a baby zombie fits the hole");
+
+        ctx.percepts.beings = List.of();
+        add(TWELVE_OUT, 12, new Combatant(20, 20, 0, 0, 0, 0, 0.2, 0.6, 6));
+        assertEquals(null, FleeStep.shutPlan(ctx), "a door does not stop a blast");
+
+        ctx.percepts.beings = List.of();
+        shelter(Openness.CLOSEABLE, Holes.NONE, false);
+        add(TWELVE_OUT, 12, ZOMBIE);
+        assertEquals(null, FleeStep.shutPlan(ctx), "no roof: shut, it is still no shelter");
+    }
+
+    @Test
+    void twoDoorsAreShutNearestFirst() {
+        ctx.percepts.self = SPRINTER;
+        shelter(Openness.CLOSEABLE, Holes.NONE, true);
+        Pos east = new Pos(7, 64, 3);
+        Enclosure one = ctx.percepts.enclosure;
+        ctx.percepts.enclosure = new Enclosure(one.openness(), one.holes(), true, HERE, one.space(),
+                List.of(DOOR, east), List.of(DOOR, east), 0L);
+        ctx.percepts.position = new Pos(5, 64, 3);
+        add(new Pos(14, 64, 14), 14, ZOMBIE);
+        List<Task> plan = FleeStepTest.method("shut the door").decompose(ctx);
+        assertEquals(east, assertInstanceOf(ShutDoor.class, plan.get(1)).door(), "a step away");
+        assertEquals(DOOR, assertInstanceOf(ShutDoor.class, plan.get(3)).door());
+    }
+
+    @Test
+    void theShutFailsOnAThreatInTheDoorwayAndOnADoorThatWillNotShut() {
+        shelter(Openness.CLOSEABLE, Holes.NONE, true);
+        ShutDoor shut = new ShutDoor(DOOR.x(), DOOR.y(), DOOR.z());
+        assertEquals(TaskStatus.SUCCESS, shut.tick(ctx));
+        assertEquals(List.of(DOOR), ctx.hand.shut);
+
+        ctx.hand.jammed.add(DOOR);
+        assertEquals(TaskStatus.FAILED, new ShutDoor(DOOR.x(), DOOR.y(), DOOR.z()).tick(ctx));
+
+        ctx.hand.jammed.clear();
+        ctx.hand.shut.clear();
+        add(DOOR, 4, ZOMBIE);
+        ShutDoor late = new ShutDoor(DOOR.x(), DOOR.y(), DOOR.z());
+        assertEquals(TaskStatus.FAILED, late.tick(ctx));
+        assertTrue(ctx.hand.shut.isEmpty(), "never shut on it");
+        assertTrue(late.failureDetail().contains("got there first"));
     }
 
     // ── the world ────────────────────────────────────────────────────────────────────────────

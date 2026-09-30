@@ -241,6 +241,14 @@ public final class AnimaTasks {
                 ).apply(t, (x, y, z, pause) ->
                         new dev.luizloyola.anima.core.brain.task.UseBlock(x, y, z).resume(pause))));
 
+        // Nothing to carry but the door: the shut lands on one tick or not at all.
+        TaskCodecs.register("anima:shut_door", dev.luizloyola.anima.core.brain.task.ShutDoor.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        Codec.INT.fieldOf("x").forGetter(task -> task.door().x()),
+                        Codec.INT.fieldOf("y").forGetter(task -> task.door().y()),
+                        Codec.INT.fieldOf("z").forGetter(task -> task.door().z())
+                ).apply(t, dev.luizloyola.anima.core.brain.task.ShutDoor::new)));
+
         TaskCodecs.register("anima:gather", GatherNearbyDrops.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         ITEM_SPEC.fieldOf("spec").forGetter(GatherNearbyDrops::spec),

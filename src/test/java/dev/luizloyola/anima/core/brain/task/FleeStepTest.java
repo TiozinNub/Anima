@@ -105,6 +105,12 @@ class FleeStepTest {
         assertTrue(ctx.mover.lastZ < 200, "runs away from the CURRENT threat position (south), not the stale one");
     }
 
+    /** One of a fresh flee step's ways, by what it calls itself. */
+    static Method method(String name) {
+        return new FleeStep().methods().stream().filter(m -> m.describe().equals(name))
+                .findFirst().orElseThrow();
+    }
+
     @Test
     void describeReadsAsFleeStep() {
         assertEquals("flee step", new FleeStep().describe());
