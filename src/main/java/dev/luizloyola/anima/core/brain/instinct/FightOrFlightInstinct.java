@@ -282,7 +282,7 @@ public final class FightOrFlightInstinct implements Instinct {
         unreachable.values().removeIf(until -> until <= now);
         AgentProfile profile = ctx.profile();
         Combatant me = percepts.selfAsCombatant().orElse(null);
-        java.util.List<Combatant> hitting = new java.util.ArrayList<>();
+        java.util.List<Foe> foes = new java.util.ArrayList<>();
         double blast = 0.0;
         boolean fuseBurning = false;
         boolean outrunsAll = true;
@@ -328,15 +328,16 @@ public final class FightOrFlightInstinct implements Instinct {
             }
             counted.put(being.id(), now);
             countedNow.add(being.id());
-            hitting.add(them);
             if (!outruns(me, them)) {
                 outrunsAll = false;
             }
             if (unreachable.containsKey(being.id())) {
+                foes.add(new Foe(being.id(), them, Double.POSITIVE_INFINITY));
                 continue;
             }
             double killTime = percepts.drawSeconds(being.id())
                     + killTime(percepts.selfAsCombatant(being.id()).orElse(me), being, them);
+            foes.add(new Foe(being.id(), them, killTime));
             double value = fear * (attackedMe ? ATTACKER_BONUS : 1.0) / (1.0 + killTime)
                     * (being.id().equals(fighting) ? TARGET_STICKINESS : 1.0);
             if (best == null || value > bestValue) {
@@ -356,7 +357,9 @@ public final class FightOrFlightInstinct implements Instinct {
                     continue;
                 }
                 Combatant them = shown.get(entry.getKey());
-                hitting.add(them);
+                double perSecond = me.damagePerSecondAgainst(them.armor(), them.toughness());
+                foes.add(new Foe(entry.getKey(), them, unreachable.containsKey(entry.getKey())
+                        || perSecond <= 0.0 ? Double.POSITIVE_INFINITY : them.health() / perSecond));
                 if (!outruns(me, them)) {
                     outrunsAll = false;
                 }
@@ -381,19 +384,22 @@ public final class FightOrFlightInstinct implements Instinct {
         } else if (me == null || best == null) {
             stance = new Stance(false, null, 0.0, cornered, blast, "running: nothing to fight");
         } else {
-            double theirDamagePerSecond = Incoming.perSecond(hitting, me.armor(), me.toughness());
+            double theirDamagePerSecond = Incoming.perSecond(combatants(foes), me.armor(), me.toughness());
             double dieTime = theirDamagePerSecond > 0.0
                     ? me.health() / theirDamagePerSecond : Double.POSITIVE_INFINITY;
-            double balance = dieTime / bestKillTime;
+            Win win = win(foes, best.id(), me);
+            double balance = win.taken() > 0.0 ? me.health() / win.taken() : Double.POSITIVE_INFINITY;
             double line = profile.d(best.id().equals(fighting)
                     ? ProfileAspect.FIGHT_QUIT_RATIO : ProfileAspect.FIGHT_START_RATIO);
             if (cornered) {
                 line = Math.min(line, profile.d(ProfileAspect.FIGHT_CORNERED_RATIO));
             }
             boolean fight = balance >= line;
-            String odds = String.format(Locale.ROOT, "kills it in %s, would be killed in %s%s%s",
-                    seconds(bestKillTime), seconds(dieTime), outrunsAll ? "" : ", cannot outrun it",
-                    nowhere ? ", nowhere to run but out" : "");
+            String more = win.others() == 0 ? "" : String.format(Locale.ROOT, " and %d more in %s",
+                    win.others(), seconds(win.seconds() - bestKillTime));
+            String odds = String.format(Locale.ROOT, "kills it in %s%s, would be killed in %s%s%s",
+                    seconds(bestKillTime), more, seconds(dieTime),
+                    outrunsAll ? "" : ", cannot outrun it", nowhere ? ", nowhere to run but out" : "");
             stance = new Stance(fight, fight ? best : null, balance, cornered, blast,
                     (fight ? "fighting " : "running from ") + name(best) + ": " + odds);
         }
@@ -419,6 +425,51 @@ public final class FightOrFlightInstinct implements Instinct {
                         ? positiveMin(live.lingerTicks(), known.lingerTicks()) : 0);
         shown.put(who, judged);
         return judged;
+    }
+
+    /** One threat in the balance, and how long this body would take to kill it; infinite if it cannot. */
+    private record Foe(BeingId id, Combatant them, double killTime) {
+    }
+
+    /** The fight fought to the end: the damage taken, how long, and how many after the target. */
+    private record Win(double taken, double seconds, int others) {
+    }
+
+    /**
+     * The fight as it would go (decision 4: flight wins when the body would no longer win it). The
+     * target first, then the rest one at a time — whoever hurts most for the time it takes to
+     * kill first — each stage taking the damage everyone still standing deals ({@link Incoming}).
+     * What it cannot reach it cannot kill, and that keeps hitting throughout. With one threat the
+     * balance this gives is time to be killed over time to kill.
+     */
+    private static Win win(java.util.List<Foe> foes, BeingId target, Combatant me) {
+        java.util.List<Foe> order = new java.util.ArrayList<>(foes);
+        order.sort(java.util.Comparator.comparingDouble((Foe foe) -> foe.id().equals(target) ? 0 : 1)
+                .thenComparing(java.util.Comparator.comparingDouble((Foe foe) -> -urgency(foe, me))));
+        java.util.List<Foe> standing = new java.util.ArrayList<>(foes);
+        double taken = 0.0;
+        double seconds = 0.0;
+        int killed = 0;
+        for (Foe foe : order) {
+            if (Double.isInfinite(foe.killTime())) {
+                break;
+            }
+            taken += foe.killTime() * Incoming.perSecond(combatants(standing), me.armor(), me.toughness());
+            seconds += foe.killTime();
+            standing.remove(foe);
+            killed++;
+        }
+        return new Win(taken, seconds, Math.max(0, killed - 1));
+    }
+
+    /** Damage it deals for each second it takes to kill: the order that saves the most. */
+    private static double urgency(Foe foe, Combatant me) {
+        return Double.isInfinite(foe.killTime()) ? -1.0
+                : foe.them().damagePerSecondAgainst(me.armor(), me.toughness()) / Math.max(foe.killTime(), 1e-6);
+    }
+
+    private static java.util.List<Combatant> combatants(java.util.List<Foe> foes) {
+        return foes.stream().map(Foe::them).toList();
     }
 
     /** Strictly faster, or harmless: a chaser only as quick as this body never closes the gap. */

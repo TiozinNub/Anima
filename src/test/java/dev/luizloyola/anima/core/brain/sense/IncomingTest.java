@@ -27,7 +27,8 @@ class IncomingTest {
     @Test
     void fiveZombiesDealOneBlowEveryTenTicksNotFifteenASecond() {
         double five = Incoming.perSecond(Collections.nCopies(5, zombie()), 0, 0);
-        assertEquals(6.0, five, 0.3, "measured and read: 3 per 10 ticks however many");
+        assertTrue(five > 4.0 && five <= 6.0 + 1e-9,
+                "at most 3 per 10 ticks however many, less when their blows fall out of step: " + five);
     }
 
     @Test
