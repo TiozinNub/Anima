@@ -13,7 +13,8 @@ import org.jspecify.annotations.Nullable;
  * body walks to the place the one followed announced, as a group agrees "we'll meet by the lake",
  * and fails there if nobody is in sight. A pet follows its owner the same way.
  *
- * <p>It never finishes on its own: whoever set it running ends it. The spacing is
+ * <p>It succeeds once the one followed has stood still beside the follower for {@link #SETTLED_TICKS}:
+ * the company is together, and whoever set it running decides what next. The spacing is
  * {@code /anima follow}'s: aim at a cell {@link #NEAR} out on the follower's own side, and re-aim
  * when the one followed has drifted from it.
  */
@@ -28,10 +29,15 @@ public final class Follow implements PrimitiveTask {
     /** Within this of the meeting place, it has been reached. */
     static final double MEET_WITHIN = 3;
 
+    /** How long the one followed stands still beside the follower before they are together. */
+    public static final int SETTLED_TICKS = 200;
+
     private final BeingId leader;
     private final @Nullable Pos meet;
     private @Nullable Pos aim;
     private boolean issued;
+    private @Nullable Pos leaderWas;
+    private int settled;
 
     /**
      * @param meet where the one followed said it would be; null when it said nothing, and then losing
@@ -80,11 +86,14 @@ public final class Follow implements PrimitiveTask {
             return TaskStatus.RUNNING;
         }
         Pos at = seen.pos();
+        boolean still = leaderWas != null && distance(leaderWas, at) < 0.5;
+        leaderWas = at;
         Pos wanted = beside(me, at);
         if (aim == null ? distance(me, at) > FAR : distance(aim, wanted) > DRIFT) {
             walk(ctx, wanted);
         }
-        return TaskStatus.RUNNING;
+        settled = aim == null && still ? settled + 1 : 0;
+        return settled >= SETTLED_TICKS ? TaskStatus.SUCCESS : TaskStatus.RUNNING;
     }
 
     private void walk(BrainContext ctx, Pos to) {

@@ -36,6 +36,18 @@ class FollowTest {
     }
 
     @Test
+    void withTheLeaderStandingStillBesideItTheyAreTogether() {
+        FakeContext ctx = new FakeContext();
+        leaderAt(ctx, 5, 0);
+        Follow follow = new Follow(leader, null);
+
+        for (int tick = 0; tick < Follow.SETTLED_TICKS; tick++) {
+            assertEquals(TaskStatus.RUNNING, follow.tick(ctx));
+        }
+        assertEquals(TaskStatus.SUCCESS, follow.tick(ctx));
+    }
+
+    @Test
     void farItWalksToItsOwnSideOfTheLeader() {
         FakeContext ctx = new FakeContext();
         leaderAt(ctx, 20, 0);
