@@ -98,6 +98,10 @@ public final class MobAttacks {
                 return new Attack(8.0, 70.0, false, 0);
             case "minecraft:phantom":
                 return new Attack(attr, 190.0, false, 0); // a swoop every 160–220 ticks
+            case "minecraft:vex":
+                // One blow per charge and no cooldown in code: measured 40–250 ticks apart,
+                // median 80, against a Person standing still (2026-09-30).
+                return new Attack(attr, 80.0, false, 0);
             case "minecraft:evoker":
                 return new Attack(6.0, 100.0, true, 0); // fangs, indirect magic
             case "minecraft:witch":
