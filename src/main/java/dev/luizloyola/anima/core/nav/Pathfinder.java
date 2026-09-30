@@ -475,10 +475,44 @@ public final class Pathfinder {
         // moves blocks the record says are temporary.
         boolean reuse = request.profile().canScale() && !request.pillars().isEmpty();
         if ((budget <= 0 && !reuse) || !first.worthBuilding(path, request)) {
-            return path;
+            return trapped(grid, request, path);
         }
         Path built = new Pathfinder(grid, request, budget, true).search(request);
-        return built.reachedGoal() && movesBlocks(built) ? built : path;
+        return trapped(grid, request, built.reachedGoal() && movesBlocks(built) ? built : path);
+    }
+
+    /**
+     * {@code path}, marked {@link Path#trapped} when it leaves the body somewhere it cannot walk out
+     * of. Asked only of a route that drops further than the body climbs, since every other move can
+     * be walked back the way it came: a search back from where the route ends to where it started,
+     * on the same grid and with the same legs. No way back found is a trap.
+     *
+     * <p>A way back, not proof of no way out: a ravine runs past the edge of any capture, so a
+     * survey for the rim never proves it closed, and a moat flown on 2026-09-30 touched its
+     * capture's edge and read as open. What a way back costs is a route search, and only for a
+     * route that drops.
+     */
+    private static Path trapped(NavGrid grid, PathRequest request, Path path) {
+        if (path.isEmpty() || !dropsBeyondAClimb(request, path)) {
+            return path;
+        }
+        Waypoint end = path.last();
+        PathRequest back = new PathRequest(end.x(), end.y(), end.z(), request.startX(),
+                request.startY(), request.startZ(), request.profile(), request.danger(),
+                request.domain(), request.maxNodes(), request.variety(), request.setbacks(),
+                request.pillars(), request.handsOff());
+        return new Pathfinder(grid, back).search(back).reachedGoal() ? path : path.trap();
+    }
+
+    private static boolean dropsBeyondAClimb(PathRequest request, Path path) {
+        int y = request.startY();
+        for (Waypoint way : path.waypoints()) {
+            if (y - way.y() > request.profile().jumpHeight()) {
+                return true;
+            }
+            y = way.y();
+        }
+        return false;
     }
 
     /** Whether a route lays or takes anything — a building route that does neither is the first. */

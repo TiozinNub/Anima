@@ -268,6 +268,22 @@ public final class AnimaTasks {
                         new dev.luizloyola.anima.core.brain.task.RunToShelter(x, y, z)
                                 .resume(issued, judged))));
 
+        // The targets and which one is being run for: a leg restored mid-way does not go back to a
+        // target it had already found to be a pit.
+        TaskCodecs.register("anima:run_away", dev.luizloyola.anima.core.brain.task.RunAway.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POS.listOf().fieldOf("targets")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.RunAway::targets),
+                        Codec.INT.fieldOf("index")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.RunAway::index),
+                        Codec.BOOL.fieldOf("issued")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.RunAway::issued),
+                        Codec.BOOL.fieldOf("judged")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.RunAway::judged)
+                ).apply(t, (targets, index, issued, judged) ->
+                        new dev.luizloyola.anima.core.brain.task.RunAway(targets)
+                                .resume(index, issued, judged))));
+
         TaskCodecs.register("anima:gather", GatherNearbyDrops.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         ITEM_SPEC.fieldOf("spec").forGetter(GatherNearbyDrops::spec),

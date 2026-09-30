@@ -25,11 +25,21 @@ import java.util.List;
  *                    finds three of these
  * @param taken       blocks the route puts in the hand: a carved lip, a pillar block gone down or
  *                    taken to climb beside it — see {@link #spent()}
+ * @param trapped     whether the route leaves the body somewhere it cannot walk out of: it drops
+ *                    further than the body climbs, and no way back to where it started is found
+ *                    from where it ends. A pit, a moat, a ravine with no way up — see
+ *                    {@link Pathfinder#find}
  */
 public record Path(List<Waypoint> waypoints, boolean reachedGoal, boolean sealed,
-                   int reachableCells, int restCells, int taken) {
+                   int reachableCells, int restCells, int taken, boolean trapped) {
     public Path {
         waypoints = List.copyOf(waypoints);
+    }
+
+    /** A searched path, not yet asked whether it traps the body. */
+    public Path(List<Waypoint> waypoints, boolean reachedGoal, boolean sealed, int reachableCells,
+                int restCells, int taken) {
+        this(waypoints, reachedGoal, sealed, reachableCells, restCells, taken, false);
     }
 
     /** A searched path that takes nothing into the hand. */
@@ -45,6 +55,12 @@ public record Path(List<Waypoint> waypoints, boolean reachedGoal, boolean sealed
      */
     public Path(List<Waypoint> waypoints, boolean reachedGoal) {
         this(waypoints, reachedGoal, false, 0, 0);
+    }
+
+    /** This path, found to leave the body somewhere it cannot walk out of. */
+    public Path trap() {
+        return new Path(this.waypoints, this.reachedGoal, this.sealed, this.reachableCells,
+                this.restCells, this.taken, true);
     }
 
     public boolean isEmpty() {

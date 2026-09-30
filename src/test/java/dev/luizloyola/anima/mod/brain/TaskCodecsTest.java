@@ -73,6 +73,19 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aFlightLegComesBackWithItsTargetsAndWhichItIsRunningFor() {
+        var targets = java.util.List.of(new dev.luizloyola.anima.core.brain.sense.Pos(1, 64, 2),
+                new dev.luizloyola.anima.core.brain.sense.Pos(-3, 64, 9));
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.RunAway.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.RunAway(targets)
+                        .resume(1, true, false)));
+        assertEquals(targets, after.targets());
+        assertEquals(1, after.index());
+        assertTrue(after.issued());
+        assertEquals("goto (-3, 64, 9) (sprint)", after.describe());
+    }
+
+    @Test
     void aWalkComesBackWithItsDestination() {
         GoTo before = new GoTo(12, -60, -34);
         GoTo after = assertInstanceOf(GoTo.class, roundTrip(before));

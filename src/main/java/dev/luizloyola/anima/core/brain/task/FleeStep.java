@@ -17,6 +17,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -36,8 +37,9 @@ import org.jspecify.annotations.Nullable;
  * to the pathfinder. No threats, or a centroid landing on them (surrounded), falls back to a
  * uniformly random heading of the same length.
  *
- * <p>Decomposes to {@code [GoTo(target, Gait.SPRINT), LookBack]}, no {@link Idle}: flight does not
- * pause between legs except to look back, and {@link LookBack} decides for itself whether it may.
+ * <p>Decomposes to {@code [RunAway(targets), LookBack]}, no {@link Idle}: flight does not pause
+ * between legs except to look back, and {@link LookBack} decides for itself whether it may.
+ * {@link RunAway} sprints for the best target whose route does not leave the body in a pit.
  * The look is the leg's last step rather than a grant of its own because a flight whose threats have
  * fallen out of range bids nothing at the boundary, and would never get to look.
  *
@@ -145,9 +147,8 @@ public final class FleeStep implements CompoundTask {
                 return List.of(new GoTo(goal.x(), goal.y(), goal.z(), Gait.SPRINT)
                         .leavingShelter(), new LookBack());
             }
-            Pos goal = safest(ctx, here, threats, direction, jitterX, jitterZ, field);
-            return List.of(new GoTo(goal.x(), goal.y(), goal.z(), Gait.SPRINT).leavingShelter(),
-                    new LookBack());
+            return List.of(new RunAway(safest(ctx, here, threats, direction, jitterX, jitterZ,
+                    field)), new LookBack());
         }
 
         @Override
@@ -393,37 +394,37 @@ public final class FleeStep implements CompoundTask {
     }
 
     /**
-     * Where to run: the least frightening cell on the escape fan, cover preferred among equals.
+     * Where to run, best first: the least frightening cells on the escape fan, cover first among
+     * equals. {@link RunAway} takes the first whose route does not leave the body in a pit.
      *
      * <p>Away is not safe — the direction that splits two mobs points at whatever is between them,
      * and a settler fled two mobs into a creeper that way. Every cell on the fan is priced against
-     * everything the body knows to fear, seen now or remembered, and the cheapest wins.
+     * everything the body knows to fear, seen now or remembered, and the cheapest leads.
      *
      * <p>The straight-away cell keeps a small edge, so a body with nothing to weigh runs straight.
      */
-    private Pos safest(BrainContext ctx, Pos here, List<Being> threats, double[] direction,
+    private List<Pos> safest(BrainContext ctx, Pos here, List<Being> threats, double[] direction,
             int jitterX, int jitterZ, DangerField field) {
         Pos away = new Pos(here.x() + (int) Math.round(direction[0] * FLEE_LEG) + jitterX,
                 here.y(),
                 here.z() + (int) Math.round(direction[1] * FLEE_LEG) + jitterZ);
-        if (field.isEmpty()) {
-            return takeCoverFrom(ctx, here, threats).orElse(away);
-        }
-        Pos best = away;
-        double bestDanger = field.at(away) - STRAIGHT_AWAY_BONUS;
-        for (Pos candidate : fan(here, direction)) {
-            double danger = field.at(candidate);
-            if (danger < bestDanger) {
-                bestDanger = danger;
-                best = candidate;
-            }
+        List<Pos> ranked = new ArrayList<>();
+        ranked.add(away);
+        ranked.addAll(fan(here, direction));
+        if (!field.isEmpty()) {
+            ranked.sort(Comparator.comparingDouble(
+                    cell -> field.at(cell) - (cell == away ? STRAIGHT_AWAY_BONUS : 0.0)));
         }
         // Cover only among places already worth going: hiding behind a wall next to a creeper is
         // not an improvement on being shot at.
-        double ceiling = bestDanger + COVER_TOLERANCE;
-        return takeCoverFrom(ctx, here, threats)
-                .filter(cover -> field.at(cover) <= ceiling)
-                .orElse(best);
+        double ceiling = field.isEmpty() ? Double.POSITIVE_INFINITY
+                : field.at(ranked.get(0)) - (ranked.get(0) == away ? STRAIGHT_AWAY_BONUS : 0.0)
+                        + COVER_TOLERANCE;
+        takeCoverFrom(ctx, here, threats)
+                .filter(cover -> field.isEmpty() || field.at(cover) <= ceiling)
+                .ifPresent(cover -> ranked.add(0, cover));
+        // The first of the fan is straight away too, and a pit found once is not searched twice.
+        return List.copyOf(new LinkedHashSet<>(ranked));
     }
 
     /**
