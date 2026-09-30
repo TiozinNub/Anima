@@ -118,6 +118,9 @@ public final class MobAttacks {
                 // attr/2 + nextInt(attr): 3–8, mean 5.5 for an adult; a baby's cooldown is 15.
                 return new Attack(attr / 2.0 + (Math.floor(attr) - 1.0) / 2.0,
                         mob.isBaby() ? 15.0 : 40.0, false, 0);
+            case "minecraft:creaking":
+                // A brain cooldown of 40 ticks, measured 41 (2026-09-30); it cannot move while watched.
+                return new Attack(attr, 40.0, false, 0);
             case "minecraft:iron_golem":
                 return new Attack(attr / 2.0 + (Math.floor(attr) - 1.0) / 2.0, 20.0, false, 0);
             case "minecraft:warden":
