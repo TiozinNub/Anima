@@ -314,4 +314,32 @@ class TerrainTest {
             assertTrue(site.x() + site.size() / 2 < MID, "site at x " + site.x() + " reaches unseen ground");
         }
     }
+
+    @Test
+    void everyAllowedFootprintIsAskedByItsCentre() {
+        int f = TerrainRules.configured().footprint();
+        GroundSample sample = level();
+        sample.set(MID, MID, LEVEL - 1, GroundSample.FLUID); // one column of water in the middle
+        Terrain terrain = analyse(sample);
+
+        assertFalse(terrain.allowed(MID, MID), "a footprint over water");
+        assertFalse(terrain.allowed(MID - f / 2, MID), "its edge on the water");
+        assertTrue(terrain.allowed(MID - f / 2 - 1, MID), "just clear of it");
+        assertFalse(terrain.allowed(f / 2 - 1, f / 2), "would leave the read");
+        assertTrue(terrain.allowed(f / 2, f / 2));
+        assertTrue(terrain.site(MID, MID).isEmpty());
+        for (Site site : terrain.sites()) {
+            assertTrue(terrain.allowed(site.x(), site.z()));
+            assertEquals(site, terrain.site(site.x(), site.z()).orElseThrow());
+        }
+    }
+
+    @Test
+    void aTiltedFootprintIsNotAllowed() {
+        int f = TerrainRules.configured().footprint();
+        Terrain slope = analyse(sample(f, (x, z) -> LEVEL + x / 6));
+
+        assertFalse(slope.allowed(f / 2, f / 2));
+        assertTrue(analyse(sample(f, (x, z) -> LEVEL)).allowed(f / 2, f / 2));
+    }
 }
