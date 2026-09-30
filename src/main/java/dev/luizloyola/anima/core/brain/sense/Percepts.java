@@ -121,6 +121,15 @@ public interface Percepts {
     }
 
     /**
+     * Seconds until the weapon {@link #selfAsCombatant(BeingId)} hits with is in hand: 0 when it is
+     * held, what is left of a draw under way, a whole timed move otherwise. A body that has to arm
+     * first kills later — an unarmed one at arm's length from a zombie may not have the time.
+     */
+    default double drawSeconds(BeingId against) {
+        return 0.0;
+    }
+
+    /**
      * Nearby people — the {@link Being.Kind#PERSON} view over {@link #beings()}: other Persons
      * And live players, one list, indistinguishable. The substrate every social
      * behavior stands on.

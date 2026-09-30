@@ -139,6 +139,45 @@ class HandChangesTest {
     }
 
     @Test
+    void whatADrawStillCosts() {
+        inv.set(3, sword());
+        inv.set(BACKPACK, sword());
+        assertEquals(0, HandChanges.ticksToWield(inv, 0, 100, TIMING), "held");
+        assertEquals(2, HandChanges.ticksToWield(inv, 3, 100, TIMING));
+        assertEquals(6, HandChanges.ticksToWield(inv, BACKPACK, 100, TIMING));
+        HandChanges.wield(inv, BACKPACK, 100, TIMING);
+        HandChanges.wield(inv, BACKPACK, 101, TIMING);
+        assertEquals(4, HandChanges.ticksToWield(inv, BACKPACK, 102, TIMING), "the rest of it");
+        assertEquals(2, HandChanges.ticksToWield(inv, 3, 102, TIMING), "another move, whole");
+        assertEquals(0, HandChanges.ticksToStow(inv, 102, TIMING), "the hand is empty");
+    }
+
+    @Test
+    void aRestoredMoveSurvivesTheTicksAReloadSkips() {
+        inv.set(BACKPACK, sword());
+        HandChanges.wield(inv, BACKPACK, 100, TIMING);
+        HandChanges.wield(inv, BACKPACK, 101, TIMING); // saved here: due at 106
+        inv.setChange(inv.change().asRestored());
+
+        assertTrue(HandChanges.busy(inv, 105), "three ticks later, still the same draw");
+        long now = 105;
+        while (!HandChanges.wield(inv, BACKPACK, now, TIMING)) {
+            now++;
+        }
+        assertEquals(106, now, "and it lands when it was due");
+    }
+
+    @Test
+    void aRestoredMoveNobodyTakesUpStillLapses() {
+        inv.set(BACKPACK, sword());
+        HandChanges.wield(inv, BACKPACK, 100, TIMING);
+        inv.setChange(inv.change().asRestored());
+
+        assertTrue(HandChanges.busy(inv, 120));
+        assertFalse(HandChanges.busy(inv, 122), "taken up at 120, then asked by nobody");
+    }
+
+    @Test
     void aCopyCarriesTheMoveUnderWay() {
         inv.set(BACKPACK, sword());
         HandChanges.wield(inv, BACKPACK, 100, TIMING);

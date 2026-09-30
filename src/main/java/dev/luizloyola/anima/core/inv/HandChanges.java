@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.core.inv;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Changing what the hand holds, or what the body wears, takes time (combat spec, decision 11 and
  * *Timed wield*): a backpack stack costs one stack move ({@code handling.stack_ticks}), a hotbar
@@ -26,8 +28,49 @@ public final class HandChanges {
         if (slot == Inventory.HOTBAR_START + inv.selectedSlot()) {
             return true;
         }
-        int ticks = slot < Inventory.MAIN_START ? timing.selectTicks() : timing.stackTicks();
-        return run(inv, HandChange.Kind.WIELD, slot, -1, ticks, now, () -> inv.wield(slot));
+        return run(inv, HandChange.Kind.WIELD, slot, -1, wieldTicks(slot, timing), now,
+                () -> inv.wield(slot));
+    }
+
+    /**
+     * Ticks until the stack in storage {@code slot} would be in hand if asked for from now on: 0 if
+     * it is there, what is left if that very move is under way, the whole move otherwise.
+     */
+    public static int ticksToWield(Inventory inv, int slot, long now, Timing timing) {
+        if (slot == Inventory.HOTBAR_START + inv.selectedSlot()) {
+            return 0;
+        }
+        return ticksLeft(inv, HandChange.Kind.WIELD, slot, -1, wieldTicks(slot, timing), now);
+    }
+
+    /** {@link #ticksToWield}'s answer for an empty hand; 0 when it cannot be emptied. */
+    public static int ticksToStow(Inventory inv, long now, Timing timing) {
+        int ticks = stowTicks(inv, timing);
+        return ticks < 0 ? 0 : ticksLeft(inv, HandChange.Kind.STOW, -1, -1, ticks, now);
+    }
+
+    private static int wieldTicks(int slot, Timing timing) {
+        return slot < Inventory.MAIN_START ? timing.selectTicks() : timing.stackTicks();
+    }
+
+    /** Ticks a stow takes: 0 for a hand already empty, -1 for a pack with no room. */
+    private static int stowTicks(Inventory inv, Timing timing) {
+        if (inv.mainHand().isEmpty()) {
+            return 0;
+        }
+        if (inv.firstEmpty(Inventory.HOTBAR_START, Inventory.MAIN_START) >= 0) {
+            return timing.selectTicks();
+        }
+        return inv.firstEmpty(Inventory.MAIN_START, Inventory.ARMOR_START) >= 0 ? timing.stackTicks() : -1;
+    }
+
+    private static int ticksLeft(Inventory inv, HandChange.Kind kind, int from, int to, int whole,
+                                 long now) {
+        HandChange change = current(inv, now);
+        if (change != null && change.is(kind, from, to) && change.askedAt() >= now - 1) {
+            return (int) Math.max(0L, change.readyAt() - now);
+        }
+        return whole;
     }
 
     /**
@@ -35,16 +78,9 @@ public final class HandChanges {
      * the held stack in — a little wear beats dropping something.
      */
     public static boolean stow(Inventory inv, long now, Timing timing) {
-        if (inv.mainHand().isEmpty()) {
-            return true;
-        }
-        int ticks;
-        if (inv.firstEmpty(Inventory.HOTBAR_START, Inventory.MAIN_START) >= 0) {
-            ticks = timing.selectTicks();
-        } else if (inv.firstEmpty(Inventory.MAIN_START, Inventory.ARMOR_START) >= 0) {
-            ticks = timing.stackTicks();
-        } else {
-            return true;
+        int ticks = stowTicks(inv, timing);
+        if (ticks <= 0) {
+            return true; // empty already, or no room to empty it
         }
         return run(inv, HandChange.Kind.STOW, -1, -1, ticks, now, inv::stow);
     }
@@ -64,13 +100,13 @@ public final class HandChanges {
 
     /** Whether a change is under way and was asked for last tick or this one. */
     public static boolean busy(Inventory inv, long now) {
-        HandChange change = inv.change();
+        HandChange change = current(inv, now);
         return change != null && change.askedAt() >= now - 1;
     }
 
     private static boolean run(Inventory inv, HandChange.Kind kind, int from, int to, int ticks,
                                long now, Runnable move) {
-        HandChange change = inv.change();
+        HandChange change = current(inv, now);
         if (change != null && change.is(kind, from, to) && change.askedAt() >= now - 1) {
             if (now < change.readyAt()) {
                 inv.setChange(change.askedAt(now));
@@ -83,5 +119,18 @@ public final class HandChanges {
         inv.setChange(null);
         move.run();
         return true;
+    }
+
+    /**
+     * The change under way, a restored one taken up as asked this tick: a reload may skip a tick or
+     * two before anything asks, and a restart must not cost a body its half-done draw.
+     */
+    private static @Nullable HandChange current(Inventory inv, long now) {
+        HandChange change = inv.change();
+        if (change != null && change.restored()) {
+            change = new HandChange(change.kind(), change.from(), change.to(), change.readyAt(), now);
+            inv.setChange(change);
+        }
+        return change;
     }
 }

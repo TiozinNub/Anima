@@ -219,6 +219,28 @@ class FightOrFlightInstinctTest {
     }
 
     @Test
+    void aSwordStillToDrawKillsLaterThanOneInHand() {
+        ctx.percepts.self = me(6, 1.6, 20);
+        Being zombie = add("zombie", 3, ZOMBIE);
+        next();
+        String inHand = mind.status();
+        ctx.percepts.draws.put(zombie.id(), 0.3); // a backpack pull
+        next();
+
+        assertTrue(inHand.contains("kills it in 2.1 s"), inHand);
+        assertTrue(mind.status().contains("kills it in 2.4 s"), mind.status());
+    }
+
+    @Test
+    void noTimeToArmMeansNoFight() {
+        ctx.percepts.self = me(6, 1.6, 20);
+        Being zombie = add("zombie", 3, ZOMBIE);
+        ctx.percepts.draws.put(zombie.id(), 30.0); // the sword is somewhere it takes an age to reach
+
+        assertInstanceOf(FleeStep.class, next());
+    }
+
+    @Test
     void emptyHandedItRunsFromAZombieItCanOutpace() {
         ctx.percepts.self = me(1, 4, 20); // 1.25: it would win, only just
         add("zombie", 3, ZOMBIE);

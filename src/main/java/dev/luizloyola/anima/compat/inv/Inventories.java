@@ -65,7 +65,7 @@ public final class Inventories {
             inv.set(s.slot(), ItemStack.of(s.id(), s.count(), ItemStacks.maxStackSize(s.id()), s.components()));
         }
         if (selected >= 0 && selected < Inventory.HOTBAR_SIZE) inv.setSelectedSlot(selected);
-        change.filter(Inventories::valid).ifPresent(inv::setChange);
+        change.filter(Inventories::valid).map(HandChange::asRestored).ifPresent(inv::setChange);
         return inv;
     }
 

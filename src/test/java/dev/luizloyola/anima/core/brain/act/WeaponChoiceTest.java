@@ -78,6 +78,17 @@ class WeaponChoiceTest {
     }
 
     @Test
+    void theDrawIsPartOfTheKill() {
+        Candidate held = woodenSword(HAND);
+        Candidate packed = new Candidate(20, 6.0, 1.6, 250, SWAP); // an iron sword in the backpack
+        Foe nearlyDead = new Foe(3.0, 2.0, 0.0);
+
+        assertEquals(ToolChoice.KEEP_HAND, choose(List.of(held, packed), nearlyDead),
+                "one wooden blow now beats one iron blow after the pull");
+        assertEquals(20, choose(List.of(held, packed), ZOMBIE), "a whole fight repays the pull");
+    }
+
+    @Test
     void withNoTargetWearIsNotWeighed() {
         assertEquals(3, choose(List.of(ironSword(3, 1), woodenSword(5)), null));
     }

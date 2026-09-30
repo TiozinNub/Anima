@@ -128,21 +128,28 @@ public final class AgentStriker implements Striker {
         return HandChanges.busy(body.inventory(), body.level().getGameTime());
     }
 
+    /** What a fight would be fought with: a weapon's hit, and the ticks until it is in hand. */
+    public record Readiness(Melee.Hit hit, int drawTicks) {
+    }
+
     /**
-     * The hit of the weapon {@link #draw} would put in hand against {@code target}: what a fight
-     * with it would be fought with. Wear is left out — the balance weighs a whole fight, not one
-     * weapon's last blows.
+     * The weapon {@link #draw} would put in hand against {@code target}, and how long that takes.
+     * Wear is left out — the balance weighs a whole fight, not one weapon's last blows.
      */
-    public Melee.Hit bestHit(@Nullable LivingEntity target) {
+    public Readiness sizeUp(@Nullable LivingEntity target) {
         Inventory inv = body.inventory();
         LivingEntity self = body.entity();
+        long now = body.level().getGameTime();
         int choice = choose(target);
         int slot = choice == ToolChoice.KEEP_HAND
                 ? Inventory.HOTBAR_START + inv.selectedSlot() : choice;
         ItemStack stack = choice == ToolChoice.BARE_HAND
                 ? ItemStack.EMPTY
                 : ItemStacks.toVanilla(inv.get(slot), self.level().registryAccess());
-        return measure(self, stack, target);
+        int drawTicks = choice == ToolChoice.BARE_HAND
+                ? HandChanges.ticksToStow(inv, now, body.handTiming())
+                : HandChanges.ticksToWield(inv, slot, now, body.handTiming());
+        return new Readiness(measure(self, stack, target), drawTicks);
     }
 
     /** {@link WeaponChoice} over the pack as it is now, against {@code target} if there is one. */
@@ -150,6 +157,8 @@ public final class AgentStriker implements Striker {
         Inventory inv = body.inventory();
         LivingEntity self = body.entity();
         HolderLookup.Provider registries = self.level().registryAccess();
+        long now = body.level().getGameTime();
+        HandChanges.Timing timing = body.handTiming();
         List<WeaponChoice.Candidate> pack = new ArrayList<>();
         for (int slot = 0; slot < Inventory.ARMOR_START; slot++) {
             dev.luizloyola.anima.core.inv.ItemStack core = inv.get(slot);
@@ -157,12 +166,13 @@ public final class AgentStriker implements Striker {
                 ItemStack stack = ItemStacks.toVanilla(core, registries);
                 Melee.Hit hit = measure(self, stack, target);
                 pack.add(new WeaponChoice.Candidate(slot, hit.damage(), hit.perSecond(),
-                        Melee.blowsLeft(stack)));
+                        Melee.blowsLeft(stack), HandChanges.ticksToWield(inv, slot, now, timing) / 20.0));
             }
         }
         Melee.Hit fist = Melee.hit(self, ItemStack.EMPTY);
         WeaponChoice.Candidate bare = new WeaponChoice.Candidate(ToolChoice.BARE_HAND,
-                fist.damage(), fist.perSecond(), WeaponChoice.UNBREAKING);
+                fist.damage(), fist.perSecond(), WeaponChoice.UNBREAKING,
+                HandChanges.ticksToStow(inv, now, timing) / 20.0);
         WeaponChoice.Foe foe = target == null || target.isDeadOrDying() ? null
                 : new WeaponChoice.Foe(target.getHealth(), target.getArmorValue(),
                         target.getAttributeValue(Attributes.ARMOR_TOUGHNESS));

@@ -12,7 +12,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>The rules, in the order they decide:
  * <ol>
- *   <li><b>The quickest kill wins</b> if it beats the bare fist, counted in whole blows. A weapon
+ *   <li><b>The quickest kill wins</b> if it beats the bare fist, counted in whole blows after the
+ *       time it takes to get into the hand — nothing for what is held, a hotbar select, a backpack
+ *       pull — so a slightly better sword in the backpack loses to the one in hand. A weapon
  *       that would break first is worth the blows it has left; the rest of the fight is fought
  *       with the best of the others, after the swap that costs (Luiz, 2026-09-30). A tool's two
  *       wear a blow count here and nowhere else: an axe that hits harder than a sword is drawn
@@ -38,8 +40,15 @@ public final class WeaponChoice {
      * @param damage    one full-charge hit against the target, before its armour
      * @param perSecond full-charge hits a second
      * @param blowsLeft blows before it breaks, the one that breaks it included; {@link #UNBREAKING}
+     * @param drawSeconds how long until it is in hand, the timed move and nothing else
      */
-    public record Candidate(int slot, double damage, double perSecond, int blowsLeft) {
+    public record Candidate(int slot, double damage, double perSecond, int blowsLeft,
+                            double drawSeconds) {
+
+        /** Already in hand. */
+        public Candidate(int slot, double damage, double perSecond, int blowsLeft) {
+            this(slot, damage, perSecond, blowsLeft, 0.0);
+        }
 
         public double damagePerSecond() {
             return damage * perSecond;
@@ -95,6 +104,7 @@ public final class WeaponChoice {
         if (foe == null || weapon.blowsLeft() >= blows(weapon, foe, foe.health())) {
             return seconds(weapon, foe);
         }
+        // The fallback's own draw is the swap; the weapon's own is in its first stretch.
         double left = foe.health() - weapon.blowsLeft() * hit(weapon, foe);
         double finish = blows(bare, foe, left) / bare.perSecond();
         for (Candidate other : pack) {
@@ -102,16 +112,16 @@ public final class WeaponChoice {
                 finish = Math.min(finish, blows(other, foe, left) / other.perSecond());
             }
         }
-        return weapon.blowsLeft() / weapon.perSecond() + swapSeconds + finish;
+        return weapon.drawSeconds() + weapon.blowsLeft() / weapon.perSecond() + swapSeconds + finish;
     }
 
-    /** {@code weapon}'s kill as if it never wore. */
+    /** {@code weapon}'s kill as if it never wore, its draw first. */
     private static double seconds(Candidate weapon, @Nullable Foe foe) {
         if (foe == null) {
             double perSecond = weapon.damagePerSecond();
             return perSecond > 0.0 ? 1.0 / perSecond : Double.POSITIVE_INFINITY;
         }
-        return blows(weapon, foe, foe.health()) / weapon.perSecond();
+        return weapon.drawSeconds() + blows(weapon, foe, foe.health()) / weapon.perSecond();
     }
 
     /** Whole blows of {@code weapon} it takes to deal {@code health} through the foe's armour. */

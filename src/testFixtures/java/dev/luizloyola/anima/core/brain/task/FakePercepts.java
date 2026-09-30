@@ -145,6 +145,14 @@ public final class FakePercepts implements Percepts {
         return java.util.Optional.ofNullable(self);
     }
 
+    /** Seconds this body would take to arm against each target — {@link #drawSeconds}. */
+    public final java.util.Map<BeingId, Double> draws = new java.util.HashMap<>();
+
+    @Override
+    public double drawSeconds(BeingId against) {
+        return draws.getOrDefault(against, 0.0);
+    }
+
     @Override
     public java.util.Optional<dev.luizloyola.anima.core.brain.sense.Combatant> selfAsCombatant(BeingId against) {
         return java.util.Optional.ofNullable(selfAgainst.getOrDefault(against, self));

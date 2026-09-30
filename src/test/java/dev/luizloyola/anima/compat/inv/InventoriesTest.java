@@ -35,7 +35,7 @@ class InventoriesTest {
         inv.setChange(change);
 
         Inventory back = roundTrip(inv);
-        assertEquals(change, back.change());
+        assertEquals(change.asRestored(), back.change(), "taken up by the first tick after the load");
         assertEquals(4, back.selectedSlot());
         assertEquals("minecraft:iron_sword", back.get(Inventory.MAIN_START).id());
     }

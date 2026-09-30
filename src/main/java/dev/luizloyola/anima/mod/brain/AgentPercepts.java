@@ -60,6 +60,9 @@ public final class AgentPercepts implements Percepts {
      */
     private static final int CACHE_TICKS = 5;
 
+    private AgentStriker.@org.jspecify.annotations.Nullable Readiness sized;
+    private long sizedAt = -1;
+    private java.util.@org.jspecify.annotations.Nullable UUID sizedFor;
     private final AgentBody person;
     /**
      * Food knowledge as a lens over live game data — vanilla and modded foods alike: values from
@@ -238,12 +241,35 @@ public final class AgentPercepts implements Percepts {
         return selfAgainst(AgentStriker.find(level, against));
     }
 
+    @Override
+    public double drawSeconds(BeingId against) {
+        if (!(this.person.level() instanceof ServerLevel level) || !perceives(against)) {
+            return 0.0;
+        }
+        return sizedUp(AgentStriker.find(level, against)).drawTicks() / 20.0;
+    }
+
+    /**
+     * The arm sized up against {@code target}, once a tick per target: the balance asks for the
+     * hit and the draw one after the other, and each ask ranks the whole pack.
+     */
+    private AgentStriker.Readiness sizedUp(@org.jspecify.annotations.Nullable LivingEntity target) {
+        long now = this.person.level().getGameTime();
+        java.util.UUID who = target == null ? null : target.getUUID();
+        if (this.sizedAt != now || !java.util.Objects.equals(this.sizedFor, who) || this.sized == null) {
+            this.sized = this.person.striker().sizeUp(target);
+            this.sizedAt = now;
+            this.sizedFor = who;
+        }
+        return this.sized;
+    }
+
     private java.util.Optional<Combatant> selfAgainst(@org.jspecify.annotations.Nullable LivingEntity target) {
         Combatant body = Fighters.read(this.person.entity(), this.person.metabolism().canSprint());
         if (body == null) {
             return java.util.Optional.empty();
         }
-        Melee.Hit hit = this.person.striker().bestHit(target);
+        Melee.Hit hit = sizedUp(target).hit();
         // In a standing fight its blows land the held part of a reaction after each charge.
         double hold = this.person.profile().i(ProfileAspect.COMBAT_REACTION_HOLD_TICKS);
         double perSecond = hit.perSecond() > 0.0
