@@ -589,6 +589,44 @@ public final class AnimaTasks {
                                         leg.orElse(null) instanceof GoTo walk ? walk : null,
                                         legFrom))));
 
+        // A hunt's two searches, saved to the step: a restart mid-scout walks on to the same stop.
+        TaskCodecs.register("anima:scout", dev.luizloyola.anima.core.brain.task.Scout.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        Codec.STRING.fieldOf("species")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Scout::species),
+                        POS.fieldOf("anchor")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Scout::anchor),
+                        Codec.INT.fieldOf("radius")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Scout::radius),
+                        Codec.INT.optionalFieldOf("index", 0)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Scout::index),
+                        Codec.INT.optionalFieldOf("look", -1)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Scout::look),
+                        TaskCodecs.codec().optionalFieldOf("leg").forGetter(task ->
+                                java.util.Optional.ofNullable((Task) task.leg()))
+                ).apply(t, (species, anchor, radius, index, look, leg) ->
+                        new dev.luizloyola.anima.core.brain.task.Scout(species, anchor, radius)
+                                .resume(index, look, leg.orElse(null) instanceof GoTo walk ? walk : null))));
+
+        TaskCodecs.register("anima:seek_prey", dev.luizloyola.anima.core.brain.task.SeekPrey.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        ITEM_SPEC.fieldOf("wanted")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.SeekPrey::wanted),
+                        POS.optionalFieldOf("origin").forGetter(task ->
+                                java.util.Optional.ofNullable(task.origin())),
+                        Codec.INT.optionalFieldOf("heading", -1)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.SeekPrey::heading),
+                        Codec.INT.optionalFieldOf("legs", 0)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.SeekPrey::legs),
+                        Codec.INT.optionalFieldOf("look", -1)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.SeekPrey::look),
+                        TaskCodecs.codec().optionalFieldOf("leg").forGetter(task ->
+                                java.util.Optional.ofNullable((Task) task.leg()))
+                ).apply(t, (wanted, origin, heading, legs, look, leg) ->
+                        new dev.luizloyola.anima.core.brain.task.SeekPrey(wanted)
+                                .resume(origin.orElse(null), heading, legs, look,
+                                        leg.orElse(null) instanceof GoTo walk ? walk : null))));
+
         // The rung 5 root: what this body would say to OPEN the encounter if speech.current()
         // finds nothing already there. The live Encounter itself is not here — it is world state
         // owned by the shared roster, not this task's — a restored Converse re-resolves it through

@@ -22,7 +22,10 @@ import dev.luizloyola.anima.compat.agent.Melee;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.sense.Combatant;
+import dev.luizloyola.anima.core.brain.sense.Quarry;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Leashable;
+import net.minecraft.world.entity.OwnableEntity;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Drop;
 import dev.luizloyola.anima.core.brain.sense.FoodLookup;
@@ -318,12 +321,27 @@ public final class AgentPercepts implements Percepts {
     }
 
     private boolean perceives(BeingId who) {
-        for (Being being : beings()) {
-            if (being.id().equals(who)) {
-                return true;
-            }
+        return being(who).isPresent();
+    }
+
+    @Override
+    public java.util.Optional<Being> being(BeingId who) {
+        return this.person.beingSense().being(who);
+    }
+
+    @Override
+    public java.util.Optional<Quarry> quarry(BeingId who) {
+        if (!(this.person.level() instanceof ServerLevel level) || !perceives(who)) {
+            return java.util.Optional.empty();
         }
-        return false;
+        LivingEntity body = AgentStriker.find(level, who);
+        if (body == null || body.level() != level) {
+            return java.util.Optional.empty();
+        }
+        boolean owned = body.hasCustomName()
+                || (body instanceof OwnableEntity pet && pet.getOwnerReference() != null)
+                || (body instanceof Leashable leashed && leashed.isLeashed());
+        return java.util.Optional.of(new Quarry(body.isBaby(), owned));
     }
 
     /** Delegates to the sensor's own guardrail memory. */

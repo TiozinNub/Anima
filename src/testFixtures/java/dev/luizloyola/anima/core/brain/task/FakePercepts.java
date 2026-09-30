@@ -84,6 +84,12 @@ public final class FakePercepts implements Percepts {
     public final java.util.Set<BeingId> called = new java.util.HashSet<>();
     /** Who hit this body lately — {@link #attackedLately}. */
     public final java.util.Set<BeingId> attackers = new java.util.HashSet<>();
+    /** Bodies found by id but not listed in {@link #beings} — the members of a herd. */
+    public final java.util.Map<BeingId, Being> hidden = new java.util.HashMap<>();
+    /** What each perceived body reads as to a hunter — {@link #quarry}. */
+    public final java.util.Map<BeingId, dev.luizloyola.anima.core.brain.sense.Quarry> quarries =
+            new java.util.HashMap<>();
+
     /** How each perceived body stands in a fight — {@link #combatant}. */
     public final java.util.Map<BeingId, dev.luizloyola.anima.core.brain.sense.Combatant> combatants =
             new java.util.HashMap<>();
@@ -136,6 +142,22 @@ public final class FakePercepts implements Percepts {
     }
 
     @Override
+    public java.util.Optional<Being> being(BeingId who) {
+        for (Being being : beings) {
+            if (being.id().equals(who)) {
+                return java.util.Optional.of(being);
+            }
+        }
+        return java.util.Optional.ofNullable(hidden.get(who));
+    }
+
+    @Override
+    public java.util.Optional<dev.luizloyola.anima.core.brain.sense.Quarry> quarry(BeingId who) {
+        return being(who).map(found -> quarries.getOrDefault(who,
+                new dev.luizloyola.anima.core.brain.sense.Quarry(false, false)));
+    }
+
+    @Override
     public java.util.Optional<dev.luizloyola.anima.core.brain.sense.Combatant> combatant(BeingId who) {
         return java.util.Optional.ofNullable(combatants.get(who));
     }
@@ -180,6 +202,22 @@ public final class FakePercepts implements Percepts {
                 Being.Activity.IDLE,
                 Being.Locomotion.STILL, false, false, false, false, false, true,
                 Being.Gear.NONE, Being.Identified.SPECIES, awareness);
+    }
+
+    /** A passive animal on its own, seen, as the sense reads out a loner. */
+    public static Being animalAt(BeingId id, String species, Pos pos, double distance) {
+        return new Being(id, Being.Kind.PASSIVE, species, "", null, pos, distance, 1.3, false, 1, 0,
+                true, List.of(), Being.Activity.IDLE, Being.Locomotion.STILL, false, false, false,
+                false, false, false, Being.Gear.NONE, Being.Identified.INDIVIDUAL,
+                Being.Awareness.SEEN);
+    }
+
+    /** A herd as {@code beings()} shows it: one being at the centroid, its members by id only. */
+    public static Being herdOf(String species, Pos centroid, double distance, List<BeingId> members) {
+        return new Being(BeingId.of(UUID.randomUUID()), Being.Kind.PASSIVE, species, "", null,
+                centroid, distance, 1.3, false, members.size(), 3, true, List.copyOf(members),
+                Being.Activity.IDLE, Being.Locomotion.STILL, false, false, false, false, false,
+                false, Being.Gear.NONE, Being.Identified.SPECIES, Being.Awareness.SEEN);
     }
 
     /**

@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.act.Striker;
 import dev.luizloyola.anima.core.brain.sense.Being;
+import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.Gait;
 import java.util.List;
@@ -286,6 +287,19 @@ class EngageTest {
 
         assertEquals(TaskStatus.FAILED, engage.tick(ctx));
         assertEquals("lost track of them", engage.failureDetail());
+    }
+
+    @Test
+    void aCowInAHerdIsFollowedThoughTheHerdHidesIt() {
+        BeingId cow = BeingId.of(java.util.UUID.randomUUID());
+        ctx.percepts.beings = List.of(FakePercepts.herdOf("cow", new Pos(6, 64, 0), 6.0, List.of(cow)));
+        ctx.percepts.hidden.put(cow, FakePercepts.animalAt(cow, "cow", new Pos(5, 64, 0), 5.0));
+        ctx.striker.reach = Striker.Reach.OUT_OF_REACH;
+        Engage engage = new Engage(cow, new Pos(5, 64, 0));
+
+        assertEquals(TaskStatus.RUNNING, engage.tick(ctx));
+        assertEquals(1, ctx.mover.moveToCalls, "chasing the cow, not lost among the herd");
+        assertEquals(5, ctx.mover.lastX);
     }
 
     @Test

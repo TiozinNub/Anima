@@ -462,6 +462,19 @@ public final class BeingSensorCore {
     }
 
     /**
+     * One body by id, as {@link #beings()} would show it had no herd absorbed it — a herd member
+     * read out on its own — or the herd itself by the herd's id.
+     */
+    public java.util.Optional<Being> being(BeingId id) {
+        Track track = tracks.get(id);
+        if (track != null) {
+            return track.unplaced ? java.util.Optional.empty() : java.util.Optional.of(being(track));
+        }
+        Herd herd = herds.get(id);
+        return herd == null ? java.util.Optional.empty() : java.util.Optional.of(herdBeing(herd));
+    }
+
+    /**
      * How many peers {@link #beings()} holds, told apart as individuals, that {@code who} accepts
      * — without building a {@link Being} per track, which a per-tick count made the costliest
      * thing in a crowd's needs.

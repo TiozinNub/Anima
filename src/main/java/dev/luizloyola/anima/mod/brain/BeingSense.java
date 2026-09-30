@@ -211,6 +211,11 @@ public final class BeingSense {
         return sensor.beings();
     }
 
+    /** @see BeingSensorCore#being(BeingId) */
+    public java.util.Optional<Being> being(BeingId id) {
+        return sensor.being(id);
+    }
+
     /** A count over {@link #beings()} that does not build it — see {@link BeingSensorCore#countPeers}. */
     public int countPeers(Predicate<BeingId> who) {
         return sensor.countPeers(who);

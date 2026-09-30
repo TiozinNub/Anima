@@ -448,6 +448,38 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aHuntsSearchesComeBackAtTheSameStep() {
+        GoTo leg = new GoTo(18, 64, 2, Gait.WALK).resume(true);
+        dev.luizloyola.anima.core.brain.task.Scout scout = assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.Scout.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.Scout("cow", new Pos(10, 64, 2), 8)
+                        .resume(1, -1, leg)));
+        assertEquals("cow", scout.species());
+        assertEquals(new Pos(10, 64, 2), scout.anchor(), "the memory it forgets if the herd is gone");
+        assertEquals(8, scout.radius());
+        assertEquals(1, scout.index(), "the herd's ground was looked at; the ring's first point is next");
+        assertEquals(new Pos(18, 64, 2), new Pos(scout.leg().x(), scout.leg().y(), scout.leg().z()));
+
+        dev.luizloyola.anima.core.brain.task.SeekPrey seek = assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.SeekPrey.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.SeekPrey(
+                        dev.luizloyola.anima.core.brain.task.ReadyFood.SPEC)
+                        .resume(new Pos(0, 64, 0), 3, 2, 11, null)));
+        assertEquals(dev.luizloyola.anima.core.brain.task.ReadyFood.SPEC, seek.wanted());
+        assertEquals(new Pos(0, 64, 0), seek.origin(), "the ground a failed search rests");
+        assertEquals(3, seek.heading());
+        assertEquals(2, seek.legs());
+        assertEquals(11, seek.look(), "mid-look, not a fresh leg");
+
+        dev.luizloyola.anima.core.brain.task.SeekPrey fresh = assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.SeekPrey.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.SeekPrey(
+                        dev.luizloyola.anima.core.brain.task.ReadyFood.SPEC)));
+        assertNull(fresh.origin(), "a search not yet started draws its heading on its first tick");
+        assertEquals(-1, fresh.heading());
+    }
+
+    @Test
     void aConverseComesBackKnowingWhoAndHowItWouldOpen() {
         // The live Encounter is deliberately not part of this: it is world state owned by the
         // shared roster, not the task's own — see Converse's class doc — so only what it was

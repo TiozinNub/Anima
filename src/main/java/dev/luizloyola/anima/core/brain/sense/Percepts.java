@@ -56,6 +56,24 @@ public interface Percepts {
     List<Being> beings();
 
     /**
+     * One perceived body by id, a member of a herd included: {@link #beings()} shows a herd as one
+     * being, but a fight or a hunt follows one animal in it.
+     */
+    default java.util.Optional<Being> being(BeingId who) {
+        for (Being being : beings()) {
+            if (being.id().equals(who)) {
+                return java.util.Optional.of(being);
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
+    /** Whether {@code who} is fair game, read off its body — empty for anything not perceived. */
+    default java.util.Optional<Quarry> quarry(BeingId who) {
+        return java.util.Optional.empty();
+    }
+
+    /**
      * The world's blocks, seen through the one block vocabulary ({@code BlockKind}) — the same
      * probe perception's sensor reads through, now offered to tasks for their task-time re-walks
      * (a chop re-scanning a remembered grove: memory points, world is truth). Live reads, server

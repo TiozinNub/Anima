@@ -157,13 +157,9 @@ public final class Engage implements PrimitiveTask {
         }
     }
 
+    /** Through {@code being(id)}, not {@code beings()}: a cow in a herd is not in that list. */
     private @Nullable Being seen(BrainContext ctx) {
-        for (Being being : ctx.percepts().beings()) {
-            if (being.id().equals(target)) {
-                return being;
-            }
-        }
-        return null;
+        return ctx.percepts().being(target).orElse(null);
     }
 
     @Override

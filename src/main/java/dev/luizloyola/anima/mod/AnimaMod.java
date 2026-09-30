@@ -70,6 +70,23 @@ public final class AnimaMod implements ModInitializer {
         // Teaches the plan-codec registry Anima's own tasks, before anything can load a plan.
         dev.luizloyola.anima.mod.brain.AnimaTasks.install();
         dev.luizloyola.anima.mod.brain.ReadyFoods.install();
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> {
+            java.util.Set<String> creatures = dev.luizloyola.anima.compat.sense.LootYields.species();
+            dev.luizloyola.anima.core.brain.sense.Yields.install(
+                    new dev.luizloyola.anima.core.brain.sense.Yields.Lookup() {
+                        @Override
+                        public java.util.Set<String> of(String species) {
+                            return dev.luizloyola.anima.compat.sense.LootYields.of(species, server);
+                        }
+
+                        @Override
+                        public java.util.Set<String> species() {
+                            return creatures;
+                        }
+                    });
+        });
+        ServerLifecycleEvents.SERVER_STOPPED.register(
+                server -> dev.luizloyola.anima.core.brain.sense.Yields.install(null));
         // As the server finishes starting: refuses to run a world whose memory did not load,
         // which vanilla swallows and then overwrites.
         StoreGuard.install();
