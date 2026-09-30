@@ -1186,6 +1186,10 @@ public final class AgentCommands {
                                         .then(Commands.argument("item", ItemArgument.item(registryAccess))
                                                 .executes(ctx -> invCount(ctx,
                                                         ItemArgument.getItem(ctx, "item")))))
+                                .then(Commands.literal("wear")
+                                        .then(Commands.argument("item", ItemArgument.item(registryAccess))
+                                                .executes(ctx -> invWear(ctx,
+                                                        ItemArgument.getItem(ctx, "item")))))
                                 .then(Commands.literal("give")
                                         .then(Commands.argument("item", ItemArgument.item(registryAccess))
                                                 .executes(ctx -> invGive(ctx,
@@ -2374,6 +2378,39 @@ public final class AgentCommands {
         Replies.send(source, () -> Component.translatable("anima.command.inv.count",
                 person.entity().getName(), held, id).withStyle(ChatFormatting.AQUA));
         return held;
+    }
+
+    /**
+     * How worn the most-worn carried stack of an item is, as the command's result — so a function can
+     * store it and a test can ask whether a tool was used. None carried answers 0, as does a tool
+     * never used; {@code inv count} tells them apart.
+     */
+    private static int invWear(CommandContext<CommandSourceStack> ctx, ItemInput input)
+            throws CommandSyntaxException {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        String id = ItemStacks.templateOf(input, source.registryAccess()).id();
+        int worn = -1;
+        int max = 0;
+        for (int slot = 0; slot < dev.luizloyola.anima.core.inv.Inventory.SIZE; slot++) {
+            dev.luizloyola.anima.core.inv.ItemStack stack = person.inventory().get(slot);
+            if (!stack.isEmpty() && stack.id().equals(id)) {
+                net.minecraft.world.item.ItemStack real = ItemStacks.toVanilla(stack, source.registryAccess());
+                if (real.getDamageValue() > worn) {
+                    worn = real.getDamageValue();
+                    max = real.getMaxDamage();
+                }
+            }
+        }
+        int wear = Math.max(worn, 0);
+        boolean none = worn < 0;
+        int of = max;
+        Replies.send(source, () -> (none
+                ? Component.translatable("anima.command.inv.wear_none", person.entity().getName(), id)
+                : Component.translatable("anima.command.inv.wear", person.entity().getName(), id, wear, of))
+                .withStyle(ChatFormatting.AQUA));
+        return wear;
     }
 
     /** Adds {@code count} of the given item to the resolved Person, reporting anything that didn't fit. */
