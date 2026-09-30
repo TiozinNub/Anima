@@ -89,7 +89,8 @@ public final class MobAttacks {
                 // Three fireballs of 5 every 178 ticks, 6 apart: immunity drops the middle one.
                 return new Attack(5.0, 89.0, false, BURN_TICKS);
             case "minecraft:ghast":
-                return new Attack(10.0, 60.0, false, 0); // max(6 fireball, 6–15 blast)
+                // A fireball every 60 ticks: measured 6 a hit, the blast never more, then burning.
+                return new Attack(6.0, 60.0, false, BURN_TICKS);
             case "minecraft:shulker":
                 return new Attack(4.0, 65.0, false, 0);
             case "minecraft:guardian":
@@ -120,7 +121,9 @@ public final class MobAttacks {
             case "minecraft:iron_golem":
                 return new Attack(attr / 2.0 + (Math.floor(attr) - 1.0) / 2.0, 20.0, false, 0);
             case "minecraft:warden":
-                return new Attack(attr, 18.0, false, 0); // melee; the sonic boom yields to it
+                // Melee; the sonic boom yields to it. Its cooldown is 18 in code, and it measured
+                // 20 against a Person (2026-09-30).
+                return new Attack(attr, 20.0, false, 0);
             case "minecraft:piglin":
                 return hand.getItem() instanceof CrossbowItem
                         ? crossbow(mob, hand) : new Attack(attr, 20.0, false, 0);
