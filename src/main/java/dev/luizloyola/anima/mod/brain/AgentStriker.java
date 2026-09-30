@@ -39,8 +39,8 @@ public final class AgentStriker implements Striker {
     private ItemStack lastMainHand = ItemStack.EMPTY;
     /** Set by a restore: the next tick takes whatever is in hand as what was always there. */
     private boolean adoptHand;
-    /** The last tick a fight asked where a blow stands. Not saved: the fight asks again. */
-    private long engagedAt = Long.MIN_VALUE;
+    /** The last tick a fight asked where a blow stands; -1 before any. Not saved: the fight asks again. */
+    private long engagedAt = -1;
 
     public AgentStriker(AgentBody body) {
         this.body = body;
@@ -120,7 +120,7 @@ public final class AgentStriker implements Striker {
 
     /** Whether a fight is using the arm: one asks where a blow stands every tick it runs. */
     public boolean inUse(long now) {
-        return now - engagedAt <= 1;
+        return engagedAt >= 0 && now - engagedAt <= 1;
     }
 
     @Override
