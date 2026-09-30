@@ -82,6 +82,18 @@ class HuntTest {
     }
 
     @Test
+    void theLonerChosenIsForgottenSoItsCarcassIsNotScoutedFor() {
+        BeingId id = BeingId.of(UUID.randomUUID());
+        Pos at = new Pos(6, 64, 0);
+        ctx.percepts.beings = List.of(FakePercepts.animalAt(id, "cow", at, 6.0));
+        ctx.knowledge.note(new PoiMemory(PoiKind.HERD, "cow", id.value(), at, Region.of(at), 1, false, 0L), 64);
+
+        hunt().decompose(ctx);
+
+        assertTrue(ctx.knowledge.all(PoiKind.HERD).isEmpty());
+    }
+
+    @Test
     void theNearestHeadOfAHerdIsTheOneHunted() {
         BeingId far = BeingId.of(UUID.randomUUID());
         BeingId near = BeingId.of(UUID.randomUUID());

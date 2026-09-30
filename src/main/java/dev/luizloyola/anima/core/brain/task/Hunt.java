@@ -68,6 +68,13 @@ public final class Hunt implements Method {
             Being prey = plan.target();
             ctx.journal().record(Category.BRAIN, "hunt", "hunting a " + prey.species() + " at "
                     + prey.pos().x() + ", " + prey.pos().y() + ", " + prey.pos().z());
+            // Its own memory goes now: a dead loner's outlives it, and the next round would scout
+            // for the animal just eaten. One that gets away is in view, and noticed again.
+            for (PoiMemory loner : ctx.knowledge().all(PoiKind.HERD)) {
+                if (prey.id().value().equals(loner.individual())) {
+                    ctx.knowledge().forget(PoiKind.HERD, loner.anchor());
+                }
+            }
             return List.of(new Fight(prey.id(), prey.pos()),
                     new Try(new GatherNearbyDrops(ItemSpec.anyOf(Yields.of(prey.species())))));
         }
