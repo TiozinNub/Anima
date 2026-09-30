@@ -602,11 +602,14 @@ public final class Navigator {
                 : java.util.Set.of();
         HandsOff handsOff = body.canScale() ? WorkFence.around(level(), start, this.goal)
                 : HandsOff.NONE;
+        // A flight is copied wider, so a pit it would drop into is proven walled in.
+        int margin = this.gait == Gait.SPRINT && this.level == WalkLevel.WALK_ONLY
+                ? PathfinderService.FLIGHT_MARGIN : PathfinderService.HORIZONTAL_MARGIN;
         PathfinderService.Dispatched dispatched = PathfinderService.inThread()
-                ? PathfinderService.computeNow(level(), who, start, this.goal,
-                        body, DangerFields.of(this.person), troubles(), where, pillars, handsOff)
-                : PathfinderService.request(level(), who, start, this.goal,
-                        body, DangerFields.of(this.person), troubles(), where, pillars, handsOff);
+                ? PathfinderService.computeNow(level(), who, start, this.goal, body,
+                        DangerFields.of(this.person), troubles(), where, pillars, handsOff, margin)
+                : PathfinderService.request(level(), who, start, this.goal, body,
+                        DangerFields.of(this.person), troubles(), where, pillars, handsOff, margin);
         this.grid = dispatched.snapshot();
         this.pending = dispatched.result();
     }

@@ -25,10 +25,9 @@ import java.util.List;
  *                    finds three of these
  * @param taken       blocks the route puts in the hand: a carved lip, a pillar block gone down or
  *                    taken to climb beside it — see {@link #spent()}
- * @param trapped     whether the route leaves the body somewhere it cannot walk out of: it drops
- *                    further than the body climbs, and no way back to where it started is found
- *                    from where it ends. A pit, a moat, a ravine with no way up — see
- *                    {@link Pathfinder#find}
+ * @param trapped     whether the route leaves the body somewhere walled in: it drops further than
+ *                    the body climbs, and where it ends is proven to have no way out. A pit, a
+ *                    moat — see {@link Pathfinder#find}
  */
 public record Path(List<Waypoint> waypoints, boolean reachedGoal, boolean sealed,
                    int reachableCells, int restCells, int taken, boolean trapped) {

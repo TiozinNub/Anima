@@ -50,7 +50,13 @@ public final class PathfinderService {
     private PathfinderService() {}
 
     /** How far past the start∪goal box the snapshot extends, so detours have room to route. */
-    private static final int HORIZONTAL_MARGIN = 16;
+    public static final int HORIZONTAL_MARGIN = 16;
+    /**
+     * The same, for a flight: wide enough that a pit or a moat it would drop into is proven walled
+     * in rather than cut off by the edge of the copy ({@code Path#trapped}). A moat round a house
+     * read as open at 16 (2026-09-30).
+     */
+    public static final int FLIGHT_MARGIN = 32;
     /**
      * The confinement survey's own, smaller box — the routing margin is sized for detours, and a
      * survey is not routing anywhere.
@@ -132,7 +138,15 @@ public final class PathfinderService {
     public static Dispatched request(ServerLevel level, @Nullable AgentId who, BlockPos start,
             BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
             NavDomain fence, java.util.Set<Long> pillars, HandsOff handsOff) {
-        WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
+        return request(level, who, start, goal, body, danger, setbacks, fence, pillars, handsOff,
+                HORIZONTAL_MARGIN);
+    }
+
+    /** As above, with the copy {@code margin} past the start∪goal box — see {@link #FLIGHT_MARGIN}. */
+    public static Dispatched request(ServerLevel level, @Nullable AgentId who, BlockPos start,
+            BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
+            NavDomain fence, java.util.Set<Long> pillars, HandsOff handsOff, int margin) {
+        WorldSnapshot snapshot = snapshotAround(level, start, goal, margin);
         PathRequest pathRequest = buildRequest(snapshot, start, goal, body, danger, who, setbacks)
                 .within(fence).near(pillars).keepingOff(handsOff);
         String handle = who == null ? "?" : who.shortText();
@@ -174,7 +188,15 @@ public final class PathfinderService {
     public static Dispatched computeNow(ServerLevel level, @Nullable AgentId who, BlockPos start,
             BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
             NavDomain fence, java.util.Set<Long> pillars, HandsOff handsOff) {
-        WorldSnapshot snapshot = sharedSnapshot(level, start, goal);
+        return computeNow(level, who, start, goal, body, danger, setbacks, fence, pillars,
+                handsOff, HORIZONTAL_MARGIN);
+    }
+
+    /** As above, with the copy {@code margin} past the start∪goal box. */
+    public static Dispatched computeNow(ServerLevel level, @Nullable AgentId who, BlockPos start,
+            BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
+            NavDomain fence, java.util.Set<Long> pillars, HandsOff handsOff, int margin) {
+        WorldSnapshot snapshot = snapshotAround(level, start, goal, margin);
         Path path = Pathfinder.find(snapshot, buildRequest(snapshot, start, goal, body, danger, who,
                 setbacks).within(fence).near(pillars).keepingOff(handsOff));
         return new Dispatched(CompletableFuture.completedFuture(path), snapshot);

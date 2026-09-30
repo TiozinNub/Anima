@@ -482,26 +482,36 @@ public final class Pathfinder {
     }
 
     /**
-     * {@code path}, marked {@link Path#trapped} when it leaves the body somewhere it cannot walk out
-     * of. Asked only of a route that drops further than the body climbs, since every other move can
-     * be walked back the way it came: a search back from where the route ends to where it started,
-     * on the same grid and with the same legs. No way back found is a trap.
+     * {@code path}, marked {@link Path#trapped} when it leaves the body somewhere walled in. Asked
+     * only of a route that drops further than the body climbs, since every other move can be walked
+     * back the way it came: a survey from where the route ends, on the same grid and with the same
+     * legs, that is sealed and does not hold the start.
      *
-     * <p>A way back, not proof of no way out: a ravine runs past the edge of any capture, so a
-     * survey for the rim never proves it closed, and a moat flown on 2026-09-30 touched its
-     * capture's edge and read as open. What a way back costs is a route search, and only for a
-     * route that drops.
+     * <p>Proven walled in, not merely no way back: open ground under a ledge has no way back up
+     * either, and a body on a platform refused every way off it while a zombie closed in
+     * (2026-09-30). The proof needs the pit inside the copy, which is why a flight is copied wider
+     * ({@code PathfinderService.FLIGHT_MARGIN}); a ravine longer than any copy is not proven, and
+     * reads as open.
      */
     private static Path trapped(NavGrid grid, PathRequest request, Path path) {
         if (path.isEmpty() || !dropsBeyondAClimb(request, path)) {
             return path;
         }
         Waypoint end = path.last();
-        PathRequest back = new PathRequest(end.x(), end.y(), end.z(), request.startX(),
-                request.startY(), request.startZ(), request.profile(), request.danger(),
-                request.domain(), request.maxNodes(), request.variety(), request.setbacks(),
-                request.pillars(), request.handsOff());
-        return new Pathfinder(grid, back).search(back).reachedGoal() ? path : path.trap();
+        Confinement there = survey(grid, new PathRequest(end.x(), end.y(), end.z(), end.x(),
+                end.y(), end.z(), request.profile(), request.danger(), request.domain(),
+                request.maxNodes(), request.variety(), request.setbacks(), request.pillars(),
+                request.handsOff()));
+        if (!there.sealed()) {
+            return path;
+        }
+        for (Pos cell : there.region()) {
+            if (cell.x() == request.startX() && cell.z() == request.startZ()
+                    && Math.abs(cell.y() - request.startY()) <= 1) {
+                return path; // walled in with the start: it was in there already
+            }
+        }
+        return path.trap();
     }
 
     private static boolean dropsBeyondAClimb(PathRequest request, Path path) {

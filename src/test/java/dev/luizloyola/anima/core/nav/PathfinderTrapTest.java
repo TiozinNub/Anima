@@ -27,16 +27,34 @@ class PathfinderTrapTest {
     }
 
     @Test
-    void aRavineThatRunsPastTheEdgeOfTheCaptureIsATrap() {
-        // Nothing proves a ravine closed: it leaves the capture at both ends. What is missing is a
-        // way back, which is what the moat on the shelter scene was missing too.
+    void aDropOffALedgeOntoOpenGroundIsNot() {
+        // The cliff scene (scripts/shelter/cliff.sh): a platform three high in the middle of open
+        // ground. No way back up, and nothing walls the body in once it is down.
+        String[] rows = new String[SIZE];
+        for (int z = 0; z < SIZE; z++) {
+            StringBuilder row = new StringBuilder();
+            for (int x = 0; x < SIZE; x++) {
+                row.append(x >= LO && x <= HI && z >= LO && z <= HI ? '4' : '1');
+            }
+            rows[z] = row.toString();
+        }
+        Path path = Pathfinder.find(AsciiWorld.of(rows).bounded(),
+                PathRequest.of(12, 4, 12, 3, 1, 12, TestBodies.BIPED));
+        assertTrue(path.reachedGoal());
+        assertFalse(path.trapped());
+    }
+
+    @Test
+    void aRavineLongerThanTheCopyIsNotProven() {
+        // It leaves the copy at both ends, so nothing shows it closed: the known limit, and why a
+        // flight is copied wider than a walk.
         String[] rows = new String[SIZE];
         for (int z = 0; z < SIZE; z++) {
             rows[z] = (z >= LO && z <= LO + 2 ? "1" : "4").repeat(SIZE);
         }
         Path path = find(AsciiWorld.of(rows), 12, 1, 11);
         assertTrue(path.reachedGoal());
-        assertTrue(path.trapped());
+        assertFalse(path.trapped());
     }
 
     @Test
@@ -54,13 +72,13 @@ class PathfinderTrapTest {
     }
 
     @Test
-    void aDropWithAWayBackUpIsNot() {
+    void aDropInsideAPitTheBodyWasAlreadyInIsNot() {
         // A platform at height 3 inside the pit, up two steps from its floor: dropping off it is a
-        // drop, but the steps lead back up to it.
+        // drop, but the pit walled the body in before the route as much as after it.
         Path path = Pathfinder.find(field(false, true).bounded(),
                 PathRequest.of(11, 3, 12, 13, 1, 12, TestBodies.BIPED));
         assertTrue(path.reachedGoal());
-        assertFalse(path.trapped(), "there is a way back to where it started");
+        assertFalse(path.trapped(), "walled in with the start: it was in there already");
         assertTrue(Pathfinder.find(field(false, true).bounded(),
                 PathRequest.of(12, 4, 2, 13, 1, 12, TestBodies.BIPED)).trapped(),
                 "the same pit is a trap to a body coming from the field");
