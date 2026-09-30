@@ -18,7 +18,9 @@ import dev.luizloyola.anima.core.brain.task.EscapeStep;
 import dev.luizloyola.anima.core.brain.task.GoTo;
 import dev.luizloyola.anima.core.brain.task.HandlingPhase;
 import dev.luizloyola.anima.core.brain.task.Idle;
+import dev.luizloyola.anima.core.brain.task.Follow;
 import dev.luizloyola.anima.core.brain.task.LookRound;
+import dev.luizloyola.anima.core.brain.task.WaitForCompany;
 import dev.luizloyola.anima.core.brain.task.ObtainItem;
 import dev.luizloyola.anima.core.brain.task.SatisfyHunger;
 import dev.luizloyola.anima.core.brain.task.SurveyArea;
@@ -338,6 +340,21 @@ public final class AnimaTasks {
 
         // Nothing to carry: both are pure decomposers whose choices come from the context, and the
         // stream those choices draw from belongs to the body and is saved there.
+        // Who is followed and where they said they would be; the aim is re-made from what is seen.
+        TaskCodecs.register("anima:follow", Follow.class, RecordCodecBuilder.mapCodec(t -> t.group(
+                UUIDUtil.CODEC.fieldOf("leader").forGetter(f -> f.leader().value()),
+                POS.optionalFieldOf("meet").forGetter(f -> java.util.Optional.ofNullable(f.meet()))
+        ).apply(t, (leader, meet) -> new Follow(BeingId.of(leader), meet.orElse(null)))));
+        // The ticks left: a restored wait does not start over.
+        TaskCodecs.register("anima:wait_for_company", WaitForCompany.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        UUIDUtil.CODEC.listOf().fieldOf("whom").forGetter(w -> w.whom().stream()
+                                .map(BeingId::value).toList()),
+                        Codec.INT.fieldOf("radius").forGetter(WaitForCompany::radius),
+                        Codec.INT.fieldOf("remaining").forGetter(WaitForCompany::remaining)
+                ).apply(t, (whom, radius, remaining) -> new WaitForCompany(
+                        whom.stream().map(BeingId::of).collect(java.util.stream.Collectors.toSet()),
+                        radius, remaining))));
         // The bearing reached: a restored look turns on from there.
         TaskCodecs.register("anima:look_round", LookRound.class,
                 Codec.INT.optionalFieldOf("bearing", 0).xmap(LookRound::new, LookRound::bearing));
