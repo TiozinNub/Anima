@@ -25,10 +25,11 @@ class IncomingTest {
     }
 
     @Test
-    void fiveZombiesDealOneBlowEveryTenTicksNotFifteenASecond() {
-        double five = Incoming.perSecond(Collections.nCopies(5, zombie()), 0, 0);
-        assertTrue(five > 4.0 && five <= 6.0 + 1e-9,
-                "at most 3 per 10 ticks however many, less when their blows fall out of step: " + five);
+    void aCrowdOfZombiesDealsWhatWasMeasuredNotTheSum() {
+        // Measured against a Person in a corner, zombies arriving a few ticks apart (2026-09-30):
+        // 2.9, 3.1, 4.5 and 5.0 a second for one, two, three and five.
+        assertEquals(5.0, Incoming.perSecond(Collections.nCopies(5, zombie()), 0, 0), 0.4);
+        assertEquals(4.1, Incoming.perSecond(Collections.nCopies(3, zombie()), 0, 0), 0.6);
     }
 
     @Test

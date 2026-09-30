@@ -9,9 +9,11 @@ import java.util.List;
  * in full at most once every 10 ticks, and a blow inside that window lands only what it has over
  * the last one. Five zombies deal 6 a second, not 15; a poison tick inside a bite's window is lost.
  *
- * <p>Simulated tick by tick over a few staggered starts and averaged, since how the attackers'
- * rhythms fall against each other decides what gets through. See the mob attack reference
- * (2026-09-30) for the rule.
+ * <p>Simulated tick by tick over several starts and averaged. How the attackers' rhythms fall
+ * against each other decides what gets through, and they lock: a blow immunity shut out still
+ * resets its attacker's cooldown, so two zombies eight ticks apart deal one zombie's damage for as
+ * long as they keep that step. Each start draws every attacker's offset afresh, from a fixed seed so
+ * the same crowd always gives the same answer. See the mob attack reference (2026-09-30).
  */
 public final class Incoming {
 
@@ -19,7 +21,8 @@ public final class Incoming {
     static final int IMMUNE_TICKS = 20;
     static final int SHUT_OUT_ABOVE = 10;
     static final int TICKS = 400;
-    static final int STARTS = 4;
+    static final int STARTS = 16;
+    private static final long SEED = 0x5EED_B10DL;
     /** What a tick of poison, wither or fire deals. */
     static final double LINGER_DAMAGE = 1.0;
 
@@ -45,12 +48,11 @@ public final class Incoming {
             return 0.0;
         }
         double total = 0.0;
+        java.util.Random offsets = new java.util.Random(SEED);
         for (int start = 0; start < STARTS; start++) {
             List<Stream> run = new ArrayList<>();
-            for (int i = 0; i < streams.size(); i++) {
-                double interval = streams.get(i)[1];
-                double spread = (i * 0.6180339887 + start / (double) STARTS) % 1.0;
-                run.add(new Stream(streams.get(i)[0], interval, spread * interval));
+            for (double[] stream : streams) {
+                run.add(new Stream(stream[0], stream[1], offsets.nextDouble() * stream[1]));
             }
             total += simulate(run);
         }
