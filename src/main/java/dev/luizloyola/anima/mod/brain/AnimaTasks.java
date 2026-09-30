@@ -18,6 +18,7 @@ import dev.luizloyola.anima.core.brain.task.EscapeStep;
 import dev.luizloyola.anima.core.brain.task.GoTo;
 import dev.luizloyola.anima.core.brain.task.HandlingPhase;
 import dev.luizloyola.anima.core.brain.task.Idle;
+import dev.luizloyola.anima.core.brain.task.LookRound;
 import dev.luizloyola.anima.core.brain.task.ObtainItem;
 import dev.luizloyola.anima.core.brain.task.SatisfyHunger;
 import dev.luizloyola.anima.core.brain.task.SurveyArea;
@@ -321,6 +322,10 @@ public final class AnimaTasks {
 
         // Nothing to carry: both are pure decomposers whose choices come from the context, and the
         // stream those choices draw from belongs to the body and is saved there.
+        // The bearing reached: a restored look turns on from there.
+        TaskCodecs.register("anima:look_round", LookRound.class,
+                Codec.INT.optionalFieldOf("bearing", 0).xmap(LookRound::new, LookRound::bearing));
+
         TaskCodecs.register("anima:flee", FleeStep.class, MapCodec.unit(FleeStep::new));
         TaskCodecs.register("anima:eat", SatisfyHunger.class, MapCodec.unit(SatisfyHunger::new));
         TaskCodecs.register("anima:eat_carried", dev.luizloyola.anima.core.brain.task.EatCarried.class,

@@ -68,6 +68,14 @@ public final class Survey {
      *             coherent even if a caller spreads the work over several ticks
      */
     public Survey(AgentProfile profile, Pos from) {
+        this(profile, from, 0);
+    }
+
+    /**
+     * A look that turns on from {@code bearing}, as one cut short at it would have — how a saved
+     * look resumes. What the bearings before it saw was filed when they were looked down.
+     */
+    public Survey(AgentProfile profile, Pos from, int bearing) {
         this.profile = profile;
         this.from = from;
         // Rounded up to whole cells: the eye fraction was tuned against a Person
@@ -79,7 +87,10 @@ public final class Survey {
         this.near = CrescentSampler.radius(profile);
         this.seeThrough = HorizonScanner.seeThroughRadius(profile);
         this.rayCount = HorizonScanner.rays(this.radius);
-        aimBearing();
+        this.bin = Math.max(0, Math.min(HorizonBuffer.BINS, bearing));
+        if (!done()) {
+            aimBearing();
+        }
     }
 
     /** Whether this body can survey at all — a reach no longer than the near field is no reach. */
@@ -90,6 +101,11 @@ public final class Survey {
     /** Whether the whole turn has been made. */
     public boolean done() {
         return this.bin >= HorizonBuffer.BINS;
+    }
+
+    /** The bearing being looked down, {@link HorizonBuffer#BINS} once done. */
+    public int bearing() {
+        return this.bin;
     }
 
     /** How far round it has got, 0–100, for something to report while it works. */
