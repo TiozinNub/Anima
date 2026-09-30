@@ -105,6 +105,13 @@ public interface AgentBody {
      */
     AgentProfile profile();
 
+    /** How long this body's hands take to change what they hold, from its profile. */
+    default dev.luizloyola.anima.core.inv.HandChanges.Timing handTiming() {
+        return new dev.luizloyola.anima.core.inv.HandChanges.Timing(
+                profile().i(dev.luizloyola.anima.core.agent.ProfileAspect.HANDLING_SELECT_TICKS),
+                profile().i(dev.luizloyola.anima.core.agent.ProfileAspect.HANDLING_STACK_TICKS));
+    }
+
     /**
      * What is currently shifting this body away from its species — a trait, a skill, a job.
      *

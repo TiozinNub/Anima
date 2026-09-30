@@ -94,6 +94,7 @@ public final class TestSpecies {
             .set(ProfileAspect.HANDLING_OPEN_TICKS, 10)
             .set(ProfileAspect.HANDLING_SETTLE_TICKS, 5)
             .set(ProfileAspect.HANDLING_STACK_TICKS, 6)
+            .set(ProfileAspect.HANDLING_SELECT_TICKS, 2)
             // The deleted CraftStep.CRAFT_TICKS constant, exactly — so old craft expectations
             // still mean what they meant.
             .set(ProfileAspect.HANDLING_CRAFT_TICKS, 10)

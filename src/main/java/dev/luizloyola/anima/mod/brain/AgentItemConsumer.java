@@ -4,6 +4,7 @@ import dev.luizloyola.anima.compat.inv.FoodValues;
 import dev.luizloyola.anima.compat.inv.ItemStacks;
 import dev.luizloyola.anima.core.brain.act.ConsumeState;
 import dev.luizloyola.anima.core.brain.act.ItemConsumer;
+import dev.luizloyola.anima.core.inv.HandChanges;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.agent.FoodValue;
 import dev.luizloyola.anima.core.agent.Metabolism;
@@ -60,6 +61,9 @@ public final class AgentItemConsumer implements ItemConsumer {
     /** The food payload to feed the body on completion; null for a food-less consumable (a potion). */
     private @Nullable FoodValue foodValue;
     private int preparingTicks;
+    /** The storage slot {@link #begin} took the stack from, and whether it has reached the hand. */
+    private int slot;
+    private boolean handed;
 
     public AgentItemConsumer(AgentBody person) {
         this.person = person;
@@ -70,7 +74,7 @@ public final class AgentItemConsumer implements ItemConsumer {
      * reach equipment slots). Refuses an empty slot, a non-consumable (no {@code CONSUMABLE}
      * component, or a zero duration — {@code startUsingItem} keys the countdown off
      * {@code Consumable.consumeTicks()}), and plain food on a full bar ({@link #canEat}). Accepting
-     * makes the stack the hand item, selecting or swapping into the selected hotbar slot. Any
+     * starts a timed wield of the stack ({@link HandChanges}), which PREPARING waits out. Any
      * consumption in flight is aborted first — one mouth.
      */
     @Override
@@ -87,14 +91,9 @@ public final class AgentItemConsumer implements ItemConsumer {
         // Mirror of vanilla's can-eat gate (Consumable.startConsuming -> canConsume): a FOOD item
         // is refused when the eater couldn't benefit; a food-less consumable always may.
         if (food != null && !canEat(food.canAlwaysEat())) return false;
-        if (slot >= Inventory.MAIN_START) {
-            int hand = Inventory.HOTBAR_START + inventory.selectedSlot();
-            dev.luizloyola.anima.core.inv.ItemStack displaced = inventory.get(hand);
-            inventory.set(hand, stack);
-            inventory.set(slot, displaced);
-        } else {
-            inventory.setSelectedSlot(slot - Inventory.HOTBAR_START);
-        }
+        this.slot = slot;
+        this.handed = HandChanges.wield(inventory, slot, this.person.level().getGameTime(),
+                this.person.handTiming());
         this.intended = vanilla;
         this.foodValue = food;
         this.phase = Phase.PREPARING;
@@ -121,8 +120,16 @@ public final class AgentItemConsumer implements ItemConsumer {
         };
     }
 
-    /** Waits for the mirror to put the intended stack in the visible hand. */
+    /**
+     * Waits for the timed wield ({@link HandChanges}) to put the stack in hand, then for the mirror
+     * to show it there.
+     */
     private void tickPreparing() {
+        if (!this.handed) {
+            this.handed = HandChanges.wield(this.person.inventory(), this.slot,
+                    this.person.level().getGameTime(), this.person.handTiming());
+            return;
+        }
         if (!ItemStack.isSameItemSameComponents(
                 this.person.entity().getItemInHand(InteractionHand.MAIN_HAND), this.intended)) {
             if (++this.preparingTicks > PREPARING_GRACE_TICKS) {

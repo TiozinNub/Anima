@@ -9,6 +9,7 @@ import dev.luizloyola.anima.core.brain.act.Striker;
 import dev.luizloyola.anima.core.brain.act.Sweep;
 import dev.luizloyola.anima.core.brain.act.ToolChoice;
 import dev.luizloyola.anima.core.brain.act.WeaponChoice;
+import dev.luizloyola.anima.core.inv.HandChanges;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.social.PartyId;
@@ -105,12 +106,18 @@ public final class AgentStriker implements Striker {
         if (choice == ToolChoice.KEEP_HAND) {
             return false;
         }
+        long now = body.level().getGameTime();
         if (choice == ToolChoice.BARE_HAND) {
-            inv.stow();
-            return inv.mainHand().isEmpty(); // a full pack keeps the hand as it is
+            boolean done = HandChanges.stow(inv, now, body.handTiming());
+            return !done || inv.mainHand().isEmpty(); // a full pack keeps the hand as it is
         }
-        inv.wield(choice);
+        HandChanges.wield(inv, choice, now, body.handTiming());
         return true;
+    }
+
+    @Override
+    public boolean changing() {
+        return HandChanges.busy(body.inventory(), body.level().getGameTime());
     }
 
     /**

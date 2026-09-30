@@ -48,11 +48,17 @@ public interface Striker {
     boolean strike(BeingId target);
 
     /**
-     * Puts the pack's best weapon against {@code target} in hand ({@link WeaponChoice}); true when
-     * the hand changed. A hand that just changed has not charged, whatever {@link #charge} said a
-     * moment ago.
+     * Asks for the pack's best weapon against {@code target} in hand ({@link WeaponChoice}); true
+     * while the hand is changing, and on the tick it changed. The change is a timed item move, so
+     * ask every tick while {@link #changing}. A hand that just changed has not charged, whatever
+     * {@link #charge} said a moment ago.
      */
     boolean draw(BeingId target);
+
+    /** Whether the hands are in the middle of changing what they hold. */
+    default boolean changing() {
+        return false;
+    }
 
     /** A body with no fighting arm: nothing is ever in reach. */
     Striker NONE = new Striker() {

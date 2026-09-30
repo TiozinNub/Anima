@@ -15,8 +15,9 @@ import org.jspecify.annotations.Nullable;
  * Close on somebody and hit them until they are dead: the loop inside {@link Fight}. It knows whom
  * it fights and nothing about why.
  *
- * <p>Its first tick draws the pack's best weapon, so the warmup runs during the chase, and it asks
- * again before every blow, since the last one may have broken it. Each tick it asks the arm where a
+ * <p>Its first tick draws the pack's best weapon, so the swap and the warmup run during the chase,
+ * and it asks again before every blow, since the last one may have broken it. No blow is swung while
+ * the hand is changing. Each tick it asks the arm where a
  * blow stands. In reach, it swings a reaction after the target came into it
  * ({@code combat.reaction_ticks}), from up to {@code combat.reach_inset} blocks inside full reach,
  * rolled per blow. The reaction counts while the weapon charges and waits at
@@ -81,8 +82,8 @@ public final class Engage implements PrimitiveTask {
         lastKnown = seen.pos();
         boolean asked = false;
         boolean handChanged = false;
-        if (!drawn) {
-            handChanged = arm.draw(target);
+        if (!drawn || arm.changing()) {
+            handChanged = arm.draw(target); // a draw is timed: asked every tick until it lands
             asked = true;
             drawn = true;
         }

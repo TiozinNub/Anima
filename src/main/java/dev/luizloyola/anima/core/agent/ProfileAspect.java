@@ -346,7 +346,13 @@ public final class ProfileAspect {
             "Ticks to move one stack, in or out — one per SLOT rummaged, not per stack's worth "
                     + "of items. A slot holding one sword, four apples or sixty-four sticks costs "
                     + "this once each, so a tidy store is cheap and a messy one, with a stick "
-                    + "loose in each of three slots, costs three.");
+                    + "loose in each of three slots, costs three. Pulling a stack from the "
+                    + "backpack into the hand, or putting on a piece of armour, costs it too.");
+    public static final ProfileAspect HANDLING_SELECT_TICKS = register("handling.select_ticks",
+            Kind.INT, 0, 200,
+            "Ticks to take something already on the hotbar into the hand, or to empty the hand "
+                    + "onto a free hotbar slot: a player scrolls to it almost at once. The attack "
+                    + "warmup still starts over after it.");
     public static final ProfileAspect HANDLING_CRAFT_TICKS = register("handling.craft_ticks",
             Kind.INT, 1, 200,
             "Ticks of worked pause per craft. Long enough to read as labour, short enough not to "

@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.brain.act.ToolChoice;
 import dev.luizloyola.anima.compat.inv.ItemStacks;
 import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.inv.HandChanges;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.mod.body.AgentAttributes;
 import dev.luizloyola.anima.mod.body.AgentBody;
@@ -65,6 +66,11 @@ public final class AgentBlockBreaker implements BlockBreaker {
     private boolean intoHand;
     /** Last crack stage broadcast (0–9), or -1 when none is showing. */
     private int sentStage = -1;
+    /**
+     * Whether the tool for this block is in hand; the break waits for a timed wield. Not saved: a
+     * restored break asks again, and the swap under way is saved with the inventory.
+     */
+    private boolean armed;
 
     public AgentBlockBreaker(AgentBody person) {
         this.person = person;
@@ -79,7 +85,7 @@ public final class AgentBlockBreaker implements BlockBreaker {
                 || !LevelProbe.armPathClear(level, person.entity().getEyePosition(), pos)) {
             return false; // includes a blocked arm path: no breaking logs through the canopy
         }
-        wieldBestFor(blockState);
+        this.armed = wieldBestFor(blockState);
         clearCrack();
         this.target = pos;
         this.begunOn = blockState;
@@ -144,6 +150,9 @@ public final class AgentBlockBreaker implements BlockBreaker {
             return;
         }
         person.faceBlock(target); 
+        if (!armed && !(armed = wieldBestFor(now))) {
+            return; // still drawing the tool
+        }
         progress += perTick(now, hardness);
         // Every tick, like a mining player (continueDestroyBlock does this): swing()'s own
         // guard restarts the animation at half duration — the player arm's mining cadence, owned by
@@ -203,13 +212,14 @@ public final class AgentBlockBreaker implements BlockBreaker {
      * measures 1.0 on dirt, same as bare knuckles, so tools stay sheathed for dirt with no rule
      * about dirt anywhere). Ranking is {@link ToolChoice}'s.
      *
-     * <p>Writes the CORE inventory only; an entity-side write would be stomped by the equipment
-     * mirror. Stateless, so a tool that breaks mid-chop leaves the next {@code begin()} to re-rank.
+     * <p>A timed item move ({@link HandChanges}): true once the hand holds the choice, asked every
+     * tick until then. Writes the CORE inventory only; an entity-side write would be stomped by the
+     * equipment mirror. A tool that breaks mid-chop leaves the next {@code begin()} to re-rank.
      *
      * <p>Known limit: ranking is by the STACK's own speed, so Efficiency — which lands only once
      * equipped — cannot separate two otherwise-equal axes. The tie keeps whichever is in the hand.
      */
-    private void wieldBestFor(BlockState blockState) {
+    private boolean wieldBestFor(BlockState blockState) {
         Inventory inv = person.inventory();
         HolderLookup.Provider registries = person.level().registryAccess();
         List<ToolChoice.Candidate> pack = new ArrayList<>();
@@ -225,11 +235,12 @@ public final class AgentBlockBreaker implements BlockBreaker {
         int heldSlot = Inventory.HOTBAR_START + inv.selectedSlot();
         int choice = ToolChoice.choose(pack, heldSlot,
                 ItemStack.EMPTY.getDestroySpeed(blockState), blockState.requiresCorrectToolForDrops());
+        long now = person.level().getGameTime();
         if (choice == ToolChoice.BARE_HAND) {
-            inv.stow();
-        } else if (choice != ToolChoice.KEEP_HAND) {
-            inv.wield(choice);
+            return HandChanges.stow(inv, now, person.handTiming());
         }
+        return choice == ToolChoice.KEEP_HAND
+                || HandChanges.wield(inv, choice, now, person.handTiming());
     }
 
     /** The survival player's destroy-progress formula, minus nothing: speed / hardness / divisor. */

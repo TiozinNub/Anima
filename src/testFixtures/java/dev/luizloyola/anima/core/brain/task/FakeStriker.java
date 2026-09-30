@@ -23,6 +23,8 @@ public final class FakeStriker implements Striker {
     /** What the next {@link #draw} answers; it answers once, then the hand holds the best. */
     public boolean drawChanges;
     public int draws;
+    /** What {@link #changing} answers: a swap under way. */
+    public boolean changing;
 
     @Override
     public Reach reach(BeingId target, double inset) {
@@ -44,9 +46,14 @@ public final class FakeStriker implements Striker {
     }
 
     @Override
+    public boolean changing() {
+        return changing;
+    }
+
+    @Override
     public boolean draw(BeingId target) {
         draws++;
-        boolean changed = drawChanges;
+        boolean changed = drawChanges || changing;
         drawChanges = false;
         return changed;
     }

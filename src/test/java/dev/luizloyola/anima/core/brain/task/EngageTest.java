@@ -166,6 +166,22 @@ class EngageTest {
     }
 
     @Test
+    void noBlowWhileTheHandIsChangingAndTheSwapIsAskedForEveryTick() {
+        Being zombie = zombieAt(2, 2.0);
+        ctx.striker.reach = Striker.Reach.IN_REACH;
+        ctx.striker.changing = true; // a sword on its way out of the backpack
+        Engage engage = new Engage(zombie.id(), zombie.pos());
+        for (int t = 0; t < 10; t++) {
+            engage.tick(ctx);
+        }
+
+        assertTrue(ctx.striker.struck.isEmpty(), "charged or not, a hand mid-swap does not swing");
+        assertEquals(10, ctx.striker.draws, "a timed draw lapses on a tick nobody asks for it");
+        ctx.striker.changing = false;
+        assertTrue(ticksToNextBlow(engage, 20) > 0, "the drawn sword swings");
+    }
+
+    @Test
     void everyBlowAsksForTheBestWeaponFirst() {
         Being zombie = zombieAt(2, 2.0);
         ctx.striker.reach = Striker.Reach.IN_REACH;

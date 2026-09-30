@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A player-shaped carried inventory, as pure simulation state — no {@code net.minecraft}. The
@@ -42,6 +43,7 @@ public final class Inventory {
 
     private final ItemStack[] slots = new ItemStack[SIZE];
     private int selectedSlot;
+    private @Nullable HandChange change;
 
     public Inventory() {
         Arrays.fill(slots, ItemStack.EMPTY);
@@ -118,6 +120,25 @@ public final class Inventory {
                 return;
             }
         }
+    }
+
+    /** The first empty slot in {@code [from, to)}, or -1. */
+    public int firstEmpty(int from, int to) {
+        for (int slot = from; slot < to; slot++) {
+            if (slots[checkSlot(slot)].isEmpty()) {
+                return slot;
+            }
+        }
+        return -1;
+    }
+
+    /** What the hands are in the middle of changing, if anything ({@link HandChanges}). */
+    public @Nullable HandChange change() {
+        return change;
+    }
+
+    public void setChange(@Nullable HandChange change) {
+        this.change = change;
     }
 
     public ItemStack offhand() {
@@ -243,10 +264,12 @@ public final class Inventory {
     public void copyFrom(Inventory other) {
         System.arraycopy(other.slots, 0, this.slots, 0, SIZE);
         this.selectedSlot = other.selectedSlot;
+        this.change = other.change;
     }
 
     public void clear() {
         Arrays.fill(slots, ItemStack.EMPTY);
+        change = null;
     }
 
     private static int checkSlot(int slot) {
