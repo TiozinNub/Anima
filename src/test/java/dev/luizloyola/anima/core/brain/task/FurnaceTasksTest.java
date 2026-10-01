@@ -61,6 +61,20 @@ class FurnaceTasksTest {
     }
 
     @Test
+    void aBodyFarOffWalksToTheFurnaceBeforeGettingAnything() {
+        ctx.percepts.position = new Pos(200, 64, 0);
+
+        List<Task> plan = new LoadFurnace(furnace, LOGS, 16, PLANKS).methods().get(0).decompose(ctx);
+
+        GoTo there = assertInstanceOf(GoTo.class, plan.get(0));
+        assertTrue(Math.abs(there.x() - furnace.x()) <= 1, "to the furnace, where its stores are");
+        assertEquals(PLANKS, assertInstanceOf(ObtainItem.class, plan.get(1)).spec());
+        assertEquals(LOGS, assertInstanceOf(ObtainItem.class, plan.get(2)).spec());
+        assertInstanceOf(GoTo.class, plan.get(3));
+        assertInstanceOf(TendFurnace.class, plan.get(4));
+    }
+
+    @Test
     void theLoadGoesInTheInputAndTheFuelInTheFuel() {
         ctx.percepts.inventory.set(0, ItemStack.of("minecraft:oak_log", 16, 64));
         ctx.percepts.inventory.set(1, ItemStack.of("minecraft:oak_planks", 11, 64));

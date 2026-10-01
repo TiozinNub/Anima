@@ -142,7 +142,7 @@ public final class UnloadFurnace implements CompoundTask {
                 int n = needed(ctx);
                 List<Task> steps = new ArrayList<>();
                 steps.add(new ObtainItem(fuel, n));
-                steps.addAll(LoadFurnace.walkTo(ctx, at));
+                steps.add(LoadFurnace.backBeside(ctx, at));
                 steps.add(new TendFurnace(at, null, null, 0, fuel, n));
                 return steps;
             }
