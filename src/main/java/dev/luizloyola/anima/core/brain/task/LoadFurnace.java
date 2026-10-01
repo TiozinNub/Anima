@@ -64,9 +64,13 @@ public final class LoadFurnace implements CompoundTask {
         return fuel;
     }
 
-    /** Walk to stand within reach of a furnace, or nothing when already there. */
+    /**
+     * Walk to stand within reach of a furnace, or nothing when already there. A block short of the
+     * reach: the arm measures from the eyes to the block's centre, which is further than feet to
+     * cell — 4.15 against 4 at four blocks along the ground.
+     */
     static List<Task> walkTo(BrainContext ctx, Pos at) {
-        if (Workbench.distance(ctx.percepts().position(), at) <= Furnace.REACH) {
+        if (Workbench.distance(ctx.percepts().position(), at) <= Furnace.REACH - 1.0) {
             return List.of();
         }
         Pos beside = EnsureTable.WalkToKnown.standableBeside(at, ctx);
