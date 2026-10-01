@@ -144,4 +144,38 @@ class FurnaceTasksTest {
         assertEquals(0L, process.startedAt(), "the same process, going on");
         assertEquals(1000L + 11 * 200, process.dueAt(), "read off the furnace, not the old guess");
     }
+
+    @Test
+    void whatIsLeftWithNothingBurningIsRefuelled() {
+        FakeFurnaces.Box box = ctx.furnaces.at(furnace);
+        box.input = ItemStack.of("minecraft:oak_log", 6, 64);
+        UnloadFurnace.Refuel refuel = new UnloadFurnace.Refuel(furnace, PLANKS);
+
+        Method way = refuel.methods().get(0);
+        assertTrue(way.applicable(ctx));
+        ObtainItem fuel = assertInstanceOf(ObtainItem.class, way.decompose(ctx).get(0));
+        assertEquals(4, fuel.count(), "six smelts of 200 over 300 a plank");
+
+        box.lit = true;
+        assertEquals(false, way.applicable(ctx), "something burns: nothing to do");
+        box.lit = false;
+        box.fuel = ItemStack.of("minecraft:oak_planks", 1, 64);
+        assertEquals(false, way.applicable(ctx), "fuel waiting to burn is fuel");
+    }
+
+    @Test
+    void aVisitThatFindsNothingDoneStillReadsTheFurnace() {
+        ctx.claim(dev.luizloyola.anima.core.craft.Furnace.POI, furnace);
+        ctx.percepts.time = 5000L;
+        ctx.knowledge.places().run(dev.luizloyola.anima.core.craft.Furnace.POI, furnace,
+                new dev.luizloyola.anima.core.social.Process("smelt", "minecraft:oak_log", 16,
+                        "minecraft:charcoal", ctx.knowledge.places().who(), 0L, 3200L));
+        ctx.furnaces.at(furnace).input = ItemStack.of("minecraft:oak_log", 16, 64);
+
+        assertEquals(TaskStatus.FAILED, run(new TendFurnace(furnace, CHARCOAL, null, 0, null, 0), 200));
+
+        assertEquals(5000L + 16 * 200, ctx.knowledge.places()
+                .process(dev.luizloyola.anima.core.craft.Furnace.POI, furnace).orElseThrow().dueAt(),
+                "put off again from what is there, not left due to be posted again at once");
+    }
 }

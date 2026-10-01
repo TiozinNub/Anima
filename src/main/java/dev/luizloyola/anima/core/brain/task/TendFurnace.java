@@ -77,11 +77,13 @@ public final class TendFurnace implements PrimitiveTask {
         if (step < 4) {
             return TaskStatus.RUNNING;
         }
+        // Kept either way: a furnace found with nothing to take out is still a reading, and a due
+        // process left in the past would be posted again and again.
+        keepTheLedger(ctx, furnace);
         if (moved == 0) {
             failure = "nothing to take out or put in";
             return TaskStatus.FAILED;
         }
-        keepTheLedger(ctx, furnace);
         return TaskStatus.SUCCESS;
     }
 

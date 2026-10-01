@@ -662,8 +662,16 @@ public final class AnimaTasks {
         TaskCodecs.register("anima:unload_furnace", dev.luizloyola.anima.core.brain.task.UnloadFurnace.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         POS.fieldOf("at").forGetter(dev.luizloyola.anima.core.brain.task.UnloadFurnace::at),
-                        ITEM_SPEC.fieldOf("output").forGetter(dev.luizloyola.anima.core.brain.task.UnloadFurnace::output)
-                ).apply(t, dev.luizloyola.anima.core.brain.task.UnloadFurnace::new)));
+                        ITEM_SPEC.fieldOf("output").forGetter(dev.luizloyola.anima.core.brain.task.UnloadFurnace::output),
+                        ITEM_SPEC.optionalFieldOf("fuel").forGetter(task -> java.util.Optional.ofNullable(task.fuel()))
+                ).apply(t, (at, output, fuel) ->
+                        new dev.luizloyola.anima.core.brain.task.UnloadFurnace(at, output, fuel.orElse(null)))));
+
+        TaskCodecs.register("anima:refuel_furnace", dev.luizloyola.anima.core.brain.task.UnloadFurnace.Refuel.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POS.fieldOf("at").forGetter(dev.luizloyola.anima.core.brain.task.UnloadFurnace.Refuel::at),
+                        ITEM_SPEC.fieldOf("fuel").forGetter(dev.luizloyola.anima.core.brain.task.UnloadFurnace.Refuel::fuel)
+                ).apply(t, dev.luizloyola.anima.core.brain.task.UnloadFurnace.Refuel::new)));
 
         // The rung 5 root: what this body would say to OPEN the encounter if speech.current()
         // finds nothing already there. The live Encounter itself is not here — it is world state
