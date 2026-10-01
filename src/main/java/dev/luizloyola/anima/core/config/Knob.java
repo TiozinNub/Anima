@@ -255,6 +255,15 @@ public enum Knob implements KnobSpec {
                     + "claims protect nothing, but no player can claim inside an area. Off lets the "
                     + "claims go. Read when the server starts."),
 
+    // --- tickets: the chunks an agent keeps loaded round itself -------------------------------
+
+    /** @see dev.luizloyola.anima.mod.body.AgentTickets */
+    TICKETS_ENABLED("tickets.enabled", Kind.BOOL, 1, 0, 1,
+            "Every agent keeps the chunks round it loaded, so it goes on living with no player "
+                    + "near: 5x5 chunks tick and 9x9 are loaded, generating new terrain at the edge "
+                    + "of the world. Off, an agent away from every player stops until one comes "
+                    + "back."),
+
     // --- webdebug: the browser debug UI, off unless asked for -----------------------------
 
     /** @see dev.luizloyola.anima.mod.webdebug.WebDebugger */

@@ -41,6 +41,7 @@ public final class AnimaMod implements ModInitializer {
             LOGGER.warn("config: {}", problem);
         }
         AgentBodies.install();
+        dev.luizloyola.anima.mod.body.AgentTickets.install();
         // The journal's own lifecycle: closing its files at STOPPING, dropping its services at
         // STOPPED, sweeping aged lines, and re-muting channels when the config changes under a
         // running world. Here rather than only in a consumer, so a bare library install has it.
