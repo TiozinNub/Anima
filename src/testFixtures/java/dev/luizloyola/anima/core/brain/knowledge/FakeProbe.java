@@ -16,6 +16,7 @@ public final class FakeProbe implements BlockProbe {
 
     private final Map<Pos, BlockKind> blocks = new HashMap<>();
     private final Map<Pos, String> ids = new HashMap<>();
+    private final Map<Pos, Map<String, String>> states = new HashMap<>();
     private final Set<Column> unloaded = new HashSet<>();
     private final Set<Pos> plants = new HashSet<>();
     private final Set<Pos> hidden = new HashSet<>();
@@ -28,6 +29,19 @@ public final class FakeProbe implements BlockProbe {
     /** Names the exact block at a cell, independent of its {@link BlockKind}. Nothing infers one. */
     public void setId(int x, int y, int z, String id) {
         ids.put(new Pos(x, y, z), id);
+    }
+
+    /** Names the cell's block-state properties; nothing infers them from the id. */
+    public void setState(int x, int y, int z, Map<String, String> state) {
+        states.put(new Pos(x, y, z), Map.copyOf(state));
+    }
+
+    @Override
+    public Map<String, String> stateAt(int x, int y, int z) {
+        if (unloaded.contains(new Column(x, z))) {
+            return Map.of();
+        }
+        return states.getOrDefault(new Pos(x, y, z), Map.of());
     }
 
     public void clear(int x, int y, int z) {

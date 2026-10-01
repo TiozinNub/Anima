@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.knowledge;
 
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import java.util.Map;
 
 /**
  * Perception's only window onto the world. The compat layer implements it over the live level
@@ -60,6 +61,15 @@ public interface BlockProbe {
      */
     default String idAt(int x, int y, int z) {
         return "";
+    }
+
+    /**
+     * The cell's block-state properties by name — {@code type=double} on a slab, {@code candles=3}.
+     * Empty when the cell is out of reach, has none, or the probe cannot say. Asked as rarely as
+     * {@link #idAt}: by a builder checking that a step stands whole.
+     */
+    default Map<String, String> stateAt(int x, int y, int z) {
+        return Map.of();
     }
 
     /**

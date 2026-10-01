@@ -3,7 +3,9 @@ package dev.luizloyola.anima.compat.sense;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
@@ -14,6 +16,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -209,6 +212,25 @@ public final class LevelProbe implements BlockProbe {
         this.scratch.set(x, y, z);
         BlockState state = loaded.getBlockState(this.scratch);
         return BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
+    }
+
+    @Override
+    public Map<String, String> stateAt(int x, int y, int z) {
+        ChunkAccess loaded = chunkFor(x, z);
+        if (loaded == null) {
+            return Map.of();
+        }
+        this.scratch.set(x, y, z);
+        BlockState state = loaded.getBlockState(this.scratch);
+        Map<String, String> named = new TreeMap<>();
+        for (Property<?> property : state.getProperties()) {
+            named.put(property.getName(), valueName(state, property));
+        }
+        return named;
+    }
+
+    private static <T extends Comparable<T>> String valueName(BlockState state, Property<T> property) {
+        return property.getName(state.getValue(property));
     }
 
     /** Anima's own ladder, memoised per blockstate — see {@link #sights} for why that is sound. */

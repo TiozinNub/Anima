@@ -253,6 +253,14 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aPlaceComesBackWithTheTicksItHasWaited() {
+        var before = new dev.luizloyola.anima.core.brain.task.PlaceBlock(
+                dev.luizloyola.anima.core.brain.act.Placing.of("minecraft:dirt", new Pos(1, 2, 3)), 7);
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PlaceBlock.class, roundTrip(before));
+        assertEquals(7, after.waited());
+    }
+
+    @Test
     void aPlaceSavedBeforeItHadAnOrientationStillLoads() {
         var saved = com.google.gson.JsonParser.parseString(
                 "{\"task\":\"anima:place\",\"item\":\"minecraft:dirt\",\"at\":{\"x\":1,\"y\":2,\"z\":3}}");

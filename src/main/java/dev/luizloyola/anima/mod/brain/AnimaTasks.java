@@ -402,9 +402,11 @@ public final class AnimaTasks {
                         Codec.STRING.optionalFieldOf("block", "")
                                 .forGetter(p -> p.placing().block()),
                         Codec.unboundedMap(Codec.STRING, Codec.STRING).optionalFieldOf("state", Map.of())
-                                .forGetter(p -> p.placing().state())
-                ).apply(t, (item, at, block, state) -> new dev.luizloyola.anima.core.brain.task.PlaceBlock(
-                        new dev.luizloyola.anima.core.brain.act.Placing(item, at, block, state)))));
+                                .forGetter(p -> p.placing().state()),
+                        Codec.INT.optionalFieldOf("waited", 0)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceBlock::waited)
+                ).apply(t, (item, at, block, state, waited) -> new dev.luizloyola.anima.core.brain.task.PlaceBlock(
+                        new dev.luizloyola.anima.core.brain.act.Placing(item, at, block, state), waited))));
 
         TaskCodecs.register("anima:place_from", dev.luizloyola.anima.core.brain.task.PlaceFrom.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

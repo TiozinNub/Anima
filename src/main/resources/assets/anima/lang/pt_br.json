@@ -311,6 +311,8 @@
   "anima.config.aspect.instincts.unburden_slack_slots.desc": "Espaços vazios na mochila a partir dos quais o colono começa a querer guardar as coisas. É de propósito o fim da mochila, e não um limite de arrumação: a limpeza de rotina é tarefa do projeto de guardar, e isto só pega o caso em que um único ato enche o resto de uma vez.",
   "anima.config.aspect.instincts.unburden_tolerance": "Alcance para guardar",
   "anima.config.aspect.instincts.unburden_tolerance.desc": "Quanto um colono carregado gasta, em blocos de caminhada, para guardar as coisas em casa. A caminhada até lá é de graça; abrir um baú lá custa 32, então abaixo disso quem não tem baú em casa fica com a carga.",
+  "anima.config.aspect.handling.place_cooldown_ticks": "Ritmo de colocar blocos",
+  "anima.config.aspect.handling.place_cooldown_ticks.desc": "Ticks que um corpo gasta em cada bloco que coloca à mão antes de ele entrar: virar, mirar, alcançar. O ritmo de um construtor; a habilidade deve encurtá-lo.",
   "anima.config.aspect.stores.staleness_weight": "Desconfiança da memória",
   "anima.config.aspect.stores.staleness_weight.desc": "Equivalente em blocos somado ao custo de um estoque a cada 100 ticks desde a última vez que foi olhado. O quanto esta mente desconfia de uma memória antiga: quanto maior, menos longe anda com base em informação pior.",
   "anima.config.aspect.stores.full_avoid_ticks": "Tempo de espera de estoque cheio",

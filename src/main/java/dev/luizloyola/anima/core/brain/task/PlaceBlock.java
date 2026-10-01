@@ -1,35 +1,48 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.Placing;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 
 /**
  * Place one carried block — the thinnest wrapper over the
- * {@link dev.luizloyola.anima.core.brain.act.BlockPlacer} port. One-shot, vanilla placing being
- * instantaneous: placed → SUCCESS, refused (nothing carried, cell occupied, out of reach) → FAILED.
+ * {@link dev.luizloyola.anima.core.brain.act.BlockPlacer} port. The block goes in after the body's
+ * {@code handling.place_cooldown_ticks}, so a builder lays a block every half second rather than every
+ * tick (Luiz, 2026-10-01); then placed → SUCCESS, refused (nothing carried, cell occupied, out of
+ * reach) → FAILED. The ticks waited are saved, so a restart neither skips the wait nor repeats it.
  * The parent method owns the approach.
  */
 public final class PlaceBlock implements PrimitiveTask {
 
     private final Placing placing;
+    private int waited;
 
     public PlaceBlock(String itemId, int x, int y, int z) {
         this(Placing.of(itemId, new Pos(x, y, z)));
     }
 
     public PlaceBlock(Placing placing) {
+        this(placing, 0);
+    }
+
+    public PlaceBlock(Placing placing, int waited) {
         this.placing = placing;
+        this.waited = waited;
     }
 
     @Override
     public TaskStatus tick(BrainContext ctx) {
+        if (waited < ctx.profile().i(ProfileAspect.PLACE_COOLDOWN_TICKS)) {
+            waited++;
+            return TaskStatus.RUNNING;
+        }
         return ctx.actuators().placer().place(placing) ? TaskStatus.SUCCESS : TaskStatus.FAILED;
     }
 
     @Override
     public void cancel(BrainContext ctx) {
-        // One-shot: there is nothing mid-flight to release.
+        // Nothing in the world is held while it waits.
     }
 
     @Override
@@ -44,6 +57,11 @@ public final class PlaceBlock implements PrimitiveTask {
 
     public Placing placing() {
         return placing;
+    }
+
+    /** Ticks already spent on this block. */
+    public int waited() {
+        return waited;
     }
 
     public String itemId() {
