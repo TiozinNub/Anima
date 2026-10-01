@@ -97,6 +97,8 @@ class ArbiterWorkTest {
         int completions;
         int failures;
         int heartbeats;
+        int pricedOut;
+        int steps;
         /** Flipped by a test to play "the hold lapsed and somebody else took it". */
         boolean stillMine = true;
 
@@ -136,6 +138,16 @@ class ArbiterWorkTest {
             failures++;
             offered = null;
         }
+
+        @Override
+        public void pricedOut(WorkItem item, BrainContext c) {
+            pricedOut++;
+        }
+
+        @Override
+        public int budgetSteps(WorkItem item) {
+            return steps;
+        }
     }
 
     private static final class StubItem implements WorkItem {
@@ -145,6 +157,7 @@ class ArbiterWorkTest {
         TaskStatus end = TaskStatus.SUCCESS;
         int rootsBuilt;
         Deed deed = Deed.of(FakeDoings.DID_IT);
+        Task root;
 
         StubItem(double priority, int rootTicks) {
             this.priority = priority;
@@ -159,7 +172,7 @@ class ArbiterWorkTest {
         @Override
         public Task root() {
             rootsBuilt++;
-            return new StepsTask(rootTicks, end);
+            return root != null ? root : new StepsTask(rootTicks, end);
         }
 
         @Override
@@ -422,6 +435,61 @@ class ArbiterWorkTest {
         return lines.stream().map(Entry::detail)
                 .filter(d -> d.startsWith("take over") || d.startsWith("preempt"))
                 .collect(Collectors.joining("; "));
+    }
+
+    @Test
+    void anErrandsEarnedStepsWidenItsBudget() {
+        board.steps = 2;
+        board.offered = new StubItem(0.35, 50);
+        ticks(2);
+        assertEquals(WorkToleranceCurve.tolerance(0.35) + 2 * WorkToleranceCurve.STEP, arbiter.costTolerance(ctx));
+    }
+
+    @Test
+    void onlyAFailureOnPriceIsReportedAsOne() {
+        StubItem far = new StubItem(0.4, 1);
+        far.root = new CompoundTask() {
+            @Override
+            public List<Method> methods() {
+                return List.of(new Method() {
+                    @Override
+                    public boolean applicable(BrainContext c) {
+                        return true;
+                    }
+
+                    @Override
+                    public double estimateCost(BrainContext c) {
+                        return 1000;
+                    }
+
+                    @Override
+                    public List<Task> decompose(BrainContext c) {
+                        return List.of();
+                    }
+
+                    @Override
+                    public String describe() {
+                        return "walk to stone far off";
+                    }
+                });
+            }
+
+            @Override
+            public String describe() {
+                return "obtain stone x8";
+            }
+        };
+        board.offered = far;
+        ticks(4);
+        assertEquals(1, board.failures);
+        assertEquals(1, board.pricedOut, "every way over budget");
+
+        StubItem broken = new StubItem(0.4, 1);
+        broken.end = TaskStatus.FAILED;
+        board.offered = broken;
+        ticks(4);
+        assertEquals(2, board.failures);
+        assertEquals(1, board.pricedOut, "a plain failure earns nothing");
     }
 
     @Test

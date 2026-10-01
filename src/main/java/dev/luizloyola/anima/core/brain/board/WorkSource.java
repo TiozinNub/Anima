@@ -58,6 +58,18 @@ public interface WorkSource {
     void failed(WorkItem item, BrainContext ctx);
 
     /**
+     * The item's root failed because every way was priced over its budget — called before
+     * {@link #failed}. A board that remembers it grows the item's budget ({@link #budgetSteps}).
+     */
+    default void pricedOut(WorkItem item, BrainContext ctx) {
+    }
+
+    /** How many {@link dev.luizloyola.anima.core.brain.WorkToleranceCurve#STEP}s of budget the item has earned. */
+    default int budgetSteps(WorkItem item) {
+        return 0;
+    }
+
+    /**
      * "I am still on this" — called every tick the claimed errand is actually running, so the board
      * can keep the hold alive. <b>A claim is a heartbeat, not a lock</b>: a hold lives a fixed span
      * past its last heartbeat, so death, despawn and a crash free the errand with no cleanup code.

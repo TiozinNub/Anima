@@ -166,6 +166,16 @@ public final class TaskExecutor {
     }
 
     /**
+     * Whether the last failure was every way priced over budget. Read off the reason, which is
+     * saved with the executor, so a restart between the failure and its report keeps the answer.
+     */
+    public boolean failedOnPrice() {
+        return failureReason != null && failureReason.contains(PRICED_OUT);
+    }
+
+    private static final String PRICED_OUT = " priced out at tolerance ";
+
+    /**
      * The debug readout: while busy, the expansion path — each frame's compound and chosen method,
      * then the current node, e.g. {@code "running: satisfy hunger > eat from inventory > consume
      * slot 14"}; idle, {@code "idle (last: <root> -> <status>)"} or plain {@code "idle"}.
@@ -552,7 +562,7 @@ public final class TaskExecutor {
     private String noWay(Frame frame, BrainContext ctx) {
         if (frame.pricedOut > 0) {
             return frame.compound.describe() + ": no affordable way (" + frame.pricedOut
-                    + " priced out at tolerance " + Math.round(ctx.costTolerance()) + ")";
+                    + PRICED_OUT + Math.round(ctx.costTolerance()) + ")";
         }
         return frame.compound.describe() + ": no applicable way";
     }

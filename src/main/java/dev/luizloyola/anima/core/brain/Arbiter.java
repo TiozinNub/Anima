@@ -339,6 +339,9 @@ public final class Arbiter {
                 if (executor.lastStatus().orElse(null) == TaskStatus.FAILED) {
                     ctx.journal().record(Category.PROJECT, claimedItem.describe(), "failed"
                             + executor.failureReason().map(r -> " — " + r).orElse(""));
+                    if (executor.failedOnPrice()) {
+                        work.pricedOut(claimedItem, ctx);
+                    }
                     work.failed(claimedItem, ctx);
                 } else {
                     ctx.journal().record(Category.PROJECT, claimedItem.describe(),
@@ -432,7 +435,7 @@ public final class Arbiter {
         if (workRunning && claimedItem != null) {
             // Decoupled from the needs' desperation curve on purpose: a job is worth a fixed
             // effort, set by policy — see WorkToleranceCurve.
-            return WorkToleranceCurve.tolerance(claimedItem.priority());
+            return WorkToleranceCurve.tolerance(claimedItem.priority(), work.budgetSteps(claimedItem));
         }
         return active == null ? Double.POSITIVE_INFINITY : active.costTolerance(ctx);
     }
