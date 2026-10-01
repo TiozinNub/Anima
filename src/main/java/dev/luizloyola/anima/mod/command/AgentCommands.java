@@ -1596,6 +1596,9 @@ public final class AgentCommands {
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         Pos at = new Pos(pos.getX(), pos.getY(), pos.getZ());
+        // A bare id is vanilla's; a namespaced one has to be quoted, the argument being a string.
+        item = item.contains(":") ? item : "minecraft:" + item;
+        fuel = fuel == null || fuel.contains(":") ? fuel : "minecraft:" + fuel;
         dev.luizloyola.anima.core.inv.ItemSpec spec = dev.luizloyola.anima.core.inv.ItemSpec.anyOf(Set.of(item));
         boolean autoDisabled = person.brain().run(fuel == null
                 ? new dev.luizloyola.anima.core.brain.task.UnloadFurnace(at, spec)
