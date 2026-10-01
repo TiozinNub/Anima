@@ -38,6 +38,15 @@ class PlacesDataTest {
     }
 
     @Test
+    void aRunningProcessSurvivesTheRoundTrip() {
+        var before = new dev.luizloyola.anima.core.social.Process("smelt", "minecraft:oak_log", 8,
+                "minecraft:charcoal", AgentId.random(), 10L, 1610L);
+        var encoded = PlacesData.PROCESS_CODEC.encodeStart(JsonOps.INSTANCE, before).getOrThrow();
+        assertEquals(before, PlacesData.PROCESS_CODEC.parse(JsonOps.INSTANCE, encoded).getOrThrow(),
+                "a restart changes nothing: who comes back, and when");
+    }
+
+    @Test
     void theStoreCountsWhatItHoldsForTheBootGuard() {
         PlacesData store = new PlacesData();
         assertEquals(0, store.actualRows());

@@ -5,10 +5,13 @@ import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.FurnaceAccess;
 import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.brain.sense.SmeltLookup;
+import dev.luizloyola.anima.core.craft.Furnace;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import dev.luizloyola.anima.core.log.Category;
+import dev.luizloyola.anima.core.social.Process;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
@@ -78,7 +81,28 @@ public final class TendFurnace implements PrimitiveTask {
             failure = "nothing to take out or put in";
             return TaskStatus.FAILED;
         }
+        keepTheLedger(ctx, furnace);
         return TaskStatus.SUCCESS;
+    }
+
+    /**
+     * After any tending, the party's record says what is left to smelt and when it should be done,
+     * from what is in the furnace now — or that nothing is running. Only at a party's own furnace.
+     */
+    private void keepTheLedger(BrainContext ctx, FurnaceAccess furnace) {
+        var places = ctx.knowledge().places();
+        Optional<FurnaceAccess.View> view = furnace.read(at);
+        ItemStack left = view.map(FurnaceAccess.View::input).orElse(ItemStack.EMPTY);
+        Optional<SmeltLookup.Smelt> smelt = left.isEmpty() ? Optional.empty()
+                : ctx.percepts().smelting().of(left.id());
+        if (smelt.isEmpty()) {
+            places.end(Furnace.POI, at);
+            return;
+        }
+        long now = ctx.percepts().time();
+        long started = places.process(Furnace.POI, at).map(Process::startedAt).orElse(now);
+        places.run(Furnace.POI, at, new Process("smelt", left.id(), left.count(), smelt.get().outputId(),
+                places.who(), started, now + (long) left.count() * smelt.get().ticks()));
     }
 
     private void takeOut(BrainContext ctx, FurnaceAccess furnace) {

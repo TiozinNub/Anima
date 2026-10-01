@@ -196,4 +196,40 @@ class PlacesTest {
         assertEquals(hazel, row.owner());
         assertEquals(together, row.party(), "untouched");
     }
+
+    @Test
+    void aProcessRunsAtAClaimedPlaceAndIsSeenAsThePlaceIs() {
+        membership.put(hazel, together);
+        membership.put(rowan, together);
+        Pos furnace = new Pos(4, 64, 0);
+        places.found(BENCH, furnace, null, together, 1L);
+        Process smelting = new Process("smelt", "minecraft:oak_log", 8, "minecraft:charcoal", hazel, 10L, 1610L);
+
+        places.viewFor(hazel).run(BENCH, furnace, smelting);
+
+        assertEquals(Optional.of(smelting), places.viewFor(rowan).process(BENCH, furnace),
+                "the party's, so any member can come back to it");
+        assertTrue(places.viewFor(AgentId.random()).process(BENCH, furnace).isEmpty());
+        assertEquals(1, places.processes().size());
+    }
+
+    @Test
+    void nothingRunsAtAPlaceNobodyClaimed() {
+        places.run(BENCH, new Pos(9, 64, 9),
+                new Process("smelt", "minecraft:oak_log", 1, "minecraft:charcoal", hazel, 0L, 200L));
+        assertTrue(places.processes().isEmpty());
+    }
+
+    @Test
+    void aProcessGoesWithItsPlace() {
+        Pos furnace = new Pos(4, 64, 0);
+        places.found(BENCH, furnace, hazel, null, 1L);
+        places.run(BENCH, furnace, new Process("smelt", "minecraft:oak_log", 8, "minecraft:charcoal", hazel, 0L, 1600L));
+
+        places.drop(BENCH, furnace);
+        places.found(BENCH, furnace, hazel, null, 2L);
+
+        assertTrue(places.viewFor(hazel).process(BENCH, furnace).isEmpty(),
+                "a furnace broken and built again is not still smelting");
+    }
 }

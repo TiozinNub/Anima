@@ -61,6 +61,8 @@ public final class Places {
     private Runnable listener = () -> { };
     /** Keyed so one place is one row: two claims on one block are the same claim. */
     private final Map<Key, PlaceRow> rows = new LinkedHashMap<>();
+    /** What is running at a place, keyed as its row is; gone with the row. */
+    private final Map<Key, Process> processes = new LinkedHashMap<>();
 
     private record Key(PoiKind kind, Pos at) {
     }
@@ -96,6 +98,7 @@ public final class Places {
 
     /** Forgets a claim. {@code false} when there was none — an idempotent correction. */
     public boolean drop(PoiKind kind, Pos at) {
+        processes.remove(new Key(kind, at));
         boolean gone = rows.remove(new Key(kind, at)) != null;
         if (gone) {
             listener.run();
@@ -123,6 +126,7 @@ public final class Places {
             touched++;
             if (into == null) {
                 rows.remove(entry.getKey());
+                processes.remove(entry.getKey());
             } else {
                 rows.put(entry.getKey(),
                         new PlaceRow(row.kind(), row.at(), null, into, row.since()));
@@ -171,6 +175,7 @@ public final class Places {
     public int forgetOwner(AgentId owner) {
         int before = rows.size();
         rows.values().removeIf(row -> owner.equals(row.owner()));
+        processes.keySet().retainAll(rows.keySet());
         int dropped = before - rows.size();
         if (dropped > 0) {
             listener.run();
@@ -179,6 +184,34 @@ public final class Places {
     }
 
     /** Every claim, insertion-ordered — the store's codec and the debug readout. */
+    /** Every running process, by its place — what the store saves. */
+    public Map<PlaceRow, Process> processes() {
+        Map<PlaceRow, Process> out = new LinkedHashMap<>();
+        processes.forEach((key, process) -> {
+            PlaceRow row = rows.get(key);
+            if (row != null) {
+                out.put(row, process);
+            }
+        });
+        return out;
+    }
+
+    /** Records what is running at a claimed place; nothing when the place is not claimed. */
+    public void run(PoiKind kind, Pos at, Process process) {
+        Key key = new Key(kind, at);
+        if (rows.containsKey(key)) {
+            processes.put(key, process);
+            listener.run();
+        }
+    }
+
+    /** Forgets what was running at a place. */
+    public void end(PoiKind kind, Pos at) {
+        if (processes.remove(new Key(kind, at)) != null) {
+            listener.run();
+        }
+    }
+
     public Collection<PlaceRow> rows() {
         return List.copyOf(rows.values());
     }
@@ -238,6 +271,47 @@ public final class Places {
                 return false;
             }
             return places.drop(kind, at);
+        }
+
+        /** Whose window this is. */
+        public AgentId who() {
+            return who;
+        }
+
+        /** What is running at a place this agent may see. */
+        public Optional<Process> process(PoiKind kind, Pos at) {
+            PlaceRow row = places.rows.get(new Key(kind, at));
+            if (row == null || !row.visibleTo(who, places.parties.current(who).orElse(null))) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(places.processes.get(new Key(kind, at)));
+        }
+
+        /** Every process running at a place of this kind this agent may see, by place. */
+        public Map<PlaceRow, Process> processes(PoiKind kind) {
+            Map<PlaceRow, Process> out = new LinkedHashMap<>();
+            for (PlaceRow row : visible(kind)) {
+                Process process = places.processes.get(new Key(kind, row.at()));
+                if (process != null) {
+                    out.put(row, process);
+                }
+            }
+            return out;
+        }
+
+        /** Sets a process going at a place this agent may see; nothing at a place it may not. */
+        public void run(PoiKind kind, Pos at, Process process) {
+            PlaceRow row = places.rows.get(new Key(kind, at));
+            if (row != null && row.visibleTo(who, places.parties.current(who).orElse(null))) {
+                places.run(kind, at, process);
+            }
+        }
+
+        public void end(PoiKind kind, Pos at) {
+            PlaceRow row = places.rows.get(new Key(kind, at));
+            if (row != null && row.visibleTo(who, places.parties.current(who).orElse(null))) {
+                places.end(kind, at);
+            }
         }
 
         /** Claims a block for this agent's party — what placing a thing with nothing to hide does. */

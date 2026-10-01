@@ -95,4 +95,53 @@ class FurnaceTasksTest {
     void anEmptyFurnaceToUnloadFails() {
         assertEquals(TaskStatus.FAILED, run(new TendFurnace(furnace, CHARCOAL, null, 0, null, 0), 200));
     }
+
+    @Test
+    void loadingThePartysFurnaceSetsAProcessGoingDueWhenTheLoadIsDone() {
+        ctx.claim(dev.luizloyola.anima.core.craft.Furnace.POI, furnace);
+        ctx.percepts.time = 100L;
+        ctx.percepts.inventory.set(0, ItemStack.of("minecraft:oak_log", 16, 64));
+        ctx.percepts.inventory.set(1, ItemStack.of("minecraft:oak_planks", 11, 64));
+
+        run(new TendFurnace(furnace, null, LOGS, 16, PLANKS, 11), 200);
+
+        var process = ctx.knowledge.places().process(dev.luizloyola.anima.core.craft.Furnace.POI, furnace)
+                .orElseThrow();
+        assertEquals("minecraft:charcoal", process.output());
+        assertEquals(16, process.inputCount());
+        assertEquals(ctx.knowledge.places().who(), process.starter(), "whoever loaded it comes back first");
+        assertEquals(100L + 16 * 200, process.dueAt());
+    }
+
+    @Test
+    void takingOutTheLastOfItEndsTheProcess() {
+        ctx.claim(dev.luizloyola.anima.core.craft.Furnace.POI, furnace);
+        ctx.knowledge.places().run(dev.luizloyola.anima.core.craft.Furnace.POI, furnace,
+                new dev.luizloyola.anima.core.social.Process("smelt", "minecraft:oak_log", 16,
+                        "minecraft:charcoal", ctx.knowledge.places().who(), 0L, 3200L));
+        ctx.furnaces.at(furnace).output = ItemStack.of("minecraft:charcoal", 16, 64);
+
+        run(new TendFurnace(furnace, CHARCOAL, null, 0, null, 0), 200);
+
+        assertTrue(ctx.knowledge.places().process(dev.luizloyola.anima.core.craft.Furnace.POI, furnace).isEmpty());
+    }
+
+    @Test
+    void takingOutWhatIsDoneWithMoreToSmeltPutsItOffAgain() {
+        ctx.claim(dev.luizloyola.anima.core.craft.Furnace.POI, furnace);
+        ctx.percepts.time = 1000L;
+        ctx.knowledge.places().run(dev.luizloyola.anima.core.craft.Furnace.POI, furnace,
+                new dev.luizloyola.anima.core.social.Process("smelt", "minecraft:oak_log", 16,
+                        "minecraft:charcoal", ctx.knowledge.places().who(), 0L, 3200L));
+        ctx.furnaces.at(furnace).output = ItemStack.of("minecraft:charcoal", 5, 64);
+        ctx.furnaces.at(furnace).input = ItemStack.of("minecraft:oak_log", 11, 64);
+
+        run(new TendFurnace(furnace, CHARCOAL, null, 0, null, 0), 200);
+
+        var process = ctx.knowledge.places().process(dev.luizloyola.anima.core.craft.Furnace.POI, furnace)
+                .orElseThrow();
+        assertEquals(11, process.inputCount());
+        assertEquals(0L, process.startedAt(), "the same process, going on");
+        assertEquals(1000L + 11 * 200, process.dueAt(), "read off the furnace, not the old guess");
+    }
 }

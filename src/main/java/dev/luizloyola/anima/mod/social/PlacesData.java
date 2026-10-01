@@ -63,11 +63,36 @@ public final class PlacesData extends SavedData implements StoreGuard.Checked {
     ).apply(row, (kind, x, y, z, owner, party, since) -> new PlaceRow(kind, new Pos(x, y, z),
             owner.map(AgentId::of).orElse(null), party.map(PartyId::of).orElse(null), since)));
 
+    /** A running process, with the place it runs at. */
+    record Running(PlaceRow place, dev.luizloyola.anima.core.social.Process process) {
+    }
+
+    static final Codec<dev.luizloyola.anima.core.social.Process> PROCESS_CODEC =
+            RecordCodecBuilder.create(p -> p.group(
+                    Codec.STRING.fieldOf("what").forGetter(dev.luizloyola.anima.core.social.Process::what),
+                    Codec.STRING.fieldOf("input").forGetter(dev.luizloyola.anima.core.social.Process::input),
+                    Codec.INT.fieldOf("inputCount").forGetter(dev.luizloyola.anima.core.social.Process::inputCount),
+                    Codec.STRING.fieldOf("output").forGetter(dev.luizloyola.anima.core.social.Process::output),
+                    UUIDUtil.CODEC.fieldOf("starter").forGetter(r -> r.starter().value()),
+                    Codec.LONG.fieldOf("startedAt").forGetter(dev.luizloyola.anima.core.social.Process::startedAt),
+                    Codec.LONG.fieldOf("dueAt").forGetter(dev.luizloyola.anima.core.social.Process::dueAt)
+            ).apply(p, (what, input, inputCount, output, starter, startedAt, dueAt) ->
+                    new dev.luizloyola.anima.core.social.Process(what, input, inputCount, output,
+                            AgentId.of(starter), startedAt, dueAt)));
+
+    private static final Codec<Running> RUNNING_CODEC = RecordCodecBuilder.create(r -> r.group(
+            ROW_CODEC.fieldOf("place").forGetter(Running::place),
+            PROCESS_CODEC.fieldOf("process").forGetter(Running::process)
+    ).apply(r, Running::new));
+
     private static final Codec<PlacesData> CODEC = RecordCodecBuilder.create(data -> data.group(
             Codec.INT.optionalFieldOf("version", 0).forGetter(d -> SCHEMA),
             Codec.INT.optionalFieldOf("rows", StoreGuard.UNCOUNTED)
                     .forGetter(d -> d.places.rows().size()),
-            ROW_CODEC.listOf().fieldOf("places").forGetter(d -> List.copyOf(d.places.rows()))
+            ROW_CODEC.listOf().fieldOf("places").forGetter(d -> List.copyOf(d.places.rows())),
+            RUNNING_CODEC.listOf().optionalFieldOf("processes", List.of()).forGetter(d ->
+                    d.places.processes().entrySet().stream()
+                            .map(e -> new Running(e.getKey(), e.getValue())).toList())
     ).apply(data, PlacesData::fromRows));
 
     public static final SavedDataType<PlacesData> TYPE =
@@ -151,10 +176,14 @@ public final class PlacesData extends SavedData implements StoreGuard.Checked {
         return places.forgetOwner(who) > 0;
     }
 
-    private static PlacesData fromRows(int version, int declaredRows, List<PlaceRow> rows) {
+    private static PlacesData fromRows(int version, int declaredRows, List<PlaceRow> rows,
+                                       List<Running> running) {
         Places places = new Places();
         for (PlaceRow row : rows) {
             places.found(row.kind(), row.at(), row.owner(), row.party(), row.since());
+        }
+        for (Running run : running) {
+            places.run(run.place().kind(), run.place().at(), run.process());
         }
         return new PlacesData(places, version, declaredRows);
     }
