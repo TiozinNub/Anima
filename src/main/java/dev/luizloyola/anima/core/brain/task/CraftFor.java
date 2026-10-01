@@ -192,11 +192,24 @@ public final class CraftFor implements Method {
             return false;
         }
         for (CraftRecipe.Ingredient line : recipe.ingredients()) {
-            if (!lineReachable(line, guard, ctx, depth)) {
+            if (loopsBack(line, recipe, guard) || !lineReachable(line, guard, ctx, depth)) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * Whether a line takes only what an ancestor is already making, so anything obtained for it
+     * would have served that ancestor directly. Dried kelp from a block from nine dried kelp got
+     * past the output-id guard because forage, registered under ready food, "knows" dried kelp:
+     * hungry settlers walked to a store every recheck for kelp nobody had seen (in-world,
+     * 2026-09-30). The recipe's own output is {@link #eatsWhatItMakes}'s to judge.
+     */
+    private static boolean loopsBack(CraftRecipe.Ingredient line, CraftRecipe recipe,
+                                     Set<String> guard) {
+        return line.acceptedIds().stream()
+                .allMatch(id -> !id.equals(recipe.outputId()) && guard.contains(id));
     }
 
     /**

@@ -377,6 +377,27 @@ class CraftForTest {
     }
 
     @Test
+    void aProducerForTheFamilyDoesNotCloseARoundTrip() {
+        // Forage registered under "food" matches dried kelp, so the pure-cycle test's missing
+        // floor was found at the bottom of kelp, block, kelp: settlers checked stores for it.
+        book(new CraftRecipe("minecraft:dried_kelp", ItemStack.of("minecraft:dried_kelp", 9, 64),
+                        List.of(new CraftRecipe.Ingredient(Set.of("minecraft:dried_kelp_block"), 1)),
+                        false),
+                new CraftRecipe("minecraft:dried_kelp_block",
+                        ItemStack.of("minecraft:dried_kelp_block", 1, 64),
+                        List.of(new CraftRecipe.Ingredient(Set.of("minecraft:dried_kelp"), 9)),
+                        false));
+        ItemSpec food = ItemSpec.register(
+                new ItemSpec("craft-test-food", id -> id.equals("minecraft:dried_kelp")));
+        Producers.register(food, wanted -> new Way(false));
+
+        assertFalse(new CraftFor(food, 9, Set.of()).applicable(ctx));
+        assertFalse(CraftFor.anyReachable(food, ctx));
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:dried_kelp_block", 1, 64));
+        assertTrue(new CraftFor(food, 9, Set.of()).applicable(ctx), "a block in hand is food");
+    }
+
+    @Test
     void aSiblingObtainIsNotAnAncestor() {
         book(planksFromLog());
         ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_log", 1, 64));
