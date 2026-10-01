@@ -5,10 +5,9 @@ import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.Surplus;
-import dev.luizloyola.anima.core.store.Store;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
-import org.jspecify.annotations.Nullable;
 
 /**
  * BE rid of what nobody spoke for — the one goal both halves of the stow arc run, so the acute
@@ -18,11 +17,12 @@ import org.jspecify.annotations.Nullable;
  * <p>Being an achieve-goal is what makes a SECOND chest happen without a rule saying so: a round
  * that fills the first one leaves the pack still holding cargo, the goal is still unsatisfied, and
  * the next round re-scores — finding the full store avoided, walking to another, or building one.
+ * Always at the place asked for: a load never goes to whatever store is nearest.
  */
 public final class PutAwaySurplus implements AchieveTask {
 
-    /** Where the load is wanted, or null for "the nearest store" — see {@link EnsureStore}. */
-    private final @Nullable Pos hint;
+    /** Where the load is wanted — see {@link EnsureStore}. */
+    private final Pos hint;
 
     /**
      * Cargo, in full stacks, that makes the walk worth taking. Zero for the standing stow and
@@ -34,7 +34,7 @@ public final class PutAwaySurplus implements AchieveTask {
     /**
      * Free slots above the unburden line at which a haul goes whatever the load: room for the new
      * kinds one more tree brings in — its logs, sapling, sticks and litter. Below it unburden would
-     * take the pack to the NEAREST store, and the yard would stay empty.
+     * take the pack to the body's depot instead, and the yard would stay empty.
      */
     static final int ROOM_MARGIN = 4;
 
@@ -48,26 +48,22 @@ public final class PutAwaySurplus implements AchieveTask {
 
     private final List<Method> methods = List.of(new StowAtAStore());
 
-    public PutAwaySurplus() {
-        this(null, 0);
-    }
-
     /**
      * A haul whose job never ends, as far as it knows — also what a save restores, until the
      * project re-grants the errand with the live answer. Worst case, one load waits for the line.
      */
-    public PutAwaySurplus(@Nullable Pos hint, int haulLine) {
+    public PutAwaySurplus(Pos hint, int haulLine) {
         this(hint, haulLine, () -> true);
     }
 
-    public PutAwaySurplus(@Nullable Pos hint, int haulLine, BooleanSupplier workLeft) {
-        this.hint = hint;
+    public PutAwaySurplus(Pos hint, int haulLine, BooleanSupplier workLeft) {
+        this.hint = Objects.requireNonNull(hint, "hint");
         this.haulLine = Math.max(0, haulLine);
         this.workLeft = workLeft;
     }
 
-    /** The yard this goal is feeding, for the codec; null for the nearest-store flavour. */
-    public @Nullable Pos hint() {
+    /** The yard this goal is feeding, for the codec. */
+    public Pos hint() {
         return hint;
     }
 
@@ -114,23 +110,16 @@ public final class PutAwaySurplus implements AchieveTask {
         @Override
         public boolean applicable(BrainContext ctx) {
             // EnsureStore's own two methods decide whether that means walking or building, and
-            // one of them is always available to a body that is not bricked in.
+            // one of them is always available.
             return true;
         }
 
         @Override
         public double estimateCost(BrainContext ctx) {
-            Pos here = ctx.percepts().position();
-            if (hint != null) {
-                // Free: a yard haul is part of a job already claimed, and the walk is where the
-                // job said the load goes. Priced by distance it cleared no box more than 80 blocks
-                // from its yard (a job's budget), and failed the tree it had just felled
-                // (in-world, 2026-09-27).
-                return 0.0;
-            }
-            return Store.nearestKnown(ctx)
-                    .map(known -> Store.distance(known.anchor(), here))
-                    .orElse(EnsureStore.PLACE_COST);
+            // Free: a yard haul is part of a job already claimed, and the walk is where the job
+            // said the load goes. Priced by distance it cleared no box more than 80 blocks from its
+            // yard (a job's budget), and failed the tree it had just felled (in-world, 2026-09-27).
+            return 0.0;
         }
 
         @Override

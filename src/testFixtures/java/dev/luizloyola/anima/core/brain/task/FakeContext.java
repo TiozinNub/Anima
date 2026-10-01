@@ -242,6 +242,15 @@ public final class FakeContext implements BrainContext {
         return gate;
     }
 
+    /** Where this rig's goods go — nowhere unless a test names a depot. */
+    public java.util.Optional<dev.luizloyola.anima.core.brain.sense.Pos> depot =
+            java.util.Optional.empty();
+
+    @Override
+    public java.util.Optional<dev.luizloyola.anima.core.brain.sense.Pos> depot() {
+        return depot;
+    }
+
     /** The body's stream. Fixed by default so a test that draws twice gets the same two numbers
      *  every run; {@link #seed} pins it where a test cares which numbers those are. */
     private java.util.random.RandomGenerator random =

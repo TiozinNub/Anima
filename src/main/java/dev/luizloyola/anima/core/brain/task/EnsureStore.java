@@ -4,64 +4,52 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.sense.Pos;
-import dev.luizloyola.anima.core.craft.Workbench;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.store.Store;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import org.jspecify.annotations.Nullable;
 
 /**
- * BE at a store — {@link EnsureTable} with a different block, and the same two ways of getting
- * there priced against each other:
+ * BE at a store at the place asked for — {@link EnsureTable} with a different block, and two ways
+ * of getting there:
  *
  * <ul>
- *   <li><b>Walk to a known one</b>, priced at the distance, so a settlement converges on the chests
- *       it already has.</li>
- *   <li><b>Make one and put it down</b>, a flat {@link #PLACE_COST}: obtain the item (logs →
+ *   <li><b>Walk to a known one</b> near that place, so a settlement converges on the chests it
+ *       already has.</li>
+ *   <li><b>Make one and put it down</b> there, only while none is known: obtain the item (logs →
  *       planks → chest, or one already in the pack), place it, and claim it for the party.</li>
  * </ul>
  *
- * <p><b>Where a made one goes is settlement policy</b> (decision: Luiz, 2026-08-20): beside
- * something the party already owns when one is inside {@code stores.found_radius}, and only
- * underfoot when nothing is. A chest dropped wherever a pack happened to fill is a chest nobody
- * ever walks past again, and a forest full of them is not a settlement.
+ * <p><b>A store is only ever made at the place asked for</b> (decision: Luiz, 2026-09-30): no
+ * base, no offloading — see {@link dev.luizloyola.anima.core.store.Depot}.
  */
 public final class EnsureStore implements AchieveTask {
 
-    /** The walk-vs-build breakeven, in the blocks-flavoured currency every method prices in. */
+    /** The price of building one, in the blocks-flavoured currency every method prices in. */
     public static final double PLACE_COST = 32.0;
 
     /**
-     * Where the caller wants the store, or null for "any store will do". A hint narrows both
-     * methods: only stores near it count as arriving, and a new one is built beside it rather than
-     * beside the body. It is how a project's yard is told apart from the chest a settler happens to
-     * be standing next to.
+     * Where the caller wants the store. Only stores near it count as arriving, and a new one is
+     * built beside it: how a yard is told apart from the chest a settler happens to be next to.
      */
-    private final @Nullable Pos hint;
+    private final Pos hint;
 
     private final List<Method> methods = List.of(new WalkToKnown(), new MakeAndPlace());
 
-    public EnsureStore() {
-        this(null);
-    }
-
-    public EnsureStore(@Nullable Pos hint) {
-        this.hint = hint;
+    public EnsureStore(Pos hint) {
+        this.hint = Objects.requireNonNull(hint, "hint");
     }
 
     /** The hint this was built with, for the codec. */
-    public @Nullable Pos hint() {
+    public Pos hint() {
         return hint;
     }
 
     @Override
     public boolean satisfied(BrainContext ctx) {
-        if (hint == null) {
-            return Store.standingAtOne(ctx);
-        }
         // The store at hand must BE the yard: without this a hauler would empty the project's wood
         // into whatever they happened to be beside.
         double radius = ctx.profile().i(ProfileAspect.STORES_FOUND_RADIUS);
@@ -84,9 +72,9 @@ public final class EnsureStore implements AchieveTask {
                         memory -> Store.distance(memory.anchor(), where)));
     }
 
-    /** The store this goal is willing to use, hint-aware — empty when none qualifies. */
+    /** The store this goal is willing to use — empty when none qualifies. */
     private Optional<PoiMemory> usable(BrainContext ctx) {
-        return hint == null ? Store.nearestKnown(ctx) : yardNear(ctx, hint);
+        return yardNear(ctx, hint);
     }
 
     @Override
@@ -99,7 +87,7 @@ public final class EnsureStore implements AchieveTask {
         return "be at a store";
     }
 
-    /** Walk into reach of a usable remembered store — the nearest one, or the yard. */
+    /** Walk into reach of a remembered store at the yard. */
     final class WalkToKnown implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
@@ -108,14 +96,9 @@ public final class EnsureStore implements AchieveTask {
 
         @Override
         public double estimateCost(BrainContext ctx) {
-            if (hint != null) {
-                // To a yard, walking is not weighed against building — building there is only on
-                // offer while no chest is known — so the distance would only price the haul out.
-                return usable(ctx).isPresent() ? 0.0 : Double.MAX_VALUE;
-            }
-            return usable(ctx)
-                    .map(known -> Store.distance(known.anchor(), ctx.percepts().position()))
-                    .orElse(Double.MAX_VALUE);
+            // Walking is not weighed against building — building is only on offer while no chest
+            // is known — so the distance would only price the haul out.
+            return usable(ctx).isPresent() ? 0.0 : Double.MAX_VALUE;
         }
 
         @Override
@@ -135,15 +118,12 @@ public final class EnsureStore implements AchieveTask {
     final class MakeAndPlace implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
-            if (hint != null) {
-                // A yard is ONE place, and the party's first chest there is everyone's. Four
-                // settlers each opened their own on 2026-08-25 because nothing asked this; the
-                // loser of the race now falls to WalkToKnown instead. A yard chest found FULL is
-                // avoided, so yardNear stops seeing it and a second one is wanted again — which is
-                // the one case where two stores at a yard is the right answer.
-                return yardNear(ctx, hint).isEmpty();
-            }
-            return nearestPartyPlace(ctx).isPresent() || spotBeside(ctx) != null;
+            // A yard is ONE place, and the party's first chest there is everyone's. Four settlers
+            // each opened their own on 2026-08-25 because nothing asked this; the loser of the
+            // race now falls to WalkToKnown instead. A yard chest found FULL is avoided, so
+            // yardNear stops seeing it and a second one is wanted again — the one case where two
+            // stores at a yard is the right answer.
+            return yardNear(ctx, hint).isEmpty();
         }
 
         @Override
@@ -153,47 +133,12 @@ public final class EnsureStore implements AchieveTask {
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
-            if (hint != null) {
-                return openTheYard(ctx);
-            }
-            Optional<PoiMemory> anchor = nearestPartyPlace(ctx);
-            List<Task> steps = new ArrayList<>();
-            Pos spot = null;
-            if (anchor.isPresent()) {
-                // Two DIFFERENT cells beside the bench: one to stand in, one to build in. The
-                // first cut used one for both, so a settler walked into the spot and then tried
-                // to put a chest where she was standing — which built the chest into her before
-                // the placer learned to refuse, and livelocked the goal afterwards (in-world,
-                // 2026-08-20).
-                Pos stand = EnsureTable.WalkToKnown.standableBeside(anchor.get().anchor(), ctx);
-                spot = freeBeside(ctx, anchor.get().anchor(), stand);
-                Pos feet = ctx.percepts().position();
-                boolean alreadyThere = feet.x() == stand.x() && feet.y() == stand.y()
-                        && feet.z() == stand.z();
-                if (spot != null && !alreadyThere) {
-                    // Never walk to the cell you are standing in: the navigator answers PATHING to
-                    // its own cell and never arrives, so the goal hangs there for ever rather than
-                    // failing (in-world, 2026-08-20). Cheaper to not ask than to fix arrival
-                    // tolerance from here.
-                    steps.add(new GoTo(stand.x(), stand.y(), stand.z()));
-                }
-            }
-            if (spot == null) {
-                // Nothing free beside the anchor, or nothing known: build next to the body, where
-                // spotBeside already refuses any cell somebody is standing in.
-                spot = spotBeside(ctx);
-            }
-            steps.add(new ObtainItem(ItemSpec.anyOf(Set.of(Store.ITEM_ID)), 1, Set.of()));
-            steps.addAll(Ground.clearAndPlace(ctx, Store.ITEM_ID, spot));
-            // Communal, not owned: a container a settler places belongs to the PARTY, which is
-            // 2a's ruling honoured by the first code that ever places one.
-            steps.add(new FoundPlace(Store.POI, spot.x(), spot.y(), spot.z()));
-            return steps;
+            return openTheYard(ctx);
         }
 
         @Override
         public String describe() {
-            return hint == null ? "make a store and put it down" : "open the yard";
+            return "open the yard";
         }
 
         /**
@@ -210,6 +155,8 @@ public final class EnsureStore implements AchieveTask {
             Pos stand = EnsureTable.WalkToKnown.standableBeside(ground, ctx);
             List<Task> steps = new ArrayList<>();
             Pos feet = ctx.percepts().position();
+            // Never walk to your own cell: the navigator answers PATHING to it and never arrives
+            // (in-world, 2026-08-20).
             if (!(feet.x() == stand.x() && feet.y() == stand.y() && feet.z() == stand.z())) {
                 steps.add(new GoTo(stand.x(), stand.y(), stand.z()));
             }
@@ -217,55 +164,6 @@ public final class EnsureStore implements AchieveTask {
             steps.addAll(Ground.clearAndPlace(ctx, Store.ITEM_ID, ground));
             steps.add(new FoundPlace(Store.POI, ground.x(), ground.y(), ground.z()));
             return steps;
-        }
-
-        /**
-         * The nearest place this body knows the party owns, within {@code stores.found_radius} — a
-         * workbench today, a hall when there are halls. Stores are excluded on purpose: one near
-         * enough to build beside is one {@link WalkToKnown} would have reached more cheaply.
-         */
-        private static Optional<PoiMemory> nearestPartyPlace(BrainContext ctx) {
-            Pos here = ctx.percepts().position();
-            double radius = ctx.profile().i(ProfileAspect.STORES_FOUND_RADIUS);
-            return ctx.knowledge().nearest(Workbench.POI, here)
-                    .filter(known -> Store.distance(known.anchor(), here) <= radius);
-        }
-
-        /**
-         * A cell beside {@code anchor} that a chest can stand in and nobody is using — never
-         * {@code stand}, which is where the body is about to be. Null when the bench is boxed in,
-         * which sends the caller back to building next to itself.
-         */
-        private static Pos freeBeside(BrainContext ctx, Pos anchor, Pos stand) {
-            for (int[] side : Ground.SIDES) {
-                Pos cell = new Pos(anchor.x() + side[0], anchor.y(), anchor.z() + side[1]);
-                if (cell.x() == stand.x() && cell.y() == stand.y() && cell.z() == stand.z()) {
-                    continue;
-                }
-                if (Ground.canHold(ctx, cell)) {
-                    return cell;
-                }
-            }
-            return null;
-        }
-
-        /**
-         * An empty cell on solid ground beside the body — where a chest goes with nothing else to
-         * put it near. Two rings out, nearest first; {@code null} when the body is bricked in,
-         * which makes the method inapplicable rather than a doomed decomposition.
-         */
-        private static Pos spotBeside(BrainContext ctx) {
-            Pos feet = ctx.percepts().position();
-            for (int ring = 1; ring <= 2; ring++) {
-                for (int[] side : Ground.SIDES) {
-                    Pos cell = new Pos(feet.x() + side[0] * ring, feet.y(),
-                            feet.z() + side[1] * ring);
-                    if (Ground.canHold(ctx, cell)) {
-                        return cell;
-                    }
-                }
-            }
-            return null;
         }
     }
 

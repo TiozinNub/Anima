@@ -383,16 +383,14 @@ public final class ProfileAspect {
                             + "this only catches a single act that fills the rest at once.");
     public static final ProfileAspect UNBURDEN_TOLERANCE =
             register("instincts.unburden_tolerance", Kind.DOUBLE, 0.0, 512.0,
-                    "How far, in walk-blocks, a laden settler will go to reach a chest before "
-                            + "making one instead. This is the whole of the walk-or-build "
-                            + "decision: a remembered chest further than this prices itself out.");
+                    "What a laden settler will spend, in walk-blocks, to put things away at "
+                            + "home. The walk home is free; opening a store there costs 32, so "
+                            + "below that a body with no chest at home keeps its load.");
 
     public static final ProfileAspect STORES_FOUND_RADIUS = register("stores.found_radius",
             Kind.INT, 0, 256,
-            "How far a settler will walk to put a NEW chest beside something the party already "
-                    + "owns, instead of dropping it where they stand. What makes a settlement grow "
-                    + "a centre rather than a trail of one-off chests along the treeline; at 0 "
-                    + "every chest lands underfoot.");
+            "How near a yard a chest must stand to count as that yard's: where a haul or a stow "
+                    + "may empty, and how far out a yard's own chests are found.");
 
     private final String key;
     private final Kind kind;

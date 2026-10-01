@@ -6,26 +6,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.instinct.UnburdenInstinct;
+import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.ItemCall;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
  * The safeguard: silent until a settler genuinely cannot carry on, then a spike — and never a bid
- * at all when the pack is full of things somebody asked them to hold.
+ * at all when the pack is full of things somebody asked them to hold, or when there is nowhere to
+ * take it.
  */
 class UnburdenInstinctTest {
 
     private static final ItemSpec LOGS = ItemSpec.anyOf(Set.of("minecraft:oak_log"));
 
-    /** A pack with {@code empty} storage slots free and the rest cargo. */
+    private static final Pos DEPOT = new Pos(30, 64, -30);
+
+    /** A pack with {@code empty} storage slots free and the rest cargo, and a depot to take it to. */
     private static FakeContext packWith(int empty) {
         FakeContext ctx = new FakeContext();
+        ctx.depot = Optional.of(DEPOT);
         Inventory pack = ctx.percepts.inventory();
         for (int slot = 0; slot < Inventory.ARMOR_START - empty; slot++) {
             pack.set(slot, ItemStack.of("minecraft:oak_log", 64, 64));
@@ -73,9 +79,29 @@ class UnburdenInstinctTest {
     }
 
     @Test
+    void withNoDepotAFullPackOfSurplusBidsNothing() {
+        FakeContext ctx = packWith(0);
+        assertTrue(new UnburdenInstinct().pressure(ctx) > 0.0, "with a depot it bids");
+
+        ctx.depot = Optional.empty();
+
+        assertEquals(0.0, new UnburdenInstinct().pressure(ctx), 0.0001,
+                "no base, no offloading (Luiz, 2026-09-30) — a body with nowhere to take its "
+                        + "goods keeps them rather than building a chest where it stands");
+    }
+
+    @Test
     void itRunsTheSameGoalTheStandingProjectPosts() {
         assertInstanceOf(PutAwaySurplus.class, new UnburdenInstinct().root(packWith(0)),
                 "one behaviour, two motivations — if these diverge the split is fake");
+    }
+
+    @Test
+    void itTakesTheLoadToTheDepot() {
+        PutAwaySurplus root = (PutAwaySurplus) new UnburdenInstinct().root(packWith(0));
+
+        assertEquals(DEPOT, root.hint(), "the goods go where the consumer said, nowhere else");
+        assertEquals(0, root.haulLine(), "and any cargo at all is worth the trip");
     }
 
     @Test
@@ -83,6 +109,6 @@ class UnburdenInstinctTest {
         FakeContext ctx = packWith(0);
         assertEquals(ctx.profile.d(ProfileAspect.UNBURDEN_TOLERANCE),
                 new UnburdenInstinct().costTolerance(ctx), 0.0001,
-                "bounded, so a store past the cap prices itself out and building one wins");
+                "bounded, so building a store at the depot can be priced out");
     }
 }

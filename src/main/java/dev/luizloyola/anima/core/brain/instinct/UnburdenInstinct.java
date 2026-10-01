@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.history.Doings;
+import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.task.PutAwaySurplus;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.inv.Surplus;
@@ -21,6 +22,9 @@ import dev.luizloyola.anima.core.inv.Surplus;
  * <p><b>It bids on surplus, never on fullness</b> (decision: Luiz). A pack at 35 of 36 slots
  * holding nothing but kit, food and reserved materials bids zero — a settler carrying the blocks
  * for a house they are about to build is using their pack, not burdened by it. See {@link Surplus}.
+ *
+ * <p><b>No depot, no unburden</b> (decision: Luiz, 2026-09-30): the load goes to
+ * {@link BrainContext#depot()} or nowhere, so a body with no base keeps what it carries.
  */
 public final class UnburdenInstinct implements Instinct {
 
@@ -45,6 +49,9 @@ public final class UnburdenInstinct implements Instinct {
         if (empty > 0 && (empty > TIGHT.length || empty > slack)) {
             return 0.0;
         }
+        if (ctx.depot().isEmpty()) {
+            return 0.0;
+        }
         if (Surplus.slots(ctx.percepts().inventory(), ctx.reserved(),
                 stack -> ctx.percepts().foods().of(stack).isPresent()).isEmpty()) {
             // Nothing to shed. Bidding here would win the wheel to run a goal that is already
@@ -56,14 +63,15 @@ public final class UnburdenInstinct implements Instinct {
 
     @Override
     public Task root(BrainContext ctx) {
-        return new PutAwaySurplus();
+        // Safe: the arbiter grants only on a positive bid, read the same tick, and no depot bids 0.
+        Pos depot = ctx.depot().orElseThrow();
+        return new PutAwaySurplus(depot, 0);
     }
 
     @Override
     public double costTolerance(BrainContext ctx) {
-        // Bounded, unlike an emergency drive's: it is what makes EnsureStore's two methods argue
-        // honestly. A chest past the cap prices itself out and building one becomes cheaper, so
-        // walk-or-build falls out of pricing rather than out of a rule.
+        // Bounded, unlike an emergency drive's. The walk to the depot is free, so the cap only
+        // decides whether building a store there (EnsureStore.PLACE_COST) is affordable.
         return ctx.profile().d(ProfileAspect.UNBURDEN_TOLERANCE);
     }
 

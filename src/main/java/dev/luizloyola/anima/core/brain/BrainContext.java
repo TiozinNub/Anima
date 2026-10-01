@@ -121,6 +121,11 @@ public interface BrainContext {
         return Gate.View.OPEN;
     }
 
+    /** Where this body's goods go — see {@link dev.luizloyola.anima.core.store.Depot}. */
+    default java.util.Optional<dev.luizloyola.anima.core.brain.sense.Pos> depot() {
+        return java.util.Optional.empty();
+    }
+
     /**
      * Whether the work under way places or breaks structural blocks — mining, chopping, building.
      * A drive asks it to know whether now is a moment to judge the body's situation at all; see

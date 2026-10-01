@@ -42,8 +42,8 @@ class HaulToYardTest {
 
         assertTrue(new PutAwaySurplus(HINT, 12).satisfied(ctx),
                 "four stacks with a line of twelve: take the next tree, do not walk");
-        assertFalse(new PutAwaySurplus().satisfied(ctx),
-                "2b's flavour still hauls any cargo at all");
+        assertFalse(new PutAwaySurplus(HINT, 0).satisfied(ctx),
+                "a line of zero hauls any cargo at all");
     }
 
     @Test
@@ -59,8 +59,6 @@ class HaulToYardTest {
 
         assertFalse(new EnsureStore(HINT).methods().get(0).applicable(ctx),
                 "the nearest chest is not the yard — walking to it would scatter the wood");
-        assertTrue(new EnsureStore().methods().get(0).applicable(ctx),
-                "2b's flavour is happy with any store");
     }
 
     @Test
@@ -113,7 +111,6 @@ class HaulToYardTest {
 
         assertFalse(new EnsureStore(HINT).satisfied(ctx),
                 "standing in a chest that is not the yard is not being at the yard");
-        assertTrue(new EnsureStore().satisfied(ctx), "2b's flavour is satisfied anywhere");
     }
 
     /** One tree in a mixed wood, as the pack held it on 2026-09-27: five kinds, sixteen items. */
@@ -177,9 +174,10 @@ class HaulToYardTest {
 
     @Test
     void wheneverUnburdenWouldBidTheYardHaulIsAlreadyDue() {
-        // Unburden stows at the NEAREST store; the yard haul has to have gone first.
+        // Unburden stows at the depot, not the yard; the yard haul has to have gone first.
         for (int empty = 0; empty <= Inventory.ARMOR_START; empty++) {
             FakeContext ctx = packOfOnes(empty);
+            ctx.depot = java.util.Optional.of(new Pos(0, 64, 0));
             if (new UnburdenInstinct().pressure(ctx) > 0.0) {
                 assertFalse(new PutAwaySurplus(HINT, 3).satisfied(ctx), "empty=" + empty);
             }

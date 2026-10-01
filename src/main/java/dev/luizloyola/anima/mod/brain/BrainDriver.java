@@ -286,6 +286,11 @@ public final class BrainDriver {
             }
 
             @Override
+            public java.util.Optional<dev.luizloyola.anima.core.brain.sense.Pos> depot() {
+                return dev.luizloyola.anima.core.store.Depot.of(person.agentId());
+            }
+
+            @Override
             public boolean reshapingGround() {
                 // Asked of the executor: it is a property of the tree currently running, and
                 // only the executor knows what that is. True while a chop rides its mast,
