@@ -8,7 +8,10 @@ import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.gate.Act;
 import dev.luizloyola.anima.core.brain.gate.Gate;
+import dev.luizloyola.anima.core.inv.ItemCall;
 import dev.luizloyola.anima.core.inv.ItemSpec;
+import dev.luizloyola.anima.core.inv.ItemStack;
+import dev.luizloyola.anima.core.inv.Kit;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -147,5 +150,23 @@ class ObtainItemTest {
 
         assertEquals(java.util.List.of(oakOnly), asked,
                 "registered for any log, asked for oak — the producer hears the narrow one");
+    }
+
+    /** A way's tool is asked for every round, so one worn out mid-errand is replaced at the next. */
+    @Test
+    void aWaysToolIsAskedForUnlessHeldOrBeingMadeAbove() {
+        ItemSpec axes = ItemSpec.anyOf(Set.of("minecraft:wooden_axe"));
+        Producers.register(LOGS, LOGS::matches, Kit.of(ItemCall.want(axes, 1)), wanted -> new FellSomething());
+        FakeContext ctx = new FakeContext();
+
+        List<Task> bare = new ObtainItem(LOGS, 16).methods().get(1).decompose(ctx);
+        Try ask = assertInstanceOf(Try.class, bare.get(0), "a want: shrugged past when no axe can be had");
+        assertEquals(axes, assertInstanceOf(ObtainItem.class, ask.attempt()).spec());
+
+        assertTrue(new ObtainItem(LOGS, 16, Set.of("minecraft:wooden_axe")).methods().get(1).decompose(ctx)
+                .isEmpty(), "logs for the axe's own planks: asking again would never end");
+
+        ctx.percepts.inventory.set(0, ItemStack.of("minecraft:wooden_axe", 1, 1));
+        assertTrue(new ObtainItem(LOGS, 16).methods().get(1).decompose(ctx).isEmpty(), "one in the pack");
     }
 }

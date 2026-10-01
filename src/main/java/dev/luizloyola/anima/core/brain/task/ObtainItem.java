@@ -64,11 +64,11 @@ public final class ObtainItem implements AchieveTask {
             // Picking one up is the way Anima always knows: it needs no knowledge of where the
             // thing came from. Everything else is the consuming mod's to teach.
             ways.add(new PickUpNearby(spec));
-            ways.addAll(Producers.forSpec(spec));
+            ways.addAll(Producers.forSpec(spec, this.pursued));
             // A literal spec (a crafting ingredient) reaches producers by CONTENT: "any oak log"
             // intersects what a consumer's logs spec means, so its chop is on this menu too — the
             // bridge that lets a craft chain end in a felled tree.
-            ItemSpec.literalIds(spec).ifPresent(ids -> ways.addAll(Producers.forItems(ids, spec)));
+            ItemSpec.literalIds(spec).ifPresent(ids -> ways.addAll(Producers.forItems(ids, spec, this.pursued)));
             ways.add(new CraftFor(spec, count, this.pursued));
         }
         // Appended AFTER CraftFor on purpose: a saved plan resumes its method by index, so nothing

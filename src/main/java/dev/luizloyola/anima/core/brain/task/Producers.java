@@ -1,11 +1,15 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.inv.ItemCall;
 import dev.luizloyola.anima.core.inv.ItemSpec;
+import dev.luizloyola.anima.core.inv.Kit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Who knows how to <em>make more</em> of a thing — the registry {@link ObtainItem} consults when
@@ -32,8 +36,8 @@ public final class Producers {
         Method create(ItemSpec wanted);
     }
 
-    /** One way to produce, and the items it can ever make. */
-    private record Registration(Predicate<String> yields, Factory factory) {
+    /** One way to produce, the items it can ever make, and the tools its work uses. */
+    private record Registration(Predicate<String> yields, Kit tools, Factory factory) {
     }
 
     private static final Map<ItemSpec, List<Registration>> REGISTERED = new ConcurrentHashMap<>();
@@ -52,8 +56,17 @@ public final class Producers {
      * 2026-09-30). Only ids both match.
      */
     public static void register(ItemSpec spec, Predicate<String> yields, Factory producer) {
+        register(spec, yields, Kit.NONE, producer);
+    }
+
+    /**
+     * The same, for a way whose work uses tools: felling wants an axe. An {@link ObtainItem}
+     * running this way gets a missing tool before each round, so one that wears out mid-errand is
+     * replaced at the next tree rather than the rest cut bare-handed.
+     */
+    public static void register(ItemSpec spec, Predicate<String> yields, Kit tools, Factory producer) {
         REGISTERED.computeIfAbsent(spec, key -> new ArrayList<>())
-                .add(new Registration(id -> spec.matches(id) && yields.test(id), producer));
+                .add(new Registration(id -> spec.matches(id) && yields.test(id), tools, producer));
     }
 
     /** Whether anybody registered a way to produce {@code spec} — the gate's cheap question. */
@@ -75,13 +88,21 @@ public final class Producers {
 
     /** Fresh producer methods for {@code spec}, in registration order; empty when nobody knows. */
     public static List<Method> forSpec(ItemSpec spec) {
+        return forSpec(spec, null);
+    }
+
+    /**
+     * The same, each behind its tools for a goal already obtaining {@code pursued}; {@code null}
+     * for a caller that only asks whether a way applies.
+     */
+    public static List<Method> forSpec(ItemSpec spec, java.util.@Nullable Set<String> pursued) {
         List<Registration> ways = REGISTERED.get(spec);
         if (ways == null) {
             return List.of();
         }
         List<Method> methods = new ArrayList<>(ways.size());
         for (Registration way : ways) {
-            methods.add(way.factory().create(spec));
+            methods.add(tooled(way, way.factory().create(spec), pursued));
         }
         return methods;
     }
@@ -94,6 +115,12 @@ public final class Producers {
      * what {@link #knowsAnyOf} asks, so reachability never promises a way this does not offer.
      */
     public static List<Method> forItems(java.util.Set<String> ids, ItemSpec wanted) {
+        return forItems(ids, wanted, null);
+    }
+
+    /** {@link #forItems(java.util.Set, ItemSpec)}, each behind its tools as {@link #forSpec} puts them. */
+    public static List<Method> forItems(java.util.Set<String> ids, ItemSpec wanted,
+                                        java.util.@Nullable Set<String> pursued) {
         // Matched entries sorted by spec NAME, never map order: a saved plan resumes its method
         // BY INDEX, and this map's iteration order is not stable across JVMs (an ItemSpec's hash
         // includes its lambda).
@@ -111,10 +138,51 @@ public final class Producers {
         List<Method> methods = new ArrayList<>();
         for (List<Registration> ways : matched.values()) {
             for (Registration way : ways) {
-                methods.add(way.factory().create(wanted));
+                methods.add(tooled(way, way.factory().create(wanted), pursued));
             }
         }
         return methods;
+    }
+
+    private static Method tooled(Registration way, Method method, java.util.@Nullable Set<String> pursued) {
+        return pursued == null || way.tools().isEmpty() ? method : new Tooled(method, way.tools(), pursued);
+    }
+
+    /**
+     * A way behind the tools its work uses, asked for on every decompose — once a round, so per
+     * tree for a chop. A tool an ancestor is already obtaining is skipped: an axe made of planks
+     * made of logs reaches this chop again, and asking for the axe there would never end.
+     */
+    private record Tooled(Method way, Kit tools, java.util.Set<String> pursued) implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return way.applicable(ctx);
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            return way.estimateCost(ctx);
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            List<Task> plan = new ArrayList<>();
+            for (ItemCall call : tools.calls()) {
+                if (call.coveredBy(ctx.percepts().inventory())
+                        || pursued.stream().anyMatch(call.spec()::matches)) {
+                    continue;
+                }
+                ObtainItem obtain = new ObtainItem(call.spec(), call.count(), pursued);
+                plan.add(call.strength() == ItemCall.Strength.NEED ? obtain : new Try(obtain));
+            }
+            plan.addAll(way.decompose(ctx));
+            return plan;
+        }
+
+        @Override
+        public String describe() {
+            return way.describe();
+        }
     }
 
     /** Forgets every registration — test teardown only. */
