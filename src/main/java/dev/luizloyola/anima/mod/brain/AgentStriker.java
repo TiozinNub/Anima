@@ -9,6 +9,7 @@ import dev.luizloyola.anima.core.brain.act.Striker;
 import dev.luizloyola.anima.core.brain.act.Sweep;
 import dev.luizloyola.anima.core.brain.act.ToolChoice;
 import dev.luizloyola.anima.core.brain.act.WeaponChoice;
+import dev.luizloyola.anima.core.brain.sense.Incoming;
 import dev.luizloyola.anima.core.inv.HandChanges;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
@@ -79,6 +80,13 @@ public final class AgentStriker implements Striker {
             return Reach.OUT_OF_REACH;
         }
         return self.hasLineOfSight(victim) ? Reach.IN_REACH : Reach.BLOCKED;
+    }
+
+    @Override
+    public int shutOutTicks(BeingId target) {
+        LivingEntity victim = find(target);
+        return victim != null && body.level() instanceof ServerLevel level
+                ? Melee.shutOutTicks(level, body.entity(), victim) : 0;
     }
 
     @Override
@@ -165,19 +173,27 @@ public final class AgentStriker implements Striker {
             if (!core.isEmpty()) {
                 ItemStack stack = ItemStacks.toVanilla(core, registries);
                 Melee.Hit hit = measure(self, stack, target);
-                pack.add(new WeaponChoice.Candidate(slot, hit.damage(), hit.perSecond(),
+                pack.add(new WeaponChoice.Candidate(slot, hit.damage(), landing(hit.perSecond()),
                         Melee.blowsLeft(stack), HandChanges.ticksToWield(inv, slot, now, timing) / 20.0));
             }
         }
         Melee.Hit fist = Melee.hit(self, ItemStack.EMPTY);
         WeaponChoice.Candidate bare = new WeaponChoice.Candidate(ToolChoice.BARE_HAND,
-                fist.damage(), fist.perSecond(), WeaponChoice.UNBREAKING,
+                fist.damage(), landing(fist.perSecond()), WeaponChoice.UNBREAKING,
                 HandChanges.ticksToStow(inv, now, timing) / 20.0);
         WeaponChoice.Foe foe = target == null || target.isDeadOrDying() ? null
                 : new WeaponChoice.Foe(target.getHealth(), target.getArmorValue(),
                         target.getAttributeValue(Attributes.ARMOR_TOUGHNESS));
         return WeaponChoice.choose(pack, Inventory.HOTBAR_START + inv.selectedSlot(), bare, foe,
                 body.profile().i(ProfileAspect.HANDLING_STACK_TICKS) / 20.0);
+    }
+
+    /**
+     * Blows a second that land: a target takes a full one only every 10 ticks, so a fist's 4 a
+     * second are 2 ({@link Incoming#FULL_BLOWS_PER_SECOND}).
+     */
+    public static double landing(double perSecond) {
+        return Math.min(perSecond, Incoming.FULL_BLOWS_PER_SECOND);
     }
 
     private static Melee.Hit measure(LivingEntity self, ItemStack stack, @Nullable LivingEntity target) {

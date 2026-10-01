@@ -101,10 +101,11 @@ public final class Engage implements PrimitiveTask {
             }
             // A hand that changed this tick has not charged, whatever the counter said a moment ago.
             boolean charged = arm.charge() >= 1.0 && !handChanged;
-            if (charged || reaction > hold) {
-                reaction--;
+            if ((charged || reaction > hold) && reaction > 0) {
+                reaction--; // and stays at 0 while a blow waits: -1 is "came into reach"
             }
-            if (charged && reaction <= 0) {
+            // A blow into the target's hurt immunity is a swing spent for nothing: wait it out.
+            if (charged && reaction <= 0 && arm.shutOutTicks(target) == 0) {
                 arm.strike(target);
                 reaction = -1;
                 inset = ctx.random().nextDouble() * ctx.profile().d(ProfileAspect.COMBAT_REACH_INSET);

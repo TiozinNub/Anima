@@ -23,6 +23,8 @@ public final class Incoming {
     static final int TICKS = 400;
     static final int STARTS = 16;
     private static final long SEED = 0x5EED_B10DL;
+    /** Full blows a body can take a second, from everyone together: one per shut-out window. */
+    public static final double FULL_BLOWS_PER_SECOND = 20.0 / (IMMUNE_TICKS - SHUT_OUT_ABOVE);
     /** What a tick of poison, wither or fire deals. */
     static final double LINGER_DAMAGE = 1.0;
 

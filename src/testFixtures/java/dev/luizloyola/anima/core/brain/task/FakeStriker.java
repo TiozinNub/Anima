@@ -25,6 +25,8 @@ public final class FakeStriker implements Striker {
     public int draws;
     /** What {@link #changing} answers: a swap under way. */
     public boolean changing;
+    /** What {@link #shutOutTicks} answers: the target's hurt immunity left. */
+    public int shutOut;
 
     @Override
     public Reach reach(BeingId target, double inset) {
@@ -43,6 +45,11 @@ public final class FakeStriker implements Striker {
     public boolean strike(BeingId target) {
         struck.add(target);
         return reach == Reach.IN_REACH;
+    }
+
+    @Override
+    public int shutOutTicks(BeingId target) {
+        return shutOut;
     }
 
     @Override

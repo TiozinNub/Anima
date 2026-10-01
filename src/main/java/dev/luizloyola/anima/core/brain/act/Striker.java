@@ -55,6 +55,16 @@ public interface Striker {
      */
     boolean draw(BeingId target);
 
+    /**
+     * Ticks until a blow at {@code target} would land: 0 when it would land now. A body just hurt
+     * shuts out every blow for 10 ticks unless it is bigger than the one that hurt it, and a blow
+     * shut out still spends the swing's charge — so a fist that charges faster than that wastes
+     * every other blow.
+     */
+    default int shutOutTicks(BeingId target) {
+        return 0;
+    }
+
     /** Whether the hands are in the middle of changing what they hold. */
     default boolean changing() {
         return false;

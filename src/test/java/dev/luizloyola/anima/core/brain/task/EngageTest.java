@@ -183,6 +183,21 @@ class EngageTest {
     }
 
     @Test
+    void noBlowIntoTheTargetsHurtImmunity() {
+        Being cow = zombieAt(2, 2.0);
+        ctx.striker.reach = Striker.Reach.IN_REACH;
+        ctx.striker.shutOut = 4; // just hurt: the next blow would be shut out for four ticks
+        Engage engage = new Engage(cow.id(), cow.pos());
+        for (int t = 0; t < 20; t++) {
+            engage.tick(ctx);
+        }
+
+        assertTrue(ctx.striker.struck.isEmpty(), "charged and reacted, but a shut-out blow spends the swing");
+        ctx.striker.shutOut = 0;
+        assertEquals(1, ticksToNextBlow(engage, 20), "the blow comes the tick the window closes");
+    }
+
+    @Test
     void everyBlowAsksForTheBestWeaponFirst() {
         Being zombie = zombieAt(2, 2.0);
         ctx.striker.reach = Striker.Reach.IN_REACH;

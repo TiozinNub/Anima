@@ -4,9 +4,11 @@
   "compatibilityLevel": "${java}",
   "mixins": [
     "BreakDoorGoalMixin",
+    "EntityInvulnerableTimeAccessor",
     "LevelSetBlockMixin",
     "LivingEntityAttackStrengthAccessor",
     "LivingEntityHurtSoundMixin",
+    "LivingEntityLastHurtAccessor",
     "MeleeAttackGoalInvoker",
     "MobAmbientSoundMixin",
     "MobGoalSelectorAccessor",

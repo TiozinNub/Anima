@@ -1,7 +1,9 @@
 package dev.luizloyola.anima.compat.agent;
 
 import dev.luizloyola.anima.core.brain.act.WeaponChoice;
+import dev.luizloyola.anima.mixin.EntityInvulnerableTimeAccessor;
 import dev.luizloyola.anima.mixin.LivingEntityAttackStrengthAccessor;
+import dev.luizloyola.anima.mixin.LivingEntityLastHurtAccessor;
 import java.util.function.Predicate;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
@@ -123,6 +125,20 @@ public final class Melee {
         }
         int remaining = weapon.getMaxDamage() - weapon.getDamageValue();
         return Math.max(1, Mth.ceil((float) remaining / wear.itemDamagePerAttack()));
+    }
+
+    /**
+     * Ticks until a full-charge blow from {@code body} would land on {@code target}: 0 once its hurt
+     * immunity has fallen to the last 10 of its 20 ticks, or when this blow is bigger than the one
+     * that opened it ({@code LivingEntity.hurtServer}).
+     */
+    public static int shutOutTicks(ServerLevel level, LivingEntity body, LivingEntity target) {
+        int shutOut = ((EntityInvulnerableTimeAccessor) target).anima$invulnerableTime() - 10;
+        if (shutOut <= 0) {
+            return 0;
+        }
+        float last = ((LivingEntityLastHurtAccessor) target).anima$lastHurt();
+        return hit(level, body, body.getWeaponItem(), target).damage() > last ? 0 : shutOut;
     }
 
     public static double damagePerSecond(LivingEntity body, ItemStack weapon) {

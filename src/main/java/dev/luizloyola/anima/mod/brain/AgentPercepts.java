@@ -276,7 +276,7 @@ public final class AgentPercepts implements Percepts {
         // In a standing fight its blows land the held part of a reaction after each charge.
         double hold = this.person.profile().i(ProfileAspect.COMBAT_REACTION_HOLD_TICKS);
         double perSecond = hit.perSecond() > 0.0
-                ? 20.0 / (20.0 / hit.perSecond() + hold) : 0.0;
+                ? AgentStriker.landing(20.0 / (20.0 / hit.perSecond() + hold)) : 0.0;
         return java.util.Optional.of(new Combatant(body.health(), body.maxHealth(), body.armor(),
                 body.toughness(), hit.damage(), perSecond, body.pace(), 0.0, 0.0));
     }
