@@ -96,7 +96,7 @@ class ObtainItemTest {
 
     @Test
     void aLiteralIngredientReachesTheConsumersProducerByContent() {
-        Producers.register(LOGS, wanted -> new FellSomething());
+        Producers.register(LOGS, LOGS::matches, wanted -> new FellSomething());
         // The ingredient shape: "any oak log", built from a recipe, never declared by a mod.
         ObtainItem ingredient = new ObtainItem(
                 ItemSpec.anyOf(Set.of("minecraft:oak_log", "minecraft:oak_wood")), 1);
@@ -116,7 +116,7 @@ class ObtainItemTest {
 
     @Test
     void anUnrelatedLiteralGetsNoBridge() {
-        Producers.register(LOGS, wanted -> new FellSomething());
+        Producers.register(LOGS, LOGS::matches, wanted -> new FellSomething());
         ObtainItem stone = new ObtainItem(ItemSpec.anyOf(Set.of("minecraft:cobblestone")), 1);
         assertEquals(3, stone.methods().size(),
                 "pick up + craft + take from store; nobody produces cobble");
@@ -124,7 +124,7 @@ class ObtainItemTest {
 
     @Test
     void aDeclaredSpecKeepsItsIdentityRosterUnchanged() {
-        Producers.register(LOGS, wanted -> new FellSomething());
+        Producers.register(LOGS, LOGS::matches, wanted -> new FellSomething());
         List<Method> roster = new ObtainItem(LOGS, 16).methods();
         assertEquals(4, roster.size(), "identity producer once — the bridge never double-adds");
         assertInstanceOf(FellSomething.class, roster.get(1));
@@ -137,7 +137,7 @@ class ObtainItemTest {
         ItemSpec anyLog = ItemSpec.register(
                 new ItemSpec("producer-test-logs", id -> id.endsWith("_log")));
         java.util.List<ItemSpec> asked = new java.util.ArrayList<>();
-        Producers.register(anyLog, wanted -> {
+        Producers.register(anyLog, anyLog::matches, wanted -> {
             asked.add(wanted);
             return new FellSomething();
         });

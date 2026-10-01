@@ -37,4 +37,14 @@ public final class Yields {
         Lookup drops = lookup;
         return drops == null ? Set.of() : drops.species();
     }
+
+    /** Whether some huntable species can drop {@code itemId} — what a hunt can ever yield. */
+    public static boolean dropped(String itemId) {
+        for (String species : species()) {
+            if (of(species).contains(itemId)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

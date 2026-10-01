@@ -69,7 +69,7 @@ class EatAnythingTest {
 
     @Test
     void aHungryBodyDoesNotHuntForAMeal() {
-        Producers.register(Food.SPEC, wanted -> new Hunting(10.0));
+        Producers.register(Food.SPEC, Food.SPEC::matches, wanted -> new Hunting(10.0));
         ctx.percepts.metabolism.setFoodLevel(8);
         ctx.costTolerance = 60.0;
 
@@ -83,7 +83,7 @@ class EatAnythingTest {
 
     @Test
     void aStarvingBodyGetsAnyFoodAndEatsIt() {
-        Producers.register(Food.SPEC, wanted -> new Hunting(10.0));
+        Producers.register(Food.SPEC, Food.SPEC::matches, wanted -> new Hunting(10.0));
         ctx.percepts.metabolism.setFoodLevel(2);
 
         List<Task> plan = new EatAnything().decompose(ctx);
@@ -96,8 +96,8 @@ class EatAnythingTest {
 
     @Test
     void readyFoodToBeHadStillWinsWhenStarving() {
-        Producers.register(Food.SPEC, wanted -> new Hunting(5.0));
-        Producers.register(ReadyFood.SPEC, wanted -> new Hunting(30.0));
+        Producers.register(Food.SPEC, Food.SPEC::matches, wanted -> new Hunting(5.0));
+        Producers.register(ReadyFood.SPEC, ReadyFood.SPEC::matches, wanted -> new Hunting(30.0));
         ctx.percepts.metabolism.setFoodLevel(2);
 
         assertTrue(new EatObtained().estimateCost(ctx) < new EatAnything().estimateCost(ctx),

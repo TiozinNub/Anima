@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 /**
  * Who knows how to <em>make more</em> of a thing — the registry {@link ObtainItem} consults when
@@ -31,7 +32,11 @@ public final class Producers {
         Method create(ItemSpec wanted);
     }
 
-    private static final Map<ItemSpec, List<Factory>> REGISTERED = new ConcurrentHashMap<>();
+    /** One way to produce, and the items it can ever make. */
+    private record Registration(Predicate<String> yields, Factory factory) {
+    }
+
+    private static final Map<ItemSpec, List<Registration>> REGISTERED = new ConcurrentHashMap<>();
 
     private Producers() {
     }
@@ -40,9 +45,15 @@ public final class Producers {
      * Teaches the brain one way to produce {@code spec}. Call during mod initialization; several
      * ways may be registered for the same spec and are offered in registration order, after the
      * always-present "pick one up" method.
+     *
+     * <p>{@code yields} is what the way can ever make, which a family spec overstates: forage
+     * registered under "ready food" told every recipe that dried kelp and beetroot could be had,
+     * and the only way left at the bottom was a store, looked in again every recheck (in-world,
+     * 2026-09-30). Only ids both match.
      */
-    public static void register(ItemSpec spec, Factory producer) {
-        REGISTERED.computeIfAbsent(spec, key -> new ArrayList<>()).add(producer);
+    public static void register(ItemSpec spec, Predicate<String> yields, Factory producer) {
+        REGISTERED.computeIfAbsent(spec, key -> new ArrayList<>())
+                .add(new Registration(id -> spec.matches(id) && yields.test(id), producer));
     }
 
     /** Whether anybody registered a way to produce {@code spec} — the gate's cheap question. */
@@ -50,11 +61,11 @@ public final class Producers {
         return REGISTERED.containsKey(spec);
     }
 
-    /** Whether any registration's spec matches any of {@code ids} — the reachability question. */
+    /** Whether some registered way can make any of {@code ids} — the reachability question. */
     public static boolean knowsAnyOf(java.util.Set<String> ids) {
-        for (ItemSpec spec : REGISTERED.keySet()) {
-            for (String id : ids) {
-                if (spec.matches(id)) {
+        for (List<Registration> ways : REGISTERED.values()) {
+            for (Registration way : ways) {
+                if (ids.stream().anyMatch(way.yields())) {
                     return true;
                 }
             }
@@ -64,43 +75,43 @@ public final class Producers {
 
     /** Fresh producer methods for {@code spec}, in registration order; empty when nobody knows. */
     public static List<Method> forSpec(ItemSpec spec) {
-        List<Factory> factories = REGISTERED.get(spec);
-        if (factories == null) {
+        List<Registration> ways = REGISTERED.get(spec);
+        if (ways == null) {
             return List.of();
         }
-        List<Method> methods = new ArrayList<>(factories.size());
-        for (Factory factory : factories) {
-            methods.add(factory.create(spec));
+        List<Method> methods = new ArrayList<>(ways.size());
+        for (Registration way : ways) {
+            methods.add(way.factory().create(spec));
         }
         return methods;
     }
 
     /**
-     * Fresh methods from every registration whose spec matches any of {@code ids}, skipping
-     * {@code wanted} itself (already offered by identity) — how a crafting ingredient no mod
+     * Fresh methods from every registered way that can make any of {@code ids}, skipping
+     * {@code wanted}'s own (already offered by identity) — how a crafting ingredient no mod
      * declared reaches a producer. {@code wanted} is also handed to each factory, so a producer
-     * registered for "any log" still hears "oak logs" when that is what the goal counts.
+     * registered for "any log" still hears "oak logs" when that is what the goal counts. Asks
+     * what {@link #knowsAnyOf} asks, so reachability never promises a way this does not offer.
      */
     public static List<Method> forItems(java.util.Set<String> ids, ItemSpec wanted) {
         // Matched entries sorted by spec NAME, never map order: a saved plan resumes its method
         // BY INDEX, and this map's iteration order is not stable across JVMs (an ItemSpec's hash
         // includes its lambda).
-        java.util.TreeMap<String, List<Factory>> matched = new java.util.TreeMap<>();
-        for (Map.Entry<ItemSpec, List<Factory>> entry : REGISTERED.entrySet()) {
+        java.util.TreeMap<String, List<Registration>> matched = new java.util.TreeMap<>();
+        for (Map.Entry<ItemSpec, List<Registration>> entry : REGISTERED.entrySet()) {
             if (entry.getKey() == wanted) {
                 continue;
             }
-            for (String id : ids) {
-                if (entry.getKey().matches(id)) {
-                    matched.put(entry.getKey().name(), entry.getValue());
-                    break;
-                }
+            List<Registration> making = entry.getValue().stream()
+                    .filter(way -> ids.stream().anyMatch(way.yields())).toList();
+            if (!making.isEmpty()) {
+                matched.put(entry.getKey().name(), making);
             }
         }
         List<Method> methods = new ArrayList<>();
-        for (List<Factory> factories : matched.values()) {
-            for (Factory factory : factories) {
-                methods.add(factory.create(wanted));
+        for (List<Registration> ways : matched.values()) {
+            for (Registration way : ways) {
+                methods.add(way.factory().create(wanted));
             }
         }
         return methods;

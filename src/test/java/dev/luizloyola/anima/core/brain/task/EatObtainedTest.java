@@ -75,7 +75,7 @@ class EatObtainedTest {
 
     @Test
     void aProducerOfReadyFoodIsAWayAndItsPriceIsTheMeals() {
-        Producers.register(ReadyFood.SPEC, wanted -> new Patch(true, 27.0));
+        Producers.register(ReadyFood.SPEC, ReadyFood.SPEC::matches, wanted -> new Patch(true, 27.0));
 
         assertTrue(new EatObtained().applicable(ctx));
         assertEquals(27.0, new EatObtained().estimateCost(ctx), 1e-9);
@@ -83,7 +83,7 @@ class EatObtainedTest {
 
     @Test
     void theCheapestWayPricesIt() {
-        Producers.register(ReadyFood.SPEC, wanted -> new Patch(true, 27.0));
+        Producers.register(ReadyFood.SPEC, ReadyFood.SPEC::matches, wanted -> new Patch(true, 27.0));
         Pos at = new Pos(0, 64, 9);
         ctx.percepts.drops = List.of(new Drop(at, "minecraft:sweet_berries", Region.of(at)));
 
@@ -93,14 +93,14 @@ class EatObtainedTest {
 
     @Test
     void aFullBarGoesLookingForNothing() {
-        Producers.register(ReadyFood.SPEC, wanted -> new Patch(true, 5.0));
+        Producers.register(ReadyFood.SPEC, ReadyFood.SPEC::matches, wanted -> new Patch(true, 5.0));
         ctx.percepts.metabolism.setFoodLevel(20);
         assertFalse(new EatObtained().applicable(ctx));
     }
 
     @Test
     void itGetsFoodThenEatsIt() {
-        Producers.register(ReadyFood.SPEC, wanted -> new Patch(true, 5.0));
+        Producers.register(ReadyFood.SPEC, ReadyFood.SPEC::matches, wanted -> new Patch(true, 5.0));
         List<Task> plan = new EatObtained().decompose(ctx);
 
         ObtainItem obtain = assertInstanceOf(ObtainItem.class, plan.get(0));

@@ -175,7 +175,7 @@ class CraftForTest {
         // Birch is earlier in the book than oak: choosing the recipe first sent an oak wood's
         // settlers to far birches (in-world, 2026-09-27). The obtain carries every log instead.
         book(planks("acacia"), planks("birch"), planks("oak"));
-        Producers.register(LOGS, wanted -> new Way(true));
+        Producers.register(LOGS, LOGS::matches, wanted -> new Way(true));
 
         List<Task> plan = new CraftFor(THREE_PLANKS, 4, Set.of()).decompose(ctx);
 
@@ -197,7 +197,7 @@ class CraftForTest {
     @Test
     void theRecipeThePackRunsMostOfGoesFirst() {
         book(planks("birch"), planks("oak"));
-        Producers.register(LOGS, wanted -> new Way(true));
+        Producers.register(LOGS, LOGS::matches, wanted -> new Way(true));
         ctx.percepts.inventory.add(ItemStack.of("minecraft:birch_log", 1, 64));
         ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_log", 2, 64));
 
@@ -217,8 +217,8 @@ class CraftForTest {
     @Test
     void aSharedLineIsGatheredBesideTheOpenOne() {
         book(torch("minecraft:coal"), torch("minecraft:charcoal"));
-        Producers.register(FUEL, wanted -> new Way(true));
-        Producers.register(STICKS, wanted -> new Way(true));
+        Producers.register(FUEL, FUEL::matches, wanted -> new Way(true));
+        Producers.register(STICKS, STICKS::matches, wanted -> new Way(true));
 
         List<Task> plan = new CraftFor(ItemSpec.anyOf(Set.of("minecraft:torch")), 8, Set.of())
                 .decompose(ctx);
@@ -237,8 +237,8 @@ class CraftForTest {
         // Three planks or three cobblestone: gathered as a mix they make no axe, so these do not
         // merge. Stone is first in the book, but no stone is known and a tree is.
         book(stoneAxeNeedingTable(), axeNeedingTable(), planksFromLog());
-        Producers.register(LOGS, wanted -> new Way(true));
-        Producers.register(COBBLE, wanted -> new Way(false));
+        Producers.register(LOGS, LOGS::matches, wanted -> new Way(true));
+        Producers.register(COBBLE, COBBLE::matches, wanted -> new Way(false));
         ctx.percepts.inventory.add(ItemStack.of("minecraft:stick", 2, 64));
         ItemSpec anyAxe = ItemSpec.anyOf(Set.of("minecraft:wooden_axe", "minecraft:stone_axe"));
 
@@ -253,8 +253,8 @@ class CraftForTest {
         // As above, with one of the party's chests nearby that nobody has opened. Worth a look,
         // but no evidence of stone: counted as a way, both bills would tie and stone would win.
         book(stoneAxeNeedingTable(), axeNeedingTable(), planksFromLog());
-        Producers.register(LOGS, wanted -> new Way(true));
-        Producers.register(COBBLE, wanted -> new Way(false));
+        Producers.register(LOGS, LOGS::matches, wanted -> new Way(true));
+        Producers.register(COBBLE, COBBLE::matches, wanted -> new Way(false));
         ctx.percepts.inventory.add(ItemStack.of("minecraft:stick", 2, 64));
         dev.luizloyola.anima.core.social.Places places = new dev.luizloyola.anima.core.social.Places();
         dev.luizloyola.anima.core.social.PartyId party = dev.luizloyola.anima.core.social.PartyId.random();
@@ -389,12 +389,42 @@ class CraftForTest {
                         false));
         ItemSpec food = ItemSpec.register(
                 new ItemSpec("craft-test-food", id -> id.equals("minecraft:dried_kelp")));
-        Producers.register(food, wanted -> new Way(false));
+        Producers.register(food, food::matches, wanted -> new Way(false));
 
         assertFalse(new CraftFor(food, 9, Set.of()).applicable(ctx));
         assertFalse(CraftFor.anyReachable(food, ctx));
         ctx.percepts.inventory.add(ItemStack.of("minecraft:dried_kelp_block", 1, 64));
         assertTrue(new CraftFor(food, 9, Set.of()).applicable(ctx), "a block in hand is food");
+    }
+
+    @Test
+    void aProducerReachesOnlyWhatItYields() {
+        book(new CraftRecipe("minecraft:beetroot_soup",
+                ItemStack.of("minecraft:beetroot_soup", 1, 1),
+                List.of(new CraftRecipe.Ingredient(Set.of("minecraft:beetroot"), 6)), false));
+        ItemSpec food = ItemSpec.register(new ItemSpec("craft-test-any-food",
+                id -> id.equals("minecraft:beetroot") || id.equals("minecraft:sweet_berries")));
+        ItemSpec soup = ItemSpec.anyOf(Set.of("minecraft:beetroot_soup"));
+        // Forage under the whole family, picking berries only.
+        Producers.register(food, "minecraft:sweet_berries"::equals, wanted -> new Way(true));
+
+        assertFalse(new CraftFor(soup, 1, Set.of()).applicable(ctx),
+                "berry bushes are no way to beetroot");
+        assertTrue(Producers.forItems(Set.of("minecraft:beetroot"), soup).isEmpty());
+        assertEquals(1, Producers.forItems(Set.of("minecraft:sweet_berries"), soup).size());
+    }
+
+    @Test
+    void aProducerThatYieldsTheLineMakesItReachable() {
+        book(new CraftRecipe("minecraft:beetroot_soup",
+                ItemStack.of("minecraft:beetroot_soup", 1, 1),
+                List.of(new CraftRecipe.Ingredient(Set.of("minecraft:beetroot"), 6)), false));
+        ItemSpec beetroot = ItemSpec.register(
+                new ItemSpec("craft-test-beetroot", id -> id.equals("minecraft:beetroot")));
+        Producers.register(beetroot, beetroot::matches, wanted -> new Way(true));
+
+        assertTrue(new CraftFor(ItemSpec.anyOf(Set.of("minecraft:beetroot_soup")), 1, Set.of())
+                .applicable(ctx));
     }
 
     @Test
@@ -437,7 +467,7 @@ class CraftForTest {
     void barkIsNoWayToTheLogsItIsMadeOf() {
         book(new CraftRecipe("minecraft:birch_wood", ItemStack.of("minecraft:birch_wood", 3, 64),
                 List.of(new CraftRecipe.Ingredient(Set.of("minecraft:birch_log"), 4)), false));
-        Producers.register(LOGS, wanted -> new Way(false)); // the chop whose tree just failed
+        Producers.register(LOGS, LOGS::matches, wanted -> new Way(false)); // the chop whose tree just failed
         ItemSpec planksLine = ItemSpec.anyOf(BIRCH_LOGS);
 
         assertFalse(new CraftFor(planksLine, 1, Set.of("minecraft:birch_planks")).applicable(ctx),
