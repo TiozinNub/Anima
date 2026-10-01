@@ -506,23 +506,17 @@ public final class AnimaTasks {
                                 .resume(phase, pause, moved)
                                 .settledOn(store.orElse(null)))));
 
-        // Both always carry a destination (2026-09-30: no base, no offloading). A plan saved with
-        // the old hint-less flavour no longer decodes.
+        // Both go to the body's depot, asked afresh each time, so neither carries a place. A plan
+        // saved with the old "hint" field still decodes; the field is ignored.
         TaskCodecs.register("anima:ensure_store",
                 dev.luizloyola.anima.core.brain.task.EnsureStore.class,
-                RecordCodecBuilder.mapCodec(t -> t.group(
-                        POS.fieldOf("hint").forGetter(
-                                dev.luizloyola.anima.core.brain.task.EnsureStore::hint)
-                ).apply(t, dev.luizloyola.anima.core.brain.task.EnsureStore::new)));
+                MapCodec.unit(dev.luizloyola.anima.core.brain.task.EnsureStore::new));
         TaskCodecs.register("anima:put_away_surplus",
                 dev.luizloyola.anima.core.brain.task.PutAwaySurplus.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
-                        POS.fieldOf("hint").forGetter(
-                                dev.luizloyola.anima.core.brain.task.PutAwaySurplus::hint),
                         Codec.INT.optionalFieldOf("haul_line", 0).forGetter(
                                 dev.luizloyola.anima.core.brain.task.PutAwaySurplus::haulLine)
-                ).apply(t, (hint, line) ->
-                        new dev.luizloyola.anima.core.brain.task.PutAwaySurplus(hint, line))));
+                ).apply(t, dev.luizloyola.anima.core.brain.task.PutAwaySurplus::new)));
 
         TaskCodecs.register("anima:ensure_table",
                 dev.luizloyola.anima.core.brain.task.EnsureTable.class,

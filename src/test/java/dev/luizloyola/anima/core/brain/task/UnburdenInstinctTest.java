@@ -31,7 +31,9 @@ class UnburdenInstinctTest {
     /** A pack with {@code empty} storage slots free and the rest cargo, and a depot to take it to. */
     private static FakeContext packWith(int empty) {
         FakeContext ctx = new FakeContext();
-        ctx.depot = Optional.of(DEPOT);
+        ctx.depot = Optional.of(new dev.luizloyola.anima.core.store.Depot.Site(DEPOT, java.util.Set.of(
+                dev.luizloyola.anima.core.territory.ChunkKey.at(
+                        dev.luizloyola.anima.core.territory.ChunkKey.OVERWORLD, DEPOT.x(), DEPOT.z()))));
         Inventory pack = ctx.percepts.inventory();
         for (int slot = 0; slot < Inventory.ARMOR_START - empty; slot++) {
             pack.set(slot, ItemStack.of("minecraft:oak_log", 64, 64));
@@ -98,9 +100,15 @@ class UnburdenInstinctTest {
 
     @Test
     void itTakesTheLoadToTheDepot() {
-        PutAwaySurplus root = (PutAwaySurplus) new UnburdenInstinct().root(packWith(0));
+        FakeContext ctx = packWith(0);
+        PutAwaySurplus root = (PutAwaySurplus) new UnburdenInstinct().root(ctx);
+        EnsureStore toAStore = (EnsureStore) root.methods().get(0).decompose(ctx).get(0);
+        Pos opened = toAStore.methods().get(1).decompose(ctx).stream()
+                .filter(step -> step instanceof FoundPlace)
+                .map(step -> ((FoundPlace) step).anchor()).findFirst().orElseThrow();
 
-        assertEquals(DEPOT, root.hint(), "the goods go where the consumer said, nowhere else");
+        assertTrue(Math.abs(opened.x() - DEPOT.x()) <= 2 && Math.abs(opened.z() - DEPOT.z()) <= 2,
+                "the goods go where the consumer said, nowhere else: " + opened);
         assertEquals(0, root.haulLine(), "and any cargo at all is worth the trip");
     }
 

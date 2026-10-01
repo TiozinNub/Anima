@@ -4,7 +4,6 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.history.Doings;
-import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.task.PutAwaySurplus;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.inv.Surplus;
@@ -63,9 +62,8 @@ public final class UnburdenInstinct implements Instinct {
 
     @Override
     public Task root(BrainContext ctx) {
-        // Safe: the arbiter grants only on a positive bid, read the same tick, and no depot bids 0.
-        Pos depot = ctx.depot().orElseThrow();
-        return new PutAwaySurplus(depot, 0);
+        // The arbiter grants only on a positive bid, and no depot bids 0.
+        return new PutAwaySurplus(0);
     }
 
     @Override

@@ -2,11 +2,9 @@ package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
-import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.Surplus;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -17,16 +15,13 @@ import java.util.function.BooleanSupplier;
  * <p>Being an achieve-goal is what makes a SECOND chest happen without a rule saying so: a round
  * that fills the first one leaves the pack still holding cargo, the goal is still unsatisfied, and
  * the next round re-scores — finding the full store avoided, walking to another, or building one.
- * Always at the place asked for: a load never goes to whatever store is nearest.
+ * Always at the body's depot: a load never goes to whatever store is nearest.
  */
 public final class PutAwaySurplus implements AchieveTask {
 
-    /** Where the load is wanted — see {@link EnsureStore}. */
-    private final Pos hint;
-
     /**
      * Cargo, in full stacks, that makes the walk worth taking. Zero for the standing stow and
-     * unburden, which haul any cargo at all; a project hauling to a named yard sets it higher, so a
+     * unburden, which haul any cargo at all; a project hauling home sets it higher, so a
      * settler fells several trees between trips instead of commuting after each one.
      */
     private final int haulLine;
@@ -34,7 +29,7 @@ public final class PutAwaySurplus implements AchieveTask {
     /**
      * Free slots above the unburden line at which a haul goes whatever the load: room for the new
      * kinds one more tree brings in — its logs, sapling, sticks and litter. Below it unburden would
-     * take the pack to the body's depot instead, and the yard would stay empty.
+     * take the pack to the depot on its own account, and the project's haul would never go.
      */
     static final int ROOM_MARGIN = 4;
 
@@ -52,19 +47,13 @@ public final class PutAwaySurplus implements AchieveTask {
      * A haul whose job never ends, as far as it knows — also what a save restores, until the
      * project re-grants the errand with the live answer. Worst case, one load waits for the line.
      */
-    public PutAwaySurplus(Pos hint, int haulLine) {
-        this(hint, haulLine, () -> true);
+    public PutAwaySurplus(int haulLine) {
+        this(haulLine, () -> true);
     }
 
-    public PutAwaySurplus(Pos hint, int haulLine, BooleanSupplier workLeft) {
-        this.hint = Objects.requireNonNull(hint, "hint");
+    public PutAwaySurplus(int haulLine, BooleanSupplier workLeft) {
         this.haulLine = Math.max(0, haulLine);
         this.workLeft = workLeft;
-    }
-
-    /** The yard this goal is feeding, for the codec. */
-    public Pos hint() {
-        return hint;
     }
 
     public int haulLine() {
@@ -78,7 +67,7 @@ public final class PutAwaySurplus implements AchieveTask {
      *
      * <p>Laden is a load, a pack running out of room, or a job with nothing left. Counted in slots,
      * a mixed wood's logs, saplings, sticks and litter made three slots of one tree, and settlers
-     * walked to the yard with about fifteen items a trip (in-world, 2026-09-27).
+     * walked home with about fifteen items a trip (in-world, 2026-09-27).
      */
     @Override
     public boolean satisfied(BrainContext ctx) {
@@ -116,15 +105,15 @@ public final class PutAwaySurplus implements AchieveTask {
 
         @Override
         public double estimateCost(BrainContext ctx) {
-            // Free: a yard haul is part of a job already claimed, and the walk is where the job
-            // said the load goes. Priced by distance it cleared no box more than 80 blocks from its
-            // yard (a job's budget), and failed the tree it had just felled (in-world, 2026-09-27).
+            // Free: a haul home is part of a job already claimed, and the walk is where the job
+            // said the load goes. Priced by distance it cleared no box more than 80 blocks from
+            // home (a job's budget), and failed the tree it had just felled (in-world, 2026-09-27).
             return 0.0;
         }
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
-            return List.of(new EnsureStore(hint), PutItems.stow());
+            return List.of(new EnsureStore(), PutItems.stow());
         }
 
         @Override

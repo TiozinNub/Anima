@@ -265,11 +265,11 @@ public final class FakeContext implements BrainContext {
     }
 
     /** Where this rig's goods go — nowhere unless a test names a depot. */
-    public java.util.Optional<dev.luizloyola.anima.core.brain.sense.Pos> depot =
+    public java.util.Optional<dev.luizloyola.anima.core.store.Depot.Site> depot =
             java.util.Optional.empty();
 
     @Override
-    public java.util.Optional<dev.luizloyola.anima.core.brain.sense.Pos> depot() {
+    public java.util.Optional<dev.luizloyola.anima.core.store.Depot.Site> depot() {
         return depot;
     }
 

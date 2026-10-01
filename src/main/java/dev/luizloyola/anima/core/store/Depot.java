@@ -2,8 +2,10 @@ package dev.luizloyola.anima.core.store;
 
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.territory.ChunkKey;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Where a body's goods go. Anima knows no bases, so the consumer installs a {@link Policy}; with
@@ -14,9 +16,30 @@ import java.util.Optional;
  */
 public final class Depot {
 
-    /** The consumer's answer: the cell a body's goods go to, empty for nowhere. */
+    /** The consumer's answer: where a body's goods go, empty for nowhere. */
     public interface Policy {
-        Optional<Pos> of(AgentId body);
+        Optional<Site> of(AgentId body);
+    }
+
+    /**
+     * Any store standing in {@code area} is the body's; when none will do, a new one goes at
+     * {@code hint}. An area, not a point, because a home that grows keeps every chest it had.
+     */
+    public record Site(Pos hint, Set<ChunkKey> area) {
+
+        public Site {
+            Objects.requireNonNull(hint, "hint");
+            area = Set.copyOf(area);
+            if (area.isEmpty()) {
+                throw new IllegalArgumentException("a site holds at least one chunk");
+            }
+        }
+
+        /** Whether a store at {@code at} is one of this site's: in a chunk of the area, at any height. */
+        public boolean holds(Pos at) {
+            String dimension = area.iterator().next().dimension();
+            return area.contains(ChunkKey.at(dimension, at.x(), at.z()));
+        }
     }
 
     /** Nowhere for everyone — what runs until a consumer installs its own. */
@@ -31,7 +54,7 @@ public final class Depot {
         policy = Objects.requireNonNull(installed, "policy");
     }
 
-    public static Optional<Pos> of(AgentId body) {
+    public static Optional<Site> of(AgentId body) {
         return policy.of(body);
     }
 }

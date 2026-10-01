@@ -132,7 +132,7 @@ public interface BrainContext {
     }
 
     /** Where this body's goods go — see {@link dev.luizloyola.anima.core.store.Depot}. */
-    default java.util.Optional<dev.luizloyola.anima.core.brain.sense.Pos> depot() {
+    default java.util.Optional<dev.luizloyola.anima.core.store.Depot.Site> depot() {
         return java.util.Optional.empty();
     }
 

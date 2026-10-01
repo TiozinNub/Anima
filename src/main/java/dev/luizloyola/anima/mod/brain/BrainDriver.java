@@ -307,7 +307,7 @@ public final class BrainDriver {
             }
 
             @Override
-            public java.util.Optional<dev.luizloyola.anima.core.brain.sense.Pos> depot() {
+            public java.util.Optional<dev.luizloyola.anima.core.store.Depot.Site> depot() {
                 return dev.luizloyola.anima.core.store.Depot.of(person.agentId());
             }
 
