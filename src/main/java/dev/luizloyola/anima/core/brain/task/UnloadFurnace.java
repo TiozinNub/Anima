@@ -3,7 +3,6 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.FurnaceAccess;
 import dev.luizloyola.anima.core.brain.sense.Pos;
-import dev.luizloyola.anima.core.craft.Workbench;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import java.util.ArrayList;
@@ -61,9 +60,10 @@ public final class UnloadFurnace implements CompoundTask {
             return true;
         }
 
+        /** Free: a job that comes to a furnace already chose the walk, from however far it starts. */
         @Override
         public double estimateCost(BrainContext ctx) {
-            return Workbench.distance(ctx.percepts().position(), at);
+            return 0.0;
         }
 
         @Override

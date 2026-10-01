@@ -83,9 +83,10 @@ public final class LoadFurnace implements CompoundTask {
             return fuelFor(ctx, input, count, fuel) > 0;
         }
 
+        /** Free: a job that comes to a furnace already chose the walk, from however far it starts. */
         @Override
         public double estimateCost(BrainContext ctx) {
-            return Workbench.distance(ctx.percepts().position(), at);
+            return 0.0;
         }
 
         @Override
