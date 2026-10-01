@@ -358,6 +358,12 @@ public final class ProfileAspect {
             "Ticks of worked pause per craft. Long enough to read as labour, short enough not to "
                     + "bore.");
 
+    public static final ProfileAspect HANDLING_SPARE_BELOW = register("handling.spare_below",
+            Kind.DOUBLE, 0.0, 1.0,
+            "Share of its durability a tool may have left before the body makes its replacement. "
+                    + "The worn one is still used up; this is only when the next one is made, so "
+                    + "the old one never breaks with nothing behind it.");
+
     // --- stores: what a body believes about somewhere it looked -------------------------------
 
     public static final ProfileAspect STORES_STALENESS_WEIGHT = register("stores.staleness_weight",

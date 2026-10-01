@@ -305,6 +305,8 @@
   "anima.config.aspect.handling.select_ticks.desc": "Ticks to take something already on the hotbar into the hand, or to empty the hand onto a free hotbar slot: a player scrolls to it almost at once. The attack warmup still starts over after it.",
   "anima.config.aspect.handling.craft_ticks": "Craft time",
   "anima.config.aspect.handling.craft_ticks.desc": "Ticks of worked pause per craft — long enough to read as labour, short enough not to bore.",
+  "anima.config.aspect.handling.spare_below": "Spare below",
+  "anima.config.aspect.handling.spare_below.desc": "Share of durability left at which a tool's replacement is made. The worn one is still used up first.",
   "anima.config.aspect.instincts.unburden_slack_slots": "Unburden slack",
   "anima.config.aspect.instincts.unburden_slack_slots.desc": "Empty pack slots at or below which a settler starts wanting to put things away. Deliberately the last of the pack rather than a tidiness line: routine clearing is the standing stow project's job, and this only catches a single act that fills the rest at once.",
   "anima.config.aspect.instincts.unburden_tolerance": "Unburden reach",

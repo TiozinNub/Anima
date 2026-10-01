@@ -305,6 +305,8 @@
   "anima.config.aspect.handling.select_ticks.desc": "Ticks para pegar na mão algo que já está na hotbar, ou esvaziar a mão num slot livre da hotbar: um jogador rola até ele quase na hora. A preparação do ataque recomeça depois disso.",
   "anima.config.aspect.handling.craft_ticks": "Tempo de fabricação",
   "anima.config.aspect.handling.craft_ticks.desc": "Ticks de pausa trabalhada por fabricação — longo o bastante para parecer trabalho, curto o bastante para não entediar.",
+  "anima.config.aspect.handling.spare_below": "Reserva abaixo de",
+  "anima.config.aspect.handling.spare_below.desc": "Fração de durabilidade restante em que a substituta de uma ferramenta é feita. A gasta ainda é usada até o fim.",
   "anima.config.aspect.instincts.unburden_slack_slots": "Folga da mochila",
   "anima.config.aspect.instincts.unburden_slack_slots.desc": "Espaços vazios na mochila a partir dos quais o colono começa a querer guardar as coisas. É de propósito o fim da mochila, e não um limite de arrumação: a limpeza de rotina é tarefa do projeto de guardar, e isto só pega o caso em que um único ato enche o resto de uma vez.",
   "anima.config.aspect.instincts.unburden_tolerance": "Alcance para guardar",

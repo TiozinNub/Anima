@@ -99,6 +99,14 @@ public final class Gate {
         }
 
         /**
+         * {@link #mayMake} without a journal line: for a body weighing what it could make, not
+         * trying to make it.
+         */
+        public boolean wouldMake(String itemId) {
+            return body == null || policy.refuseItem(body, itemId).isEmpty();
+        }
+
+        /**
          * Whether this body may go after anything {@code spec} names. Only a literal spec can be
          * judged — a mod-declared one is a predicate with nothing to enumerate — and it is refused
          * only when every item it names is: "any pickaxe" stays open while a wooden one can be made.
