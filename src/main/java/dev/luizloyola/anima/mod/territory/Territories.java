@@ -52,7 +52,7 @@ public final class Territories {
             });
             if (FabricLoader.getInstance().isModLoaded(OPAC) && Config.get().b(Knob.TERRITORY_OPAC)) {
                 try {
-                    OpacBridge.attach(server, territory);
+                    OpacBridge.attach(server, territory, Config.get().b(Knob.TERRITORY_OPAC_MAP));
                 } catch (LinkageError | RuntimeException e) {
                     // An OPAC whose API moved, or one Connector loads differently: the areas still
                     // work, they are only not on the map.

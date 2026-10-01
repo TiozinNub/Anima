@@ -29,9 +29,11 @@ import xaero.pac.common.server.player.config.api.v2.IPlayerConfigAPI;
 import xaero.pac.common.server.player.config.api.v2.PlayerConfigOptions;
 
 /**
- * Every party's area as Open Parties and Claims server claims, which Xaero's minimap and world map
- * draw with the party's name and colour (docs/superpowers/specs/2026-10-01-home-area-design.md,
- * decision 7). Loaded only when OPAC is: nothing else names this class's types.
+ * Open Parties and Claims beside the territory: a chunk a player holds there is taken, and, with
+ * {@code territory.opac_map}, every party's area is mirrored as server claims, which Xaero's minimap
+ * and world map draw with the party's name and colour
+ * (docs/superpowers/specs/2026-10-01-home-area-design.md, decision 7). Loaded only when OPAC is:
+ * nothing else names this class's types.
  *
  * <p><b>OPAC mirrors the territory, never the reverse.</b> One server sub-config per party, its
  * protection off, so a player builds there as before. A chunk OPAC holds for anybody else is
@@ -51,20 +53,27 @@ final class OpacBridge {
     private final IServerClaimsManagerAPI claims;
     private final IPlayerConfigAPI serverConfig;
     private final Territory territory;
+    private final boolean shown;
     /** Parties OPAC would not make a sub-config for, so the log says it once. */
     private final Set<PartyId> refused = new HashSet<>();
 
-    private OpacBridge(OpenPACServerAPI api, Territory territory) {
+    private OpacBridge(OpenPACServerAPI api, Territory territory, boolean shown) {
         this.claims = api.getServerClaimsManager();
         this.serverConfig = api.getPlayerConfigManager().getServerClaimConfig();
         this.territory = territory;
+        this.shown = shown;
     }
 
-    /** Call when the server has started, after the territory is wired. */
-    static void attach(MinecraftServer server, Territory territory) {
-        OpacBridge bridge = new OpacBridge(OpenPACServerAPI.get(server), territory);
+    /**
+     * Call when the server has started, after the territory is wired. Hidden, the reconcile still
+     * runs: it lets go of whatever an earlier start mirrored, which OPAC would otherwise draw forever.
+     */
+    static void attach(MinecraftServer server, Territory territory, boolean shown) {
+        OpacBridge bridge = new OpacBridge(OpenPACServerAPI.get(server), territory, shown);
         territory.takenBy(bridge::taken);
-        territory.onEvent(bridge::mirror);
+        if (shown) {
+            territory.onEvent(bridge::mirror);
+        }
         bridge.reconcile(server);
     }
 
@@ -136,11 +145,12 @@ final class OpacBridge {
      * Brings OPAC to what the territory holds, at server start: the parties' chunks claimed, and
      * every claim under a party's sub-config that the territory no longer gives that party let go.
      * A chunk a player claimed while the mirror was off stays the player's, and the log says so.
+     * Hidden, no party is mirrored, so every claim under an {@code anima-} sub-config is let go.
      */
     private void reconcile(MinecraftServer server) {
         Map<Integer, PartyId> byIndex = new HashMap<>();
         int claimed = 0;
-        for (PartyId party : territory.parties()) {
+        for (PartyId party : shown ? territory.parties() : Set.<PartyId>of()) {
             Integer index = index(party);
             if (index == null) {
                 continue;
