@@ -307,4 +307,13 @@ class StandingTest {
         assertTrue(Standing.reaching(flat, PERSON, new Pos(4, 6, 4), Set.of(), new Pos(4, 1, 4),
                 PlaceFrom.REACH).isPresent(), "and y 6 is in reach, so the refusal is the height's");
     }
+
+    @Test
+    void whyNotNamesWhatIsWrongWithACell() {
+        AsciiWorld flat = AsciiWorld.of(FLAT);
+        assertEquals("", Standing.whyNot(flat, PERSON, 4, 1, 4));
+        assertEquals("nothing to stand on (passable over passable)", Standing.whyNot(flat, PERSON, 4, 3, 4));
+        AsciiWorld roofed = AsciiWorld.of(FLAT).fill(4, 2, 4, 4, 2, 4, CellType.OBSTACLE);
+        assertEquals("no room for the head", Standing.whyNot(roofed, PERSON, 4, 1, 4));
+    }
 }

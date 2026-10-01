@@ -261,6 +261,17 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aWhyNotComesBackWithTheStandsItCompares() {
+        var before = new dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot(
+                dev.luizloyola.anima.core.brain.act.Placing.of("minecraft:oak_slab", new Pos(1, 70, 3)),
+                new Pos(1, 66, 3), null);
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot.class, roundTrip(before));
+        assertEquals(before.placing(), after.placing());
+        assertEquals(before.planned(), after.planned());
+        assertTrue(after.chosen().isEmpty());
+    }
+
+    @Test
     void aPlaceSavedBeforeItHadAnOrientationStillLoads() {
         var saved = com.google.gson.JsonParser.parseString(
                 "{\"task\":\"anima:place\",\"item\":\"minecraft:dirt\",\"at\":{\"x\":1,\"y\":2,\"z\":3}}");

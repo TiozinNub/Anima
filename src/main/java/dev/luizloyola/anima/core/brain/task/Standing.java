@@ -30,8 +30,30 @@ public final class Standing {
 
     /** Whether this body could stand in this exact cell — see the class doc for what "could" excludes. */
     public static boolean standable(NavGrid grid, MoveCapabilities body, int x, int y, int z) {
+        return refusal(grid, body, x, y, z) == STANDS;
+    }
+
+    /** Why this body could not stand in this cell, in a few words; empty when it could. */
+    public static String whyNot(NavGrid grid, MoveCapabilities body, int x, int y, int z) {
+        return switch (refusal(grid, body, x, y, z)) {
+            case UNLOADED -> "not loaded";
+            case NO_FOOTING -> "nothing to stand on (" + grid.cell(x, y, z).name().toLowerCase(java.util.Locale.ROOT)
+                    + " over " + grid.cell(x, y - 1, z).name().toLowerCase(java.util.Locale.ROOT) + ")";
+            case NO_HEADROOM -> "no room for the head";
+            case DEEP_DROP -> "beside a drop the body would not survive";
+            default -> "";
+        };
+    }
+
+    private static final int STANDS = 0;
+    private static final int UNLOADED = 1;
+    private static final int NO_FOOTING = 2;
+    private static final int NO_HEADROOM = 3;
+    private static final int DEEP_DROP = 4;
+
+    private static int refusal(NavGrid grid, MoveCapabilities body, int x, int y, int z) {
         if (!grid.inBounds(x, y, z)) {
-            return false; // an unloaded chunk is not "probably fine"
+            return UNLOADED; // an unloaded chunk is not "probably fine"
         }
         CellType here = grid.cell(x, y, z);
         // Strictly PASSABLE over GROUND, where CellNeed.FOOTING would also take WATER over GROUND:
@@ -43,19 +65,19 @@ public final class Standing {
         boolean footing = here == CellType.STEP
                 || (here == CellType.PASSABLE && grid.cell(x, y - 1, z) == CellType.GROUND);
         if (!footing) {
-            return false;
+            return NO_FOOTING;
         }
         int top = y + body.topCell(grid.surface(x, y, z));
         for (int cell = y + 1; cell <= top; cell++) {
             if (grid.cell(x, cell, z) != CellType.PASSABLE) {
-                return false;
+                return NO_HEADROOM;
             }
         }
         // The body, not just its drop distance: what is being tested is lethality, and deep water
         // is not lethal to a swimmer. Body-blind, this refused every dry cell cardinally beside
         // open water — the whole shore of a lake, and every plank of a dock or bridge over one,
         // since the neighbour scan stops on the water and never finds ground under it.
-        return !NavGrids.isNearDeepDrop(grid, body, x, y, z);
+        return NavGrids.isNearDeepDrop(grid, body, x, y, z) ? DEEP_DROP : STANDS;
     }
 
     /**

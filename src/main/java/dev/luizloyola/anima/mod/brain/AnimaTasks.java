@@ -425,7 +425,21 @@ public final class AnimaTasks {
                                 new dev.luizloyola.anima.core.brain.act.Placing(item, at, block, state), also,
                                 stand.orElse(null), clearing))));
 
-        TaskCodecs.register("anima:note_place",dev.luizloyola.anima.core.brain.task.NotePlace.class,
+        TaskCodecs.register("anima:place_why_not", dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        Codec.STRING.fieldOf("item").forGetter(w -> w.placing().itemId()),
+                        POS.fieldOf("at").forGetter(w -> w.placing().cell()),
+                        Codec.STRING.optionalFieldOf("block", "").forGetter(w -> w.placing().block()),
+                        Codec.unboundedMap(Codec.STRING, Codec.STRING).optionalFieldOf("state", Map.of())
+                                .forGetter(w -> w.placing().state()),
+                        POS.optionalFieldOf("planned").forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot::planned),
+                        POS.optionalFieldOf("chosen").forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot::chosen)
+                ).apply(t, (item, at, block, state, planned, chosen) ->
+                        new dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot(
+                                new dev.luizloyola.anima.core.brain.act.Placing(item, at, block, state),
+                                planned.orElse(null), chosen.orElse(null)))));
+
+        TaskCodecs.register("anima:note_place", dev.luizloyola.anima.core.brain.task.NotePlace.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         POI_KIND.fieldOf("kind")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.NotePlace::kind),

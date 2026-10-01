@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
@@ -42,5 +43,39 @@ class PlaceFromTest {
         ctx.percepts.beings = List.of(builder(PLANNED));
         GoTo walk = walk(ctx);
         assertNotEquals(PLANNED, new Pos(walk.x(), walk.y(), walk.z()), "the other builder stands there");
+    }
+
+    /** Runs the last way, as the executor does once walking and placing have failed. */
+    private static String whyNot(PlaceFrom place, FakeContext ctx) {
+        Task why = place.methods().get(1).decompose(ctx).get(0);
+        PlaceFrom.WhyNot whyNot = assertInstanceOf(PlaceFrom.WhyNot.class, why);
+        assertEquals(TaskStatus.FAILED, whyNot.tick(ctx));
+        return whyNot.failureDetail();
+    }
+
+    @Test
+    void aCellNoStandReachesSaysSoAndWhatWasWrongWithThePlannedStand() {
+        FakeContext ctx = new FakeContext();
+        PlaceFrom place = new PlaceFrom(Placing.of("minecraft:oak_slab", new Pos(8, 72, 0)), List.of(), PLANNED, false);
+        assertFalse(place.methods().get(0).applicable(ctx), "y 72 is out of reach from the ground");
+        assertEquals("no stand reaches it; the planned one at (5, 64, 0) — stands, but not in reach or in the work",
+                whyNot(place, ctx));
+    }
+
+    @Test
+    void aWalkThatNeverGotThereSaysWhereTheBodyStood() {
+        FakeContext ctx = new FakeContext();
+        PlaceFrom place = new PlaceFrom(PLANKS, List.of(), PLANNED, false);
+        place.methods().get(0).decompose(ctx);
+        assertEquals("never got to the stand at (5, 64, 0), stood at (0, 64, 0)", whyNot(place, ctx));
+    }
+
+    @Test
+    void atTheStandItIsThePlacersRefusal() {
+        FakeContext ctx = new FakeContext();
+        PlaceFrom place = new PlaceFrom(PLANKS, List.of(), PLANNED, false);
+        place.methods().get(0).decompose(ctx);
+        ctx.percepts.position = PLANNED;
+        assertEquals("the placer refused it from (5, 64, 0)", whyNot(place, ctx));
     }
 }
