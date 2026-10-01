@@ -178,7 +178,7 @@ public final class TakeItems implements PrimitiveTask {
      * plus a full stack per empty slot, counted exactly the way {@link Inventory#add} fills. Stops
      * at {@link Inventory#ARMOR_START} because worn armour and the offhand are not storage.
      */
-    private static int roomFor(ItemStack kind, Inventory pack) {
+    static int roomFor(ItemStack kind, Inventory pack) {
         int room = 0;
         for (int slot = 0; slot < Inventory.ARMOR_START; slot++) {
             ItemStack held = pack.get(slot);

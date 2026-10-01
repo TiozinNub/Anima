@@ -728,6 +728,23 @@ public final class AgentCommands {
                                         .then(Commands.argument("target", EntityArgument.entity())
                                                 .executes(ctx -> brainAttack(ctx,
                                                         EntityArgument.getEntity(ctx, "target")))))
+                                .then(Commands.literal("furnace")
+                                        .then(Commands.literal("load")
+                                                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                                        .then(Commands.argument("input", StringArgumentType.string())
+                                                                .then(Commands.argument("count", IntegerArgumentType.integer(1, 64))
+                                                                        .then(Commands.argument("fuel", StringArgumentType.string())
+                                                                                .executes(ctx -> brainFurnace(ctx,
+                                                                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+                                                                                        StringArgumentType.getString(ctx, "input"),
+                                                                                        IntegerArgumentType.getInteger(ctx, "count"),
+                                                                                        StringArgumentType.getString(ctx, "fuel"))))))))
+                                        .then(Commands.literal("unload")
+                                                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                                        .then(Commands.argument("output", StringArgumentType.string())
+                                                                .executes(ctx -> brainFurnace(ctx,
+                                                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+                                                                        StringArgumentType.getString(ctx, "output"), 0, null))))))
                                 .then(Commands.literal("cancel")
                                         .executes(ctx -> brainCancel(ctx)))
                                 // The autonomy switch — spawns start ON. Bare, it READS the
@@ -1572,6 +1589,27 @@ public final class AgentCommands {
 
     /** Runs a {@link BreakBlock} on the resolved Person — the working arm's debug leaf (slice-2
      *  ladder step 1): reach-checked, vanilla break time for the held stack, real drops. */
+    /** A load ({@code fuel} set) or an unload of a furnace — the dev way in before a party drives it. */
+    private static int brainFurnace(CommandContext<CommandSourceStack> ctx, BlockPos pos, String item,
+                                    int count, @Nullable String fuel) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        Pos at = new Pos(pos.getX(), pos.getY(), pos.getZ());
+        dev.luizloyola.anima.core.inv.ItemSpec spec = dev.luizloyola.anima.core.inv.ItemSpec.anyOf(Set.of(item));
+        boolean autoDisabled = person.brain().run(fuel == null
+                ? new dev.luizloyola.anima.core.brain.task.UnloadFurnace(at, spec)
+                : new dev.luizloyola.anima.core.brain.task.LoadFurnace(at, spec, count,
+                        dev.luizloyola.anima.core.inv.ItemSpec.anyOf(Set.of(fuel))));
+        Component suffix = autoDisabledNote(autoDisabled);
+        OpJournal.record(source, person.agentId(), (fuel == null ? "sent to unload " : "sent to load ")
+                + item + " at the furnace at " + pos.toShortString() + (autoDisabled ? ", autonomy off" : ""));
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                person.entity().getName(), person.brain().describe())
+                .append(suffix).withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
     private static int brainBreak(CommandContext<CommandSourceStack> ctx, BlockPos pos) {
         CommandSourceStack source = ctx.getSource();
         AgentBody person = Subject.body(ctx);

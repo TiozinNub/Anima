@@ -40,6 +40,11 @@ public interface Percepts {
     /** What is edible and what eating it does — see {@link FoodLookup}. */
     FoodLookup foods();
 
+    /** What a furnace makes and how long fuel burns — see {@link SmeltLookup}. */
+    default SmeltLookup smelting() {
+        return SmeltLookup.NONE;
+    }
+
     /**
      * Where the body stands — the feet cell, in whole blocks (the pathfinder/Navigator grid). Read
      * live, so a target offset from it ({@code WanderStep}) is never offset from a stale spawn

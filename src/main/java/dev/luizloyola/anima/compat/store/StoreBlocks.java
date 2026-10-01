@@ -35,7 +35,9 @@ public final class StoreBlocks {
     public static void register() {
         BlockKinds.register((level, pos, state) -> {
             if (!state.hasBlockEntity()
-                    || !(level.getBlockEntity(pos) instanceof net.minecraft.world.Container)) {
+                    || !(level.getBlockEntity(pos) instanceof net.minecraft.world.Container container)
+                    // What is in a furnace is on its way to becoming something else: never a store.
+                    || container instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity) {
                 return Optional.empty();
             }
             Direction joined = joinedHalf(state);

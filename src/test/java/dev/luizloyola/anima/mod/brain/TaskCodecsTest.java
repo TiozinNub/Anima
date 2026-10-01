@@ -480,6 +480,38 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aFurnaceHalfLoadedComesBackLoadingTheRest() {
+        dev.luizloyola.anima.core.inv.ItemSpec logs =
+                dev.luizloyola.anima.core.inv.ItemSpec.anyOf(java.util.Set.of("minecraft:oak_log"));
+        dev.luizloyola.anima.core.inv.ItemSpec planks =
+                dev.luizloyola.anima.core.inv.ItemSpec.anyOf(java.util.Set.of("minecraft:oak_planks"));
+        dev.luizloyola.anima.core.brain.task.TendFurnace tend = assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.TendFurnace.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.TendFurnace(new Pos(2, 64, 0), null,
+                        logs, 16, planks, 11).resume(3, 4, 16)));
+        assertEquals(new Pos(2, 64, 0), tend.at());
+        assertNull(tend.output(), "a load leaves the output be");
+        assertEquals(logs, tend.input());
+        assertEquals(16, tend.inputCount());
+        assertEquals(planks, tend.fuel());
+        assertEquals(11, tend.fuelCount());
+        assertEquals(3, tend.step(), "the input is in; the fuel is next");
+        assertEquals(4, tend.pauseTicks());
+        assertEquals(16, tend.moved());
+
+        dev.luizloyola.anima.core.brain.task.LoadFurnace load = assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.LoadFurnace.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.LoadFurnace(new Pos(2, 64, 0), logs, 16, planks)));
+        assertEquals(16, load.count());
+        assertEquals(planks, load.fuel());
+
+        dev.luizloyola.anima.core.brain.task.UnloadFurnace unload = assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.UnloadFurnace.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.UnloadFurnace(new Pos(2, 64, 0), logs)));
+        assertEquals(new Pos(2, 64, 0), unload.at());
+    }
+
+    @Test
     void aConverseComesBackKnowingWhoAndHowItWouldOpen() {
         // The live Encounter is deliberately not part of this: it is world state owned by the
         // shared roster, not the task's own — see Converse's class doc — so only what it was

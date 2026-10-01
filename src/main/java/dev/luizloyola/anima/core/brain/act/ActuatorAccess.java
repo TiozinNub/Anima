@@ -32,6 +32,11 @@ public interface ActuatorAccess {
 
     /** Reaching into containers — see {@link ContainerAccess}. */
     ContainerAccess containers();
+    /** Reaching into a furnace — see {@link FurnaceAccess}. A body without one smelts nothing. */
+    default FurnaceAccess furnaces() {
+        return FurnaceAccess.NONE;
+    }
+
     /**
      * The empty hand on a block — see {@link Hand}. Defaults to {@link Hand#NONE}: a body that
      * cannot use a block is only a clumsier one.

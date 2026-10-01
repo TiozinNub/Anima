@@ -318,6 +318,34 @@ public final class FakePercepts implements Percepts {
         return java.util.Optional.ofNullable(surroundings);
     }
 
+    /** What smelts into what and how long — {@link #smelting}. */
+    public final java.util.Map<String, dev.luizloyola.anima.core.brain.sense.SmeltLookup.Smelt> smelts =
+            new java.util.HashMap<>();
+    /** How long each fuel burns, by id. */
+    public final java.util.Map<String, Integer> burns = new java.util.HashMap<>();
+
+    @Override
+    public dev.luizloyola.anima.core.brain.sense.SmeltLookup smelting() {
+        return new dev.luizloyola.anima.core.brain.sense.SmeltLookup() {
+            @Override
+            public java.util.Optional<Smelt> of(String inputId) {
+                return java.util.Optional.ofNullable(smelts.get(inputId));
+            }
+
+            @Override
+            public int smeltTicks(dev.luizloyola.anima.core.inv.ItemSpec input) {
+                return smelts.entrySet().stream().filter(e -> input.matches(e.getKey()))
+                        .mapToInt(e -> e.getValue().ticks()).max().orElse(0);
+            }
+
+            @Override
+            public int burnTicks(dev.luizloyola.anima.core.inv.ItemSpec fuel) {
+                return burns.entrySet().stream().filter(e -> fuel.matches(e.getKey()))
+                        .mapToInt(java.util.Map.Entry::getValue).min().orElse(0);
+            }
+        };
+    }
+
     @Override
     public FoodLookup foods() {
         // An empty stack's id is "" and never registered, so it reads as inedible (and

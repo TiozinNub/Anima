@@ -325,6 +325,13 @@ public final class AgentPercepts implements Percepts {
     }
 
     @Override
+    public dev.luizloyola.anima.core.brain.sense.SmeltLookup smelting() {
+        net.minecraft.server.MinecraftServer server = this.person.level().getServer();
+        return server == null ? dev.luizloyola.anima.core.brain.sense.SmeltLookup.NONE
+                : new dev.luizloyola.anima.compat.craft.Smelting(server);
+    }
+
+    @Override
     public java.util.Optional<Being> being(BeingId who) {
         return this.person.beingSense().being(who);
     }

@@ -625,6 +625,46 @@ public final class AnimaTasks {
                                 .resume(origin.orElse(null), heading, legs, look,
                                         leg.orElse(null) instanceof GoTo walk ? walk : null))));
 
+        // A furnace's three tasks. The step and its pause are saved, so a load half put in comes
+        // back putting in the rest.
+        TaskCodecs.register("anima:tend_furnace", dev.luizloyola.anima.core.brain.task.TendFurnace.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POS.fieldOf("at").forGetter(dev.luizloyola.anima.core.brain.task.TendFurnace::at),
+                        ITEM_SPEC.optionalFieldOf("output").forGetter(task ->
+                                java.util.Optional.ofNullable(task.output())),
+                        ITEM_SPEC.optionalFieldOf("input").forGetter(task ->
+                                java.util.Optional.ofNullable(task.input())),
+                        Codec.INT.optionalFieldOf("inputCount", 0)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TendFurnace::inputCount),
+                        ITEM_SPEC.optionalFieldOf("fuel").forGetter(task ->
+                                java.util.Optional.ofNullable(task.fuel())),
+                        Codec.INT.optionalFieldOf("fuelCount", 0)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TendFurnace::fuelCount),
+                        Codec.INT.optionalFieldOf("step", 0)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TendFurnace::step),
+                        Codec.INT.optionalFieldOf("pause", 0)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TendFurnace::pauseTicks),
+                        Codec.INT.optionalFieldOf("moved", 0)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TendFurnace::moved)
+                ).apply(t, (at, output, input, inputCount, fuel, fuelCount, step, pause, moved) ->
+                        new dev.luizloyola.anima.core.brain.task.TendFurnace(at, output.orElse(null),
+                                input.orElse(null), inputCount, fuel.orElse(null), fuelCount)
+                                .resume(step, pause, moved))));
+
+        TaskCodecs.register("anima:load_furnace", dev.luizloyola.anima.core.brain.task.LoadFurnace.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POS.fieldOf("at").forGetter(dev.luizloyola.anima.core.brain.task.LoadFurnace::at),
+                        ITEM_SPEC.fieldOf("input").forGetter(dev.luizloyola.anima.core.brain.task.LoadFurnace::input),
+                        Codec.INT.fieldOf("count").forGetter(dev.luizloyola.anima.core.brain.task.LoadFurnace::count),
+                        ITEM_SPEC.fieldOf("fuel").forGetter(dev.luizloyola.anima.core.brain.task.LoadFurnace::fuel)
+                ).apply(t, dev.luizloyola.anima.core.brain.task.LoadFurnace::new)));
+
+        TaskCodecs.register("anima:unload_furnace", dev.luizloyola.anima.core.brain.task.UnloadFurnace.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POS.fieldOf("at").forGetter(dev.luizloyola.anima.core.brain.task.UnloadFurnace::at),
+                        ITEM_SPEC.fieldOf("output").forGetter(dev.luizloyola.anima.core.brain.task.UnloadFurnace::output)
+                ).apply(t, dev.luizloyola.anima.core.brain.task.UnloadFurnace::new)));
+
         // The rung 5 root: what this body would say to OPEN the encounter if speech.current()
         // finds nothing already there. The live Encounter itself is not here — it is world state
         // owned by the shared roster, not this task's — a restored Converse re-resolves it through
