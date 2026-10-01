@@ -243,6 +243,46 @@ class AchieveTaskTest {
         assertEquals(3, flaky.runs, "two dead trees, then the third one pays the stock");
     }
 
+    /**
+     * A round that died in expansion met the same world a fresh one would. Nested goals each
+     * retrying it to the cap multiplied: a wooden sword nobody could make stalled the server
+     * 5–12 s a try (in-world, 2026-10-01).
+     */
+    @Test
+    void aRoundThatDiedInExpansionIsNotRetriedInTheSameWorld() {
+        int[] asked = {0};
+        Method nowhere = new Method() {
+            @Override
+            public boolean applicable(BrainContext c) {
+                asked[0]++;
+                return false;
+            }
+
+            @Override
+            public double estimateCost(BrainContext c) {
+                return 1;
+            }
+
+            @Override
+            public List<Task> decompose(BrainContext c) {
+                return List.of();
+            }
+
+            @Override
+            public String describe() {
+                return "nowhere";
+            }
+        };
+        AchieveTask inner = goal(1, nowhere);
+        AchieveTask middle = goal(1, way("via inner", 1, () -> List.of(inner)));
+        AchieveTask outer = goal(1, way("via middle", 1, () -> List.of(middle)));
+        executor.run(outer, ctx);
+        executor.tick(ctx);
+
+        assertEquals(Optional.of(TaskStatus.FAILED), executor.lastStatus(), "failed in one tick");
+        assertEquals(1, asked[0], "nothing ran, so nothing was asked twice");
+    }
+
     @Test
     void failuresCarryTheirDeepestCause() {
         // A failing primitive: the origin survives the bubble (and the retry rounds).

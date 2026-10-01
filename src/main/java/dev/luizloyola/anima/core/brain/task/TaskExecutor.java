@@ -25,7 +25,9 @@ import java.util.function.Predicate;
  * <b>Achieve-frames</b> instead start a FRESH round — the attempts changed the world, so the same
  * ways re-scored pick different targets — bounded by {@link #ACHIEVE_ROUNDS_CAP} and by an empty
  * pool failing a fresh round too (a 2000-log stock died on its first unworkable tree, reading as
- * frozen).
+ * frozen). A fresh round needs a primitive to have run since the last one began: a round that died
+ * in expansion alone met the same world, and nested frames retrying it multiplied — one wooden
+ * sword nobody could make stalled the server 5–12 s a try (in-world, 2026-10-01).
  *
  * <p>The body has one set of legs: {@link #run} while busy cancels the incumbent first (the deepest
  * primitive holds the actuators) without ticking; a terminal status clears the slot and is
@@ -65,6 +67,8 @@ public final class TaskExecutor {
         int index; // invariant between ticks: < subtasks.size() (exhausted frames pop eagerly)
         /** Achieve-frames only: selection rounds burned this activation (see ACHIEVE_ROUNDS_CAP). */
         int rounds;
+        /** Whether a primitive under this frame ran this round; without one, no fresh round. */
+        boolean acted;
 
         /** Achieve-frames only: the goal's gauge when the counter last reset — a round that
          *  raises it is work, not a stall, and hands the budget back (see AchieveTask#progress). */
@@ -138,6 +142,9 @@ public final class TaskExecutor {
         // was for. The near field does not care which task holds the wheel.
         chainCoverage().near(ctx.percepts().position(),
                 CrescentSampler.nearRadius(ctx.profile()));
+        for (Frame frame : stack) {
+            frame.acted = true;
+        }
         TaskStatus status = leaf.tick(ctx);
         if (status == TaskStatus.SUCCESS) {
             succeedCurrent(ctx);
@@ -432,6 +439,7 @@ public final class TaskExecutor {
                     return;
                 }
                 java.util.Arrays.fill(top.tried, false); // fresh round: every method eligible again
+                top.acted = false;
                 // ...and a fresh round starts with a clean slate for why, too. First-writer-wins
                 // is the right rule INSIDE one bubbling failure and the wrong one across rounds:
                 // live-caught reporting "obtain logs x10000 -> FAILED — gather logs failed" after
@@ -500,8 +508,9 @@ public final class TaskExecutor {
                     parent.rounds = 0; // partial fells count: the errand moved even as its way died
                 }
                 boolean chosen = chooseRound(parent, ctx);
-                if (!chosen && ++parent.rounds < ACHIEVE_ROUNDS_CAP) {
+                if (!chosen && parent.acted && ++parent.rounds < ACHIEVE_ROUNDS_CAP) {
                     java.util.Arrays.fill(parent.tried, false); // fresh round, fresh world
+                    parent.acted = false;
                     chosen = chooseRound(parent, ctx);
                 }
                 if (chosen) {
@@ -599,7 +608,7 @@ public final class TaskExecutor {
      */
     public record FrameState(CompoundTask compound, int methodIndex, List<Boolean> tried,
                              List<Task> subtasks, int index, int rounds, double lastProgress,
-                             int pricedOut) {
+                             int pricedOut, boolean acted) {
     }
 
     /** Everything the executor is in the middle of. Empty root means idle. */
@@ -617,7 +626,7 @@ public final class TaskExecutor {
             }
             saved.add(new FrameState(frame.compound, frame.methodIndex, tried,
                     List.copyOf(frame.subtasks == null ? List.of() : frame.subtasks),
-                    frame.index, frame.rounds, frame.lastProgress, frame.pricedOut));
+                    frame.index, frame.rounds, frame.lastProgress, frame.pricedOut, frame.acted));
         }
         return new State(root, saved, lastDescription, lastStatus, failureReason);
     }
@@ -661,6 +670,7 @@ public final class TaskExecutor {
             frame.rounds = saved.rounds();
             frame.lastProgress = saved.lastProgress();
             frame.pricedOut = saved.pricedOut();
+            frame.acted = saved.acted();
             stack.add(frame);
             node = frame.index < frame.subtasks.size() ? frame.subtasks.get(frame.index) : null;
         }

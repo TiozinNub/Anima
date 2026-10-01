@@ -215,10 +215,11 @@ public final class BrainState {
                 Codec.INT.fieldOf("rounds").forGetter(TaskExecutor.FrameState::rounds),
                 Codec.DOUBLE.fieldOf("lastProgress")
                         .forGetter(TaskExecutor.FrameState::lastProgress),
-                Codec.INT.fieldOf("pricedOut").forGetter(TaskExecutor.FrameState::pricedOut)
-        ).apply(f, (compound, method, tried, subtasks, index, rounds, lastProgress, pricedOut) ->
-                new TaskExecutor.FrameState((CompoundTask) compound, method, tried, subtasks,
-                        index, rounds, lastProgress, pricedOut)));
+                Codec.INT.fieldOf("pricedOut").forGetter(TaskExecutor.FrameState::pricedOut),
+                Codec.BOOL.optionalFieldOf("acted", false).forGetter(TaskExecutor.FrameState::acted)
+        ).apply(f, (compound, method, tried, subtasks, index, rounds, lastProgress, pricedOut,
+                    acted) -> new TaskExecutor.FrameState((CompoundTask) compound, method, tried,
+                        subtasks, index, rounds, lastProgress, pricedOut, acted)));
     }
 
     /**
