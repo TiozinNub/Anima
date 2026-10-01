@@ -395,10 +395,10 @@ public final class AnimaTasks {
                                 .forGetter(dev.luizloyola.anima.core.brain.task.PlaceBlock::target),
                         Codec.STRING.optionalFieldOf("block", "")
                                 .forGetter(p -> p.placing().block()),
-                        Codec.unboundedMap(Codec.STRING, Codec.STRING).optionalFieldOf("orientation", Map.of())
-                                .forGetter(p -> p.placing().orientation())
-                ).apply(t, (item, at, block, orientation) -> new dev.luizloyola.anima.core.brain.task.PlaceBlock(
-                        new dev.luizloyola.anima.core.brain.act.Placing(item, at, block, orientation)))));
+                        Codec.unboundedMap(Codec.STRING, Codec.STRING).optionalFieldOf("state", Map.of())
+                                .forGetter(p -> p.placing().state())
+                ).apply(t, (item, at, block, state) -> new dev.luizloyola.anima.core.brain.task.PlaceBlock(
+                        new dev.luizloyola.anima.core.brain.act.Placing(item, at, block, state)))));
 
         TaskCodecs.register("anima:note_place", dev.luizloyola.anima.core.brain.task.NotePlace.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

@@ -15,10 +15,10 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * The {@link Hand} port over a live {@link AgentBody}: within arm's reach, the first
- * {@link BlockUses} entry that takes the block acts on it, and the arm swings. Nothing registered
- * for the block, or out of reach, changes nothing. Doors are Anima's own, and shut through
- * {@link Doorways}.
+ * The {@link Hand} port over a live {@link AgentBody}: within arm's reach, a click on the block —
+ * first any {@link BlockUses} entry that takes it (a consumer's own meaning, a berry bush picked into
+ * the pack), then vanilla's own click ({@link BodyClick}), and the arm swings. Out of reach, or a
+ * click that does nothing, changes nothing. Doors are shut through {@link Doorways}.
  */
 public final class AgentHand implements Hand {
     /** Arm's reach in blocks (eye to block center) — the placer's and the breaker's. */
@@ -32,6 +32,25 @@ public final class AgentHand implements Hand {
 
     @Override
     public boolean use(Pos cell) {
+        return click(cell, null);
+    }
+
+    /**
+     * A click with the cell's own block places it again where vanilla counts it — a fourth snow
+     * layer, a third candle; any other item is vanilla's click holding it.
+     */
+    @Override
+    public boolean use(String itemId, Pos cell) {
+        Identifier id = Identifier.tryParse(itemId);
+        if (id != null && BuiltInRegistries.ITEM.getValue(id) instanceof BlockItem item
+                && person.level().getBlockState(new BlockPos(cell.x(), cell.y(), cell.z())).is(item.getBlock())
+                && new AgentBlockPlacer(person).place(Placing.of(itemId, cell))) {
+            return true;
+        }
+        return click(cell, itemId);
+    }
+
+    private boolean click(Pos cell, String itemId) {
         if (!(person.level() instanceof ServerLevel level)) {
             return false;
         }
@@ -40,27 +59,14 @@ public final class AgentHand implements Hand {
             return false;
         }
         person.faceBlock(pos);
-        if (!BlockUses.use(level, pos, level.getBlockState(pos), person.entity())) {
+        boolean changed = (itemId == null && BlockUses.use(level, pos, level.getBlockState(pos), person.entity()))
+                || BodyClick.click(person, level, pos, itemId);
+        if (!changed) {
             return false;
         }
         Arms.swingToInteract(person.entity(), InteractionHand.MAIN_HAND);
         person.brain().workSpots().record(cell, level.getGameTime());
         return true;
-    }
-
-    /**
-     * So far a click with the cell's own block, which places it again where vanilla counts it — a
-     * fourth snow layer, a third candle. Every other use of an item waits for its ruling (builder
-     * spec, 15 and 17) and changes nothing.
-     */
-    @Override
-    public boolean use(String itemId, Pos cell) {
-        Identifier id = Identifier.tryParse(itemId);
-        if (id == null || !(BuiltInRegistries.ITEM.getValue(id) instanceof BlockItem item)
-                || !person.level().getBlockState(new BlockPos(cell.x(), cell.y(), cell.z())).is(item.getBlock())) {
-            return false;
-        }
-        return new AgentBlockPlacer(person).place(Placing.of(itemId, cell));
     }
 
     @Override

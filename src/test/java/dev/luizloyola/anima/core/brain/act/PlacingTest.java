@@ -15,6 +15,7 @@ class PlacingTest {
         Placing placing = new Placing("minecraft:oak_door", CELL, "",
                 Map.of("facing", "east", "hinge", "right", "open", "true", "powered", "false"));
         assertEquals(Map.of("facing", "east", "hinge", "right"), placing.orientation());
+        assertEquals("true", placing.state().get("open"), "the rest is reached after, not dropped");
     }
 
     @Test

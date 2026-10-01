@@ -19,6 +19,7 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -34,10 +35,11 @@ import org.jspecify.annotations.Nullable;
 /**
  * The {@link BlockPlacer} port over a live {@link AgentBody}, placing through vanilla's own
  * placement — the state a player standing there would get, a door's upper half and a bed's head
- * included — and then setting the {@link Placing#orientation} directly. The item must be carried
- * (one is consumed from the carried inventory, the source of truth the equipment mirror follows),
- * the block must survive there, nothing may stand in it, and it must be within arm's reach of
- * something it can be placed against. Refusal changes nothing.
+ * included — and then setting the {@link Placing#orientation} directly; the rest of the plan's
+ * state is reached by clicks after ({@link Reaching}). The item must be carried (one is consumed
+ * from the carried inventory, the source of truth the equipment mirror follows), the block must
+ * survive there, nothing may stand in it, and it must be within arm's reach of something it can be
+ * placed against. Refusal changes nothing.
  */
 public final class AgentBlockPlacer implements BlockPlacer {
     /** Arm's reach in blocks (eye to block center) — same as the breaker's. */
@@ -55,30 +57,75 @@ public final class AgentBlockPlacer implements BlockPlacer {
 
     @Override
     public boolean place(Placing placing) {
-        String itemId = placing.itemId();
+        Identifier itemKey = Identifier.tryParse(placing.itemId());
+        if (itemKey == null || !(BuiltInRegistries.ITEM.getValue(itemKey) instanceof BlockItem blockItem)
+                || cannotPlaceInSurvival(blockItem)) {
+            return false;
+        }
+        Block put = blockItem.getBlock();
+        Block wanted = put;
+        if (!placing.block().isEmpty()) {
+            Identifier id = Identifier.tryParse(placing.block());
+            Optional<Block> named = id == null ? Optional.empty() : BuiltInRegistries.BLOCK.getOptional(id);
+            if (named.isEmpty()) {
+                return false;
+            }
+            wanted = named.get();
+            // A torch places a wall torch itself; a pot only becomes a potted poppy by a click after.
+            // Making first: vanilla gives a water cauldron the cauldron's item, and it is still a
+            // cauldron filled by a bucket.
+            if (wanted.asItem() == blockItem && Making.of(wanted) == null) {
+                put = wanted;
+            }
+        }
+        Making making = wanted == put ? null : Making.of(wanted);
+        // The item must be what places it, or what it is made from: a stick never makes anything.
+        if (wanted != put && (making == null || making.base() != put)) {
+            return false;
+        }
+        BlockPos pos = new BlockPos(placing.cell().x(), placing.cell().y(), placing.cell().z());
+        Level level = person.level();
+        if (!(level instanceof ServerLevel server)
+                || person.entity().getEyePosition().distanceToSqr(Vec3.atCenterOf(pos)) > REACH * REACH) {
+            return false;
+        }
+        // What it is made from may already stand there: the grass a path is dug in needs no dirt.
+        boolean placed = false;
+        if (making == null || !making.standing().test(level.getBlockState(pos))) {
+            if (!placeOnce(placing.itemId(), put, placing.orientation(), pos)) {
+                return false;
+            }
+            placed = true;
+        }
+        return Reaching.reach(person, server, pos, wanted, placing, this) || placed;
+    }
+
+    /** The same block placed again into its own cell: a second candle, a slab made double. */
+    boolean placeAgain(String itemId, BlockPos pos) {
+        Identifier id = Identifier.tryParse(itemId);
+        return id != null && BuiltInRegistries.ITEM.getValue(id) instanceof BlockItem item
+                && placeOnce(itemId, item.getBlock(), Map.of(), pos);
+    }
+
+    /**
+     * Survival cannot place it, so a settler will not (builder spec, ruling 19): what only an operator
+     * may set, and what no player can be given. No vanilla tag says which; the list is the ruling's.
+     */
+    private static boolean cannotPlaceInSurvival(BlockItem item) {
+        return item instanceof net.minecraft.world.item.GameMasterBlockItem
+                || UNOBTAINABLE.contains(BuiltInRegistries.ITEM.getKey(item).getPath());
+    }
+
+    private static final java.util.Set<String> UNOBTAINABLE = java.util.Set.of(
+            "vault", "trial_spawner", "light", "spawner", "barrier", "structure_void", "bedrock");
+
+    private boolean placeOnce(String itemId, Block block, Map<String, String> orientation, BlockPos pos) {
         if (person.inventory().count(itemId) <= 0) {
             return false;
         }
         Item item = BuiltInRegistries.ITEM.getValue(Identifier.parse(itemId));
-        if (!(item instanceof BlockItem blockItem)) {
-            return false;
-        }
-        Block block = blockItem.getBlock();
-        if (!placing.block().isEmpty()) {
-            Identifier id = Identifier.tryParse(placing.block());
-            Optional<Block> named = id == null ? Optional.empty() : BuiltInRegistries.BLOCK.getOptional(id);
-            // The item must be what places it: a torch places a wall torch, a stick never does.
-            if (named.isEmpty() || named.get().asItem() != item) {
-                return false;
-            }
-            block = named.get();
-        }
-        BlockPos pos = new BlockPos(placing.cell().x(), placing.cell().y(), placing.cell().z());
         Level level = person.level();
         LivingEntity body = person.entity();
-        if (body.getEyePosition().distanceToSqr(Vec3.atCenterOf(pos)) > REACH * REACH) {
-            return false;
-        }
         ItemStack stack = new ItemStack(item);
         boolean again = level.getBlockState(pos).is(block);
         BlockPlaceContext context = contextFor(body, level, pos, stack, again);
@@ -88,7 +135,7 @@ public final class AgentBlockPlacer implements BlockPlacer {
         BlockState state = block.getStateForPlacement(context);
         // Placed again, the cell keeps the way it already faces: a second candle, a double slab.
         if (state != null && !again) {
-            state = oriented(state, placing.orientation());
+            state = oriented(state, orientation);
         }
         // Nothing may be built INTO a body — the check a player's own placement always makes. Found
         // in-world on 2026-08-20: a settler put a workbench in the air block Luiz stood in, because
@@ -122,7 +169,8 @@ public final class AgentBlockPlacer implements BlockPlacer {
                 (sound.getVolume() + 1.0F) / 2.0F, sound.getPitch() * 0.8F);
         Arms.swingToInteract(body, InteractionHand.MAIN_HAND);
         person.inventory().remove(itemId, 1);
-        person.brain().workSpots().record(placing.cell(), level.getGameTime());
+        person.brain().workSpots().record(new dev.luizloyola.anima.core.brain.sense.Pos(pos.getX(), pos.getY(),
+                pos.getZ()), level.getGameTime());
         return true;
     }
 

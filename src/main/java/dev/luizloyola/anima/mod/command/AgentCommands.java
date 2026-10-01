@@ -1675,7 +1675,9 @@ public final class AgentCommands {
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         net.minecraft.world.level.block.state.BlockState state = input.getState();
-        net.minecraft.world.item.Item item = state.getBlock().asItem();
+        // A block made from another is placed as that one first: a pot for a potted poppy, dirt for a path.
+        dev.luizloyola.anima.mod.brain.Making making = dev.luizloyola.anima.mod.brain.Making.of(state.getBlock());
+        net.minecraft.world.item.Item item = making != null ? making.base().asItem() : state.getBlock().asItem();
         if (item == net.minecraft.world.item.Items.AIR) {
             Replies.fail(source, Component.translatable("anima.command.brain.not_placeable",
                     state.getBlock().getName()));
