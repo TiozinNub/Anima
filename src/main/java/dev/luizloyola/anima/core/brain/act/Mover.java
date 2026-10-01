@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.act;
 
+import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.WalkLevel;
@@ -85,6 +86,14 @@ public interface Mover {
      * show, is null.
      */
     default @Nullable Path route() {
+        return null;
+    }
+
+    /**
+     * The cell the latest order walks to, whoever gave it; null with no order, or from a mover that
+     * cannot say. What lets a walk tell its own arrival from somebody else's.
+     */
+    default @Nullable Pos goal() {
         return null;
     }
 

@@ -21,7 +21,8 @@ import java.util.Locale;
  * stopped the legs, as the arbiter preempts — so it is clearly a failure. Cost: a goto to the cell
  * you already stand on takes two ticks.
  *
- * <p>Later ticks map MOVING → RUNNING, ARRIVED → SUCCESS, FAILED → FAILED, IDLE → FAILED.
+ * <p>Later ticks map MOVING → RUNNING, ARRIVED → SUCCESS, FAILED → FAILED, IDLE → FAILED — and
+ * any state at all → FAILED once the mover's goal is not this walk's cell.
  *
  * <p><b>Gait.</b> The {@link #GoTo(int, int, int, Gait) four-arg constructor} threads the pace to
  * {@link dev.luizloyola.anima.core.brain.act.Mover#moveTo(int, int, int, Gait)} — {@code FleeStep}
@@ -100,6 +101,13 @@ public final class GoTo implements PrimitiveTask {
             ctx.actuators().gazer().lookAt(x + 0.5, y + 1.0, z + 0.5, Gazer.Priority.NAV,
                     GLANCE_TICKS);
             return TaskStatus.RUNNING; // see class doc: issue, don't read
+        }
+        Pos goal = ctx.actuators().mover().goal();
+        if (goal != null && (goal.x() != x || goal.y() != y || goal.z() != z)) {
+            // Somebody else ordered these legs, and their arrival is not ours. A wand click
+            // mid-errand had a settler "arrive" 450 blocks short and place from there (2026-09-30).
+            this.failure = MoveFailure.STOPPED;
+            return TaskStatus.FAILED;
         }
         MoveState state = ctx.actuators().mover().state();
         switch (state) {

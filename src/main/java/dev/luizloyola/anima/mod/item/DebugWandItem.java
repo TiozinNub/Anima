@@ -5,6 +5,7 @@ import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.mod.command.AgentSelection;
+import dev.luizloyola.anima.mod.command.OpJournal;
 import dev.luizloyola.anima.mod.debug.DebugLayer;
 import dev.luizloyola.anima.mod.debug.DebugView;
 import dev.luizloyola.anima.mod.body.AgentBody;
@@ -80,8 +81,12 @@ public class DebugWandItem extends Item {
         // still takes a leap's run-up at full speed — so a run is a request, not a cliff dive.
         // An operator's order may do whatever a walk may, laying blocks from the pocket included:
         // at the gait's own level a wand walk never bridged or pillared (Luiz, 2026-09-29).
-        agent.navigator().pathTo(BlockPos.containing(target), hurry ? Gait.SPRINT : Gait.WALK,
-                WalkLevel.BUILD, null);
+        BlockPos goal = BlockPos.containing(target);
+        agent.navigator().pathTo(goal, hurry ? Gait.SPRINT : Gait.WALK, WalkLevel.BUILD, null);
+        // On the record like `nav goto`: a wand walk takes the legs from whatever errand was
+        // running, and a journal without it reads as the body wandering off on its own.
+        OpJournal.record(player.createCommandSourceStack(), agent.agentId(),
+                (hurry ? "ran" : "walked") + " to " + goal.toShortString() + " by wand");
         Players.overlay(player, Component.translatable(
                 hurry ? "item.anima.debug_wand.running" : "item.anima.debug_wand.moving",
                 agent.entity().getName(), (int) target.x, (int) target.y, (int) target.z));

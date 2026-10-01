@@ -3,6 +3,7 @@ package dev.luizloyola.anima.mod.brain;
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.act.Mover;
+import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.WalkLevel;
@@ -67,6 +68,12 @@ public final class AgentMover implements Mover {
     }
 
     /** The Navigator's plan, once it has one: following it, or arrived at its end. */
+    @Override
+    public @Nullable Pos goal() {
+        BlockPos goal = this.person.navigator().goal();
+        return goal == null ? null : new Pos(goal.getX(), goal.getY(), goal.getZ());
+    }
+
     @Override
     public @Nullable Path route() {
         Navigator navigator = this.person.navigator();

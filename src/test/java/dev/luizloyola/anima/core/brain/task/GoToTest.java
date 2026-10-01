@@ -57,6 +57,27 @@ class GoToTest {
     }
 
     @Test
+    void anArrivalAtSomebodyElsesGoalIsNotThisWalks() {
+        GoTo task = new GoTo(441, -60, 5);
+        task.tick(ctx);
+        mover.goal = new dev.luizloyola.anima.core.brain.sense.Pos(122, -60, -305);
+        mover.setState(MoveState.ARRIVED);
+
+        assertEquals(TaskStatus.FAILED, task.tick(ctx), "a wand click took the legs mid-walk");
+        assertTrue(task.failureDetail().contains(MoveFailure.STOPPED.describe()));
+    }
+
+    @Test
+    void itsOwnGoalArrivesAsBefore() {
+        GoTo task = new GoTo(441, -60, 5);
+        task.tick(ctx);
+        mover.goal = new dev.luizloyola.anima.core.brain.sense.Pos(441, -60, 5);
+        mover.setState(MoveState.ARRIVED);
+
+        assertEquals(TaskStatus.SUCCESS, task.tick(ctx));
+    }
+
+    @Test
     void failsWhenTheMoverFails() {
         GoTo task = new GoTo(3, 70, -4);
         task.tick(ctx);

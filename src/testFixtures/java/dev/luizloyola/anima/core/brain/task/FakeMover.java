@@ -3,6 +3,7 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.act.Mover;
+import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.WalkLevel;
@@ -30,6 +31,8 @@ public final class FakeMover implements Mover {
     private MoveFailure failure = MoveFailure.NONE;
     /** What {@link #route()} reports: null until a test scripts one. */
     public Path route;
+    /** What {@link #goal()} reports: null, a mover that cannot say, until a test scripts one. */
+    public Pos goal;
 
     public void setState(MoveState state) {
         this.state = state;
@@ -65,6 +68,11 @@ public final class FakeMover implements Mover {
     @Override
     public Path route() {
         return route;
+    }
+
+    @Override
+    public Pos goal() {
+        return goal;
     }
 
     @Override
