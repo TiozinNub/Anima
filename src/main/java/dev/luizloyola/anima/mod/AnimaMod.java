@@ -89,6 +89,10 @@ public final class AnimaMod implements ModInitializer {
         });
         ServerLifecycleEvents.SERVER_STOPPED.register(
                 server -> dev.luizloyola.anima.core.brain.sense.Yields.install(null));
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> dev.luizloyola.anima.core.inv.Wear.install(
+                stack -> dev.luizloyola.anima.compat.inv.ToolWear.left(stack, server.registryAccess())));
+        ServerLifecycleEvents.SERVER_STOPPED.register(
+                server -> dev.luizloyola.anima.core.inv.Wear.install(null));
         // As the server finishes starting: refuses to run a world whose memory did not load,
         // which vanilla swallows and then overwrites.
         StoreGuard.install();

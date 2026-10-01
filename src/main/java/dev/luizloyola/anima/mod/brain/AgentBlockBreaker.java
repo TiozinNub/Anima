@@ -6,6 +6,7 @@ import dev.luizloyola.anima.core.brain.act.BreakState;
 import dev.luizloyola.anima.core.brain.act.MiningSpeed;
 import dev.luizloyola.anima.core.brain.act.ToolChoice;
 import dev.luizloyola.anima.compat.inv.ItemStacks;
+import dev.luizloyola.anima.compat.inv.ToolWear;
 import dev.luizloyola.anima.compat.sense.LevelProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.HandChanges;
@@ -210,16 +211,16 @@ public final class AgentBlockBreaker implements BlockBreaker {
 
     /**
      * The wield step, run once per block begun: measure every carried stack against the block and
-     * bring the pack's best into the hand — or empty it when nothing out-digs a fist (an axe
-     * measures 1.0 on dirt, same as bare knuckles, so tools stay sheathed for dirt with no rule
-     * about dirt anywhere). Ranking is {@link ToolChoice}'s.
+     * bring into the hand the oldest tool of the best kind that still does the job — or empty it
+     * when nothing out-digs a fist (an axe measures 1.0 on dirt, same as bare knuckles, so tools stay
+     * sheathed for dirt with no rule about dirt anywhere). Ranking is {@link ToolChoice}'s.
      *
      * <p>A timed item move ({@link HandChanges}): true once the hand holds the choice, asked every
      * tick until then. Writes the CORE inventory only; an entity-side write would be stomped by the
      * equipment mirror. A tool that breaks mid-chop leaves the next {@code begin()} to re-rank.
      *
      * <p>Known limit: ranking is by the STACK's own speed, so Efficiency — which lands only once
-     * equipped — cannot separate two otherwise-equal axes. The tie keeps whichever is in the hand.
+     * equipped — cannot separate two otherwise-equal axes. The tie goes to the more worn one.
      */
     private boolean wieldBestFor(BlockState blockState) {
         Inventory inv = person.inventory();
@@ -232,7 +233,8 @@ public final class AgentBlockBreaker implements BlockBreaker {
             }
             ItemStack stack = ItemStacks.toVanilla(core, registries);
             pack.add(new ToolChoice.Candidate(
-                    slot, stack.getDestroySpeed(blockState), stack.isCorrectToolForDrops(blockState)));
+                    slot, stack.getDestroySpeed(blockState), stack.isCorrectToolForDrops(blockState),
+                    ToolWear.kind(stack), ToolWear.left(stack).orElse(1.0)));
         }
         int heldSlot = Inventory.HOTBAR_START + inv.selectedSlot();
         int choice = ToolChoice.choose(pack, heldSlot,

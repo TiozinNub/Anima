@@ -70,11 +70,53 @@ class ToolChoiceTest {
     }
 
     @Test
-    void fastestCorrectToolWinsAmongSeveral() {
+    void fastestCorrectKindWinsAmongSeveral() {
         List<Candidate> pack = List.of(
-                new Candidate(5, 2.0F, true),   // wooden pick
-                new Candidate(12, 6.0F, true)); // iron pick
+                new Candidate(5, 1.5F, true, "sword", 1.0),
+                new Candidate(12, 6.0F, true, "pickaxe", 1.0));
         assertEquals(12, ToolChoice.choose(pack, HELD, BARE, true));
+    }
+
+    @Test
+    void theOldPickaxeIsUsedUpOnStoneItCanHarvest() {
+        List<Candidate> pack = List.of(
+                new Candidate(5, 2.0F, true, "pickaxe", 1.0),   // wooden
+                new Candidate(12, 4.0F, true, "pickaxe", 1.0)); // stone
+        assertEquals(5, ToolChoice.choose(pack, HELD, BARE, true));
+    }
+
+    @Test
+    void theBetterPickaxeTakesWhatTheOldOneCannotHarvest() {
+        // Iron ore: the wooden pickaxe digs it and drops nothing.
+        List<Candidate> pack = List.of(
+                new Candidate(5, 2.0F, false, "pickaxe", 1.0),
+                new Candidate(12, 4.0F, true, "pickaxe", 1.0));
+        assertEquals(12, ToolChoice.choose(pack, HELD, BARE, true));
+    }
+
+    @Test
+    void theOldAxeChopsUntilItBreaks() {
+        List<Candidate> pack = List.of(
+                new Candidate(HELD, 4.0F, false, "axe", 1.0),  // stone, in hand
+                new Candidate(14, 2.0F, false, "axe", 0.1));   // wooden, nearly gone
+        assertEquals(14, ToolChoice.choose(pack, HELD, BARE, false));
+    }
+
+    @Test
+    void anotherKindIsNotUsedUpInTheBestKindsPlace() {
+        // Leaves: a sword beats the fist, but a hoe is faster, and a sword is not a hoe.
+        List<Candidate> pack = List.of(
+                new Candidate(3, 1.5F, false, "sword", 1.0),
+                new Candidate(12, 2.0F, false, "hoe", 1.0));
+        assertEquals(12, ToolChoice.choose(pack, HELD, BARE, false));
+    }
+
+    @Test
+    void ofTwoEqualAxesTheMoreWornIsUsed() {
+        List<Candidate> pack = List.of(
+                new Candidate(HELD, 2.0F, false, "axe", 0.9),
+                new Candidate(12, 2.0F, false, "axe", 0.3));
+        assertEquals(12, ToolChoice.choose(pack, HELD, BARE, false));
     }
 
     @Test

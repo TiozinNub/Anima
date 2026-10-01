@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.act;
 
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Which stack, if any, deserves the hand for the block about to be broken. The {@link MiningSpeed}
@@ -20,6 +21,10 @@ import java.util.List;
  *       for nothing.</li>
  *   <li><b>Ties keep the current hand</b>, then the lowest slot, so the same pack always answers
  *       the same way.</li>
+ *   <li><b>Old tools are used up</b> (Luiz, 2026-10-01): once the winner is known, the slowest
+ *       tool of its kind that still does the job takes its place, then the most worn. A wooden axe
+ *       chops until it breaks beside a stone one; a stone pickaxe still takes the iron ore the
+ *       wooden one cannot harvest. Speed stands in for tier, so there is no tier table.</li>
  * </ol>
  */
 public final class ToolChoice {
@@ -37,8 +42,20 @@ public final class ToolChoice {
     /**
      * One measured stack, its {@code speed} against the block in question. Empty slots are not
      * candidates.
+     *
+     * @param kind what the stack is for, so tiers of one tool compare ({@code "axe"}); {@code null}
+     *             is a kind of its own
+     * @param left the share of its durability left, 1 for a stack that never wears
      */
-    public record Candidate(int slot, float speed, boolean harvests) {
+    public record Candidate(int slot, float speed, boolean harvests, @Nullable String kind, double left) {
+
+        public Candidate(int slot, float speed, boolean harvests) {
+            this(slot, speed, harvests, null, 1.0);
+        }
+
+        boolean sameKind(Candidate other) {
+            return this == other || kind != null && kind.equals(other.kind);
+        }
     }
 
     private ToolChoice() {
@@ -68,7 +85,28 @@ public final class ToolChoice {
         if (!harvestMatters && best.speed() <= bareSpeed) {
             return BARE_HAND; // rule 2: a tool that cannot out-dig the fist stays sheathed
         }
-        return best.slot() == heldSlot ? KEEP_HAND : best.slot();
+        Candidate used = best;
+        for (Candidate candidate : pack) {
+            boolean doesTheJob = harvestMatters ? candidate.harvests() : candidate.speed() > bareSpeed;
+            if (doesTheJob && candidate.sameKind(best)) {
+                used = usedFirst(used, candidate, heldSlot);
+            }
+        }
+        return used.slot() == heldSlot ? KEEP_HAND : used.slot();
+    }
+
+    /** Rule 4: the slower, then the more worn, then the held, then the lower slot. */
+    private static Candidate usedFirst(Candidate incumbent, Candidate challenger, int heldSlot) {
+        if (challenger.speed() != incumbent.speed()) {
+            return challenger.speed() < incumbent.speed() ? challenger : incumbent;
+        }
+        if (challenger.left() != incumbent.left()) {
+            return challenger.left() < incumbent.left() ? challenger : incumbent;
+        }
+        if (incumbent.slot() == heldSlot || challenger.slot() == heldSlot) {
+            return incumbent.slot() == heldSlot ? incumbent : challenger;
+        }
+        return challenger.slot() < incumbent.slot() ? challenger : incumbent;
     }
 
     /** The stronger of two candidates: speed first, then held-in-hand, then the lower slot. */
