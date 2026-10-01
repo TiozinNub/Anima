@@ -137,6 +137,22 @@ class CraftForTest {
                 "the board's question gets the same answer, so no errand is claimed toward it");
     }
 
+    @Test
+    void anIngredientAStoreWasSeenHoldingIsReachable() {
+        book(new CraftRecipe("minecraft:campfire", ItemStack.of("minecraft:campfire", 1, 64),
+                List.of(new CraftRecipe.Ingredient(Set.of("minecraft:charcoal", "minecraft:coal"), 1)), false));
+        ItemSpec campfire = ItemSpec.anyOf(Set.of("minecraft:campfire"));
+        dev.luizloyola.anima.core.brain.sense.Pos chest = new dev.luizloyola.anima.core.brain.sense.Pos(4, 64, 0);
+        ctx.claim(dev.luizloyola.anima.core.store.Store.POI, chest);
+        assertFalse(CraftFor.anyReachable(campfire, ctx), "a chest nobody looked in is no evidence");
+
+        ctx.knowledge.sawInside(chest, List.of(ItemStack.of("minecraft:charcoal", 4, 64)), 0L,
+                dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge.maxPerKind(ctx.profile()));
+
+        assertTrue(CraftFor.anyReachable(campfire, ctx),
+                "a campfire whose charcoal stood in HOME's chest was passed over for ever (2026-10-01)");
+    }
+
     private static CraftRecipe planks(String wood) {
         return new CraftRecipe("minecraft:" + wood + "_planks",
                 ItemStack.of("minecraft:" + wood + "_planks", 4, 64),

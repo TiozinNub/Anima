@@ -218,13 +218,19 @@ public final class CraftFor implements Method {
 
     /**
      * One bill line's ways, cheapest question first: already in the pack, a producer somebody
-     * registered (the chop), lying in sight as a drop, or craftable by a recipe that is itself
-     * reachable — guarded by the same output-id set the occurs-check uses, so a cyclic book
-     * answers "no" instead of hanging.
+     * registered (the chop), in a store seen holding it, lying in sight as a drop, or craftable by
+     * a recipe that is itself reachable — guarded by the same output-id set the occurs-check uses,
+     * so a cyclic book answers "no" instead of hanging. The store is asked here as well as at the
+     * top: a campfire whose charcoal stood in HOME's chest was passed over for ever (2026-10-01).
      */
     private static boolean lineReachable(CraftRecipe.Ingredient line, Set<String> guard,
                                          BrainContext ctx, int depth) {
         if (ctx.percepts().inventory().count(line.acceptedIds()::contains) >= line.count()) {
+            return true;
+        }
+        // Deliberately UNREGISTERED: a throwaway lens for one question, not a name to persist.
+        ItemSpec lineSpec = new ItemSpec("(reachable?)", line.acceptedIds()::contains);
+        if (TakeFromStore.seenHolding(ctx, lineSpec)) {
             return true;
         }
         if (Producers.knowsAnyOf(line.acceptedIds())) {
@@ -235,8 +241,6 @@ public final class CraftFor implements Method {
                 return true;
             }
         }
-        // Deliberately UNREGISTERED: a throwaway lens for one question, not a name to persist.
-        ItemSpec lineSpec = new ItemSpec("(reachable?)", line.acceptedIds()::contains);
         for (CraftRecipe making : Recipes.producing(lineSpec)) {
             if (guard.contains(making.outputId()) || !ctx.gate().mayMake(making.outputId())
                     || eatsWhatItMakes(making, lineSpec)) {
