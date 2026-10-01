@@ -237,6 +237,17 @@ public enum Knob implements KnobSpec {
     TERRAIN_TREE_COST("terrain.tree_cost", Kind.DOUBLE, 20, 0, 1000,
             "One tree to fell, in blocks of digging and filling, when building sites are ranked."),
 
+    // --- territory: the chunks a party holds -------------------------------------------------
+
+    /** @see dev.luizloyola.anima.core.territory.Territory#grow */
+    TERRITORY_MARGIN("territory.margin", Kind.INT, 1, 0, 4,
+            "Chunks claimed round a building's footprint when a party's area grows to take it, so "
+                    + "the next building has room. 0 claims the footprint alone."),
+    /** @see dev.luizloyola.anima.core.territory.Territory#history */
+    TERRITORY_LOG_KEPT("territory.log_kept", Kind.INT, 64, 1, 4096,
+            "Claims and refusals kept per party in the save, for /anima territory log. The world's "
+                    + "territory.log and each member's journal keep them all."),
+
     // --- webdebug: the browser debug UI, off unless asked for -----------------------------
 
     /** @see dev.luizloyola.anima.mod.webdebug.WebDebugger */

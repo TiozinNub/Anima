@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
@@ -65,6 +66,7 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
 
     /** Installed at server start; null until then, since rows load before there is a world. */
     private @Nullable Places places;
+    private final List<Consumer<PartyId>> disbanded = new ArrayList<>();
 
     /** Constructs an empty store (the {@link SavedDataType} supplier for a fresh save). */
     public PartyData() {
@@ -117,6 +119,17 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
         this.places = places;
     }
 
+    /** Hears every party that ceased to exist, after its claims have moved. */
+    public void onDisband(Consumer<PartyId> listener) {
+        disbanded.add(listener);
+    }
+
+    private void disband(PartyId gone) {
+        for (Consumer<PartyId> listener : disbanded) {
+            listener.accept(gone);
+        }
+    }
+
     /** @see PartyRoster#join — marks dirty only when membership genuinely moved. */
     public boolean join(AgentId who, PartyId into) {
         Optional<PartyId> before = roster.currentPartyOf(who);
@@ -130,6 +143,7 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
                     .ifPresent(gone -> places.partyDisbanded(gone, into));
             places.ownerMovedTo(who, into);
         }
+        before.filter(gone -> roster.members(gone).isEmpty()).ifPresent(this::disband);
         return true;
     }
 
@@ -159,6 +173,7 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
             before.filter(gone -> roster.members(gone).isEmpty())
                     .ifPresent(gone -> places.partyDisbanded(gone, null));
         }
+        before.filter(gone -> roster.members(gone).isEmpty()).ifPresent(this::disband);
         return true;
     }
 

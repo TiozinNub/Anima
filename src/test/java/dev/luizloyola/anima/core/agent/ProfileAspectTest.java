@@ -91,6 +91,10 @@ class ProfileAspectTest {
             Knob.TERRAIN_SITE_SIZE,
             Knob.TERRAIN_MAX_TILT,
             Knob.TERRAIN_TREE_COST,
+            // A world's rule for how parties share the ground, as terrain.* is how it is judged:
+            // two species growing by different margins would each claim by the other's rule.
+            Knob.TERRITORY_MARGIN,
+            Knob.TERRITORY_LOG_KEPT,
             // A socket, a port and a URL. Nothing about a mind at all: the dashboard watches every
             // species at once and there is one of it per server, so a species answering for any of
             // these would be answering for what everybody else's debugging looks like.

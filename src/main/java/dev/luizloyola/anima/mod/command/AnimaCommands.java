@@ -40,7 +40,7 @@ public final class AnimaCommands {
                                 AgentCommands::horizon, AgentCommands::survey,
                                 EnclosureCommands::enclosure,
                                 AgentCommands::claims, AgentCommands::peers, AgentCommands::needs,
-                                AgentCommands::history,
+                                AgentCommands::history, TerritoryCommands::territory,
                                 AgentCommands::profile, AgentCommands::grave, AgentCommands::chat,
                                 () -> AgentCommands.inv(registry),
                                 () -> AgentCommands.store(registry)),
@@ -50,6 +50,7 @@ public final class AnimaCommands {
                         // it does not keep.
                         List.of(AgentCommands::list, AgentCommands::probe, AgentCommands::recipes,
                                 AgentCommands::debug, TerrainCommands::terrain, LaidCommands::laid,
+                                TerritoryCommands::view,
                                 dev.luizloyola.anima.mod.webdebug.WebCommands::tree,
                                 () -> ConfigCommands.tree(Config.store(), configFile)),
                         List.of())));

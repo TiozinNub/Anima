@@ -154,6 +154,14 @@ public final class Journals {
         }
     }
 
+    /** This run's journal folder, {@code logs/anima/<run>/}, for a log that is no one agent's. */
+    public static java.nio.file.Path runDir(MinecraftServer server) {
+        of(server);
+        synchronized (SERVICES) {
+            return SINKS.get(server).dir();
+        }
+    }
+
     /** @see dev.luizloyola.anima.core.log.JournalService#snapshot */
     public static java.util.List<dev.luizloyola.anima.core.log.Entry> snapshot(
             MinecraftServer server, dev.luizloyola.anima.core.agent.AgentId who) {

@@ -128,6 +128,11 @@ public final class JournalFileSink {
         return sink;
     }
 
+    /** This run's folder, beside which a world-level log may sit. */
+    java.nio.file.Path dir() {
+        return dir;
+    }
+
     /** Server thread: pin the name (once), stamp the wall clock, and queue. Never blocks on I/O. */
     void onEntry(AgentId id, Entry entry) {
         names.computeIfAbsent(id, this::resolveName);
