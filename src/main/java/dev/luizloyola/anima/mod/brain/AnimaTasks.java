@@ -710,6 +710,36 @@ public final class AnimaTasks {
                         ITEM_SPEC.fieldOf("fuel").forGetter(dev.luizloyola.anima.core.brain.task.UnloadFurnace.Refuel::fuel)
                 ).apply(t, dev.luizloyola.anima.core.brain.task.UnloadFurnace.Refuel::new)));
 
+        // A cook stays at the fire: what went on, the cooked forms it watches for and what the pack
+        // held of them are saved, so a restart mid-round goes on picking up rather than starting over.
+        TaskCodecs.register("anima:tend_campfires", dev.luizloyola.anima.core.brain.task.TendCampfires.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POS.fieldOf("at").forGetter(dev.luizloyola.anima.core.brain.task.TendCampfires::at),
+                        ITEM_SPEC.fieldOf("raw").forGetter(dev.luizloyola.anima.core.brain.task.TendCampfires::raw),
+                        Codec.INT.fieldOf("count").forGetter(dev.luizloyola.anima.core.brain.task.TendCampfires::count),
+                        Codec.INT.optionalFieldOf("placed", 0)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TendCampfires::placed),
+                        Codec.INT.optionalFieldOf("idle", 0)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TendCampfires::idle),
+                        Codec.INT.optionalFieldOf("cookedAtStart", -1)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TendCampfires::cookedAtStart),
+                        Codec.STRING.listOf().optionalFieldOf("outputs", java.util.List.of())
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TendCampfires::outputs),
+                        Codec.INT.optionalFieldOf("limit", 0)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TendCampfires::limit),
+                        Codec.INT.optionalFieldOf("pause", 0)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.TendCampfires::pauseTicks)
+                ).apply(t, (at, raw, count, placed, idle, cookedAtStart, outputs, limit, pause) ->
+                        new dev.luizloyola.anima.core.brain.task.TendCampfires(at, raw, count)
+                                .resume(placed, idle, cookedAtStart, outputs, limit, pause))));
+
+        TaskCodecs.register("anima:cook_at_campfire", dev.luizloyola.anima.core.brain.task.CookAtCampfire.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        POS.fieldOf("at").forGetter(dev.luizloyola.anima.core.brain.task.CookAtCampfire::at),
+                        ITEM_SPEC.fieldOf("raw").forGetter(dev.luizloyola.anima.core.brain.task.CookAtCampfire::raw),
+                        Codec.INT.fieldOf("count").forGetter(dev.luizloyola.anima.core.brain.task.CookAtCampfire::count)
+                ).apply(t, dev.luizloyola.anima.core.brain.task.CookAtCampfire::new)));
+
         // The rung 5 root: what this body would say to OPEN the encounter if speech.current()
         // finds nothing already there. The live Encounter itself is not here — it is world state
         // owned by the shared roster, not this task's — a restored Converse re-resolves it through

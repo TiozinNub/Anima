@@ -745,6 +745,15 @@ public final class AgentCommands {
                                                                 .executes(ctx -> brainFurnace(ctx,
                                                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
                                                                         StringArgumentType.getString(ctx, "output"), 0, null))))))
+                                .then(Commands.literal("campfire")
+                                        .then(Commands.literal("cook")
+                                                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                                        .then(Commands.argument("item", StringArgumentType.string())
+                                                                .then(Commands.argument("count", IntegerArgumentType.integer(1, 64))
+                                                                        .executes(ctx -> brainCampfire(ctx,
+                                                                                BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+                                                                                StringArgumentType.getString(ctx, "item"),
+                                                                                IntegerArgumentType.getInteger(ctx, "count"))))))))
                                 .then(Commands.literal("cancel")
                                         .executes(ctx -> brainCancel(ctx)))
                                 // The autonomy switch — spawns start ON. Bare, it READS the
@@ -1626,6 +1635,24 @@ public final class AgentCommands {
         Component suffix = autoDisabledNote(autoDisabled);
         OpJournal.record(source, person.agentId(), (fuel == null ? "sent to unload " : "sent to load ")
                 + item + " at the furnace at " + pos.toShortString() + (autoDisabled ? ", autonomy off" : ""));
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                person.entity().getName(), person.brain().describe())
+                .append(suffix).withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
+    /** A cook at a campfire and the ones beside it — the dev way in before a party drives it. */
+    private static int brainCampfire(CommandContext<CommandSourceStack> ctx, BlockPos pos, String item, int count) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        Pos at = new Pos(pos.getX(), pos.getY(), pos.getZ());
+        item = item.contains(":") ? item : "minecraft:" + item;
+        boolean autoDisabled = person.brain().run(new dev.luizloyola.anima.core.brain.task.CookAtCampfire(at,
+                dev.luizloyola.anima.core.inv.ItemSpec.anyOf(Set.of(item)), count));
+        Component suffix = autoDisabledNote(autoDisabled);
+        OpJournal.record(source, person.agentId(), "sent to cook " + count + " " + item
+                + " at the campfire at " + pos.toShortString() + (autoDisabled ? ", autonomy off" : ""));
         Replies.send(source, () -> Component.translatable("anima.command.state",
                 person.entity().getName(), person.brain().describe())
                 .append(suffix).withStyle(ChatFormatting.AQUA));

@@ -22,14 +22,16 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.FurnaceBlockEntity;
 
 /**
- * {@link SmeltLookup} over the running server: smelting recipes for what a furnace makes, and the
- * furnace's own rule for how long a fuel burns. Memoized against the recipe manager instance, which
- * a {@code /reload} replaces (the rule {@code CookedForms} keeps). Server-thread confined.
+ * {@link SmeltLookup} over the running server: smelting recipes for what a furnace makes, campfire
+ * recipes for what a campfire does, and the furnace's own rule for how long a fuel burns. Memoized
+ * against the recipe manager instance, which a {@code /reload} replaces (the rule
+ * {@code CookedForms} keeps). Server-thread confined.
  */
 public final class Smelting implements SmeltLookup {
 
     private static RecipeManager cachedAgainst;
     private static final Map<String, Optional<Smelt>> SMELTS = new HashMap<>();
+    private static final Map<String, Optional<Smelt>> CAMPFIRE = new HashMap<>();
     private static final Map<String, Integer> LONGEST = new HashMap<>();
     private static final Map<String, Integer> SHORTEST_BURN = new HashMap<>();
 
@@ -42,7 +44,13 @@ public final class Smelting implements SmeltLookup {
     @Override
     public Optional<Smelt> of(String inputId) {
         fresh();
-        return SMELTS.computeIfAbsent(inputId, this::scan);
+        return SMELTS.computeIfAbsent(inputId, id -> scan(id, RecipeType.SMELTING));
+    }
+
+    @Override
+    public Optional<Smelt> campfire(String inputId) {
+        fresh();
+        return CAMPFIRE.computeIfAbsent(inputId, id -> scan(id, RecipeType.CAMPFIRE_COOKING));
     }
 
     @Override
@@ -91,13 +99,14 @@ public final class Smelting implements SmeltLookup {
         RecipeManager recipes = server.getRecipeManager();
         if (recipes != cachedAgainst) {
             SMELTS.clear();
+            CAMPFIRE.clear();
             LONGEST.clear();
             SHORTEST_BURN.clear();
             cachedAgainst = recipes;
         }
     }
 
-    private Optional<Smelt> scan(String id) {
+    private Optional<Smelt> scan(String id, RecipeType<?> type) {
         HolderLookup.Provider registries = server.registryAccess();
         net.minecraft.world.item.ItemStack raw = ItemStacks.toVanilla(ItemStack.of(id, 1, 1), registries);
         if (raw.isEmpty()) {
@@ -105,7 +114,7 @@ public final class Smelting implements SmeltLookup {
         }
         for (RecipeHolder<?> holder : server.getRecipeManager().getRecipes()) {
             if (!(holder.value() instanceof AbstractCookingRecipe cooking)
-                    || cooking.getType() != RecipeType.SMELTING || !cooking.input().test(raw)) {
+                    || cooking.getType() != type || !cooking.input().test(raw)) {
                 continue;
             }
             //? if >=26.1 {

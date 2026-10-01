@@ -572,6 +572,31 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aCookMidRoundComesBackWatchingForWhatItPutOn() {
+        dev.luizloyola.anima.core.inv.ItemSpec beef =
+                dev.luizloyola.anima.core.inv.ItemSpec.anyOf(java.util.Set.of("minecraft:beef"));
+        dev.luizloyola.anima.core.brain.task.TendCampfires tend = assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.TendCampfires.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.TendCampfires(new Pos(2, 64, 0), beef, 20)
+                        .resume(16, 120, 3, java.util.List.of("minecraft:cooked_beef"), 800, 2)));
+        assertEquals(new Pos(2, 64, 0), tend.at());
+        assertEquals(beef, tend.raw());
+        assertEquals(20, tend.count());
+        assertEquals(16, tend.placed(), "sixteen on the fires; four still to go");
+        assertEquals(120, tend.idle());
+        assertEquals(3, tend.cookedAtStart(), "what was held before counts as nothing cooked");
+        assertEquals(java.util.List.of("minecraft:cooked_beef"), tend.outputs());
+        assertEquals(800, tend.limit());
+        assertEquals(2, tend.pauseTicks());
+
+        dev.luizloyola.anima.core.brain.task.CookAtCampfire cook = assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.CookAtCampfire.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.CookAtCampfire(new Pos(2, 64, 0), beef, 20)));
+        assertEquals(new Pos(2, 64, 0), cook.at());
+        assertEquals(20, cook.count());
+    }
+
+    @Test
     void aConverseComesBackKnowingWhoAndHowItWouldOpen() {
         // The live Encounter is deliberately not part of this: it is world state owned by the
         // shared roster, not the task's own — see Converse's class doc — so only what it was

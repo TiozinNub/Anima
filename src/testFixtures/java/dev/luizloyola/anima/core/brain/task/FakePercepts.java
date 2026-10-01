@@ -323,6 +323,9 @@ public final class FakePercepts implements Percepts {
             new java.util.HashMap<>();
     /** How long each fuel burns, by id. */
     public final java.util.Map<String, Integer> burns = new java.util.HashMap<>();
+    /** What a campfire cooks into what and how long. */
+    public final java.util.Map<String, dev.luizloyola.anima.core.brain.sense.SmeltLookup.Smelt> campfire =
+            new java.util.HashMap<>();
 
     @Override
     public dev.luizloyola.anima.core.brain.sense.SmeltLookup smelting() {
@@ -330,6 +333,11 @@ public final class FakePercepts implements Percepts {
             @Override
             public java.util.Optional<Smelt> of(String inputId) {
                 return java.util.Optional.ofNullable(smelts.get(inputId));
+            }
+
+            @Override
+            public java.util.Optional<Smelt> campfire(String inputId) {
+                return java.util.Optional.ofNullable(campfire.get(inputId));
             }
 
             @Override

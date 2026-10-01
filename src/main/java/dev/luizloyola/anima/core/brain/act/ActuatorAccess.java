@@ -37,6 +37,11 @@ public interface ActuatorAccess {
         return FurnaceAccess.NONE;
     }
 
+    /** Putting food on a campfire — see {@link CampfireAccess}. A body without one cooks nothing. */
+    default CampfireAccess campfires() {
+        return CampfireAccess.NONE;
+    }
+
     /**
      * The empty hand on a block — see {@link Hand}. Defaults to {@link Hand#NONE}: a body that
      * cannot use a block is only a clumsier one.

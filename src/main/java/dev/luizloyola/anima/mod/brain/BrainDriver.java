@@ -162,6 +162,8 @@ public final class BrainDriver {
                 new dev.luizloyola.anima.compat.inv.WorldContainers(person.entity());
         dev.luizloyola.anima.core.brain.act.FurnaceAccess furnaces =
                 new dev.luizloyola.anima.compat.craft.WorldFurnaces(person.entity());
+        dev.luizloyola.anima.core.brain.act.CampfireAccess campfires =
+                new dev.luizloyola.anima.compat.craft.WorldCampfires(person.entity());
         AgentPercepts percepts = new AgentPercepts(person, () -> person.beingSense().beings());
         this.percepts = percepts;
         ActuatorAccess actuators = new ActuatorAccess() {
@@ -205,6 +207,11 @@ public final class BrainDriver {
             @Override
             public dev.luizloyola.anima.core.brain.act.FurnaceAccess furnaces() {
                 return furnaces; // one-shot verbs, like the containers
+            }
+
+            @Override
+            public dev.luizloyola.anima.core.brain.act.CampfireAccess campfires() {
+                return campfires;
             }
 
             @Override

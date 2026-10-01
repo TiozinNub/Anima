@@ -65,6 +65,7 @@ public final class AnimaMod implements ModInitializer {
         // By capability, not by name, so a store is perceivable before anything reaches into one.
         dev.luizloyola.anima.compat.store.StoreBlocks.register();
         dev.luizloyola.anima.compat.craft.FurnaceBlocks.register();
+        dev.luizloyola.anima.compat.craft.CampfireBlocks.register();
         // A lid is a client-side animation, so nothing is persisted — but a count leaked by a body
         // that died mid-reach would keep one chest stuck open for the rest of the session.
         ServerLifecycleEvents.SERVER_STOPPED.register(
