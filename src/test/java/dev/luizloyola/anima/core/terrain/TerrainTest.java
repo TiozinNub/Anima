@@ -402,4 +402,15 @@ class TerrainTest {
         assertEquals(1, fit.trees());
         assertEquals(0, fit.levelling(), "and reads the ground under it");
     }
+
+    @Test
+    void aColumnUnflaggedIsJudgedAsTheGround() {
+        GroundSample sample = level();
+        sample.set(10, 10, LEVEL + 1, GroundSample.USED | GroundSample.CANOPY);
+        sample.unflag(10, 10, GroundSample.USED);
+        Terrain terrain = analyse(sample);
+
+        assertNotEquals(Kind.USED, terrain.kind(10, 10), "a station to be moved is not used ground");
+        assertTrue(terrain.covered(10, 10), "and only the flag asked for went");
+    }
 }

@@ -72,6 +72,15 @@ public final class GroundSample {
         return this.depth;
     }
 
+    /**
+     * Takes {@code flag} off a column: a caller that knows better than the block — a party's own
+     * station, which may be moved out of the way — says so before the terrain is judged.
+     */
+    public void unflag(int x, int z, int flag) {
+        int i = index(x, z);
+        this.flags[i] = (byte) (this.flags[i] & ~flag);
+    }
+
     int surfaceAt(int i) {
         return this.surface[i];
     }
