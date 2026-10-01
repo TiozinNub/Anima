@@ -227,6 +227,14 @@ public final class FakeContext implements BrainContext {
         return workSpots;
     }
 
+    public final dev.luizloyola.anima.core.brain.history.FieldTables fieldTables =
+            new dev.luizloyola.anima.core.brain.history.FieldTables();
+
+    @Override
+    public dev.luizloyola.anima.core.brain.history.FieldTables fieldTables() {
+        return fieldTables;
+    }
+
     @Override
     public boolean walksMayBuild() {
         return walksMayBuild;

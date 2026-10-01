@@ -218,6 +218,13 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aFieldTableNoteComesBackWithItsAnchor() {
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.NoteFieldTable.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.NoteFieldTable(88, 64, -12)));
+        assertEquals(new Pos(88, 64, -12), after.anchor());
+    }
+
+    @Test
     void aPlaceComesBackWithTheBlockAndTheWayItFaces() {
         var before = new dev.luizloyola.anima.core.brain.task.PlaceBlock(
                 new dev.luizloyola.anima.core.brain.act.Placing("minecraft:torch", new Pos(3, 65, -7),

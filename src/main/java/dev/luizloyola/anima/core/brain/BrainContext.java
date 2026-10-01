@@ -97,6 +97,11 @@ public interface BrainContext {
         return new dev.luizloyola.anima.core.brain.history.WorkSpots();
     }
 
+    /** Tables this body put down to craft on and has not picked up. Empty in a rig with no body. */
+    default dev.luizloyola.anima.core.brain.history.FieldTables fieldTables() {
+        return new dev.luizloyola.anima.core.brain.history.FieldTables();
+    }
+
     /**
      * The maximum method cost currently acceptable, in the walk-block currency methods price
      * themselves in — a costlier applicable method is treated as inapplicable. Set by the arbiter

@@ -77,6 +77,8 @@ public final class BrainDriver {
     private final Arbiter arbiter;
     private final dev.luizloyola.anima.core.brain.history.WorkSpots workSpots =
             new dev.luizloyola.anima.core.brain.history.WorkSpots();
+    private final dev.luizloyola.anima.core.brain.history.FieldTables fieldTables =
+            new dev.luizloyola.anima.core.brain.history.FieldTables();
     /**
      * The one context every task/instinct tick receives: actuators, percepts and the debug
      * journal — the only Minecraft boundary the core machinery ever touches.
@@ -292,6 +294,11 @@ public final class BrainDriver {
             @Override
             public dev.luizloyola.anima.core.brain.history.WorkSpots workSpots() {
                 return workSpots;
+            }
+
+            @Override
+            public dev.luizloyola.anima.core.brain.history.FieldTables fieldTables() {
+                return fieldTables;
             }
 
             @Override
@@ -524,6 +531,11 @@ public final class BrainDriver {
     /** Written by the body's hands as they work, and by its kills; read by a sweep of its drops. */
     public dev.luizloyola.anima.core.brain.history.WorkSpots workSpots() {
         return this.workSpots;
+    }
+
+    /** Written when a craft puts its own table down; read when the craft is done to take it back. */
+    public dev.luizloyola.anima.core.brain.history.FieldTables fieldTables() {
+        return this.fieldTables;
     }
 
     /** Whether the arbiter is currently deciding (ON) or a manual task has the wheel (OFF). */

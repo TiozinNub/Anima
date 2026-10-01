@@ -140,6 +140,14 @@ public final class BrainState {
                             new Pos(x, y, z), tick)))
             .listOf();
 
+    /** Tables a body put down to craft on: a restart between the craft and the pickup still knows. */
+    public static final Codec<List<Pos>> FIELD_TABLES = RecordCodecBuilder.<Pos>create(p -> p.group(
+                    Codec.INT.fieldOf("x").forGetter(Pos::x),
+                    Codec.INT.fieldOf("y").forGetter(Pos::y),
+                    Codec.INT.fieldOf("z").forGetter(Pos::z))
+                    .apply(p, Pos::new))
+            .listOf();
+
     public static final Codec<List<History.Entry>> HISTORY = RecordCodecBuilder
             .<SavedDeed>create(i -> i.group(
                     Codec.STRING.fieldOf("doing").forGetter(SavedDeed::doing),

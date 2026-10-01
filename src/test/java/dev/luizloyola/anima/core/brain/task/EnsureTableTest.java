@@ -15,7 +15,8 @@ import org.junit.jupiter.api.Test;
 /**
  * Being at a workbench: satisfied is memory VERIFIED BY the WORLD (a griefed table is forgotten,
  * not believed), walking beats placing when a table is near, and the make-and-place plan carries
- * its own memory write so the very next subtask can find the bench.
+ * its own memory write so the very next subtask can find the bench, without claiming it for the
+ * party.
  */
 class EnsureTableTest {
 
@@ -73,7 +74,7 @@ class EnsureTableTest {
     }
 
     @Test
-    void withNoTableKnownThePlanMakesPlacesAndClaimsOne() {
+    void withNoTableKnownThePlanMakesPlacesAndNotesOneAsItsOwn() {
         standAt(10, 10);
         EnsureTable goal = new EnsureTable();
         assertFalse(goal.methods().get(0).applicable(ctx), "nothing known to walk to");
@@ -82,9 +83,11 @@ class EnsureTableTest {
         ObtainItem table = assertInstanceOf(ObtainItem.class, plan.get(0));
         assertTrue(table.spec().matches(Workbench.ITEM_ID));
         PlaceBlock put = assertInstanceOf(PlaceBlock.class, plan.get(1));
-        FoundPlace found = assertInstanceOf(FoundPlace.class, plan.get(2));
-        assertEquals(put.target(), found.anchor(),
-                "the claim is founded exactly where the block went — the next subtask needs it");
+        NoteFieldTable noted = assertInstanceOf(NoteFieldTable.class, plan.get(2));
+        assertEquals(put.target(), noted.anchor(),
+                "noted exactly where the block went — the next subtask needs it");
+        assertTrue(plan.stream().noneMatch(FoundPlace.class::isInstance),
+                "the body's own, not the party's: no claim");
         assertEquals(FakeProbe.GROUND_Y + 1, put.target().y(), "on the ground, beside the body");
     }
 }

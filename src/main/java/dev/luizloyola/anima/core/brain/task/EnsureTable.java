@@ -21,11 +21,9 @@ import java.util.Set;
  *   <li><b>Walk to a known one</b>, priced at the distance — so a settlement converges on shared
  *       tables instead of one per person.</li>
  *   <li><b>Make one and put it down</b>, a flat {@link #PLACE_COST}: obtain the item (log → planks →
- *       table, or one already in the pack), place it beside, and claim it for the party at once —
- *       the next subtask needs it.</li>
+ *       table, or one already in the pack) and place it beside. It is this body's own, not the
+ *       party's: {@link PackUpTable} picks it back up once the craft is made.</li>
  * </ul>
- *
- * <p>Tables sprout where the need arises: no workshop policy, no blueprint.
  */
 public final class EnsureTable implements AchieveTask {
 
@@ -124,7 +122,7 @@ public final class EnsureTable implements AchieveTask {
         }
     }
 
-    /** Obtain a table item (craft it from the pack if need be), place it, claim it for the party. */
+    /** Obtain a table item (craft it from the pack if need be), place it, note it as this body's. */
     private final class MakeAndPlace implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
@@ -142,7 +140,7 @@ public final class EnsureTable implements AchieveTask {
             List<Task> steps = new ArrayList<>(4);
             steps.add(new ObtainItem(ItemSpec.anyOf(Set.of(Workbench.ITEM_ID)), 1, pursued));
             steps.addAll(Ground.clearAndPlace(ctx, Workbench.ITEM_ID, spot));
-            steps.add(new FoundPlace(Workbench.POI, spot.x(), spot.y(), spot.z()));
+            steps.add(new NoteFieldTable(spot.x(), spot.y(), spot.z()));
             return steps;
         }
 

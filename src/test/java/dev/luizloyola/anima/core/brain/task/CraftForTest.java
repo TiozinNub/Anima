@@ -71,6 +71,12 @@ class CraftForTest {
         Gate.install(Gate.OPEN);
     }
 
+    /** The plan's exchange — last, or followed by the pickup of a table the body put down. */
+    private static CraftStep exchange(List<Task> plan) {
+        Task last = plan.get(plan.size() - 1);
+        return last instanceof Try ? (CraftStep) plan.get(plan.size() - 2) : (CraftStep) last;
+    }
+
     private static void book(CraftRecipe... recipes) {
         List<CraftRecipe> all = List.of(recipes);
         Recipes.provide(spec -> all.stream().filter(r -> spec.matches(r.outputId())).toList());
@@ -110,12 +116,12 @@ class CraftForTest {
 
         List<Task> open = new CraftFor(anyAxe, 1, Set.of()).decompose(ctx);
         assertEquals("minecraft:stone_axe",
-                ((CraftStep) open.get(open.size() - 1)).recipe().outputId(), "ungated, the book decides");
+                exchange(open).recipe().outputId(), "ungated, the book decides");
 
         gateOutStone();
         List<Task> gated = new CraftFor(anyAxe, 1, Set.of()).decompose(ctx);
         assertEquals("minecraft:wooden_axe",
-                ((CraftStep) gated.get(gated.size() - 1)).recipe().outputId(),
+                exchange(gated).recipe().outputId(),
                 "cobblestone in the pack does not make a stone axe in the Wood Age");
     }
 
@@ -190,7 +196,7 @@ class CraftForTest {
         ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_log", 1, 64));
         List<Task> next = new CraftFor(THREE_PLANKS, 4, Set.of()).decompose(ctx);
         assertEquals("minecraft:oak_planks",
-                ((CraftStep) next.get(next.size() - 1)).recipe().outputId(),
+                exchange(next).recipe().outputId(),
                 "the next round makes what the log that came makes");
     }
 
@@ -203,7 +209,7 @@ class CraftForTest {
 
         List<Task> plan = new CraftFor(THREE_PLANKS, 12, Set.of()).decompose(ctx);
 
-        CraftStep step = (CraftStep) plan.get(plan.size() - 1);
+        CraftStep step = exchange(plan);
         assertEquals("minecraft:oak_planks", step.recipe().outputId());
         assertEquals(2, step.times(), "both oak logs now; the birch log is the next round's");
     }
@@ -245,7 +251,7 @@ class CraftForTest {
         List<Task> plan = new CraftFor(anyAxe, 1, Set.of()).decompose(ctx);
 
         assertEquals("minecraft:wooden_axe",
-                ((CraftStep) plan.get(plan.size() - 1)).recipe().outputId());
+                exchange(plan).recipe().outputId());
     }
 
     @Test
@@ -277,7 +283,7 @@ class CraftForTest {
         List<Task> plan = new CraftFor(anyAxe, 1, Set.of()).decompose(ctx);
 
         assertEquals("minecraft:wooden_axe",
-                ((CraftStep) plan.get(plan.size() - 1)).recipe().outputId());
+                exchange(plan).recipe().outputId());
     }
 
     @Test
@@ -293,7 +299,7 @@ class CraftForTest {
         CraftFor axe = new CraftFor(ItemSpec.anyOf(Set.of("minecraft:wooden_axe")), 1, Set.of());
         assertTrue(axe.applicable(ctx), "the table era: the whole book is reachable");
         List<Task> plan = axe.decompose(ctx);
-        assertEquals(6, plan.size());
+        assertEquals(7, plan.size());
         assertInstanceOf(ObtainItem.class, plan.get(0), "planks");
         assertInstanceOf(ObtainItem.class, plan.get(1), "sticks");
         EnsureTable bench = assertInstanceOf(EnsureTable.class, plan.get(2));
@@ -303,6 +309,9 @@ class CraftForTest {
                 "the bill again: making the bench may have EATEN it (the table is planks)");
         assertInstanceOf(ObtainItem.class, plan.get(4));
         assertInstanceOf(CraftStep.class, plan.get(5));
+        Try packUp = assertInstanceOf(Try.class, plan.get(6));
+        assertInstanceOf(PackUpTable.class, packUp.attempt(),
+                "a table put down for this craft is picked back up after it");
     }
 
     @Test
@@ -454,7 +463,7 @@ class CraftForTest {
         ItemSpec axes = ItemSpec.register(
                 new ItemSpec("craft-test-axes-family", id -> id.endsWith("_axe")));
         List<Task> plan = new CraftFor(axes, 1, Set.of()).decompose(ctx);
-        CraftStep exchange = (CraftStep) plan.get(plan.size() - 1);
+        CraftStep exchange = exchange(plan);
         assertEquals("minecraft:wooden_axe", exchange.recipe().outputId(),
                 "two logs and a book: the wooden axe is the one with a floor under it");
     }

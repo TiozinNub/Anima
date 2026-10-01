@@ -18,7 +18,8 @@ import java.util.Set;
  * <p>An in-hand recipe crafts where the body stands; one needing a table gets an
  * {@link EnsureTable} after the materials and before the exchange, and ties prefer the in-hand
  * shape — no walk is cheaper. Decomposition: one {@link ObtainItem} per bill line (each
- * satisfied-check-first, so stocked materials cost nothing), then a {@link CraftStep}. Sub-goal
+ * satisfied-check-first, so stocked materials cost nothing), then a {@link CraftStep}, then, at a
+ * table, a {@link PackUpTable} for one the body put down itself. Sub-goal
  * specs are {@link ItemSpec#anyOf literal} — "any plank", straight from the ingredient — so they
  * persist by content and a reload rebuilds them with no mod having declared a planks class.
  *
@@ -116,6 +117,9 @@ public final class CraftFor implements Method {
             }
         }
         plan.add(new CraftStep(recipe, crafts));
+        if (recipe.needsTable()) {
+            plan.add(new Try(new PackUpTable()));
+        }
         return plan;
     }
 
