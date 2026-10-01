@@ -71,7 +71,7 @@ public final class TakeFromStore implements Method {
      * evidence the thing exists, so "can it be had now" asks this rather than {@link #applicable},
      * or every recipe would look reachable while an unopened chest stood nearby.
      */
-    static boolean seenHolding(BrainContext ctx, ItemSpec spec) {
+    public static boolean seenHolding(BrainContext ctx, ItemSpec spec) {
         long now = ctx.percepts().time();
         for (PoiMemory store : Store.ours(ctx)) {
             if (!ctx.knowledge().isAvoided(Store.POI, store.anchor(), now)
