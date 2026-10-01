@@ -12,7 +12,7 @@ mod.version = "0.1.0"
 # Modrinth project id (slug "anima"); the create-version API needs the base62 id
 publish.modrinth_id = "l8eKuisB"
 
-deps.fabric_loader = "0.19.3"
+deps.fabric_loader = "0.19.5"
 loomx.loom_version = "1.17-SNAPSHOT"
 
 # The TOML reader/writer behind `config/anima.toml`. Version-independent — it is a plain Java
