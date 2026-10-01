@@ -480,6 +480,7 @@ class ArbiterWorkTest {
             }
         };
         board.offered = far;
+        ctx.costTolerance = WorkToleranceCurve.tolerance(0.4); // the fake does not ask the arbiter
         ticks(4);
         assertEquals(1, board.failures);
         assertEquals(1, board.pricedOut, "every way over budget");
