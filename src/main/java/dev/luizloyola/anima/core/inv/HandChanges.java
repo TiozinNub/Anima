@@ -98,6 +98,15 @@ public final class HandChanges {
         });
     }
 
+    /** Asks for storage slots {@code from} and {@code to} to swap; true once they have. */
+    public static boolean move(Inventory inv, int from, int to, long now, Timing timing) {
+        return run(inv, HandChange.Kind.MOVE, from, to, timing.stackTicks(), now, () -> {
+            ItemStack moved = inv.get(from);
+            inv.set(from, inv.get(to));
+            inv.set(to, moved);
+        });
+    }
+
     /** Whether a change is under way and was asked for last tick or this one. */
     public static boolean busy(Inventory inv, long now) {
         HandChange change = current(inv, now);

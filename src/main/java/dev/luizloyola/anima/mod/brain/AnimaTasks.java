@@ -379,6 +379,11 @@ public final class AnimaTasks {
         TaskCodecs.register("anima:look_round", LookRound.class,
                 Codec.INT.optionalFieldOf("bearing", 0).xmap(LookRound::new, LookRound::bearing));
 
+        // The swap under way is the inventory's to save; a restored tidy plans the same one again.
+        TaskCodecs.register("anima:tidy_pack", dev.luizloyola.anima.core.brain.task.TidyPack.class,
+                Codec.INT.optionalFieldOf("moves", 0).xmap(
+                        dev.luizloyola.anima.core.brain.task.TidyPack::new,
+                        dev.luizloyola.anima.core.brain.task.TidyPack::moves));
         TaskCodecs.register("anima:flee", FleeStep.class, MapCodec.unit(FleeStep::new));
         TaskCodecs.register("anima:eat", SatisfyHunger.class, MapCodec.unit(SatisfyHunger::new));
         TaskCodecs.register("anima:eat_carried", dev.luizloyola.anima.core.brain.task.EatCarried.class,

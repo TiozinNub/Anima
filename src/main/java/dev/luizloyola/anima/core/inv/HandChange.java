@@ -24,7 +24,9 @@ public record HandChange(Kind kind, int from, int to, long readyAt, long askedAt
         /** The hand emptied. */
         STOW,
         /** A piece from storage onto its armour slot, the piece it replaces going back to storage. */
-        EQUIP
+        EQUIP,
+        /** Two storage slots swapped, neither of them the hand's business: tidying. */
+        MOVE
     }
 
     boolean is(Kind kind, int from, int to) {

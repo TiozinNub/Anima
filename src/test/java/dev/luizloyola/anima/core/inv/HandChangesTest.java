@@ -93,6 +93,22 @@ class HandChangesTest {
     }
 
     @Test
+    void aMoveBetweenStorageSlotsIsAStackMove() {
+        inv.set(0, ItemStack.of("minecraft:oak_log", 64, 64));
+        inv.set(BACKPACK, sword());
+        int ticks = -1;
+        for (long now = 100; now < 150; now++) {
+            if (HandChanges.move(inv, 0, BACKPACK, now, TIMING)) {
+                ticks = (int) (now - 100);
+                break;
+            }
+        }
+        assertEquals(6, ticks);
+        assertEquals("minecraft:iron_sword", inv.get(0).id());
+        assertEquals("minecraft:oak_log", inv.get(BACKPACK).id());
+    }
+
+    @Test
     void stowingOntoAFreeHotbarSlotIsASelect() {
         inv.set(0, sword());
         assertFalse(HandChanges.stow(inv, 100, TIMING));
