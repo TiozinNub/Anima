@@ -232,9 +232,16 @@ public final class AgentBlockBreaker implements BlockBreaker {
                 continue;
             }
             ItemStack stack = ItemStacks.toVanilla(core, registries);
+            String kind = ToolWear.kind(stack);
+            if (kind.equals("sword") && !(blockState.requiresCorrectToolForDrops()
+                    && stack.isCorrectToolForDrops(blockState))) {
+                // Kept for fights. On leaves a sword out-cuts a fist, and a settler wore two out
+                // clearing round a felled tree (2026-10-01).
+                continue;
+            }
             pack.add(new ToolChoice.Candidate(
                     slot, stack.getDestroySpeed(blockState), stack.isCorrectToolForDrops(blockState),
-                    ToolWear.kind(stack), ToolWear.left(stack).orElse(1.0)));
+                    kind, ToolWear.left(stack).orElse(1.0)));
         }
         int heldSlot = Inventory.HOTBAR_START + inv.selectedSlot();
         int choice = ToolChoice.choose(pack, heldSlot,

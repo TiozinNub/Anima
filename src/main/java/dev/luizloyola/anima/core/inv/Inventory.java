@@ -190,7 +190,7 @@ public final class Inventory {
                 }
             }
         }
-        double[] fit = remaining > 0 ? layout.weights(stack) : null;
+        double[] fit = remaining > 0 ? layout.weights(stack, this) : null;
         while (remaining > 0) {
             int slot = bestEmpty(fit);
             if (slot < 0) {

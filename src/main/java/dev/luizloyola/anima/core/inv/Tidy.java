@@ -29,7 +29,7 @@ public final class Tidy {
         double[][] fit = new double[Inventory.ARMOR_START][];
         for (int slot = 0; slot < Inventory.ARMOR_START; slot++) {
             ItemStack stack = pack.get(slot);
-            fit[slot] = stack.isEmpty() ? null : layout.weights(stack);
+            fit[slot] = stack.isEmpty() ? null : layout.weights(stack, pack);
         }
         int shortNow = Math.max(0, layout.freeHotbar() - pack.emptyHotbar());
         Swap best = null;

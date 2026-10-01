@@ -12,7 +12,7 @@ class TidyTest {
     /** A sword belongs in slot 0, any axe on the hotbar, everything else in the backpack. */
     private static final PackLayout LAYOUT = new PackLayout() {
         @Override
-        public double[] weights(ItemStack stack) {
+        public double[] weights(ItemStack stack, Inventory pack) {
             double[] fit = new double[Inventory.ARMOR_START];
             for (int slot = 0; slot < Inventory.MAIN_START; slot++) {
                 fit[slot] = stack.id().endsWith("_sword") ? 10 - slot
@@ -80,8 +80,8 @@ class TidyTest {
         pack.set(0, one("stone_axe"));
         PackLayout fussy = new PackLayout() {
             @Override
-            public double[] weights(ItemStack stack) {
-                return LAYOUT.weights(stack);
+            public double[] weights(ItemStack stack, Inventory pack) {
+                return LAYOUT.weights(stack, pack);
             }
 
             @Override

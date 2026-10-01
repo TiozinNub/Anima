@@ -230,7 +230,7 @@ class InventoryTest {
     /** Tools on the hotbar and nothing else, one hotbar slot kept free. */
     private static final PackLayout TOOLS_UP = new PackLayout() {
         @Override
-        public double[] weights(ItemStack stack) {
+        public double[] weights(ItemStack stack, Inventory pack) {
             double[] fit = new double[Inventory.ARMOR_START];
             boolean tool = stack.id().endsWith("_axe");
             for (int slot = 0; slot < Inventory.MAIN_START; slot++) {
