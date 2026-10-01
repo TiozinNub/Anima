@@ -62,7 +62,7 @@ class EatObtainedTest {
     @Test
     void itIsAppendedAfterTheWaysAlreadySaved() {
         List<Method> methods = new SatisfyHunger().methods();
-        assertEquals(5, methods.size());
+        assertEquals(6, methods.size());
         assertInstanceOf(EatFromStore.class, methods.get(2));
         assertInstanceOf(EatObtained.class, methods.get(3));
         assertInstanceOf(EatAnything.class, methods.get(4));
