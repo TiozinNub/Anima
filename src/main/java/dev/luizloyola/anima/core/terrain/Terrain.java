@@ -69,6 +69,76 @@ public final class Terrain {
                        int levelling, int trees, double cost) {
     }
 
+    /**
+     * A {@code width}×{@code depth} footprint with its north-west corner at {@code (minX, minZ)}.
+     *
+     * @param y         the mean ground height under it
+     * @param tilt      the fitted plane's rise per block
+     * @param levelling blocks to fill and cut to bring it level at {@code round(y)}
+     * @param trees     trunks standing inside it
+     */
+    public record Rect(int minX, int minZ, int width, int depth, double y, double tilt, int levelling,
+                       int trees) {
+    }
+
+    /**
+     * Every placement of one footprint size over the read, by its corner: which are allowed — every
+     * column known, dry and unused, the plane within a tilt — and what each would cost to level.
+     * Built once per size, so a chooser trying thousands of placements pays per placement only a
+     * table lookup.
+     */
+    public final class Rects {
+        private final Fits fits;
+
+        private Rects(Fits fits) {
+            this.fits = fits;
+        }
+
+        public int width() {
+            return this.fits.width;
+        }
+
+        public int depth() {
+            return this.fits.depth;
+        }
+
+        /** Whether the footprint with its corner at {@code (minX, minZ)} is allowed. */
+        public boolean allowed(int minX, int minZ) {
+            int at = this.fits.corner(minX - Terrain.this.minX, minZ - Terrain.this.minZ);
+            return at >= 0 && !Double.isNaN(this.fits.a[at]);
+        }
+
+        /**
+         * An order to shortlist by, not a count: the area times the root mean square of the heights
+         * about their mean, which is never less than the levelling about the mean. NaN where the
+         * footprint is not allowed.
+         */
+        public double estimate(int minX, int minZ) {
+            int at = this.fits.corner(minX - Terrain.this.minX, minZ - Terrain.this.minZ);
+            return at < 0 || Double.isNaN(this.fits.a[at]) ? Double.NaN
+                    : this.fits.spread[at] * this.fits.width * this.fits.depth;
+        }
+
+        /** The footprint counted block by block, or empty where it is not allowed. */
+        public Optional<Rect> fit(int minX, int minZ) {
+            int at = this.fits.corner(minX - Terrain.this.minX, minZ - Terrain.this.minZ);
+            if (at < 0 || Double.isNaN(this.fits.a[at])) {
+                return Optional.empty();
+            }
+            int levelling = 0;
+            long level = Math.round(this.fits.a[at]);
+            int row = at / this.fits.cols;
+            int col = at % this.fits.cols;
+            for (int v = 0; v < this.fits.depth; v++) {
+                for (int u = 0; u < this.fits.width; u++) {
+                    levelling += (int) Math.abs(Terrain.this.ground[(row + v) * Terrain.this.width + col + u] - level);
+                }
+            }
+            return Optional.of(new Rect(minX, minZ, this.fits.width, this.fits.depth, this.fits.a[at],
+                    Math.hypot(this.fits.b[at], this.fits.c[at]), levelling, this.fits.trees[at]));
+        }
+    }
+
     /** Sites {@link #sites()} returns; a chooser asks {@link #allowed} of every position instead. */
     private static final int MAX_SITES = 8;
 
@@ -91,6 +161,8 @@ public final class Terrain {
     private final int[] drops;
     private final Kind[] kinds;
     private final boolean[] cover;
+    private final boolean[] valid;
+    private final boolean[] standing;
     private final boolean[] flat;
     private final boolean[] lava;
     private final Fits fits;
@@ -98,7 +170,8 @@ public final class Terrain {
     private final List<Site> sites;
 
     private Terrain(int minX, int minZ, int width, int[] ground, int[] drops, Kind[] kinds,
-                    boolean[] cover, boolean[] flat, boolean[] lava, Fits fits, double treeCost,
+                    boolean[] cover, boolean[] valid, boolean[] standing, boolean[] flat,
+                    boolean[] lava, Fits fits, double treeCost,
                     List<Site> sites) {
         this.minX = minX;
         this.minZ = minZ;
@@ -107,6 +180,8 @@ public final class Terrain {
         this.drops = drops;
         this.kinds = kinds;
         this.cover = cover;
+        this.valid = valid;
+        this.standing = standing;
         this.flat = flat;
         this.lava = lava;
         this.fits = fits;
@@ -184,10 +259,11 @@ public final class Terrain {
                     : flat[i] ? Kind.FLAT
                     : Kind.UNEVEN;
         }
-        Fits fits = Fits.of(ground, valid, standing, w, d, rules);
+        Fits fits = Fits.of(ground, valid, standing, w, d, rules.footprint(), rules.footprint(),
+                rules.maxTilt());
         List<Site> sites = sites(fits, ground, w, rules, in.minX(), in.minZ());
-        return new Terrain(in.minX(), in.minZ(), w, ground, drops, kinds, cover, flat, lava, fits,
-                rules.treeCost(), sites);
+        return new Terrain(in.minX(), in.minZ(), w, ground, drops, kinds, cover, valid, standing, flat,
+                lava, fits, rules.treeCost(), sites);
     }
 
     /**
@@ -219,6 +295,19 @@ public final class Terrain {
     }
 
     /** The best sites, cheapest first, none overlapping another. */
+    /**
+     * Every placement of a {@code width}×{@code depth} footprint, refused where any column is
+     * unknown, fluid or used, or the ground's plane rises more than {@code maxTilt} a block —
+     * {@link Double#POSITIVE_INFINITY} for a caller that levels whatever it gets.
+     */
+    public Rects rects(int width, int depth, double maxTilt) {
+        if (width < 2 || depth < 2) {
+            throw new IllegalArgumentException("a footprint is at least 2×2: " + width + "×" + depth);
+        }
+        return new Rects(Fits.of(this.ground, this.valid, this.standing, this.width,
+                this.kinds.length / this.width, width, depth, maxTilt));
+    }
+
     public List<Site> sites() {
         return this.sites;
     }
@@ -270,7 +359,7 @@ public final class Terrain {
 
     /** The side of the footprints {@link #allowed} judges: the rules' site size. */
     public int footprint() {
-        return this.fits.size;
+        return this.fits.width;
     }
 
     public int count(Kind kind) {
@@ -504,21 +593,26 @@ public final class Terrain {
     /**
      * A plane {@code a + b·u + c·v} fitted to the ground under every footprint, by its top-left
      * cell, {@code u} and {@code v} measured from its centre; {@code a} is NaN where the footprint
-     * is refused. On a square the two axes are orthogonal, so the fit is three window sums and costs
-     * the same at every position.
+     * is refused. On a rectangle the two axes are orthogonal, so the fit is three window sums and
+     * costs the same at every position.
      */
     private static final class Fits {
-        final int size;
+        final int width;
+        final int depth;
         final int cols;
         final int rows;
         final double[] a;
         final double[] b;
         final double[] c;
+        /** The root mean square off the plane. */
         final double[] rms;
+        /** The root mean square off the mean: what levelling, not tilting, has to move. */
+        final double[] spread;
         final int[] trees;
 
-        private Fits(int size, int cols, int rows) {
-            this.size = size;
+        private Fits(int width, int depth, int cols, int rows) {
+            this.width = width;
+            this.depth = depth;
             this.cols = cols;
             this.rows = rows;
             int n = cols * rows;
@@ -526,20 +620,23 @@ public final class Terrain {
             this.b = new double[n];
             this.c = new double[n];
             this.rms = new double[n];
+            this.spread = new double[n];
             this.trees = new int[n];
         }
 
-        /** The footprint centred on this cell, or -1 where it would leave the read. */
+        /** The odd square footprint centred on this cell, or -1 where it would leave the read. */
         int at(int col, int row) {
-            int c0 = col - this.size / 2;
-            int r0 = row - this.size / 2;
+            return corner(col - this.width / 2, row - this.depth / 2);
+        }
+
+        /** The footprint with its top-left cell here, or -1 where it would leave the read. */
+        int corner(int c0, int r0) {
             return c0 < 0 || r0 < 0 || c0 >= this.cols || r0 >= this.rows ? -1 : r0 * this.cols + c0;
         }
 
-        static Fits of(int[] ground, boolean[] valid, boolean[] standing, int w, int d,
-                       TerrainRules rules) {
-            int f = rules.footprint();
-            Fits out = new Fits(f, Math.max(0, w - f + 1), Math.max(0, d - f + 1));
+        static Fits of(int[] ground, boolean[] valid, boolean[] standing, int w, int d, int fw, int fd,
+                       double maxTilt) {
+            Fits out = new Fits(fw, fd, Math.max(0, w - fw + 1), Math.max(0, d - fd + 1));
             if (out.cols == 0 || out.rows == 0) {
                 return out;
             }
@@ -567,31 +664,34 @@ public final class Terrain {
                     sTrees[s] = (trunk ? 1 : 0) + sTrees[s - 1] + sTrees[up] - sTrees[up - 1];
                 }
             }
-            double n = (double) f * f;
-            double u2 = f * ((double) f * f - 1) / 12.0 * f;
+            double n = (double) fw * fd;
+            // Σ(u − ū)² over the footprint, and the same along v.
+            double u2 = fd * fw * ((double) fw * fw - 1) / 12.0;
+            double v2 = fw * fd * ((double) fd * fd - 1) / 12.0;
             for (int row = 0; row < out.rows; row++) {
                 for (int col = 0; col < out.cols; col++) {
                     int at = row * out.cols + col;
-                    int r1 = row + f - 1;
-                    int c1 = col + f - 1;
+                    int r1 = row + fd - 1;
+                    int c1 = col + fw - 1;
                     out.a[at] = Double.NaN;
                     if (window(sBad, w, row, col, r1, c1) > 0) {
                         continue;
                     }
                     double sumG = window(sG, w, row, col, r1, c1);
-                    double cx = col + (f - 1) / 2.0;
-                    double cz = row + (f - 1) / 2.0;
+                    double cx = col + (fw - 1) / 2.0;
+                    double cz = row + (fd - 1) / 2.0;
                     double a = sumG / n;
                     double b = (window(sXG, w, row, col, r1, c1) - cx * sumG) / u2;
-                    double c = (window(sZG, w, row, col, r1, c1) - cz * sumG) / u2;
-                    if (Math.hypot(b, c) > rules.maxTilt()) {
+                    double c = (window(sZG, w, row, col, r1, c1) - cz * sumG) / v2;
+                    if (Math.hypot(b, c) > maxTilt) {
                         continue;
                     }
+                    double offMean = window(sGG, w, row, col, r1, c1) - n * a * a;
                     out.a[at] = a;
                     out.b[at] = b;
                     out.c[at] = c;
-                    out.rms[at] = Math.sqrt(Math.max(0,
-                            window(sGG, w, row, col, r1, c1) - n * a * a - (b * b + c * c) * u2) / n);
+                    out.rms[at] = Math.sqrt(Math.max(0, offMean - b * b * u2 - c * c * v2) / n);
+                    out.spread[at] = Math.sqrt(Math.max(0, offMean) / n);
                     out.trees[at] = (int) window(sTrees, w, row, col, r1, c1);
                 }
             }
@@ -602,7 +702,7 @@ public final class Terrain {
     /** The footprint at {@code at} in {@code fits}, its preparation counted block by block. */
     private static Site fit(Fits fits, int at, int[] ground, int w, double treeCost, int minX,
                             int minZ) {
-        int f = fits.size;
+        int f = fits.width;
         int row = at / fits.cols;
         int col = at % fits.cols;
         int preparation = 0;
@@ -629,7 +729,7 @@ public final class Terrain {
      */
     private static List<Site> sites(Fits fits, int[] ground, int w, TerrainRules rules, int minX,
                                     int minZ) {
-        int f = fits.size;
+        int f = fits.width;
         double n = (double) f * f;
         List<Integer> candidates = new ArrayList<>();
         double[] rank = new double[fits.a.length];

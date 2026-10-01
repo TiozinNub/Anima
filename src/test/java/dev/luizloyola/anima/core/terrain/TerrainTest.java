@@ -342,4 +342,64 @@ class TerrainTest {
         assertFalse(slope.allowed(f / 2, f / 2));
         assertTrue(analyse(sample(f, (x, z) -> LEVEL)).allowed(f / 2, f / 2));
     }
+
+    @Test
+    void aRectangleIsAskedByItsCorner() {
+        GroundSample sample = level();
+        sample.set(MID, MID, LEVEL - 1, GroundSample.FLUID);
+        Terrain.Rects house = analyse(sample).rects(9, 10, Double.POSITIVE_INFINITY);
+
+        assertEquals(9, house.width());
+        assertEquals(10, house.depth());
+        assertFalse(house.allowed(MID - 8, MID - 9), "its south-east corner on the water");
+        assertTrue(house.allowed(MID - 9, MID - 9), "one column west of it");
+        assertTrue(house.allowed(MID - 8, MID - 10), "one row north of it");
+        assertFalse(house.allowed(SIZE - 8, 0), "would leave the read");
+        assertTrue(house.allowed(SIZE - 9, SIZE - 10));
+        assertTrue(house.fit(MID - 8, MID - 9).isEmpty());
+        assertTrue(Double.isNaN(house.estimate(MID - 8, MID - 9)));
+    }
+
+    @Test
+    void aRectanglesTiltIsMeasuredAlongBothOfItsSides() {
+        // Were the two sides' sums swapped, a 9-wide, 10-deep rise of one a block would read
+        // anything but one.
+        Terrain alongX = analyse(sample(SIZE, (x, z) -> LEVEL + x));
+        Terrain alongZ = analyse(sample(SIZE, (x, z) -> LEVEL + z));
+
+        assertEquals(1.0, alongX.rects(9, 10, Double.POSITIVE_INFINITY).fit(5, 5).orElseThrow().tilt(), 1e-9);
+        assertEquals(1.0, alongZ.rects(9, 10, Double.POSITIVE_INFINITY).fit(5, 5).orElseThrow().tilt(), 1e-9);
+        assertFalse(alongX.rects(9, 10, 0.5).allowed(5, 5), "past the tilt it was asked for");
+    }
+
+    @Test
+    void aRectanglesLevellingIsCountedBlockByBlock() {
+        GroundSample sample = level();
+        for (int x = 12; x < 15; x++) {
+            for (int z = 12; z < 15; z++) {
+                sample.set(x, z, LEVEL + 2, 0); // a 3×3 mound, two high
+            }
+        }
+        Terrain.Rects house = analyse(sample).rects(9, 10, Double.POSITIVE_INFINITY);
+        Terrain.Rect fit = house.fit(10, 10).orElseThrow();
+
+        assertEquals(LEVEL + 0.2, fit.y(), 1e-9, "18 blocks over 90 columns");
+        assertEquals(18, fit.levelling(), "the mound cut down to the meadow");
+        assertTrue(house.estimate(10, 10) >= fit.levelling(), "the estimate never undercounts");
+        assertEquals(0, house.fit(25, 25).orElseThrow().levelling());
+    }
+
+    @Test
+    void aRectangleCountsATrunkOnce() {
+        GroundSample sample = level();
+        for (int x = 20; x <= 21; x++) {
+            for (int z = 20; z <= 21; z++) {
+                sample.set(x, z, LEVEL + 8, 0); // a 2×2 trunk
+            }
+        }
+        Terrain.Rect fit = analyse(sample).rects(9, 10, Double.POSITIVE_INFINITY).fit(16, 16).orElseThrow();
+
+        assertEquals(1, fit.trees());
+        assertEquals(0, fit.levelling(), "and reads the ground under it");
+    }
 }
