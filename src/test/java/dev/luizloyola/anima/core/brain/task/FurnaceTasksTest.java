@@ -75,6 +75,23 @@ class FurnaceTasksTest {
     }
 
     @Test
+    void aFurnaceFoundGoneIsStruckFromTheRecordOnlyByABodyBesideIt() {
+        Pos gone = new Pos(3, 64, 1);
+        ctx.claim(dev.luizloyola.anima.core.craft.Furnace.POI, gone);
+        TendFurnace tend = new TendFurnace(gone, null, LOGS, 16, PLANKS, 11);
+
+        ctx.percepts.position = new Pos(200, 64, 0);
+        assertEquals(TaskStatus.FAILED, run(tend, 10));
+        assertEquals(1, ctx.knowledge.places().all(dev.luizloyola.anima.core.craft.Furnace.POI).stream()
+                .filter(row -> row.at().equals(gone)).count(), "out of reach is not gone");
+
+        ctx.percepts.position = new Pos(0, 64, 0);
+        assertEquals(TaskStatus.FAILED, run(new TendFurnace(gone, null, LOGS, 16, PLANKS, 11), 10));
+        assertTrue(ctx.knowledge.places().all(dev.luizloyola.anima.core.craft.Furnace.POI).stream()
+                .noneMatch(row -> row.at().equals(gone)), "beside it and none there: struck");
+    }
+
+    @Test
     void theLoadGoesInTheInputAndTheFuelInTheFuel() {
         ctx.percepts.inventory.set(0, ItemStack.of("minecraft:oak_log", 16, 64));
         ctx.percepts.inventory.set(1, ItemStack.of("minecraft:oak_planks", 11, 64));

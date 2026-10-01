@@ -58,6 +58,12 @@ public final class TendFurnace implements PrimitiveTask {
         FurnaceAccess furnace = ctx.actuators().furnaces();
         if (pause.idle()) {
             if (furnace.read(at).isEmpty()) {
+                // Standing at it and finding none, the body corrects the party's record: kept, a
+                // broken furnace was loaded and failed 140 times and never set up again (2026-10-01).
+                if (dev.luizloyola.anima.core.craft.Workbench.distance(ctx.percepts().position(), at)
+                        <= Furnace.REACH) {
+                    ctx.knowledge().disprove(Furnace.POI, at);
+                }
                 failure = "no furnace to reach";
                 return TaskStatus.FAILED;
             }
