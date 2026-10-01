@@ -2,12 +2,16 @@ package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.compat.agent.Arms;
 import dev.luizloyola.anima.core.brain.act.Hand;
+import dev.luizloyola.anima.core.brain.act.Placing;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.nav.Doorways;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -41,6 +45,21 @@ public final class AgentHand implements Hand {
         }
         Arms.swingToInteract(person.entity(), InteractionHand.MAIN_HAND);
         return true;
+    }
+
+    /**
+     * So far a click with the cell's own block, which places it again where vanilla counts it — a
+     * fourth snow layer, a third candle. Every other use of an item waits for its ruling (builder
+     * spec, 15 and 17) and changes nothing.
+     */
+    @Override
+    public boolean use(String itemId, Pos cell) {
+        Identifier id = Identifier.tryParse(itemId);
+        if (id == null || !(BuiltInRegistries.ITEM.getValue(id) instanceof BlockItem item)
+                || !person.level().getBlockState(new BlockPos(cell.x(), cell.y(), cell.z())).is(item.getBlock())) {
+            return false;
+        }
+        return new AgentBlockPlacer(person).place(Placing.of(itemId, cell));
     }
 
     @Override

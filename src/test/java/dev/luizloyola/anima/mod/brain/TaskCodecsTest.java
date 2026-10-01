@@ -86,6 +86,23 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aUseWithAnItemComesBackHoldingIt() {
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.UseBlock.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.UseBlock("minecraft:snow", 4, 70, -2)));
+        assertEquals("minecraft:snow", after.itemId());
+        assertEquals("", assertInstanceOf(dev.luizloyola.anima.core.brain.task.UseBlock.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.UseBlock(4, 70, -2))).itemId());
+    }
+
+    @Test
+    void aSweepOfAnythingComesBackAsAnything() {
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.GatherNearbyDrops.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.GatherNearbyDrops(
+                        dev.luizloyola.anima.core.inv.ItemSpec.ANYTHING)));
+        assertEquals(dev.luizloyola.anima.core.inv.ItemSpec.ANYTHING, after.spec());
+    }
+
+    @Test
     void aWalkComesBackWithItsDestination() {
         GoTo before = new GoTo(12, -60, -34);
         GoTo after = assertInstanceOf(GoTo.class, roundTrip(before));

@@ -16,6 +16,14 @@ public interface Hand {
     boolean use(Pos target);
 
     /**
+     * Use the block at the cell with a carried {@code itemId} in hand — a player's click holding it.
+     * True exactly when the world changed; not carried, or out of reach, changes nothing.
+     */
+    default boolean use(String itemId, Pos target) {
+        return false;
+    }
+
+    /**
      * Shut the door, gate or hatch whose lowest cell is {@code door}: by hand, or by the lever that
      * holds an iron door open. True when it stands shut afterwards, whether it was already; false
      * out of reach, with no door there, or with one this body cannot shut.

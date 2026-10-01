@@ -777,6 +777,25 @@ public final class AgentCommands {
     }
 
     /**
+     * {@code brain use <pos> [item]}: a click on the block, with the empty hand or holding a carried
+     * item. Mounted beside {@link #brain()} with {@link #place}.
+     */
+    public static LiteralArgumentBuilder<CommandSourceStack> use(CommandBuildContext registryAccess) {
+        return Commands.literal("use")
+                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                        .executes(ctx -> brainUse(ctx, BlockPosArgument.getLoadedBlockPos(ctx, "pos"), ""))
+                        .then(Commands.argument("item", ItemArgument.item(registryAccess))
+                                .executes(ctx -> brainUse(ctx, BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+                                        ItemStacks.templateOf(ItemArgument.getItem(ctx, "item"),
+                                                ctx.getSource().registryAccess()).id()))));
+    }
+
+    /** {@code brain gather}: walk over every drop in sight, of anything, and pick it up. */
+    public static LiteralArgumentBuilder<CommandSourceStack> gather() {
+        return Commands.literal("gather").executes(AgentCommands::brainGather);
+    }
+
+    /**
      * Forward the resolved agent's thoughts to chat.
      *
      * <p>A factory, not a cached node: Brigadier parents a builder when it is registered,
@@ -1624,6 +1643,30 @@ public final class AgentCommands {
         Replies.send(source, () -> Component.translatable("anima.command.state",
                 person.entity().getName(), person.brain().describe())
                 .append(suffix).withStyle(ChatFormatting.AQUA));
+        return 1;
+    }
+
+    private static int brainUse(CommandContext<CommandSourceStack> ctx, BlockPos pos, String itemId) {
+        return runTask(ctx, new dev.luizloyola.anima.core.brain.task.UseBlock(itemId, pos.getX(), pos.getY(), pos.getZ()),
+                "given a block to use at " + pos.toShortString() + (itemId.isEmpty() ? "" : " with " + itemId));
+    }
+
+    private static int brainGather(CommandContext<CommandSourceStack> ctx) {
+        return runTask(ctx, new dev.luizloyola.anima.core.brain.task.GatherNearbyDrops(
+                dev.luizloyola.anima.core.inv.ItemSpec.ANYTHING), "told to gather what lies in sight");
+    }
+
+    /** Hands the resolved Person a task, as {@code brain break} does, and says what it is doing. */
+    private static int runTask(CommandContext<CommandSourceStack> ctx,
+                               dev.luizloyola.anima.core.brain.task.Task task, String journal) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        boolean autoDisabled = person.brain().run(task);
+        OpJournal.record(source, person.agentId(), journal + (autoDisabled ? ", autonomy off" : ""));
+        Replies.send(source, () -> Component.translatable("anima.command.state",
+                person.entity().getName(), person.brain().describe())
+                .append(autoDisabledNote(autoDisabled)).withStyle(ChatFormatting.AQUA));
         return 1;
     }
 

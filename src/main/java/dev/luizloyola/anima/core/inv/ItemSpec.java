@@ -19,6 +19,9 @@ public record ItemSpec(String name, Predicate<String> matcher) {
     /** Canonical instances by name — see {@link #register}. */
     private static final Map<String, ItemSpec> REGISTERED = new ConcurrentHashMap<>();
 
+    /** Every item: what a sweep of stray drops picks up. */
+    public static final ItemSpec ANYTHING = register(new ItemSpec("anything", id -> true));
+
     /**
      * Declares a class of items so a plan holding one can be written down.
      *

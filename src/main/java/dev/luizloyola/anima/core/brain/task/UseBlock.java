@@ -6,16 +6,24 @@ import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 
 /**
- * Use the block at a cell with the empty hand ({@link dev.luizloyola.anima.core.brain.act.Hand}):
+ * Use the block at a cell with the empty hand, or with an item carried
+ * ({@link dev.luizloyola.anima.core.brain.act.Hand}):
  * look at it, one handling beat, then the use. SUCCEEDS when the world changed and FAILS when it did
  * not — out of reach, or nothing there any more to use — so a plan built on an old look finds out.
  */
 public final class UseBlock implements PrimitiveTask {
 
     private final Pos target;
+    /** Empty for the empty hand. */
+    private final String itemId;
     private final Pause pause = new Pause();
 
     public UseBlock(int x, int y, int z) {
+        this("", x, y, z);
+    }
+
+    public UseBlock(String itemId, int x, int y, int z) {
+        this.itemId = itemId;
         this.target = new Pos(x, y, z);
     }
 
@@ -29,7 +37,9 @@ public final class UseBlock implements PrimitiveTask {
         if (!pause.elapsed()) {
             return TaskStatus.RUNNING;
         }
-        return ctx.actuators().hand().use(target) ? TaskStatus.SUCCESS : TaskStatus.FAILED;
+        boolean changed = itemId.isEmpty() ? ctx.actuators().hand().use(target)
+                : ctx.actuators().hand().use(itemId, target);
+        return changed ? TaskStatus.SUCCESS : TaskStatus.FAILED;
     }
 
     @Override
@@ -39,11 +49,16 @@ public final class UseBlock implements PrimitiveTask {
 
     @Override
     public String describe() {
-        return "use (" + target.x() + ", " + target.y() + ", " + target.z() + ")";
+        return "use (" + target.x() + ", " + target.y() + ", " + target.z() + ")"
+                + (itemId.isEmpty() ? "" : " with " + itemId);
     }
 
     public Pos target() {
         return target;
+    }
+
+    public String itemId() {
+        return itemId;
     }
 
     public int pauseTicks() {
