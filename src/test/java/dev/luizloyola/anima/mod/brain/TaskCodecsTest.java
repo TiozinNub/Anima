@@ -234,6 +234,25 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aPlaceFromComesBackWithItsStandAndTheCellsItAlsoFills() {
+        var before = new dev.luizloyola.anima.core.brain.task.PlaceFrom(
+                new dev.luizloyola.anima.core.brain.act.Placing("minecraft:oak_door", new Pos(3, 65, -7),
+                        "", java.util.Map.of("facing", "south", "hinge", "left")),
+                java.util.List.of(new Pos(3, 66, -7)), new Pos(3, 65, -5), true);
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PlaceFrom.class, roundTrip(before));
+        assertEquals(before.placing(), after.placing());
+        assertEquals(before.also(), after.also());
+        assertEquals(before.stand(), after.stand());
+        assertTrue(after.clearing());
+
+        var bare = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PlaceFrom.class, roundTrip(
+                new dev.luizloyola.anima.core.brain.task.PlaceFrom(
+                        dev.luizloyola.anima.core.brain.act.Placing.of("minecraft:dirt", new Pos(1, 2, 3)),
+                        java.util.List.of(), null, false)));
+        assertTrue(bare.stand().isEmpty());
+    }
+
+    @Test
     void aPlaceSavedBeforeItHadAnOrientationStillLoads() {
         var saved = com.google.gson.JsonParser.parseString(
                 "{\"task\":\"anima:place\",\"item\":\"minecraft:dirt\",\"at\":{\"x\":1,\"y\":2,\"z\":3}}");

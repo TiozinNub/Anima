@@ -31,6 +31,7 @@ import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.social.speech.Speech;
 import net.minecraft.core.UUIDUtil;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -405,7 +406,24 @@ public final class AnimaTasks {
                 ).apply(t, (item, at, block, state) -> new dev.luizloyola.anima.core.brain.task.PlaceBlock(
                         new dev.luizloyola.anima.core.brain.act.Placing(item, at, block, state)))));
 
-        TaskCodecs.register("anima:note_place", dev.luizloyola.anima.core.brain.task.NotePlace.class,
+        TaskCodecs.register("anima:place_from", dev.luizloyola.anima.core.brain.task.PlaceFrom.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        Codec.STRING.fieldOf("item").forGetter(p -> p.placing().itemId()),
+                        POS.fieldOf("at").forGetter(p -> p.placing().cell()),
+                        Codec.STRING.optionalFieldOf("block", "").forGetter(p -> p.placing().block()),
+                        Codec.unboundedMap(Codec.STRING, Codec.STRING).optionalFieldOf("state", Map.of())
+                                .forGetter(p -> p.placing().state()),
+                        POS.listOf().optionalFieldOf("also", List.of())
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::also),
+                        POS.optionalFieldOf("stand").forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::stand),
+                        Codec.BOOL.optionalFieldOf("clearing", false)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::clearing)
+                ).apply(t, (item, at, block, state, also, stand, clearing) ->
+                        new dev.luizloyola.anima.core.brain.task.PlaceFrom(
+                                new dev.luizloyola.anima.core.brain.act.Placing(item, at, block, state), also,
+                                stand.orElse(null), clearing))));
+
+        TaskCodecs.register("anima:note_place",dev.luizloyola.anima.core.brain.task.NotePlace.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         POI_KIND.fieldOf("kind")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.NotePlace::kind),

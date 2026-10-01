@@ -12,6 +12,7 @@ import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.nav.NavGrids;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -253,5 +254,57 @@ class StandingTest {
         // The window is the caller's, not the terrain's: the same column with a wider reach comes
         // up out of the mountain.
         assertEquals(Optional.of(new Pos(1, 9, 0)), Standing.spot(mountain, PERSON, 1, 0, 4, 5));
+    }
+
+    private static final String[] FLAT = {"111111111", "111111111", "111111111", "111111111", "111111111",
+            "111111111", "111111111", "111111111", "111111111"};
+
+    @Test
+    void theStandAPlanChoseIsKeptWhenItReaches() {
+        AsciiWorld flat = AsciiWorld.of(FLAT);
+        Pos planned = new Pos(3, 1, 4);
+
+        assertEquals(Optional.of(planned),
+                Standing.reaching(flat, PERSON, new Pos(6, 1, 4), Set.of(), planned, PlaceFrom.REACH));
+    }
+
+    @Test
+    void whenTheWorldDisagreesTheNearestStandThatReachesIsTaken() {
+        // Something stands where the plan stood: a stand beside it, still in reach of the cell.
+        AsciiWorld walled = AsciiWorld.of(FLAT).fill(3, 1, 4, 3, 3, 4, CellType.OBSTACLE);
+        Pos planned = new Pos(3, 1, 4);
+        Pos cell = new Pos(6, 1, 4);
+
+        Pos taken = Standing.reaching(walled, PERSON, cell, Set.of(), planned, PlaceFrom.REACH).orElseThrow();
+
+        int dx = taken.x() - planned.x();
+        int dy = taken.y() - planned.y();
+        int dz = taken.z() - planned.z();
+        assertEquals(1, dx * dx + dy * dy + dz * dz, "one step from the planned stand, not " + taken);
+        assertTrue(Standing.reaches(walled, PERSON, taken, cell, Set.of(), PlaceFrom.REACH));
+    }
+
+    @Test
+    void aStandIsNeverInTheCellsTheWorkFills() {
+        AsciiWorld flat = AsciiWorld.of(FLAT);
+        Pos cell = new Pos(4, 1, 4);
+        Pos upper = new Pos(4, 2, 4);
+
+        // Planned inside the door's own cell, and once under its upper half.
+        Pos taken = Standing.reaching(flat, PERSON, cell, Set.of(upper), cell, PlaceFrom.REACH).orElseThrow();
+        assertFalse(taken.x() == 4 && taken.z() == 4, "stood in its own work at " + taken);
+        assertFalse(Standing.reaches(flat, PERSON, new Pos(4, 1, 4), new Pos(4, 3, 4), Set.of(upper),
+                PlaceFrom.REACH), "its head would be in the upper half");
+    }
+
+    @Test
+    void aCellOutOfReachFromAnyFootingHasNoStand() {
+        AsciiWorld flat = AsciiWorld.of(FLAT);
+
+        // The eye stands at 2.62; the middle of y 8 is 5.88 over it.
+        assertEquals(Optional.empty(),
+                Standing.reaching(flat, PERSON, new Pos(4, 8, 4), Set.of(), new Pos(4, 1, 4), PlaceFrom.REACH));
+        assertTrue(Standing.reaching(flat, PERSON, new Pos(4, 6, 4), Set.of(), new Pos(4, 1, 4),
+                PlaceFrom.REACH).isPresent(), "and y 6 is in reach, so the refusal is the height's");
     }
 }

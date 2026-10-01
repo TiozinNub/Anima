@@ -6,6 +6,7 @@ import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.nav.NavGrids;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Where a body could stand and stay — what a drive picking somewhere to <em>be</em> must settle
@@ -76,5 +77,68 @@ public final class Standing {
             }
         }
         return Optional.empty();
+    }
+
+    /** A body's eye over its feet, as a share of its height: 1.62 on a Person's 1.8. */
+    public static final double EYE = 0.9;
+
+    /**
+     * Where this body could stand to reach the middle of {@code cell} from its eye: {@code preferred}
+     * when that works, else the cell nearest it that does, the lower first at a tie. Never inside
+     * {@code cell} or {@code also}, the other cells the work fills. Empty when nowhere in reach
+     * works.
+     */
+    public static Optional<Pos> reaching(NavGrid grid, MoveCapabilities body, Pos cell, Set<Pos> also,
+            Pos preferred, double reach) {
+        double eye = body.height() * EYE;
+        if (preferred != null && reaches(grid, body, preferred, cell, also, eye, reach)) {
+            return Optional.of(preferred);
+        }
+        Pos from = preferred != null ? preferred : cell;
+        int span = (int) Math.ceil(reach);
+        int below = (int) Math.ceil(reach + eye);
+        Pos best = null;
+        long bestDistance = Long.MAX_VALUE;
+        for (int y = cell.y() - below; y <= cell.y() + span; y++) {
+            for (int z = cell.z() - span; z <= cell.z() + span; z++) {
+                for (int x = cell.x() - span; x <= cell.x() + span; x++) {
+                    Pos stand = new Pos(x, y, z);
+                    long dx = x - from.x();
+                    long dy = y - from.y();
+                    long dz = z - from.z();
+                    long distance = dx * dx + dy * dy + dz * dz;
+                    if ((distance < bestDistance || distance == bestDistance && y < best.y())
+                            && reaches(grid, body, stand, cell, also, eye, reach)) {
+                        best = stand;
+                        bestDistance = distance;
+                    }
+                }
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    /** Whether this body standing at {@code stand} reaches {@code cell} — see {@link #reaching}. */
+    public static boolean reaches(NavGrid grid, MoveCapabilities body, Pos stand, Pos cell, Set<Pos> also,
+            double reach) {
+        return reaches(grid, body, stand, cell, also, body.height() * EYE, reach);
+    }
+
+    private static boolean reaches(NavGrid grid, MoveCapabilities body, Pos stand, Pos cell, Set<Pos> also,
+            double eye, double reach) {
+        double dx = cell.x() - stand.x();
+        double dy = cell.y() + 0.5 - (stand.y() + eye);
+        double dz = cell.z() - stand.z();
+        if (dx * dx + dy * dy + dz * dz > reach * reach) {
+            return false;
+        }
+        int top = (int) Math.ceil(body.height()) - 1;
+        for (int up = 0; up <= top; up++) {
+            Pos taken = new Pos(stand.x(), stand.y() + up, stand.z());
+            if (taken.equals(cell) || also.contains(taken)) {
+                return false;
+            }
+        }
+        return standable(grid, body, stand.x(), stand.y(), stand.z());
     }
 }
