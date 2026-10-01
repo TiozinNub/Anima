@@ -245,6 +245,12 @@ class TaskCodecsTest {
         assertEquals(before.stand(), after.stand());
         assertTrue(after.clearing());
 
+        var midway = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PlaceFrom.class, roundTrip(
+                new dev.luizloyola.anima.core.brain.task.PlaceFrom(before.placing(), before.also(),
+                        new Pos(3, 65, -5), true, new Pos(2, 65, -4), java.util.List.of(new Pos(3, 65, -5)))));
+        assertEquals(java.util.Optional.of(new Pos(2, 65, -4)), midway.chosen());
+        assertEquals(java.util.List.of(new Pos(3, 65, -5)), midway.walkedOff());
+
         var bare = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PlaceFrom.class, roundTrip(
                 new dev.luizloyola.anima.core.brain.task.PlaceFrom(
                         dev.luizloyola.anima.core.brain.act.Placing.of("minecraft:dirt", new Pos(1, 2, 3)),

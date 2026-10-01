@@ -419,11 +419,14 @@ public final class AnimaTasks {
                                 .forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::also),
                         POS.optionalFieldOf("stand").forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::stand),
                         Codec.BOOL.optionalFieldOf("clearing", false)
-                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::clearing)
-                ).apply(t, (item, at, block, state, also, stand, clearing) ->
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::clearing),
+                        POS.optionalFieldOf("chosen").forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::chosen),
+                        POS.listOf().optionalFieldOf("walked_off", List.of())
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::walkedOff)
+                ).apply(t, (item, at, block, state, also, stand, clearing, chosen, walkedOff) ->
                         new dev.luizloyola.anima.core.brain.task.PlaceFrom(
                                 new dev.luizloyola.anima.core.brain.act.Placing(item, at, block, state), also,
-                                stand.orElse(null), clearing))));
+                                stand.orElse(null), clearing, chosen.orElse(null), walkedOff))));
 
         TaskCodecs.register("anima:place_why_not", dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

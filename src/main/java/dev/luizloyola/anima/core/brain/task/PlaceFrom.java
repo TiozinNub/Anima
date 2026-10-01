@@ -9,6 +9,7 @@ import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -31,23 +32,48 @@ public final class PlaceFrom implements CompoundTask {
     /** The placer's: from the eye to the middle of the cell. */
     public static final double REACH = 4.5;
 
+    /**
+     * How near a stand must be, its cell's middle to the cell's: the placer's reach less half a
+     * block, for the body never stands on its cell's middle and the placer measures from its eye.
+     * Stands chosen at the full 4.5 were refused from 4.27 on (2026-10-01 probe).
+     */
+    public static final double STAND_REACH = REACH - 0.5;
+
     private final Placing placing;
     private final List<Pos> also;
     private final @Nullable Pos stand;
     private final boolean clearing;
-    private final List<Method> methods = List.of(new WalkAndPlace(), new SayWhyNot());
-    /** The stand the last decomposition walked to; not saved, as only the journal line reads it. */
+    private final List<Method> methods = List.of(new WalkAndPlace(false), new WalkAndPlace(true), new SayWhyNot());
+    /** The stand the last decomposition walked to. */
     private @Nullable Pos chosen;
+    /** Stands a walk did not get to: never chosen again for this block. */
+    private final Set<Pos> walkedOff = new LinkedHashSet<>();
 
     /**
      * @param also     the other cells the block fills — a door's upper half, a bed's head
      * @param stand    where a plan would stand, tried before any other; null for none
      */
     public PlaceFrom(Placing placing, List<Pos> also, @Nullable Pos stand, boolean clearing) {
+        this(placing, also, stand, clearing, null, List.of());
+    }
+
+    /** One restored mid-way: the stand last walked to, and those a walk did not get to. */
+    public PlaceFrom(Placing placing, List<Pos> also, @Nullable Pos stand, boolean clearing, @Nullable Pos chosen,
+            List<Pos> walkedOff) {
         this.placing = placing;
         this.also = List.copyOf(also);
         this.stand = stand;
         this.clearing = clearing;
+        this.chosen = chosen;
+        this.walkedOff.addAll(walkedOff);
+    }
+
+    public Optional<Pos> chosen() {
+        return Optional.ofNullable(chosen);
+    }
+
+    public List<Pos> walkedOff() {
+        return List.copyOf(walkedOff);
     }
 
     public Placing placing() {
@@ -83,35 +109,62 @@ public final class PlaceFrom implements CompoundTask {
 
     /**
      * Where to stand, never where another body stands, or under its head: a second builder on the
-     * same site keeps its own stand.
+     * same site keeps its own stand. Nor where a walk did not get to.
      */
     private Optional<Pos> standFor(BrainContext ctx) {
         MoveCapabilities body = MoveCapabilities.of(ctx.profile());
         Set<Pos> others = new HashSet<>(also);
+        others.addAll(walkedOff);
         for (Being being : ctx.percepts().beings()) {
             others.add(being.pos());
             others.add(new Pos(being.pos().x(), being.pos().y() + 1, being.pos().z()));
         }
         Pos here = ctx.percepts().position();
-        if (Standing.reaches(ctx.percepts().terrain(), body, here, placing.cell(), others, REACH)) {
+        if (Standing.reaches(ctx.percepts().terrain(), body, here, placing.cell(), others, STAND_REACH)) {
             return Optional.of(here);
         }
-        return Standing.reaching(ctx.percepts().terrain(), body, placing.cell(), others, stand, REACH);
+        return Standing.reaching(ctx.percepts().terrain(), body, placing.cell(), others, stand, STAND_REACH);
     }
 
+    /** After a walk that did not get to its stand, that stand is off the list. */
+    private void noteWalk(BrainContext ctx) {
+        if (chosen != null && !chosen.equals(ctx.percepts().position())) {
+            walkedOff.add(chosen);
+        }
+    }
+
+    /**
+     * Walk to a stand and place. {@code again} is the second try after a walk that did not get
+     * there: another stand, the nearest still on the list.
+     */
     private final class WalkAndPlace implements Method {
+        private final boolean again;
+
+        WalkAndPlace(boolean again) {
+            this.again = again;
+        }
+
         @Override
         public boolean applicable(BrainContext ctx) {
+            if (again) {
+                if (chosen == null || chosen.equals(ctx.percepts().position())) {
+                    return false;
+                }
+                noteWalk(ctx);
+            }
             return standFor(ctx).isPresent();
         }
 
         @Override
         public double estimateCost(BrainContext ctx) {
-            return 0.0;
+            return again ? 0.5 : 0.0;
         }
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
+            if (again) {
+                noteWalk(ctx);
+            }
             List<Task> steps = new ArrayList<>();
             Pos at = standFor(ctx).orElseThrow();
             chosen = at;
@@ -136,7 +189,7 @@ public final class PlaceFrom implements CompoundTask {
 
         @Override
         public String describe() {
-            return "walk to a stand that reaches, then place";
+            return again ? "walk to another stand, then place" : "walk to a stand that reaches, then place";
         }
     }
 
@@ -154,6 +207,7 @@ public final class PlaceFrom implements CompoundTask {
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
+            noteWalk(ctx);
             return List.of(new WhyNot(placing, stand, chosen));
         }
 

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.brain.act.Placing;
 import dev.luizloyola.anima.core.brain.sense.Being;
@@ -47,7 +48,7 @@ class PlaceFromTest {
 
     /** Runs the last way, as the executor does once walking and placing have failed. */
     private static String whyNot(PlaceFrom place, FakeContext ctx) {
-        Task why = place.methods().get(1).decompose(ctx).get(0);
+        Task why = place.methods().get(2).decompose(ctx).get(0);
         PlaceFrom.WhyNot whyNot = assertInstanceOf(PlaceFrom.WhyNot.class, why);
         assertEquals(TaskStatus.FAILED, whyNot.tick(ctx));
         return whyNot.failureDetail();
@@ -77,5 +78,44 @@ class PlaceFromTest {
         place.methods().get(0).decompose(ctx);
         ctx.percepts.position = PLANNED;
         assertEquals("the placer refused it from (5, 64, 0)", whyNot(place, ctx));
+    }
+
+    private static double reach(Pos stand, Pos cell) {
+        double dx = cell.x() - stand.x();
+        double dy = cell.y() + 0.5 - (stand.y() + Being.HUMANOID_EYE_HEIGHT);
+        double dz = cell.z() - stand.z();
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    @Test
+    void aStandAtTheEdgeOfReachIsNotTaken() {
+        // 4.15 from the cell: inside the placer's 4.5, outside it for a body off its cell's middle.
+        Pos edge = new Pos(4, 64, 0);
+        PlaceFrom place = new PlaceFrom(PLANKS, List.of(), edge, false);
+        GoTo walk = assertInstanceOf(GoTo.class, place.methods().get(0).decompose(new FakeContext()).get(0));
+        Pos to = new Pos(walk.x(), walk.y(), walk.z());
+        assertNotEquals(edge, to);
+        assertTrue(reach(to, PLANKS.cell()) <= PlaceFrom.STAND_REACH, to + " is " + reach(to, PLANKS.cell()));
+    }
+
+    @Test
+    void aStandTheWalkDidNotGetToIsNotChosenAgain() {
+        FakeContext ctx = new FakeContext();
+        PlaceFrom place = new PlaceFrom(PLANKS, List.of(), PLANNED, false);
+        place.methods().get(0).decompose(ctx);
+        // The body is still where it began: the walk did not get there.
+        assertTrue(place.methods().get(1).applicable(ctx));
+        GoTo again = assertInstanceOf(GoTo.class, place.methods().get(1).decompose(ctx).get(0));
+        assertNotEquals(PLANNED, new Pos(again.x(), again.y(), again.z()));
+        assertEquals(List.of(PLANNED), place.walkedOff());
+    }
+
+    @Test
+    void anotherStandIsOnlyForAWalkThatFailed() {
+        FakeContext ctx = new FakeContext();
+        PlaceFrom place = new PlaceFrom(PLANKS, List.of(), PLANNED, false);
+        place.methods().get(0).decompose(ctx);
+        ctx.percepts.position = PLANNED;
+        assertFalse(place.methods().get(1).applicable(ctx), "at the stand, the placer refused: no other walk");
     }
 }
