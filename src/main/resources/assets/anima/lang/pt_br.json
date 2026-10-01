@@ -101,6 +101,8 @@
   "anima.config.option.territory.margin.desc": "Chunks reivindicados em volta da área de uma construção quando a área de um grupo cresce para recebê-la, para que a próxima construção tenha espaço. 0 reivindica só a área da construção.",
   "anima.config.option.territory.log_kept": "Reivindicações guardadas por grupo",
   "anima.config.option.territory.log_kept.desc": "Reivindicações e recusas guardadas por grupo no save, para /anima territory log. O territory.log do mundo e o diário de cada membro guardam todas.",
+  "anima.config.option.territory.opac": "Mostrar áreas no Open Parties and Claims",
+  "anima.config.option.territory.opac.desc": "Com o Open Parties and Claims instalado, mostra a área de cada grupo como reivindicações dele, que os mapas do Xaero desenham, e trata um chunk que um jogador reivindicou como ocupado. As reivindicações não protegem nada. Lido quando o servidor inicia.",
   "anima.config.category.webdebug": "Depurador web",
   "anima.config.option.webdebug.enabled": "Iniciar junto com o mundo",
   "anima.config.option.webdebug.enabled.desc": "Inicia o depurador web automaticamente sempre que um mundo é carregado. Isto é só o interruptor de início automático — /anima webdebug start o executa por uma sessão independentemente disto. É uma ferramenta de desenvolvimento: mostra a mente de cada agente e seus botões os comandam.",

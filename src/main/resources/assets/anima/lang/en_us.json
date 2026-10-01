@@ -93,6 +93,8 @@
   "anima.config.option.territory.margin.desc": "Chunks claimed round a building's footprint when a party's area grows to take it, so the next building has room. 0 claims the footprint alone.",
   "anima.config.option.territory.log_kept": "Claims kept per party",
   "anima.config.option.territory.log_kept.desc": "Claims and refusals kept per party in the save, for /anima territory log. The world's territory.log and each member's journal keep them all.",
+  "anima.config.option.territory.opac": "Show areas in Open Parties and Claims",
+  "anima.config.option.territory.opac.desc": "With Open Parties and Claims installed, show every party's area as its claims, which Xaero's maps draw, and treat a chunk a player has claimed as taken. The claims protect nothing. Read when the server starts.",
   "anima.config.category.webdebug": "Web debugger",
   "anima.config.option.webdebug.enabled": "Start with the world",
   "anima.config.option.webdebug.enabled.desc": "Start the web debugger automatically whenever a world loads. This is the auto-start switch only — /anima webdebug start runs it for one session whatever this says. A development tool: it shows every agent's mind and its buttons command them.",

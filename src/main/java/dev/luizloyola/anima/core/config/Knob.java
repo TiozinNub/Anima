@@ -247,6 +247,10 @@ public enum Knob implements KnobSpec {
     TERRITORY_LOG_KEPT("territory.log_kept", Kind.INT, 64, 1, 4096,
             "Claims and refusals kept per party in the save, for /anima territory log. The world's "
                     + "territory.log and each member's journal keep them all."),
+    TERRITORY_OPAC("territory.opac", Kind.BOOL, 1, 0, 1,
+            "With Open Parties and Claims installed, show every party's area as its claims, which "
+                    + "Xaero's maps draw, and treat a chunk a player has claimed as taken. The claims "
+                    + "protect nothing. Read when the server starts."),
 
     // --- webdebug: the browser debug UI, off unless asked for -----------------------------
 

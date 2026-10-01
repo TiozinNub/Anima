@@ -154,9 +154,14 @@ lines = [
 ]
 summary = f"snapshot node: Minecraft {mc} ({semver}), Fabric API {fapi}, Java {java}"
 
+# OPAC publishes to its own maven, not Modrinth, and a line's first build comes weeks after
+# Mojang's: compile against the newest committed target's artifact, as a neighbour's jar.
+opac_mc = committed_pin("deps.opac_mc")
+
 lines += [
     f'deps.yacl = "{yacl}"' + (f"  # {yacl_note}" if yacl_note else ""),
     f'deps.modmenu = "{modmenu}"' + (f"  # {modmenu_note}" if modmenu_note else ""),
+    f'deps.opac_mc = "{opac_mc}"  # the newest committed target\'s; OPAC trails Mojang',
 ]
 summary += f", YACL {yacl}, Mod Menu {modmenu}"
 

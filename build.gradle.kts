@@ -110,6 +110,8 @@ repositories {
     // Modrinth: pin per node against this repository's maven-metadata.xml, not against what
     // Modrinth lists.
     strictMaven("https://maven.isxander.dev/releases", "Xander", "dev.isxander")
+    // Open Parties and Claims — optional, compile-only (see mod/territory/OpacBridge).
+    strictMaven("https://chocolateminecraft.com/maven", "Xaero", "xaero.pac")
 }
 
 dependencies {
@@ -166,6 +168,14 @@ dependencies {
     // run it — at runtime the real YACL brings its own nested copies.
     modCompileOnly("dev.isxander:yet-another-config-lib:$yacl") { isTransitive = false }
     modCompileOnly("maven.modrinth:modmenu:$modMenu")
+
+    // Open Parties and Claims: when a server runs it, every party's area is mirrored into it as
+    // server claims, which Xaero's maps then draw (docs/superpowers/specs/2026-10-01-home-area-
+    // design.md). Compile-only and never shipped; the bridge is reached only behind isModLoaded.
+    // isTransitive=false: its POM pulls Forge Config API Port from a maven we do not otherwise need.
+    val opac: String = sc.properties["deps.opac"]
+    val opacMc: String = sc.properties["deps.opac_mc"]
+    modCompileOnly("xaero.pac:open-parties-and-claims-fabric-$opacMc:$opac") { isTransitive = false }
 
     // core/-layer unit tests: plain JUnit, headless — no Minecraft on the test classpath.
     // The fixtures are pure core (no Minecraft), but they use the nullness annotations that

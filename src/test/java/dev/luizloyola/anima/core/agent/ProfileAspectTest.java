@@ -95,6 +95,7 @@ class ProfileAspectTest {
             // two species growing by different margins would each claim by the other's rule.
             Knob.TERRITORY_MARGIN,
             Knob.TERRITORY_LOG_KEPT,
+            Knob.TERRITORY_OPAC,
             // A socket, a port and a URL. Nothing about a mind at all: the dashboard watches every
             // species at once and there is one of it per server, so a species answering for any of
             // these would be answering for what everybody else's debugging looks like.

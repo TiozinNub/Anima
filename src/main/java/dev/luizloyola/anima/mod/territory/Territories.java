@@ -19,6 +19,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
 
 /**
@@ -31,6 +32,7 @@ import net.minecraft.server.MinecraftServer;
 public final class Territories {
 
     public static final String EVENT = "territory";
+    private static final String OPAC = "openpartiesandclaims";
     private static final String FILE = "territory.log";
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("HH:mm:ss");
 
@@ -48,6 +50,15 @@ public final class Territories {
                 territory.releaseAll(party, Reason.of(Reason.Kind.DISBAND, ""), now(server));
                 territory.forget(party);
             });
+            if (FabricLoader.getInstance().isModLoaded(OPAC) && Config.get().b(Knob.TERRITORY_OPAC)) {
+                try {
+                    OpacBridge.attach(server, territory);
+                } catch (LinkageError | RuntimeException e) {
+                    // An OPAC whose API moved, or one Connector loads differently: the areas still
+                    // work, they are only not on the map.
+                    AnimaMod.LOGGER.warn("territory: could not mirror into Open Parties and Claims", e);
+                }
+            }
         });
         TerritoryViewer.init();
     }

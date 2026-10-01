@@ -20,6 +20,10 @@ loomx.loom_version = "1.17-SNAPSHOT"
 # LGPL-3.0, nested into this jar; the verbatim texts ride along in `licenses/`.
 deps.night_config = "3.9.0"
 
+# Open Parties and Claims, compile-only. One version across its lines; each node names the
+# Minecraft its artifact is built for, which is not always the node's own name.
+deps.opac = "0.31.6"
+
 # ⚠ THE PER-NODE PINS BELOW MUST MATCH AUTARKIA'S. Two mods built against different Fabric API
 # versions load side by side without a build ever complaining; the failure surfaces in a player's
 # game. Until 2026-08-16 one file served both mods and this was structural. It is now a promise
@@ -40,6 +44,7 @@ deps.fabric_api = "0.141.3+1.21.11"
 # 3.8.2 exists on Modrinth but was never published to isxander's maven — 3.8.1 is the newest there.
 deps.yacl = "3.8.1+1.21.11-fabric"
 deps.modmenu = "17.0.1-beta.1"
+deps.opac_mc = "1.21.11"
 
 ["26.1.x"]
 mod.mc_compat = "~26.1"
@@ -48,6 +53,7 @@ mod.mc_releases = ["26.1.2"]
 deps.fabric_api = "0.155.2+26.1.2"
 deps.yacl = "3.9.6+26.1-fabric"
 deps.modmenu = "18.0.0"
+deps.opac_mc = "26.1.2"
 
 ["26.2.x"]
 mod.mc_compat = "~26.2"
@@ -56,6 +62,7 @@ mod.mc_releases = ["26.2"]
 deps.fabric_api = "0.152.2+26.2"
 deps.yacl = "3.9.6+26.2-fabric"
 deps.modmenu = "20.0.1"
+deps.opac_mc = "26.2"
 
 ["26.3.x"]
 mod.mc_compat = "~26.3"
@@ -65,3 +72,4 @@ deps.fabric_api = "0.160.6+26.3"
 deps.yacl = "3.9.6+26.3-fabric"
 # Mod Menu has no release for 26.3 yet; the beta is the only build that targets it.
 deps.modmenu = "21.0.0-beta.1"
+deps.opac_mc = "26.3"
