@@ -3,9 +3,11 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.Placing;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
+import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -73,9 +75,17 @@ public final class PlaceFrom implements CompoundTask {
         return placing.block().isEmpty() ? placing.itemId() : placing.block();
     }
 
+    /**
+     * Where to stand, never where another body stands, or under its head: a second builder on the
+     * same site keeps its own stand.
+     */
     private Optional<Pos> standFor(BrainContext ctx) {
         MoveCapabilities body = MoveCapabilities.of(ctx.profile());
-        Set<Pos> others = Set.copyOf(also);
+        Set<Pos> others = new HashSet<>(also);
+        for (Being being : ctx.percepts().beings()) {
+            others.add(being.pos());
+            others.add(new Pos(being.pos().x(), being.pos().y() + 1, being.pos().z()));
+        }
         Pos here = ctx.percepts().position();
         if (Standing.reaches(ctx.percepts().terrain(), body, here, placing.cell(), others, REACH)) {
             return Optional.of(here);
