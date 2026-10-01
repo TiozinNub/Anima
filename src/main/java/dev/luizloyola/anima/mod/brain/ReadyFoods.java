@@ -20,6 +20,8 @@ public final class ReadyFoods {
         // server reports STARTED.
         ReadyFood.SPEC.name();
         dev.luizloyola.anima.core.brain.task.Food.SPEC.name();
+        // Missed once: a cook stopped with the server came back without its cooking (2026-10-01).
+        dev.luizloyola.anima.core.brain.task.RawFood.SPEC.name();
         ServerLifecycleEvents.SERVER_STARTING.register(server -> ReadyFood.install(new FoodLookup() {
             @Override
             public Optional<FoodValue> of(ItemStack stack) {

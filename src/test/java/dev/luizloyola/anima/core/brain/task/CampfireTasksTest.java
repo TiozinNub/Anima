@@ -229,6 +229,25 @@ class CampfireTasksTest {
     }
 
     @Test
+    void aCookAsksOnlyForWhatIsToHand() {
+        ctx.percepts.inventory.set(0, ItemStack.of("minecraft:beef", 8, 64));
+        CookAtCampfire cook = new CookAtCampfire(fire, BEEF, 12);
+
+        assertEquals(8, cook.toHand(ctx), "a job for twelve failed for ever once four had gone (2026-10-01)");
+
+        Pos chest = new Pos(0, 64, 4);
+        ctx.claim(dev.luizloyola.anima.core.store.Store.POI, chest);
+        ctx.knowledge.sawInside(chest, List.of(ItemStack.of("minecraft:beef", 10, 64)), 0L,
+                dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge.maxPerKind(ctx.profile()));
+        assertEquals(12, cook.toHand(ctx), "never more than the count");
+
+        ctx.percepts.inventory.set(0, ItemStack.EMPTY);
+        ctx.knowledge.sawInside(chest, List.of(), 0L,
+                dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge.maxPerKind(ctx.profile()));
+        assertEquals(12, cook.toHand(ctx), "nothing known: the fetch is left to fail");
+    }
+
+    @Test
     void aCookWalksThereGetsItAndStays() {
         ctx.percepts.position = new Pos(200, 64, 0);
 

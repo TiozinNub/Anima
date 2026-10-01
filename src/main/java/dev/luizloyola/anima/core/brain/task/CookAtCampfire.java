@@ -1,8 +1,10 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.ItemSpec;
+import dev.luizloyola.anima.core.store.Store;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,6 +48,22 @@ public final class CookAtCampfire implements CompoundTask {
         return count;
     }
 
+    /**
+     * The count, or what the pack and the stores seen hold when that is less: a job for twelve
+     * failed for ever once four of them had gone (2026-10-01). The count itself when nothing is
+     * known to hand, so the fetch fails as it should.
+     */
+    int toHand(BrainContext ctx) {
+        int have = ctx.percepts().inventory().count(raw.matcher());
+        long now = ctx.percepts().time();
+        for (PoiMemory store : Store.ours(ctx)) {
+            if (!ctx.knowledge().isAvoided(Store.POI, store.anchor(), now)) {
+                have += ctx.knowledge().insideOf(store.anchor()).map(seen -> seen.count(raw)).orElse(0);
+            }
+        }
+        return have > 0 ? Math.min(count, have) : count;
+    }
+
     private final class Cook implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
@@ -60,10 +78,11 @@ public final class CookAtCampfire implements CompoundTask {
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
+            int n = toHand(ctx);
             List<Task> steps = new ArrayList<>(LoadFurnace.walkTo(ctx, at));
-            steps.add(new ObtainItem(raw, count));
+            steps.add(new ObtainItem(raw, n));
             steps.add(LoadFurnace.backBeside(ctx, at));
-            steps.add(new TendCampfires(at, raw, count));
+            steps.add(new TendCampfires(at, raw, n));
             return steps;
         }
 
