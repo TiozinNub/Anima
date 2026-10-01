@@ -203,14 +203,81 @@ class InventoryTest {
     }
 
     @Test
-    void wieldingABackpackSlotSwapsItIntoTheHand() {
+    void wieldingABackpackSlotMovesItToAFreeHotbarSlot() {
         Inventory inv = new Inventory();
         inv.set(0, logs(8));         // what the hand held
         inv.set(20, axe());          // the axe, deep in the backpack
         inv.wield(20);
         assertEquals(axe(), inv.mainHand(), "the axe arrives in the hand");
-        assertEquals(logs(8), inv.get(20), "the logs take its old slot — nothing is lost");
+        assertEquals(1, inv.selectedSlot(), "on the free slot beside the logs");
+        assertEquals(logs(8), inv.get(0), "and the logs stay where they were");
+        assertTrue(inv.get(20).isEmpty());
+    }
+
+    @Test
+    void wieldingIntoAFullHotbarSwapsWithTheHand() {
+        Inventory inv = new Inventory();
+        for (int slot = 0; slot < Inventory.HOTBAR_SIZE; slot++) {
+            inv.set(slot, logs(slot + 1));
+        }
+        inv.set(20, axe());
+        inv.wield(20);
+        assertEquals(axe(), inv.mainHand(), "the axe arrives in the hand");
+        assertEquals(logs(1), inv.get(20), "the logs take its old slot — nothing is lost");
         assertEquals(0, inv.selectedSlot(), "selection did not move; the contents did");
+    }
+
+    /** Tools on the hotbar and nothing else, one hotbar slot kept free. */
+    private static final PackLayout TOOLS_UP = new PackLayout() {
+        @Override
+        public double[] weights(ItemStack stack) {
+            double[] fit = new double[Inventory.ARMOR_START];
+            boolean tool = stack.id().endsWith("_axe");
+            for (int slot = 0; slot < Inventory.MAIN_START; slot++) {
+                fit[slot] = tool ? 5 + slot : -5; // a tool likes the far end, to prove the order
+            }
+            return fit;
+        }
+
+        @Override
+        public int freeHotbar() {
+            return 1;
+        }
+    };
+
+    @Test
+    void aPickupLandsWhereTheLayoutWantsIt() {
+        Inventory inv = new Inventory();
+        inv.setLayout(TOOLS_UP);
+        inv.add(logs(8));
+        inv.add(axe());
+        assertEquals(logs(8), inv.get(Inventory.MAIN_START), "logs go to the backpack");
+        assertEquals(axe(), inv.get(8), "a tool to the hotbar slot it likes best");
+    }
+
+    @Test
+    void theLastFreeHotbarSlotIsFilledOnlyWhenNothingElseIsLeft() {
+        Inventory inv = new Inventory();
+        inv.setLayout(TOOLS_UP);
+        for (int slot = 0; slot < Inventory.HOTBAR_SIZE - 1; slot++) {
+            inv.set(slot, ItemStack.of("minecraft:stone_axe", 1, 1));
+        }
+        inv.add(axe());
+        assertTrue(inv.get(8).isEmpty(), "one hotbar slot stays free");
+        assertEquals(axe(), inv.get(Inventory.MAIN_START));
+        for (int slot = Inventory.MAIN_START + 1; slot < Inventory.ARMOR_START; slot++) {
+            inv.set(slot, logs(1));
+        }
+        inv.add(axe());
+        assertEquals(axe(), inv.get(8), "but a full pack still takes what it can");
+    }
+
+    @Test
+    void withNoLayoutAPickupFillsTheFirstEmptySlot() {
+        Inventory inv = new Inventory();
+        inv.set(0, axe());
+        inv.add(logs(8));
+        assertEquals(logs(8), inv.get(1));
     }
 
     @Test

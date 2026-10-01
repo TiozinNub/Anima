@@ -44,6 +44,8 @@ public final class Inventory {
     private final ItemStack[] slots = new ItemStack[SIZE];
     private int selectedSlot;
     private @Nullable HandChange change;
+    /** The body's, not the contents': never saved, never copied. */
+    private PackLayout layout = PackLayout.NONE;
 
     public Inventory() {
         Arrays.fill(slots, ItemStack.EMPTY);
@@ -80,9 +82,11 @@ public final class Inventory {
     }
 
     /**
-     * Brings the stack in {@code slot} into the main hand: a hotbar slot is selected, a
-     * backpack slot is swapped with the selected hotbar slot. Armor and offhand are not wieldable
-     * this way.
+     * Brings the stack in {@code slot} into the main hand: a hotbar slot is selected, a backpack
+     * stack moves to an empty hotbar slot and that is selected. With the hotbar full it is swapped
+     * with the selected one, which sends the held stack to the backpack — what
+     * {@link PackLayout#freeHotbar()} is there to spare. Armor and offhand are not wieldable this
+     * way.
      */
     public void wield(int slot) {
         if (slot >= HOTBAR_START && slot < HOTBAR_START + HOTBAR_SIZE) {
@@ -91,6 +95,13 @@ public final class Inventory {
         }
         if (slot < MAIN_START || slot >= STORAGE_END) {
             throw new IllegalArgumentException("not a wieldable storage slot: " + slot);
+        }
+        int free = firstEmpty(HOTBAR_START, MAIN_START);
+        if (free >= 0) {
+            slots[free] = slots[slot];
+            slots[slot] = ItemStack.EMPTY;
+            selectedSlot = free - HOTBAR_START;
+            return;
         }
         int hand = HOTBAR_START + selectedSlot;
         ItemStack held = slots[hand];
@@ -161,7 +172,9 @@ public final class Inventory {
 
     /**
      * Adds {@code stack} to storage (hotbar then main): topping up same-kind stacks with headroom
-     * first, then filling empty slots at the item's stack cap. Armor and offhand are never
+     * first, then filling the empty slots the {@link #layout()} likes best, at the item's stack cap.
+     * A pickup lands where it belongs as a player's does, so tidying is left only what a pickup
+     * cannot settle. The layout's free hotbar slots are filled last. Armor and offhand are never
      * touched. Returns whatever did not fit, or {@link ItemStack#EMPTY} if it all did.
      */
     public ItemStack add(ItemStack stack) {
@@ -177,14 +190,51 @@ public final class Inventory {
                 }
             }
         }
-        for (int slot = 0; slot < STORAGE_END && remaining > 0; slot++) {
-            if (slots[slot].isEmpty()) {
-                int moved = Math.min(remaining, stack.maxStackSize());
-                slots[slot] = stack.withCount(moved);
-                remaining -= moved;
+        double[] fit = remaining > 0 ? layout.weights(stack) : null;
+        while (remaining > 0) {
+            int slot = bestEmpty(fit);
+            if (slot < 0) {
+                break;
             }
+            int moved = Math.min(remaining, stack.maxStackSize());
+            slots[slot] = stack.withCount(moved);
+            remaining -= moved;
         }
         return stack.withCount(remaining);
+    }
+
+    /** The empty storage slot {@code fit} likes best, the lowest on a tie; -1 when full. */
+    private int bestEmpty(double[] fit) {
+        boolean spareHotbar = emptyHotbar() > layout.freeHotbar();
+        int best = -1;
+        for (int slot = 0; slot < STORAGE_END; slot++) {
+            if (!slots[slot].isEmpty() || slot < MAIN_START && !spareHotbar) {
+                continue;
+            }
+            if (best < 0 || fit[slot] > fit[best]) {
+                best = slot;
+            }
+        }
+        return best >= 0 ? best : firstEmpty(HOTBAR_START, STORAGE_END);
+    }
+
+    /** Empty hotbar slots. */
+    public int emptyHotbar() {
+        int empty = 0;
+        for (int slot = HOTBAR_START; slot < MAIN_START; slot++) {
+            if (slots[slot].isEmpty()) {
+                empty++;
+            }
+        }
+        return empty;
+    }
+
+    public PackLayout layout() {
+        return layout;
+    }
+
+    public void setLayout(PackLayout layout) {
+        this.layout = java.util.Objects.requireNonNull(layout, "layout");
     }
 
     /** Total count of item {@code id} across <em>every</em> slot, equipment included. */
