@@ -139,11 +139,13 @@ public final class TendFurnace implements PrimitiveTask {
             return;
         }
         Inventory pack = ctx.percepts().inventory();
+        // The kind held most of: a slot takes one, and the first found put 1 oak plank under a
+        // load beside 10 birch (2026-10-01).
         String id = null;
         for (Inventory.Entry entry : pack.occupied()) {
-            if (spec.matches(entry.stack().id())) {
-                id = entry.stack().id();
-                break;
+            String kind = entry.stack().id();
+            if (spec.matches(kind) && (id == null || pack.count(kind) > pack.count(id))) {
+                id = kind;
             }
         }
         if (id == null) {

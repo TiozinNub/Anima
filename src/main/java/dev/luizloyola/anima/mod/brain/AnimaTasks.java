@@ -664,8 +664,12 @@ public final class AnimaTasks {
                         POS.fieldOf("at").forGetter(dev.luizloyola.anima.core.brain.task.LoadFurnace::at),
                         ITEM_SPEC.fieldOf("input").forGetter(dev.luizloyola.anima.core.brain.task.LoadFurnace::input),
                         Codec.INT.fieldOf("count").forGetter(dev.luizloyola.anima.core.brain.task.LoadFurnace::count),
-                        ITEM_SPEC.fieldOf("fuel").forGetter(dev.luizloyola.anima.core.brain.task.LoadFurnace::fuel)
-                ).apply(t, dev.luizloyola.anima.core.brain.task.LoadFurnace::new)));
+                        ITEM_SPEC.fieldOf("fuel").forGetter(dev.luizloyola.anima.core.brain.task.LoadFurnace::fuel),
+                        ITEM_SPEC.optionalFieldOf("kindling")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.LoadFurnace::kindling)
+                ).apply(t, (at, input, count, fuel, kindling) ->
+                        new dev.luizloyola.anima.core.brain.task.LoadFurnace(at, input, count, fuel,
+                                kindling.orElse(null)))));
 
         TaskCodecs.register("anima:unload_furnace", dev.luizloyola.anima.core.brain.task.UnloadFurnace.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

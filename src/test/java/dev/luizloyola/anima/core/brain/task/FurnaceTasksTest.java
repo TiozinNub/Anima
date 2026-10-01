@@ -92,6 +92,38 @@ class FurnaceTasksTest {
     }
 
     @Test
+    void kindlingIsBurntWhenThereIsEnoughOfOneKindPlanksOtherwise() {
+        ItemSpec kindling = ItemSpec.anyOf(Set.of("minecraft:leaf_litter", "minecraft:dead_bush"));
+        ctx.percepts.burns.put("minecraft:leaf_litter", 100);
+        ctx.percepts.burns.put("minecraft:dead_bush", 100);
+        LoadFurnace load = new LoadFurnace(furnace, LOGS, 16, PLANKS, kindling);
+        Method burn = load.methods().get(1);
+
+        ctx.percepts.inventory.set(0, ItemStack.of("minecraft:leaf_litter", 20, 64));
+        ctx.percepts.inventory.set(1, ItemStack.of("minecraft:dead_bush", 20, 64));
+        assertEquals(false, burn.applicable(ctx), "40 between two kinds; one slot needs 32 of one");
+
+        ctx.percepts.inventory.set(0, ItemStack.of("minecraft:leaf_litter", 40, 64));
+        assertTrue(burn.applicable(ctx));
+        assertTrue(burn.estimateCost(ctx) < load.methods().get(0).estimateCost(ctx), "kindling before planks");
+        ObtainItem fuel = assertInstanceOf(ObtainItem.class, burn.decompose(ctx).get(0));
+        assertEquals(Set.of("minecraft:leaf_litter"), ItemSpec.literalIds(fuel.spec()).orElseThrow());
+        assertEquals(32, fuel.count(), "16 smelts of 200 ticks over 100 a leaf");
+    }
+
+    @Test
+    void theFuelSlotGetsTheKindHeldMostOf() {
+        ItemSpec anyPlanks = ItemSpec.anyOf(Set.of("minecraft:oak_planks", "minecraft:birch_planks"));
+        ctx.percepts.inventory.set(0, ItemStack.of("minecraft:oak_planks", 1, 64));
+        ctx.percepts.inventory.set(1, ItemStack.of("minecraft:birch_planks", 10, 64));
+
+        assertEquals(TaskStatus.SUCCESS, run(new TendFurnace(furnace, null, null, 0, anyPlanks, 11), 200));
+
+        assertEquals("minecraft:birch_planks", ctx.furnaces.at(furnace).fuel.id(), "not the first one found");
+        assertEquals(10, ctx.furnaces.at(furnace).fuel.count());
+    }
+
+    @Test
     void theLoadGoesInTheInputAndTheFuelInTheFuel() {
         ctx.percepts.inventory.set(0, ItemStack.of("minecraft:oak_log", 16, 64));
         ctx.percepts.inventory.set(1, ItemStack.of("minecraft:oak_planks", 11, 64));

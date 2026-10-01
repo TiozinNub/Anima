@@ -532,6 +532,11 @@ class TaskCodecsTest {
                 roundTrip(new dev.luizloyola.anima.core.brain.task.LoadFurnace(new Pos(2, 64, 0), logs, 16, planks)));
         assertEquals(16, load.count());
         assertEquals(planks, load.fuel());
+        assertTrue(load.kindling().isEmpty());
+        assertEquals(java.util.Optional.of(logs), assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.LoadFurnace.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.LoadFurnace(new Pos(2, 64, 0), logs, 16, planks,
+                        logs))).kindling(), "the kindling comes back with it");
 
         dev.luizloyola.anima.core.brain.task.UnloadFurnace unload = assertInstanceOf(
                 dev.luizloyola.anima.core.brain.task.UnloadFurnace.class,
