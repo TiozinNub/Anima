@@ -15,12 +15,17 @@ import java.util.List;
  * the walk-over pickup vacuum the path, re-scan, repeat until nothing matching is in sight. The
  * sight radius is the work area — no bounds parameter; scope the spec instead.
  *
+ * <p>Asked {@link #nearWork}, it takes only drops lying near this body's own recent work
+ * ({@link dev.luizloyola.anima.core.brain.history.WorkSpots}): what its felling, building and
+ * killing let fall, and nobody else's.
+ *
  * <p>SUCCESS only when {@code count(spec)} rose since the first tick. Empty-handed — drops gone, or
  * the lap guard tripped on unreachable ones — is FAILED, which lets an {@code ObtainItem} burn its
  * pickup method and move on to producing.
  */
 public final class GatherNearbyDrops implements PrimitiveTask {
     private final ItemSpec spec;
+    private final boolean nearWork;
 
     private int startCount = -1;
     private int laps;
@@ -28,7 +33,18 @@ public final class GatherNearbyDrops implements PrimitiveTask {
     private boolean walkIssued;
 
     public GatherNearbyDrops(ItemSpec spec) {
+        this(spec, false);
+    }
+
+    public GatherNearbyDrops(ItemSpec spec, boolean nearWork) {
         this.spec = spec;
+        this.nearWork = nearWork;
+    }
+
+    /** Whether {@code drop} is one this sweep takes: of the spec, standing, and near work if asked. */
+    public static boolean wanted(Drop drop, ItemSpec spec, boolean nearWork, BrainContext ctx) {
+        return spec.matches(drop.itemId()) && Flocks.gatherable(drop, ctx)
+                && (!nearWork || ctx.workSpots().near(drop.pos(), ctx.percepts().time()));
     }
 
     @Override
@@ -38,7 +54,7 @@ public final class GatherNearbyDrops implements PrimitiveTask {
         }
         List<Pos> matching = new ArrayList<>();
         for (Drop drop : ctx.percepts().drops()) {
-            if (spec.matches(drop.itemId()) && Flocks.gatherable(drop, ctx)) {
+            if (wanted(drop, spec, nearWork, ctx)) {
                 matching.add(drop.pos());
             }
         }
@@ -68,7 +84,7 @@ public final class GatherNearbyDrops implements PrimitiveTask {
 
     @Override
     public String describe() {
-        return "gather " + spec.name();
+        return "gather " + spec.name() + (nearWork ? " near my work" : "");
     }
 
     // ── continuity ───────────────────────────────────────────────────────────────────────────
@@ -77,6 +93,10 @@ public final class GatherNearbyDrops implements PrimitiveTask {
 
     public ItemSpec spec() {
         return spec;
+    }
+
+    public boolean nearWork() {
+        return nearWork;
     }
 
     public int startCount() {

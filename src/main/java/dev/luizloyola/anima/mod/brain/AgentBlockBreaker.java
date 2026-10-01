@@ -185,6 +185,8 @@ public final class AgentBlockBreaker implements BlockBreaker {
                 level.destroyBlock(target, drops, person.entity());
             }
             person.metabolism().exhaust(EXHAUSTION_PER_BLOCK);
+            person.brain().workSpots().record(new Pos(target.getX(), target.getY(), target.getZ()),
+                    level.getGameTime());
             state = BreakState.FINISHED;
             return;
         }

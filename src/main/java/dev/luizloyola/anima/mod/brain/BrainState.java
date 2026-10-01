@@ -130,6 +130,16 @@ public final class BrainState {
      * no longer fit it, is dropped rather than failing the list: losing one thing to talk about is
      * cheaper than losing the rest.
      */
+    public static final Codec<List<dev.luizloyola.anima.core.brain.history.WorkSpots.Spot>> WORK_SPOTS =
+            RecordCodecBuilder.<dev.luizloyola.anima.core.brain.history.WorkSpots.Spot>create(i -> i.group(
+                    Codec.INT.fieldOf("x").forGetter(s -> s.pos().x()),
+                    Codec.INT.fieldOf("y").forGetter(s -> s.pos().y()),
+                    Codec.INT.fieldOf("z").forGetter(s -> s.pos().z()),
+                    Codec.LONG.fieldOf("tick").forGetter(dev.luizloyola.anima.core.brain.history.WorkSpots.Spot::tick))
+                    .apply(i, (x, y, z, tick) -> new dev.luizloyola.anima.core.brain.history.WorkSpots.Spot(
+                            new Pos(x, y, z), tick)))
+            .listOf();
+
     public static final Codec<List<History.Entry>> HISTORY = RecordCodecBuilder
             .<SavedDeed>create(i -> i.group(
                     Codec.STRING.fieldOf("doing").forGetter(SavedDeed::doing),

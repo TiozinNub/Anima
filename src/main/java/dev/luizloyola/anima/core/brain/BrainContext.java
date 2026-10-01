@@ -92,6 +92,11 @@ public interface BrainContext {
         return java.util.List.of();
     }
 
+    /** Where this body's own work lately may have dropped something. Empty in a rig with no body. */
+    default dev.luizloyola.anima.core.brain.history.WorkSpots workSpots() {
+        return new dev.luizloyola.anima.core.brain.history.WorkSpots();
+    }
+
     /**
      * The maximum method cost currently acceptable, in the walk-block currency methods price
      * themselves in — a costlier applicable method is treated as inapplicable. Set by the arbiter

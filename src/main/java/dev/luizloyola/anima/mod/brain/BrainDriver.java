@@ -75,6 +75,8 @@ import net.minecraft.server.level.ServerLevel;
 public final class BrainDriver {
     private final AgentBody person;
     private final Arbiter arbiter;
+    private final dev.luizloyola.anima.core.brain.history.WorkSpots workSpots =
+            new dev.luizloyola.anima.core.brain.history.WorkSpots();
     /**
      * The one context every task/instinct tick receives: actuators, percepts and the debug
      * journal — the only Minecraft boundary the core machinery ever touches.
@@ -285,6 +287,11 @@ public final class BrainDriver {
             @Override
             public java.util.List<History.Entry> history() {
                 return arbiter.history().recent(percepts.time());
+            }
+
+            @Override
+            public dev.luizloyola.anima.core.brain.history.WorkSpots workSpots() {
+                return workSpots;
             }
 
             @Override
@@ -512,6 +519,11 @@ public final class BrainDriver {
 
     public void restoreHistory(java.util.List<History.Entry> saved) {
         this.arbiter.history().restore(saved);
+    }
+
+    /** Written by the body's hands as they work, and by its kills; read by a sweep of its drops. */
+    public dev.luizloyola.anima.core.brain.history.WorkSpots workSpots() {
+        return this.workSpots;
     }
 
     /** Whether the arbiter is currently deciding (ON) or a manual task has the wheel (OFF). */

@@ -44,6 +44,7 @@ public final class AgentHand implements Hand {
             return false;
         }
         Arms.swingToInteract(person.entity(), InteractionHand.MAIN_HAND);
+        person.brain().workSpots().record(cell, level.getGameTime());
         return true;
     }
 

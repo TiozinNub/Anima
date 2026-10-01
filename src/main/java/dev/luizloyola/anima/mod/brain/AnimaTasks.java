@@ -293,9 +293,10 @@ public final class AnimaTasks {
                         Codec.INT.fieldOf("start").forGetter(GatherNearbyDrops::startCount),
                         Codec.INT.fieldOf("laps").forGetter(GatherNearbyDrops::laps),
                         Codec.INT.fieldOf("cap").forGetter(GatherNearbyDrops::lapCap),
-                        Codec.BOOL.fieldOf("walking").forGetter(GatherNearbyDrops::walkIssued)
-                ).apply(t, (spec, start, laps, cap, walking) ->
-                        new GatherNearbyDrops(spec).resume(start, laps, cap, walking))));
+                        Codec.BOOL.fieldOf("walking").forGetter(GatherNearbyDrops::walkIssued),
+                        Codec.BOOL.optionalFieldOf("near_work", false).forGetter(GatherNearbyDrops::nearWork)
+                ).apply(t, (spec, start, laps, cap, walking, nearWork) ->
+                        new GatherNearbyDrops(spec, nearWork).resume(start, laps, cap, walking))));
 
         TaskCodecs.register("anima:obtain", ObtainItem.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

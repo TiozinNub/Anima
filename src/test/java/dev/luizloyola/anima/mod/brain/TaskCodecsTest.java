@@ -100,6 +100,10 @@ class TaskCodecsTest {
                 roundTrip(new dev.luizloyola.anima.core.brain.task.GatherNearbyDrops(
                         dev.luizloyola.anima.core.inv.ItemSpec.ANYTHING)));
         assertEquals(dev.luizloyola.anima.core.inv.ItemSpec.ANYTHING, after.spec());
+        assertFalse(after.nearWork());
+        assertTrue(assertInstanceOf(dev.luizloyola.anima.core.brain.task.GatherNearbyDrops.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.GatherNearbyDrops(
+                        dev.luizloyola.anima.core.inv.ItemSpec.ANYTHING, true))).nearWork());
     }
 
     @Test

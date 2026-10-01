@@ -122,6 +122,7 @@ public final class AgentBlockPlacer implements BlockPlacer {
                 (sound.getVolume() + 1.0F) / 2.0F, sound.getPitch() * 0.8F);
         Arms.swingToInteract(body, InteractionHand.MAIN_HAND);
         person.inventory().remove(itemId, 1);
+        person.brain().workSpots().record(placing.cell(), level.getGameTime());
         return true;
     }
 
