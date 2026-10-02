@@ -105,8 +105,11 @@ public final class WanderStep implements CompoundTask {
             if (target == null) {
                 // The pause was drawn before the target, so nothing is wasted and the stream stays
                 // aligned with a beat that did walk. Standing about IS the answer here: being
-                // sealed in is EscapeInstinct's to notice, not the wander's to paper over.
+                // sealed in is EscapeInstinct's to notice, but it needs the evidence: a beat that orders
+                // no walk leaves no stranded one, and a body afloat between high banks waited
+                // ~53,000 ticks for its escape (2026-10-01).
                 ctx.journal().record(Category.BRAIN, "wander", "nowhere nearby to stand");
+                ctx.actuators().mover().nowhereToGo();
                 return List.of(new Idle(pause));
             }
             int tx = target.x();

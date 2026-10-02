@@ -22,6 +22,8 @@ public final class FakeMover implements Mover {
     public final List<String> events = new ArrayList<>();
     public int moveToCalls;
     public int stopCalls;
+    /** How many times the brain said no walk could be ordered from here. */
+    public int nowhereCalls;
     public int lastX;
     public int lastY;
     public int lastZ;
@@ -73,6 +75,11 @@ public final class FakeMover implements Mover {
     @Override
     public Pos goal() {
         return goal;
+    }
+
+    @Override
+    public void nowhereToGo() {
+        nowhereCalls++;
     }
 
     @Override

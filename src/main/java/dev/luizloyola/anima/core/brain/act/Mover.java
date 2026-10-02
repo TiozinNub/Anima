@@ -98,6 +98,14 @@ public interface Mover {
     }
 
     /**
+     * No walk could be ordered from where the body stands: nowhere near it to stand. Counted as a
+     * stranded walk from here, evidence of being shut in that the confinement sense's wider look
+     * still has to prove, and that a look finding room clears. Ignored by default.
+     */
+    default void nowhereToGo() {
+    }
+
+    /**
      * Abandon the move in progress; {@link #state()} returns to {@link MoveState#IDLE}. Calling
      * this with no move in progress is a harmless no-op — tasks cancel unconditionally, and their
      * cancel must be idempotent, so the slack is absorbed here rather than guarded at every call

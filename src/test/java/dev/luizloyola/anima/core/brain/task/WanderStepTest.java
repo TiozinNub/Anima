@@ -224,6 +224,24 @@ class WanderStepTest {
         }
     }
 
+    /** Seed 4096 opens on a walk (see {@link #aCalmBeatSpendsExactlyOneTargetDraw}). */
+    @Test
+    void aBeatWithNowhereToStandTellsTheLegs() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.terrain = NavGrid.UNKNOWN;
+        assertFalse(runBeat(new Random(4096), ctx).walked());
+        assertEquals(1, ctx.mover.nowhereCalls, "counted as a stranded walk from here");
+
+        FakeContext idle = new FakeContext();
+        idle.percepts.terrain = NavGrid.UNKNOWN;
+        runBeat(new Random(1), idle);
+        assertEquals(0, idle.mover.nowhereCalls, "a beat that never meant to walk says nothing");
+
+        FakeContext open = new FakeContext();
+        assertTrue(runBeat(new Random(4096), open).walked());
+        assertEquals(0, open.mover.nowhereCalls);
+    }
+
     /** An open pond ('W') and a wadeable puddle ('w'): dry land only means both. */
     private static AsciiWorld pondWorld() {
         return AsciiWorld.of(

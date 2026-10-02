@@ -83,6 +83,14 @@ public final class AgentMover implements Mover {
         };
     }
 
+    /** No search ran, so no cells were found to stand in: the evidence a stranded one would leave. */
+    @Override
+    public void nowhereToGo() {
+        BlockPos at = this.person.blockPosition();
+        Pos here = new Pos(at.getX(), at.getY(), at.getZ());
+        this.person.setbacks().stranded(here, here, 0, this.person.level().getGameTime());
+    }
+
     @Override
     public void stop() {
         this.person.navigator().stop();
