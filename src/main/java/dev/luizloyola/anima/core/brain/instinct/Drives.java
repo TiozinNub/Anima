@@ -26,9 +26,11 @@ public final class Drives {
      * bar read through {@link NeedKind#HUNGER}'s ramp, which reproduces the {@code 1 - food/20} the
      * brain has always used, and its cost ceiling is whatever the level it is at will spend: a
      * peckish body waits for a task boundary and buys a short errand, a starving one pays anything.
+     * Priced out, it backs off until food turns up ({@link SatisfyHunger#stock}).
      */
     public static final NeedDrive EAT =
-            new NeedDrive(NeedKind.HUNGER.binding("eat"), Doings.EATING, ctx -> new SatisfyHunger());
+            new NeedDrive(NeedKind.HUNGER.binding("eat"), Doings.EATING, ctx -> new SatisfyHunger(),
+                    (ctx, running) -> true, SatisfyHunger::stock);
 
     /**
      * Company's lonely end: go and be near somebody. Its bid is the gauge's own V-shaped ramp, so

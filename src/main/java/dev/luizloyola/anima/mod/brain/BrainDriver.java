@@ -326,6 +326,11 @@ public final class BrainDriver {
             }
 
             @Override
+            public long heldAtDepot(dev.luizloyola.anima.core.inv.ItemSpec spec) {
+                return dev.luizloyola.anima.core.store.Depot.held(person.agentId(), spec);
+            }
+
+            @Override
             public boolean reshapingGround() {
                 // Asked of the executor: it is a property of the tree currently running, and
                 // only the executor knows what that is. True while a chop rides its mast,
@@ -546,6 +551,16 @@ public final class BrainDriver {
     /** @see Arbiter#restoreCooldowns */
     public void restoreCooldowns(Map<String, Integer> waiting) {
         this.arbiter.restoreCooldowns(waiting);
+    }
+
+    /** @see Arbiter#backOffs */
+    public Map<String, Arbiter.BackOff> backOffs() {
+        return this.arbiter.backOffs();
+    }
+
+    /** @see Arbiter#restoreBackOffs */
+    public void restoreBackOffs(Map<String, Arbiter.BackOff> saved) {
+        this.arbiter.restoreBackOffs(saved);
     }
 
     /** What this body did lately, as saved — newest first, every entry, aged or not. */

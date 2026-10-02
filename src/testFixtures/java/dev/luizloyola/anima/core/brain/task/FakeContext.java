@@ -297,6 +297,14 @@ public final class FakeContext implements BrainContext {
         return depot;
     }
 
+    /** What the depot's consumer reads in this rig's site, by spec name — nothing unless a test says. */
+    public final java.util.Map<String, Long> held = new java.util.HashMap<>();
+
+    @Override
+    public long heldAtDepot(dev.luizloyola.anima.core.inv.ItemSpec spec) {
+        return held.getOrDefault(spec.name(), 0L);
+    }
+
     /** The body's stream. Fixed by default so a test that draws twice gets the same two numbers
      *  every run; {@link #seed} pins it where a test cares which numbers those are. */
     private java.util.random.RandomGenerator random =

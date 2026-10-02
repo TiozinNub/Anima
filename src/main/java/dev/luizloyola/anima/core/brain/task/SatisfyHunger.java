@@ -1,5 +1,8 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
+import dev.luizloyola.anima.core.store.Store;
 import java.util.List;
 
 /**
@@ -25,5 +28,22 @@ public final class SatisfyHunger implements CompoundTask {
     @Override
     public String describe() {
         return "satisfy hunger";
+    }
+
+    /**
+     * Everything a meal could come from, as one reading for the eat drive's back-off: the pack's
+     * food and how much of it is ready, what the party's stores were seen holding, and what the
+     * depot reads in the body's site. Mixed, not summed, so a raw steak taken out of a chest to be
+     * cooked still counts as a change.
+     */
+    public static long stock(BrainContext ctx) {
+        long reading = ctx.percepts().inventory().count(Food.SPEC.matcher());
+        reading = 31 * reading + ctx.percepts().inventory().count(ReadyFood.SPEC.matcher());
+        long seen = 0;
+        for (PoiMemory store : Store.ours(ctx)) {
+            seen += ctx.knowledge().insideOf(store.anchor()).map(inside -> inside.count(Food.SPEC)).orElse(0);
+        }
+        reading = 31 * reading + seen;
+        return 31 * reading + ctx.heldAtDepot(Food.SPEC);
     }
 }

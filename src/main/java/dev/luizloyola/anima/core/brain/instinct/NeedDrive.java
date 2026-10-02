@@ -10,8 +10,10 @@ import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.history.Doing;
 import dev.luizloyola.anima.core.brain.task.Task;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -39,6 +41,7 @@ public final class NeedDrive implements Instinct {
     private final Doing doing;
     private final Function<BrainContext, Task> root;
     private final BiPredicate<BrainContext, @Nullable Task> possible;
+    private final @Nullable ToLongFunction<BrainContext> stock;
 
     /** As below, for a drive that is always worth a try. */
     public NeedDrive(Binding binding, Doing doing, Function<BrainContext, Task> root) {
@@ -57,6 +60,13 @@ public final class NeedDrive implements Instinct {
      */
     public NeedDrive(Binding binding, Doing doing, Function<BrainContext, Task> root,
             BiPredicate<BrainContext, @Nullable Task> possible) {
+        this(binding, doing, root, possible, null);
+    }
+
+    /** As above, backing off on {@code stock} — see {@link Instinct#stock}. */
+    public NeedDrive(Binding binding, Doing doing, Function<BrainContext, Task> root,
+            BiPredicate<BrainContext, @Nullable Task> possible, @Nullable ToLongFunction<BrainContext> stock) {
+        this.stock = stock;
         this.binding = Objects.requireNonNull(binding, "binding");
         this.doing = Objects.requireNonNull(doing, "doing");
         this.root = Objects.requireNonNull(root, "root");
@@ -129,6 +139,11 @@ public final class NeedDrive implements Instinct {
     @Override
     public Task root(BrainContext ctx) {
         return root.apply(ctx);
+    }
+
+    @Override
+    public OptionalLong stock(BrainContext ctx) {
+        return stock == null ? OptionalLong.empty() : OptionalLong.of(stock.applyAsLong(ctx));
     }
 
     /**

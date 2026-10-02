@@ -67,6 +67,8 @@ public final class Arbiter {
 
     /** Per-instinct cooldown counters (parallel to {@link #instincts}); {@code 0} means eligible. */
     private final int[] cooldowns;
+    /** Per-instinct back-off after failures priced out ({@link Instinct#stock}), null for none. */
+    private final @Nullable BackOff[] backOffs;
     /** Last tick's pressures, cached for the ctx-less {@link #describe()}. */
     private final double[] lastPressures;
 
@@ -122,6 +124,44 @@ public final class Arbiter {
         for (int i = 0; i < instincts.size(); i++) {
             Integer left = waiting.get(instincts.get(i).key());
             cooldowns[i] = left == null ? 0 : Math.max(0, left);
+        }
+    }
+
+    /**
+     * A drive backing off: its failures in a row with every way priced out, and the stock reading
+     * and budget it failed at, either of which changing frees it at once.
+     */
+    public record BackOff(int failures, long stock, double tolerance) {
+    }
+
+    /** The first wait after a failure priced out — six times {@link Instinct#DEFAULT_FAIL_COOLDOWN}. */
+    public static final int BACK_OFF = 600;
+
+    /** How often the wait doubles: up to 4,800 ticks, the board's set-up back-off's cap. */
+    static final int MOST_DOUBLINGS = 3;
+
+    /** Ticks between looks at a backing-off drive's stock: food arriving is acted on within a second. */
+    static final int STOCK_CHECK_TICKS = 20;
+
+    static int backOffAfter(int failures) {
+        return BACK_OFF << Math.min(Math.max(failures, 1) - 1, MOST_DOUBLINGS);
+    }
+
+    /** Every drive backing off, by {@link Instinct#key()}. Saved with the cooldowns, for their reason. */
+    public Map<String, BackOff> backOffs() {
+        Map<String, BackOff> backing = new LinkedHashMap<>();
+        for (int i = 0; i < instincts.size(); i++) {
+            if (backOffs[i] != null) {
+                backing.put(instincts.get(i).key(), backOffs[i]);
+            }
+        }
+        return backing;
+    }
+
+    /** Puts saved back-offs back; an unknown key is ignored. */
+    public void restoreBackOffs(Map<String, BackOff> saved) {
+        for (int i = 0; i < instincts.size(); i++) {
+            backOffs[i] = saved.get(instincts.get(i).key());
         }
     }
 
@@ -188,6 +228,7 @@ public final class Arbiter {
         this.instincts = List.copyOf(instincts);
         this.work = work;
         this.cooldowns = new int[this.instincts.size()];
+        this.backOffs = new BackOff[this.instincts.size()];
         this.lastPressures = new double[this.instincts.size()];
     }
 
@@ -201,9 +242,15 @@ public final class Arbiter {
         double preempt = preempt(ctx.profile());
 
         // 1. Eligibility is noted before the countdown, so a fresh cooldown buys that many ticks.
+        //    A drive backing off is freed first when what it could draw on has changed.
         boolean[] eligible = new boolean[n];
         Task held = active != null && !workRunning ? executor.root() : null;
         for (int i = 0; i < n; i++) {
+            if (backOffs[i] != null && cooldowns[i] > 0 && cooldowns[i] % STOCK_CHECK_TICKS == 0
+                    && supplied(instincts.get(i), backOffs[i], ctx)) {
+                cooldowns[i] = 0;
+                backOffs[i] = null;
+            }
             eligible[i] = cooldowns[i] == 0;
             if (cooldowns[i] > 0) {
                 cooldowns[i]--;
@@ -369,7 +416,16 @@ public final class Arbiter {
                     lastFailed = active;
                     lastFailureReason = reason;
                 }
-                cooldowns[indexOf(active)] = active.failCooldown();
+                int at = indexOf(active);
+                java.util.OptionalLong stock = executor.failedOnPrice()
+                        ? active.stock(ctx) : java.util.OptionalLong.empty();
+                if (stock.isPresent()) {
+                    int failures = backOffs[at] == null ? 1 : backOffs[at].failures() + 1;
+                    backOffs[at] = new BackOff(failures, stock.getAsLong(), active.costTolerance(ctx));
+                    cooldowns[at] = backOffAfter(failures);
+                } else {
+                    cooldowns[at] = active.failCooldown();
+                }
                 if (running != null) {
                     active.ended(ctx, running, TaskStatus.FAILED);
                 }
@@ -381,6 +437,7 @@ public final class Arbiter {
                 // than the same one repeating.
                 lastFailed = null;
                 lastFailureReason = "";
+                backOffs[indexOf(active)] = null;
                 history.record(grantedDeed, ctx.percepts().time());
                 if (running != null) {
                     active.ended(ctx, running, TaskStatus.SUCCESS);
@@ -389,6 +446,13 @@ public final class Arbiter {
             active = null; // next tick's idle-grant re-arbitrates
             grantedDeed = null;
         }
+    }
+
+    /** Whether what a backing-off drive could draw on changed, or its budget grew, since it failed. */
+    private static boolean supplied(Instinct instinct, BackOff backOff, BrainContext ctx) {
+        java.util.OptionalLong now = instinct.stock(ctx);
+        return now.isEmpty() || now.getAsLong() != backOff.stock()
+                || instinct.costTolerance(ctx) > backOff.tolerance();
     }
 
     /**

@@ -52,6 +52,15 @@ public final class BrainState {
     public static final Codec<Map<String, Integer>> COOLDOWNS =
             Codec.unboundedMap(Codec.STRING, Codec.INT);
 
+    /** Drives backing off after failing priced out, by {@code Instinct.key()}: why their cooldown is long. */
+    public static final Codec<Map<String, Arbiter.BackOff>> BACK_OFFS =
+            Codec.unboundedMap(Codec.STRING, RecordCodecBuilder.create(
+                    backOff -> backOff.group(
+                            Codec.INT.fieldOf("failures").forGetter(Arbiter.BackOff::failures),
+                            Codec.LONG.fieldOf("stock").forGetter(Arbiter.BackOff::stock),
+                            Codec.DOUBLE.fieldOf("tolerance").forGetter(Arbiter.BackOff::tolerance)
+                    ).apply(backOff, Arbiter.BackOff::new)));
+
     /** One history entry as written: the doing's key, its slots encoded, when, how often. */
     private record SavedDeed(String doing, List<String> slots, long last, int times) {
     }

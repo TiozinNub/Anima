@@ -56,4 +56,12 @@ class HistoryCodecTest {
 
         assertEquals(SAVED, BrainState.HISTORY.parse(JsonOps.INSTANCE, encoded).getOrThrow());
     }
+
+    @Test
+    void aBackOffSurvivesTheFile() {
+        java.util.Map<String, dev.luizloyola.anima.core.brain.Arbiter.BackOff> backing =
+                java.util.Map.of("eat", new dev.luizloyola.anima.core.brain.Arbiter.BackOff(3, -8_123_456_789L, 15.0));
+        JsonElement encoded = BrainState.BACK_OFFS.encodeStart(JsonOps.INSTANCE, backing).getOrThrow();
+        assertEquals(backing, BrainState.BACK_OFFS.parse(JsonOps.INSTANCE, encoded).getOrThrow());
+    }
 }

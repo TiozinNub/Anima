@@ -141,6 +141,11 @@ public interface BrainContext {
         return java.util.Optional.empty();
     }
 
+    /** What this body's site holds of {@code spec} — {@link dev.luizloyola.anima.core.store.Depot#held}. */
+    default long heldAtDepot(dev.luizloyola.anima.core.inv.ItemSpec spec) {
+        return 0L;
+    }
+
     /**
      * Whether the work under way places or breaks structural blocks — mining, chopping, building.
      * A drive asks it to know whether now is a moment to judge the body's situation at all; see

@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.store;
 
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.territory.ChunkKey;
 import java.util.Objects;
 import java.util.Optional;
@@ -42,10 +43,22 @@ public final class Depot {
         }
     }
 
+    /**
+     * The consumer's reading of how much of a spec a body's site holds — what the body could not
+     * have seen arrive: another member's delivery, a cook's food carried home.
+     */
+    public interface Holdings {
+        long of(AgentId body, ItemSpec spec);
+    }
+
     /** Nowhere for everyone — what runs until a consumer installs its own. */
     public static final Policy NOWHERE = body -> Optional.empty();
 
+    /** Nothing known of any site. */
+    public static final Holdings UNREAD = (body, spec) -> 0L;
+
     private static volatile Policy policy = NOWHERE;
+    private static volatile Holdings holdings = UNREAD;
 
     private Depot() {
     }
@@ -56,5 +69,14 @@ public final class Depot {
 
     public static Optional<Site> of(AgentId body) {
         return policy.of(body);
+    }
+
+    public static void install(Holdings installed) {
+        holdings = Objects.requireNonNull(installed, "holdings");
+    }
+
+    /** What {@code body}'s site holds of {@code spec} as its consumer reads it; 0 when unread. */
+    public static long held(AgentId body, ItemSpec spec) {
+        return holdings.of(body, spec);
     }
 }

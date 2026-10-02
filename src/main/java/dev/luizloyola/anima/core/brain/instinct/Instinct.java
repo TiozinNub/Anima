@@ -128,6 +128,17 @@ public interface Instinct {
     }
 
     /**
+     * What serving this drive could draw on, as one reading that changes when any of it does — or
+     * empty for a drive that never backs off. One that has it waits longer after each failure in a
+     * row with every way priced out, and is free again the moment the reading changes or its
+     * budget grows: a hungry settler with no food to hand preempted her work every 100 ticks to
+     * fail at once, 371 times, and her food line never got its errands done (forest, 2026-10-02).
+     */
+    default java.util.OptionalLong stock(dev.luizloyola.anima.core.brain.BrainContext ctx) {
+        return java.util.OptionalLong.empty();
+    }
+
+    /**
      * The default {@link #failCooldown()} — anti fail-spin, so a drive that cannot currently be
      * satisfied doesn't monopolize the wheel while lower drives starve (see
      * {@link dev.luizloyola.anima.core.brain.Arbiter}). Layer 3's escalation flag supersedes it.
