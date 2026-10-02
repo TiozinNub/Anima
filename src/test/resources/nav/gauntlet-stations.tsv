@@ -130,8 +130,8 @@ G8	745	-49	88	762	-49	88	false	block	fire on netherrack	block	false	0
 G9	745	-49	100	762	-49	100	false	block	sweet berry bushes	block	false	0
 G10	745	-49	112	762	-49	112	true	reach	1-wide safe lane in lava	reach	true	0
 G11	745	-49	124	762	-49	124	true	reach	chicane through berry bushes	reach	true	0
-G12	745	-49	136	762	-49	136	?	reach	wheat field, a row beside it	reach	?	?
-G13	745	-49	148	762	-49	148	?	block	wheat field across the lane	block	?	?
+G12	745	-49	136	762	-49	136	true	reach	wheat field, a row beside it	reach	true	0
+G13	745	-49	148	762	-49	148	false	block	wheat field across the lane	block	false	0
 H1	769	-49	4	786	-50	4	true	reach	drop 1	reach	true	0
 H2	769	-49	16	786	-52	16	true	reach	drop 3	reach	true	0
 H3	769	-49	28	786	-53	28	false	reach	drop 4	reach	false	0
