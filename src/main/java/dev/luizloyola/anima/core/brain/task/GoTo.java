@@ -6,9 +6,12 @@ import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.brain.sense.Sides;
+import dev.luizloyola.anima.core.continuity.Ephemeral;
+import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.WalkLevel;
 import java.util.Locale;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The first primitive: walk to a cell. Issues one
@@ -37,6 +40,9 @@ import java.util.Locale;
  * <p><b>Staying in.</b> A walk out of a shelter while something the body would fear waits outside
  * is refused before it starts, {@link MoveFailure#SHELTERING} (shelter spec, decision 11). Flight,
  * escape, a fight and a dev command walk out anyway: they ask {@link #leavingShelter()}.
+ *
+ * <p><b>Stranded short of blocks</b>, a walk that may build hands over to {@link BlocksToCross}:
+ * get them, then walk again, building ({@link #standIn}).
  */
 public final class GoTo implements PrimitiveTask {
 
@@ -60,7 +66,11 @@ public final class GoTo implements PrimitiveTask {
      * to be: the executor asks for it in the same tick this task returns FAILED, so it never
      * outlives the tick that set it.
      */
+    @Ephemeral("read by the executor in the tick that set it")
     private MoveFailure failure = MoveFailure.NONE;
+    /** With a stranding, what the legs said would have crossed. */
+    @Ephemeral("read by the executor in the tick that set it, like the failure")
+    private int blocksNeeded;
 
     /** An ordinary walk to {@code (x, y, z)} — see the class doc on gait. */
     public GoTo(int x, int y, int z) {
@@ -122,6 +132,7 @@ public final class GoTo implements PrimitiveTask {
                 // Read the reason HERE, not from failureDetail(): that call takes no context, and
                 // by then the legs may already have been re-ordered by whatever ran next.
                 this.failure = ctx.actuators().mover().failure();
+                this.blocksNeeded = ctx.actuators().mover().blocksNeeded();
                 if (failure == MoveFailure.STRANDED || failure == MoveFailure.UNREACHABLE) {
                     ctx.unreached().strike(new Pos(x, y, z), ctx.percepts().time());
                 }
@@ -145,6 +156,20 @@ public final class GoTo implements PrimitiveTask {
         return failure == MoveFailure.NONE
                 ? describe() + " failed"
                 : describe() + " failed — " + failure.describe();
+    }
+
+    /**
+     * Stranded where blocks would have got it there: go and get them, then walk again, building.
+     * The executor never asks a walk already under such a stand-in, so it is tried once.
+     */
+    @Override
+    public @Nullable CompoundTask standIn(BrainContext ctx) {
+        if (failure != MoveFailure.STRANDED || blocksNeeded <= 0) {
+            return null;
+        }
+        ctx.journal().record(Category.BRAIN, describe(),
+                "stranded — needs " + blocksNeeded + " blocks to get there");
+        return new BlocksToCross(x, y, z, gait, blocksNeeded, leavesShelter);
     }
 
     @Override

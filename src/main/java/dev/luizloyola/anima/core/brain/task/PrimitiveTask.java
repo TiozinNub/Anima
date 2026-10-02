@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The executable leaf of the task machinery: a small state machine making one decision per tick
@@ -22,6 +23,16 @@ public non-sealed interface PrimitiveTask extends Task {
      */
     default String failureDetail() {
         return describe() + " failed";
+    }
+
+    /**
+     * What to run in this task's place now that it has FAILED, when the way it failed names the
+     * cure — a walk stranded for want of blocks goes and gets them. Asked once, the tick it
+     * fails; null, the default, fails it as usual. The executor never asks inside another
+     * stand-in ({@link CompoundTask#standsIn()}), so a cure cannot need a cure of its own.
+     */
+    default @Nullable CompoundTask standIn(BrainContext ctx) {
+        return null;
     }
 
     /**

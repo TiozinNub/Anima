@@ -210,6 +210,24 @@ public final class AnimaTasks {
             return leaves ? walk.leavingShelter() : walk;
         })));
 
+        // The walk it stands in for, and how many blocks that walk said would cross.
+        TaskCodecs.register("anima:blocks_to_cross",
+                dev.luizloyola.anima.core.brain.task.BlocksToCross.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        Codec.INT.fieldOf("x").forGetter(
+                                dev.luizloyola.anima.core.brain.task.BlocksToCross::x),
+                        Codec.INT.fieldOf("y").forGetter(
+                                dev.luizloyola.anima.core.brain.task.BlocksToCross::y),
+                        Codec.INT.fieldOf("z").forGetter(
+                                dev.luizloyola.anima.core.brain.task.BlocksToCross::z),
+                        GAIT.fieldOf("gait").forGetter(
+                                dev.luizloyola.anima.core.brain.task.BlocksToCross::gait),
+                        Codec.INT.fieldOf("count").forGetter(
+                                dev.luizloyola.anima.core.brain.task.BlocksToCross::count),
+                        Codec.BOOL.optionalFieldOf("leavesShelter", false).forGetter(
+                                dev.luizloyola.anima.core.brain.task.BlocksToCross::leavesShelter)
+                ).apply(t, dev.luizloyola.anima.core.brain.task.BlocksToCross::new)));
+
         // No state of its own: an escape step is re-decided from where the body now stands, which
         // is the same reason it is one step rather than a compiled plan (see EscapeStep).
         TaskCodecs.register("anima:escape", EscapeStep.class,

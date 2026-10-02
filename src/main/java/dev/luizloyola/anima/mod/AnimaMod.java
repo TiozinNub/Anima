@@ -73,6 +73,9 @@ public final class AnimaMod implements ModInitializer {
         // Teaches the plan-codec registry Anima's own tasks, before anything can load a plan.
         dev.luizloyola.anima.mod.brain.AnimaTasks.install();
         dev.luizloyola.anima.mod.brain.ReadyFoods.install();
+        // Also registers its spec by name before a saved plan can ask for it.
+        dev.luizloyola.anima.core.brain.task.BlocksToCross.layableBy(
+                dev.luizloyola.anima.mod.nav.Laying::layable);
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             java.util.Set<String> creatures = dev.luizloyola.anima.compat.sense.LootYields.species();
             dev.luizloyola.anima.core.brain.sense.Yields.install(

@@ -119,4 +119,35 @@ class ExecutorContinuityTest {
                 codec.encodeStart(JsonOps.INSTANCE, live).getOrThrow()).getOrThrow();
         assertEquals(List.of(), StateGraph.capture(live).diff(StateGraph.capture(restored)));
     }
+
+    private static TaskExecutor strandedShortOfBlocks(FakeContext ctx) {
+        dev.luizloyola.anima.core.brain.task.BlocksToCross.layableBy("minecraft:dirt"::equals);
+        TaskExecutor executor = running(new Try(new GoTo(9, 64, 0)), ctx, 1);
+        ctx.mover.setState(MoveState.FAILED);
+        ctx.mover.setFailure(dev.luizloyola.anima.core.brain.act.MoveFailure.STRANDED);
+        ctx.mover.blocksNeeded = 6;
+        executor.tick(ctx);
+        ctx.mover.setState(MoveState.IDLE);
+        ctx.mover.setFailure(dev.luizloyola.anima.core.brain.act.MoveFailure.NONE);
+        return executor;
+    }
+
+    /** The stand-in a stranded walk left in its place is the plan that comes back. */
+    @Test
+    void aWalkStandingDownForBlocksComesBackStandingDown() {
+        TaskExecutor live = strandedShortOfBlocks(new FakeContext());
+        assertTrue(live.describe().contains("get 6 blocks to cross"), live.describe());
+        assertEquals(List.of(), lost(live));
+    }
+
+    /** ...and so does its walk again, building, once the blocks are in hand. */
+    @Test
+    void theWalkAfterTheBlocksComesBackWalking() {
+        FakeContext ctx = new FakeContext();
+        TaskExecutor live = strandedShortOfBlocks(ctx);
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:dirt", 6, 64));
+        live.tick(ctx);
+        assertEquals(dev.luizloyola.anima.core.nav.WalkLevel.BUILD, ctx.mover.lastLevel);
+        assertEquals(List.of(), lost(live));
+    }
 }

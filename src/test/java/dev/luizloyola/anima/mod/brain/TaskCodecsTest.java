@@ -21,6 +21,7 @@ import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.WanderStep;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.social.speech.Speech;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,16 @@ class TaskCodecsTest {
                 roundTrip(before));
         assertEquals(new dev.luizloyola.anima.core.brain.sense.Pos(4, 70, -2), after.target());
         assertEquals(3, after.pauseTicks());
+    }
+
+    @Test
+    void aWalkShortOfBlocksComesBackWithWhereAndHowMany() {
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.BlocksToCross.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.BlocksToCross(4, 70, -2, Gait.STROLL,
+                        9, true)));
+        assertEquals(List.of(4, 70, -2, 9), List.of(after.x(), after.y(), after.z(), after.count()));
+        assertEquals(Gait.STROLL, after.gait());
+        assertTrue(after.leavesShelter());
     }
 
     @Test

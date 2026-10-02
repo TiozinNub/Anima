@@ -37,6 +37,14 @@ public non-sealed interface CompoundTask extends Task {
     String describe();
 
     /**
+     * Whether this compound is a failed primitive's {@link PrimitiveTask#standIn}. Nothing under
+     * one gets a stand-in of its own.
+     */
+    default boolean standsIn() {
+        return false;
+    }
+
+    /**
      * Puts the task this compound was built around back into its restored decomposition, when the
      * decomposition hands that same object on — a wrapper's child. A restore decodes the two apart;
      * this makes them one again, so what the wrapper reads is what runs. Nothing by default.

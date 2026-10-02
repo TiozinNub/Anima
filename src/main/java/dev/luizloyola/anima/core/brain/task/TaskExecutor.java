@@ -149,9 +149,34 @@ public final class TaskExecutor {
         if (status == TaskStatus.SUCCESS) {
             succeedCurrent(ctx);
         } else if (status == TaskStatus.FAILED) {
+            CompoundTask standIn = underAStandIn() ? null : leaf.standIn(ctx);
+            if (standIn != null) {
+                replaceCurrent(standIn);
+                return;
+            }
             noteFailure(leaf.failureDetail());
             failCurrent(ctx);
         }
+    }
+
+    private boolean underAStandIn() {
+        for (Frame frame : stack) {
+            if (frame.compound.standsIn()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Puts {@code task} where the current node is; the next descent expands it. */
+    private void replaceCurrent(Task task) {
+        if (stack.isEmpty()) {
+            root = task;
+            return;
+        }
+        Frame top = stack.get(stack.size() - 1);
+        top.subtasks = new ArrayList<>(top.subtasks); // a decompose may hand back a List.of
+        top.subtasks.set(top.index, task);
     }
 
     public boolean isBusy() {
