@@ -130,6 +130,12 @@ public final class Pathfinder {
      */
     private static final double WADE_COST_FACTOR = 1.8;
     /**
+     * Cost multiplier for a step onto farmland by a body walking out of a field it stood in — see
+     * {@link #afield}. Dear enough that it leaves by the nearest edge rather than across the crop
+     * toward its goal.
+     */
+    private static final double FIELD_COST_FACTOR = 4.0;
+    /**
      * How far below a bank one probe will look for water to plunge into.
      *
      * <p><b>Not a survivability limit</b> like {@link MoveCapabilities#maxDrop}. Entering water
@@ -425,6 +431,23 @@ public final class Pathfinder {
     private boolean leavingDoorway;
     /** {@link NavGrid#hasDoors}, read once: when false, no move asks about doors at all. */
     private final boolean doors;
+    /**
+     * Whether the body starts in a field: on farmland, or on a cell farmland rings on all four
+     * sides (a trampled cell, say). Such a body may walk farmland that joins its start, and
+     * nothing past it: refused outright, the cell it stands in was a prison.
+     */
+    private final boolean afield;
+    /**
+     * Whether a move out of the node being expanded may stand on farmland: the walk allows it, or
+     * the body is still in the field it started in. Set once per expansion, like
+     * {@link #leavingDoorway}.
+     */
+    private boolean treading;
+    /**
+     * Set when a footing was refused for being farmland: the walk's rule, not the world's, so a
+     * region fenced by it is never proof of a seal — see {@link #sealedIn}.
+     */
+    private boolean farmlandRefused;
     /** A survey's first pass: the open list is ordered by {@link #toNearestSide}, not by cost. */
     private boolean headed;
     /** {@link #room}: the open list is ordered by cost alone, so it closes cells nearest first. */
@@ -456,6 +479,28 @@ public final class Pathfinder {
         this.goalY = request.goalY();
         this.goalZ = request.goalZ();
         this.doors = grid.hasDoors();
+        this.treading = this.profile.treadsFarmland();
+        this.afield = !this.treading
+                && inField(grid, request.startX(), request.startY(), request.startZ());
+    }
+
+    /**
+     * Whether a body standing in feet-cell {@code (x,y,z)} is in a field — see {@link #afield}.
+     * Ringed counts farmland a step down beside a trampled cell, whose floor is a full block.
+     */
+    private static boolean inField(NavGrid grid, int x, int y, int z) {
+        if (onFarmland(grid, x, y, z)) return true;
+        for (int[] d : CARDINALS) {
+            if (!onFarmland(grid, x + d[0], y, z + d[1]) && !onFarmland(grid, x + d[0], y - 1, z + d[1])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether feet-cell {@code (x,y,z)} stands on farmland: the farmland's own cell. */
+    private static boolean onFarmland(NavGrid grid, int x, int y, int z) {
+        return grid.cell(x, y, z) == CellType.STEP && grid.farmland(x, y, z);
     }
 
     /**
@@ -656,7 +701,10 @@ public final class Pathfinder {
             }
             expandNeighbors(current, node);
         }
-        return new Confinement(true, rest.size(), rest);
+        // Hemmed in by a field is not shut in: the body may walk out over it, and digging is wrong.
+        return this.farmlandRefused
+                ? new Confinement(false, rest.size(), List.of())
+                : new Confinement(true, rest.size(), rest);
     }
 
     /**
@@ -770,7 +818,7 @@ public final class Pathfinder {
 
     /**
      * Whether an exhausted search proved the body is shut in — <b>the world was the only thing
-     * that stopped it</b>. Four things can fence a search, and only one is a wall:
+     * that stopped it</b>. Five things can fence a search, and only one is a wall:
      *
      * <ul>
      *   <li><b>The request</b> — a {@link NavDomain} is a fence the CALLER put up; exhausting
@@ -780,6 +828,8 @@ public final class Pathfinder {
      *       below, and hence {@link NavGrid#inBounds}.
      *   <li><b>The body's air</b> — a route refused for want of breath is a limit of the lungs,
      *       not of the rock: that body is drowning, and telling it to dig is the wrong rescue.
+     *   <li><b>Farmland</b> — kept off by rule ({@link MoveCapabilities#treadsFarmland}); a body
+     *       penned by a field is not walled in.
      *   <li><b>The world</b> — walls, deep drops, lava, water it cannot swim. This one only.
      * </ul>
      *
@@ -788,7 +838,8 @@ public final class Pathfinder {
      * {@link #MAX_PLUNGE} down for water and says so itself — see {@link #boundsRefused}.
      */
     private boolean sealedIn(PathRequest request) {
-        if (!this.domain.isEverywhere() || this.boundsRefused || this.breathRefused) {
+        if (!this.domain.isEverywhere() || this.boundsRefused || this.breathRefused
+                || this.farmlandRefused) {
             return false;
         }
         int margin = rimMargin();
@@ -856,6 +907,9 @@ public final class Pathfinder {
         // Where this node's feet are, read once: every land move below is a rise measured from it,
         // and re-deriving it per probe would be twenty reads of the same two cells.
         double from = y + node.surface16 / 16.0;
+        if (this.afield) {
+            this.treading = current == this.startKey || onFarmland(this.grid, x, y, z);
+        }
         this.leavingDoorway = this.doors
                 && hasDoor(x, y, y + this.profile.topCell(node.surface16 / 16.0), z);
         // Standing on a shut hatch is standing; the same cell reached up the ladder is holding on.
@@ -1383,6 +1437,8 @@ public final class Pathfinder {
         if (node.move.inWater() || isWater(x, y, z)) return;
         if (!this.grid.layable(nx, y - 1, nz) || !fits(nx, y, nz, 0.0)) return;
         if (hazardBelow(nx, y - 1, nz)) return;
+        // A block laid on farmland turns it to dirt.
+        if (!this.profile.treadsFarmland() && this.grid.farmland(nx, y - 2, nz)) return;
         relax(current, node, pack(nx, y, nz), y, MoveType.BRIDGE, LAY_COST);
     }
 
@@ -1845,11 +1901,17 @@ public final class Pathfinder {
      * below asks, of the same two cells, against a different {@link CellType}.
      */
     private double footing(int x, int y, int z) {
-        return footingOf(this.grid, this.profile, x, y, z);
+        CellType here = this.grid.cell(x, y, z);
+        if (here == CellType.STEP && !this.treading && this.grid.farmland(x, y, z)) {
+            this.farmlandRefused = true;
+            return NO_FOOTING;
+        }
+        return footingOf(this.grid, this.profile, here, x, y, z);
     }
 
-    private static double footingOf(NavGrid grid, MoveCapabilities profile, int x, int y, int z) {
-        CellType here = grid.cell(x, y, z);
+    /** {@link #footing} with no opinion about farmland: where the feet rest, trampling or not. */
+    private static double footingOf(NavGrid grid, MoveCapabilities profile, CellType here,
+                                    int x, int y, int z) {
         if (here == CellType.STEP) {
             double surface = grid.surface(x, y, z);
             return fitsOf(grid, profile, x, y, z, surface) ? y + surface : NO_FOOTING;
@@ -1871,7 +1933,11 @@ public final class Pathfinder {
      * {@link #footing} rule, for a caller that must agree with it about where a walk can end.
      */
     public static boolean standable(NavGrid grid, MoveCapabilities body, int x, int y, int z) {
-        return footingOf(grid, body, x, y, z) != NO_FOOTING;
+        CellType here = grid.cell(x, y, z);
+        if (here == CellType.STEP && !body.treadsFarmland() && grid.farmland(x, y, z)) {
+            return false;
+        }
+        return footingOf(grid, body, here, x, y, z) != NO_FOOTING;
     }
 
     /** Whether feet-cell {@code (x,y,z)} affords footing at all — {@link #footing} as a predicate. */
@@ -2153,6 +2219,9 @@ public final class Pathfinder {
         }
         int surface16 = footing == NO_FOOTING ? 0
                 : Math.max(0, Math.min(15, (int) Math.round((footing - ny) * 16.0)));
+        if (this.afield && onFarmland(this.grid, unpackX(neighbor), ny, unpackZ(neighbor))) {
+            cost *= FIELD_COST_FACTOR;
+        }
         // Scaled by the ground, then surcharged for fear: roughness is how tiring the crossing is,
         // so it multiplies the crossing, while dread is a flat toll for setting foot at all. The
         // heuristic survives both because neither can make a move cost less than its length.
@@ -2439,7 +2508,8 @@ public final class Pathfinder {
         int tx = unpackX(takeoff);
         int ty = unpackY(takeoff);
         int tz = unpackZ(takeoff);
-        double surface = footing(tx, ty, tz);
+        // Where the route already stood: farmland it was allowed onto is no question here.
+        double surface = footingOf(this.grid, this.profile, this.grid.cell(tx, ty, tz), tx, ty, tz);
         int surface16 = surface == NO_FOOTING ? 0
                 : Math.max(0, Math.min(15, (int) Math.round((surface - ty) * 16.0)));
         return new Waypoint(tx, ty, tz, MoveType.RUNUP, surface16);

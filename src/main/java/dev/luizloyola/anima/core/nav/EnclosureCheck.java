@@ -168,9 +168,10 @@ public final class EnclosureCheck {
 
     private static Confinement survey(NavGrid grid, Pos from, MoveCapabilities body,
                                       int maxNodes) {
+        // Farmland allowed: this asks where the walls are, and a rule is not one.
         return Pathfinder.survey(grid, new PathRequest(from.x(), from.y(), from.z(),
-                from.x(), from.y(), from.z(), body, DangerField.NONE, NavDomain.EVERYWHERE,
-                maxNodes, 0L, SetbackField.NONE));
+                from.x(), from.y(), from.z(), body.withFarmland(true), DangerField.NONE,
+                NavDomain.EVERYWHERE, maxNodes, 0L, SetbackField.NONE));
     }
 
     private static MoveCapabilities withHands(MoveCapabilities body, boolean hands) {

@@ -79,6 +79,11 @@ final class ShutDoors implements NavGrid {
     }
 
     @Override
+    public boolean farmland(int x, int y, int z) {
+        return this.base.farmland(x, y, z);
+    }
+
+    @Override
     public boolean hasDoors() {
         return this.walled != null && this.base.hasDoors();
     }

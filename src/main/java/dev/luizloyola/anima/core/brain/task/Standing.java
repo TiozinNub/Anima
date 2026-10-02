@@ -41,6 +41,7 @@ public final class Standing {
                     + " over " + grid.cell(x, y - 1, z).name().toLowerCase(java.util.Locale.ROOT) + ")";
             case NO_HEADROOM -> "no room for the head";
             case DEEP_DROP -> "beside a drop the body would not survive";
+            case FARMLAND -> "farmland underfoot";
             default -> "";
         };
     }
@@ -50,6 +51,7 @@ public final class Standing {
     private static final int NO_FOOTING = 2;
     private static final int NO_HEADROOM = 3;
     private static final int DEEP_DROP = 4;
+    private static final int FARMLAND = 5;
 
     private static int refusal(NavGrid grid, MoveCapabilities body, int x, int y, int z) {
         if (!grid.inBounds(x, y, z)) {
@@ -66,6 +68,9 @@ public final class Standing {
                 || (here == CellType.PASSABLE && grid.cell(x, y - 1, z) == CellType.GROUND);
         if (!footing) {
             return NO_FOOTING;
+        }
+        if (here == CellType.STEP && !body.treadsFarmland() && grid.farmland(x, y, z)) {
+            return FARMLAND; // a body landing on it tramples the crop
         }
         int top = y + body.topCell(grid.surface(x, y, z));
         for (int cell = y + 1; cell <= top; cell++) {

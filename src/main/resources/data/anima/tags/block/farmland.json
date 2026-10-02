@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:farmland",
+    {
+      "id": "#minecraft:supports_crops",
+      "required": false
+    }
+  ]
+}

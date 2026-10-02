@@ -101,6 +101,19 @@ class BlockSurfaceTest {
         assertStep(Blocks.FARMLAND.defaultBlockState(), 0.9375, "farmland");
     }
 
+    /** Read by its class here, tags being empty: what tramples is {@code FarmlandBlock.fallOn}. */
+    @Test
+    void farmlandIsMarkedAndADirtPathIsNot() {
+        assertTrue(farmland(Blocks.FARMLAND.defaultBlockState()));
+        assertTrue(farmland(Blocks.FARMLAND.defaultBlockState().setValue(BlockStateProperties.MOISTURE, 7)));
+        assertFalse(farmland(Blocks.DIRT_PATH.defaultBlockState()), "a road is walked");
+        assertFalse(farmland(Blocks.DIRT.defaultBlockState()));
+    }
+
+    private static boolean farmland(BlockState state) {
+        return WorldSnapshot.farmland(WorldSnapshot.classifyLive(state, EmptyBlockGetter.INSTANCE, BlockPos.ZERO));
+    }
+
     @Test
     void aCarpetIsOneSixteenth() {
         // MOSS_CARPET rather than a dyed one: 26.2 collapsed the sixteen coloured carpets into

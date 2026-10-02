@@ -20,6 +20,11 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+//? if >=26.1 {
+import net.minecraft.world.level.block.FarmlandBlock;
+//?} else {
+/*import net.minecraft.world.level.block.FarmBlock;
+*///?}
 import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -75,6 +80,13 @@ public final class WorldSnapshot implements NavGrid {
     private static final TagKey<Block> REGROWING_GROUND =
             TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("anima", "regrowing_ground"));
 
+    /**
+     * Farmland, which a body landing on tramples. Vanilla's own tag for it arrived after 1.21.11,
+     * so Anima's gathers it optionally. See {@link NavGrid#farmland}.
+     */
+    private static final TagKey<Block> FARMLAND =
+            TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("anima", "farmland"));
+
     /** Hand-swung trapdoors: the wooden ones and copper. Vanilla has no tag that says it. */
     private static final TagKey<Block> HAND_TRAPDOORS =
             TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("anima", "hand_trapdoors"));
@@ -115,6 +127,8 @@ public final class WorldSnapshot implements NavGrid {
      * ramps, so its payload is free. See {@link NavGrid#regrows}.
      */
     private static final int REGROWS = 1;
+    /** The same bit on a {@link CellType#STEP} cell: farmland. See {@link NavGrid#farmland}. */
+    private static final int TILLED = 1 << 7;
 
     static boolean layable(int packed) {
         return type(packed) == CellType.PASSABLE && (packed & FIXED) == 0;
@@ -126,6 +140,10 @@ public final class WorldSnapshot implements NavGrid {
 
     static boolean regrows(int packed) {
         return soft(packed) && (payload(packed) & REGROWS) != 0;
+    }
+
+    static boolean farmland(int packed) {
+        return type(packed) == CellType.STEP && (packed & TILLED) != 0;
     }
 
     static CellType type(int packed) {
@@ -404,6 +422,11 @@ public final class WorldSnapshot implements NavGrid {
     /** {@link NavGrid#regrows} of a single live cell, under {@link #classifyAt}'s rules. */
     public static boolean regrowsAt(Level level, BlockPos pos) {
         return regrows(packedAt(level.getBlockState(pos), level, pos));
+    }
+
+    /** {@link NavGrid#farmland} of a single live cell, under {@link #classifyAt}'s rules. */
+    public static boolean farmlandAt(Level level, BlockPos pos) {
+        return farmland(packedAt(level.getBlockState(pos), level, pos));
     }
 
     /** {@link NavGrid#layable} of a single live cell, under {@link #classifyAt}'s rules. */
@@ -789,7 +812,13 @@ public final class WorldSnapshot implements NavGrid {
         // made a village street a wall — see CellType.STEP. Rounding to sixteenths is lossless for
         // vanilla shapes; the clamp only guards a modded shape thinner than one sixteenth.
         int surface16 = Math.max(1, Math.min(SIXTEENTHS - 1, (int) Math.round(surface * SIXTEENTHS)));
-        return pack(CellType.STEP, surface16 - 1);
+        // The class too: what tramples is FarmlandBlock.fallOn, which a modded soil inherits.
+        //? if >=26.1 {
+        boolean tilled = state.is(FARMLAND) || state.getBlock() instanceof FarmlandBlock;
+        //?} else {
+        /*boolean tilled = state.is(FARMLAND) || state.getBlock() instanceof FarmBlock;
+        *///?}
+        return (byte) (pack(CellType.STEP, surface16 - 1) | (tilled ? TILLED : 0));
     }
 
     /**
@@ -875,6 +904,12 @@ public final class WorldSnapshot implements NavGrid {
     public boolean regrows(int x, int y, int z) {
         int index = slot(x, y, z);
         return index >= 0 && regrows(this.cells[index]);
+    }
+
+    @Override
+    public boolean farmland(int x, int y, int z) {
+        int index = slot(x, y, z);
+        return index >= 0 && farmland(this.cells[index]);
     }
 
     /**

@@ -88,6 +88,11 @@ public final class LiveDoors implements NavGrid {
     }
 
     @Override
+    public boolean farmland(int x, int y, int z) {
+        return this.base.farmland(x, y, z);
+    }
+
+    @Override
     public boolean hasDoors() {
         return this.doors;
     }

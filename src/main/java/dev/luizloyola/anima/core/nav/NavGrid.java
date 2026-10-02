@@ -125,6 +125,17 @@ public interface NavGrid {
         return false;
     }
 
+    /**
+     * Whether this {@link CellType#STEP} cell is farmland — {@code #anima:farmland}, or any block
+     * that tramples the way vanilla's does. A body landing on it pops the crop, so no walk stands
+     * on it unless it says it may ({@link MoveCapabilities#treadsFarmland}).
+     *
+     * <p>The default is none, correct for a drawn grid that did not say.
+     */
+    default boolean farmland(int x, int y, int z) {
+        return false;
+    }
+
     /** A heading as a bit, for {@link #ramps}: toward -z. */
     int NORTH = 1;
     /** Toward +z. */

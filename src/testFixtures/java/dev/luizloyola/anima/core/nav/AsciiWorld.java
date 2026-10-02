@@ -33,6 +33,7 @@ public final class AsciiWorld implements NavGrid {
     private final java.util.Set<Long> fixed = new java.util.HashSet<>();
     private final java.util.Set<Long> soft = new java.util.HashSet<>();
     private final java.util.Set<Long> regrowing = new java.util.HashSet<>();
+    private final java.util.Set<Long> farmland = new java.util.HashSet<>();
 
     private AsciiWorld(String[] rows) {
         this.rows = rows;
@@ -133,6 +134,7 @@ public final class AsciiWorld implements NavGrid {
             @Override public boolean layable(int x, int y, int z) { return map.layable(x, y, z); }
             @Override public boolean soft(int x, int y, int z) { return map.soft(x, y, z); }
             @Override public boolean regrows(int x, int y, int z) { return map.regrows(x, y, z); }
+            @Override public boolean farmland(int x, int y, int z) { return map.farmland(x, y, z); }
             @Override public boolean inBounds(int x, int y, int z) {
                 return x >= 0 && x < w && z >= 0 && z < depth;
             }
@@ -172,6 +174,27 @@ public final class AsciiWorld implements NavGrid {
     @Override
     public boolean regrows(int x, int y, int z) {
         return soft(x, y, z) && this.regrowing.contains(Pathfinder.pack(x, y, z));
+    }
+
+    /**
+     * Farmland through the inclusive box: a {@link CellType#STEP} at vanilla's 15/16, marked
+     * {@link NavGrid#farmland}. Drawn at the floor's own y, like any partial floor.
+     */
+    public AsciiWorld farmland(int x1, int y1, int z1, int x2, int y2, int z2) {
+        step(x1, y1, z1, x2, y2, z2, 0.9375);
+        for (int x = x1; x <= x2; x++) {
+            for (int y = y1; y <= y2; y++) {
+                for (int z = z1; z <= z2; z++) {
+                    this.farmland.add(Pathfinder.pack(x, y, z));
+                }
+            }
+        }
+        return this;
+    }
+
+    @Override
+    public boolean farmland(int x, int y, int z) {
+        return cell(x, y, z) == CellType.STEP && this.farmland.contains(Pathfinder.pack(x, y, z));
     }
 
     @Override

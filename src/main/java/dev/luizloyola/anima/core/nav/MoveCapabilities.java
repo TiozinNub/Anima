@@ -35,10 +35,23 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
  * @param canScale   whether this walk may scale a soft step — cut its lip, climb into the notch,
  *                   put the lip back underfoot. Needs an arm and a hand, and a walk that allows it;
  *                   read at request time like {@code maxLaid}
+ * @param treadsFarmland whether this walk may stand on farmland ({@link NavGrid#farmland}). False for
+ *                   every walk that did not ask: a body landing on farmland tramples it and pops the
+ *                   crop, so only work in the field itself (sowing, harvesting) sets it — see
+ *                   {@link #withFarmland}
  */
 public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
                                boolean canSwim, int maxSubmerged, boolean canOpenDoors,
-                               boolean canClimb, int maxLaid, boolean canScale) {
+                               boolean canClimb, int maxLaid, boolean canScale,
+                               boolean treadsFarmland) {
+
+    /** A body kept off farmland — every caller that has not said it works the field. */
+    public MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
+                            boolean canSwim, int maxSubmerged, boolean canOpenDoors,
+                            boolean canClimb, int maxLaid, boolean canScale) {
+        this(height, jumpHeight, maxDrop, maxLeap, canSwim, maxSubmerged, canOpenDoors, canClimb,
+                maxLaid, canScale, false);
+    }
 
     /** A body that moves no ground — every caller that has not asked to build or scale. */
     public MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
@@ -113,14 +126,25 @@ public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int m
     public MoveCapabilities withLaid(int blocks) {
         return new MoveCapabilities(this.height, this.jumpHeight, this.maxDrop, this.maxLeap,
                 this.canSwim, this.maxSubmerged, this.canOpenDoors, this.canClimb, blocks,
-                this.canScale);
+                this.canScale, this.treadsFarmland);
     }
 
     /** The same body, allowed or not to scale a soft step on this route. */
     public MoveCapabilities withScaling(boolean scale) {
         return new MoveCapabilities(this.height, this.jumpHeight, this.maxDrop, this.maxLeap,
                 this.canSwim, this.maxSubmerged, this.canOpenDoors, this.canClimb, this.maxLaid,
-                scale);
+                scale, this.treadsFarmland);
+    }
+
+    /**
+     * The same body, allowed or not onto farmland on this route. Work in a field passes
+     * {@code true} for the walks inside it; nothing else should (Luiz, 2026-10-01: "any farmland
+     * should be avoided unless actively allowed").
+     */
+    public MoveCapabilities withFarmland(boolean tread) {
+        return new MoveCapabilities(this.height, this.jumpHeight, this.maxDrop, this.maxLeap,
+                this.canSwim, this.maxSubmerged, this.canOpenDoors, this.canClimb, this.maxLaid,
+                this.canScale, tread);
     }
 
     /** Reads one body's capabilities out of its resolved profile, here and now. */
