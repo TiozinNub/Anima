@@ -246,6 +246,14 @@ public final class FakeContext implements BrainContext {
         return fieldTables;
     }
 
+    public final dev.luizloyola.anima.core.brain.history.Unreached unreached =
+            new dev.luizloyola.anima.core.brain.history.Unreached();
+
+    @Override
+    public dev.luizloyola.anima.core.brain.history.Unreached unreached() {
+        return unreached;
+    }
+
     @Override
     public boolean walksMayBuild() {
         return walksMayBuild;

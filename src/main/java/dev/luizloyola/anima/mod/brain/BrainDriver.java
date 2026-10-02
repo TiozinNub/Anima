@@ -79,6 +79,8 @@ public final class BrainDriver {
             new dev.luizloyola.anima.core.brain.history.WorkSpots();
     private final dev.luizloyola.anima.core.brain.history.FieldTables fieldTables =
             new dev.luizloyola.anima.core.brain.history.FieldTables();
+    private final dev.luizloyola.anima.core.brain.history.Unreached unreached =
+            new dev.luizloyola.anima.core.brain.history.Unreached();
     /**
      * The one context every task/instinct tick receives: actuators, percepts and the debug
      * journal — the only Minecraft boundary the core machinery ever touches.
@@ -309,6 +311,11 @@ public final class BrainDriver {
             }
 
             @Override
+            public dev.luizloyola.anima.core.brain.history.Unreached unreached() {
+                return unreached;
+            }
+
+            @Override
             public Gate.View gate() {
                 return resolveGate();
             }
@@ -490,7 +497,8 @@ public final class BrainDriver {
      * are never separated.
      */
     public BrainSnapshot snapshot() {
-        return new BrainSnapshot(this.arbiter.executor().snapshot(), this.arbiter.grant());
+        return new BrainSnapshot(this.arbiter.executor().snapshot(), this.arbiter.grant(),
+                this.unreached.snapshot());
     }
 
     /**
@@ -502,14 +510,23 @@ public final class BrainDriver {
      */
     public void restore(BrainSnapshot snapshot,
                         dev.luizloyola.anima.core.brain.board.WorkItem held) {
+        this.unreached.restore(snapshot.unreached());
         if (!this.arbiter.restore(snapshot.plan(), snapshot.grant(), held)) {
             this.person.journal().record(Category.BRAIN, "resume",
                     "dropped the plan for an errand nobody holds any more; deciding afresh");
         }
     }
 
+    /**
+     * @param unreached the cells its walks lately found no way to, which the plan's next choices
+     *                  steer round — saved with the plan so a restart does not walk them again
+     */
     public record BrainSnapshot(dev.luizloyola.anima.core.brain.task.TaskExecutor.State plan,
-                                Arbiter.Grant grant) {
+                                Arbiter.Grant grant,
+                                java.util.List<dev.luizloyola.anima.core.brain.history.Unreached.Strike> unreached) {
+        public BrainSnapshot {
+            unreached = java.util.List.copyOf(unreached);
+        }
     }
 
     /** What fight or flight remembers between ticks: the gear each target has shown, and more. */

@@ -121,27 +121,31 @@ public final class EnsureTable implements AchieveTask {
 
         /**
          * A cell to stand in beside the anchor: an empty side neighbour, else the anchor's column —
-         * the pathfinder then fails outright and the caller reacts (a fresh table gets placed here;
-         * {@link TakeFromStore} just retries next round). Public so every walk to a thing — a
-         * store, a consumer's plant — shares this rather than keeping its own copy of the shape.
+         * the pathfinder then fails outright and the caller reacts (a fresh table gets placed
+         * here). Public so every walk to a thing — a store, a consumer's plant — shares this rather
+         * than keeping its own copy of the shape; a caller that would rather have no way at all
+         * asks {@link #standBeside}.
          */
         public static Pos standableBeside(Pos anchor, BrainContext ctx) {
             return standBeside(anchor, ctx).orElse(anchor);
         }
 
         /**
-         * The side cell {@link #standableBeside} would pick, empty when there is no open side. A
-         * corner counts only past an open side, for the arm does not reach a chest through the edge
-         * of a wall.
+         * The side cell {@link #standableBeside} would pick, empty when there is none: no open side,
+         * or every one a walk lately found no way to ({@link BrainContext#unreached}). A corner
+         * counts only past an open side, for the arm does not reach a chest through the edge of a
+         * wall.
          */
         public static Optional<Pos> standBeside(Pos anchor, BrainContext ctx) {
             BlockProbe probe = ctx.percepts().blocks();
             Pos best = null;
             double bestDistance = Double.MAX_VALUE;
             Pos here = ctx.percepts().position();
+            long now = ctx.percepts().time();
             for (int[] side : SIDES) {
                 Pos cell = new Pos(anchor.x() + side[0], anchor.y(), anchor.z() + side[1]);
-                if (probe.at(cell.x(), cell.y(), cell.z()) != BlockKind.AIR) {
+                if (probe.at(cell.x(), cell.y(), cell.z()) != BlockKind.AIR
+                        || ctx.unreached().struck(cell, now)) {
                     continue;
                 }
                 if (side[0] != 0 && side[1] != 0

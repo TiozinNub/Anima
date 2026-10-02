@@ -11,6 +11,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * BE at a store of the body's {@link Depot} — {@link EnsureTable} with a different block, and two
@@ -46,16 +47,38 @@ public final class EnsureStore implements AchieveTask {
 
     /** The nearest of the party's stores in the depot's area, in this body's memory. */
     private static Optional<PoiMemory> usable(BrainContext ctx) {
+        return nearest(ctx, known(ctx));
+    }
+
+    /**
+     * {@link #usable}, among the stores with a side to stand at. One whose every side a walk found
+     * no way to is not one to build beside instead: the walk is what is wrong, not the store.
+     */
+    private static Optional<PoiMemory> walkable(BrainContext ctx) {
+        return nearest(ctx, known(ctx).filter(memory ->
+                EnsureTable.WalkToKnown.standBeside(memory.anchor(), ctx).isPresent()));
+    }
+
+    private static Stream<PoiMemory> known(BrainContext ctx) {
         Optional<Depot.Site> site = ctx.depot();
         if (site.isEmpty()) {
-            return Optional.empty();
+            return Stream.empty();
         }
-        Pos feet = ctx.percepts().position();
         return Store.ours(ctx).stream()
                 .filter(memory -> !ctx.knowledge().isAvoided(Store.POI, memory.anchor(),
                         ctx.percepts().time()))
-                .filter(memory -> site.get().holds(memory.anchor()))
-                .min(Comparator.comparingDouble(memory -> Store.distance(memory.anchor(), feet)));
+                .filter(memory -> site.get().holds(memory.anchor()));
+    }
+
+    private static Optional<PoiMemory> nearest(BrainContext ctx, Stream<PoiMemory> stores) {
+        Pos feet = ctx.percepts().position();
+        return stores.min(Comparator.comparingDouble(memory -> Store.distance(memory.anchor(), feet)));
+    }
+
+    /** Where a new store goes: the ground nearest the depot's hint with a side to stand at. */
+    private static Optional<Pos> site(BrainContext ctx) {
+        return Ground.near(ctx, ctx.depot().orElseThrow().hint(), 2,
+                ground -> EnsureTable.WalkToKnown.standBeside(ground, ctx).isPresent());
     }
 
     @Override
@@ -72,20 +95,20 @@ public final class EnsureStore implements AchieveTask {
     final class WalkToKnown implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
-            return usable(ctx).isPresent();
+            return walkable(ctx).isPresent();
         }
 
         @Override
         public double estimateCost(BrainContext ctx) {
             // Walking is not weighed against building — building is only on offer while no chest
             // is known — so the distance would only price the haul out.
-            return usable(ctx).isPresent() ? 0.0 : Double.MAX_VALUE;
+            return walkable(ctx).isPresent() ? 0.0 : Double.MAX_VALUE;
         }
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
-            PoiMemory known = usable(ctx).orElseThrow();
-            Pos beside = EnsureTable.WalkToKnown.standableBeside(known.anchor(), ctx);
+            PoiMemory known = walkable(ctx).orElseThrow();
+            Pos beside = EnsureTable.WalkToKnown.standBeside(known.anchor(), ctx).orElseThrow();
             return List.of(new GoTo(beside.x(), beside.y(), beside.z()));
         }
 
@@ -103,7 +126,7 @@ public final class EnsureStore implements AchieveTask {
             // 2026-08-25 because nothing asked this; the loser of the race now falls to
             // WalkToKnown instead. A chest found FULL is avoided, so usable stops seeing it and a
             // second one is wanted again — the one case where another store is the right answer.
-            return ctx.depot().isPresent() && usable(ctx).isEmpty();
+            return ctx.depot().isPresent() && usable(ctx).isEmpty() && site(ctx).isPresent();
         }
 
         @Override
@@ -128,8 +151,8 @@ public final class EnsureStore implements AchieveTask {
          * floorless, so the chest goes on the nearest ground that will hold it.
          */
         private List<Task> openAStore(BrainContext ctx) {
-            Pos ground = Ground.near(ctx, ctx.depot().orElseThrow().hint(), 2);
-            Pos stand = EnsureTable.WalkToKnown.standableBeside(ground, ctx);
+            Pos ground = site(ctx).orElseThrow();
+            Pos stand = EnsureTable.WalkToKnown.standBeside(ground, ctx).orElseThrow();
             List<Task> steps = new ArrayList<>();
             Pos feet = ctx.percepts().position();
             // Never walk to your own cell: the navigator answers PATHING to it and never arrives

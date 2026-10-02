@@ -140,6 +140,17 @@ public final class BrainState {
                             new Pos(x, y, z), tick)))
             .listOf();
 
+    /** Cells a body's walks found no way to: a restart does not walk them again. */
+    public static final Codec<List<dev.luizloyola.anima.core.brain.history.Unreached.Strike>> UNREACHED =
+            RecordCodecBuilder.<dev.luizloyola.anima.core.brain.history.Unreached.Strike>create(i -> i.group(
+                    Codec.INT.fieldOf("x").forGetter(s -> s.cell().x()),
+                    Codec.INT.fieldOf("y").forGetter(s -> s.cell().y()),
+                    Codec.INT.fieldOf("z").forGetter(s -> s.cell().z()),
+                    Codec.LONG.fieldOf("tick").forGetter(dev.luizloyola.anima.core.brain.history.Unreached.Strike::tick))
+                    .apply(i, (x, y, z, tick) -> new dev.luizloyola.anima.core.brain.history.Unreached.Strike(
+                            new Pos(x, y, z), tick)))
+            .listOf();
+
     /** Tables a body put down to craft on: a restart between the craft and the pickup still knows. */
     public static final Codec<List<Pos>> FIELD_TABLES = RecordCodecBuilder.<Pos>create(p -> p.group(
                     Codec.INT.fieldOf("x").forGetter(Pos::x),
@@ -257,7 +268,9 @@ public final class BrainState {
     public static Codec<BrainDriver.BrainSnapshot> brain() {
         return RecordCodecBuilder.create(b -> b.group(
                 executor().fieldOf("plan").forGetter(BrainDriver.BrainSnapshot::plan),
-                GRANT.fieldOf("grant").forGetter(BrainDriver.BrainSnapshot::grant)
+                GRANT.fieldOf("grant").forGetter(BrainDriver.BrainSnapshot::grant),
+                UNREACHED.optionalFieldOf("unreached", List.of())
+                        .forGetter(BrainDriver.BrainSnapshot::unreached)
         ).apply(b, BrainDriver.BrainSnapshot::new));
     }
 

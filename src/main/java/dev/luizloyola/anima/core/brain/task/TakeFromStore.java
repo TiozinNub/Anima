@@ -55,7 +55,7 @@ public final class TakeFromStore implements Method {
     public List<Task> decompose(BrainContext ctx) {
         Candidate best = bestStore(ctx).orElseThrow();
         // Shared with EnsureTable.WalkToKnown rather than a second copy of the same shape.
-        Pos beside = EnsureTable.WalkToKnown.standableBeside(best.at(), ctx);
+        Pos beside = EnsureTable.WalkToKnown.standBeside(best.at(), ctx).orElseThrow();
         return List.of(
                 new GoTo(beside.x(), beside.y(), beside.z()),
                 new TakeItems(best.at(), spec, count, !best.seenHolding()));
@@ -97,6 +97,11 @@ public final class TakeFromStore implements Method {
             // A chest shut to us stays unopened however often it is tried, so without this it
             // would be the cheapest way every round until the cap.
             if (ctx.knowledge().isAvoided(Store.POI, at, now)) {
+                continue;
+            }
+            // Nor one with no side a walk could get to: a fetch walked to the same stand 17,685
+            // times in 18 minutes (forest, 2026-09-27).
+            if (EnsureTable.WalkToKnown.standBeside(at, ctx).isEmpty()) {
                 continue;
             }
             double distance = Store.distance(at, here);

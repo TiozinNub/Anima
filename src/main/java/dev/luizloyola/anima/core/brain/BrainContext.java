@@ -102,6 +102,11 @@ public interface BrainContext {
         return new dev.luizloyola.anima.core.brain.history.FieldTables();
     }
 
+    /** Cells this body's walks lately found no way to. Empty in a rig with no body. */
+    default dev.luizloyola.anima.core.brain.history.Unreached unreached() {
+        return new dev.luizloyola.anima.core.brain.history.Unreached();
+    }
+
     /**
      * The maximum method cost currently acceptable, in the walk-block currency methods price
      * themselves in — a costlier applicable method is treated as inapplicable. Set by the arbiter

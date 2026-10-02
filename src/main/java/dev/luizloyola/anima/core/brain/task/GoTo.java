@@ -22,7 +22,9 @@ import java.util.Locale;
  * you already stand on takes two ticks.
  *
  * <p>Later ticks map MOVING → RUNNING, ARRIVED → SUCCESS, FAILED → FAILED, IDLE → FAILED — and
- * any state at all → FAILED once the mover's goal is not this walk's cell.
+ * any state at all → FAILED once the mover's goal is not this walk's cell. A failure stranded or
+ * unreachable strikes the cell for a while
+ * ({@link dev.luizloyola.anima.core.brain.history.Unreached}), and arriving there clears it.
  *
  * <p><b>Gait.</b> The {@link #GoTo(int, int, int, Gait) four-arg constructor} threads the pace to
  * {@link dev.luizloyola.anima.core.brain.act.Mover#moveTo(int, int, int, Gait)} — {@code FleeStep}
@@ -114,11 +116,15 @@ public final class GoTo implements PrimitiveTask {
             case MOVING:
                 return TaskStatus.RUNNING;
             case ARRIVED:
+                ctx.unreached().clear(new Pos(x, y, z));
                 return TaskStatus.SUCCESS;
             case FAILED:
                 // Read the reason HERE, not from failureDetail(): that call takes no context, and
                 // by then the legs may already have been re-ordered by whatever ran next.
                 this.failure = ctx.actuators().mover().failure();
+                if (failure == MoveFailure.STRANDED || failure == MoveFailure.UNREACHABLE) {
+                    ctx.unreached().strike(new Pos(x, y, z), ctx.percepts().time());
+                }
                 return TaskStatus.FAILED;
             case IDLE:
             default:
