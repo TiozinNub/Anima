@@ -51,7 +51,7 @@ B7	625	-49	76	642	-47	76	true	reach	HALF-STEP slab ramp (+0.5 x4)	reach	true	0
 B8	625	-49	88	642	-49	88	true	reach	one bottom slab (0.5 bump)	reach	true	0
 B9	625	-49	100	642	-49	100	false	block	wall 2 high	build	true	1
 B10	625	-49	112	642	-49	112	true	reach	SNOW LAYER ramp 1..8	reach	true	0
-B11	625	-49	124	642	-49	124	true	reach	soft tops: path/farm/soul/honey	reach	true	0
+B11	625	-49	124	642	-49	124	true	reach	soft tops: path/soul/honey	reach	true	0
 B12	625	-49	136	642	-49	136	true	reach	closed-trapdoor floor	reach	true	0
 B13	625	-49	148	642	-49	148	true	reach	2-high tunnel, plain floor	reach	true	0
 B14	625	-49	160	642	-49	160	false	block	2-high tunnel, SLAB floor	build	true	2
@@ -183,7 +183,7 @@ I1.8	795	-49	39	801	-49	39	true	reach	STAND ON IT: snow[layers=2]	reach	true	0
 I1.9	795	-49	44	801	-49	44	true	reach	STAND ON IT: snow[layers=5]	reach	true	0
 I1.10	795	-49	49	801	-49	49	true	reach	STAND ON IT: snow[layers=7]	reach	true	0
 I1.11	795	-49	54	801	-49	54	true	reach	STAND ON IT: dirt_path	reach	true	0
-I1.12	795	-49	59	801	-49	59	true	reach	STAND ON IT: farmland[moisture=7]	reach	true	0
+I1.12	795	-49	59	801	-49	59	true	block	STAND ON IT: farmland[moisture=7]	build	true	0
 I1.13	795	-49	64	801	-49	64	true	reach	STAND ON IT: soul_sand	reach	true	0
 I1.14	795	-49	69	801	-49	69	true	reach	STAND ON IT: mud	reach	true	0
 I1.15	795	-49	74	801	-49	74	true	reach	STAND ON IT: honey_block	reach	true	0
