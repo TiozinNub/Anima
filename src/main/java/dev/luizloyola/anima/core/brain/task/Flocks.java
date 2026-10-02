@@ -109,11 +109,13 @@ public final class Flocks {
      * as gatherable. One budgeted block read per cell, and a solid one returns early.
      *
      * <p>Ownership first: a drop inside somebody else's live work site is not this body's however
-     * reachable, or a felled tree's logs go to the crowd that gathers to watch (2026-08-03).
+     * reachable, or a felled tree's logs go to the crowd that gathers to watch (2026-08-03). And
+     * one this body's legs lately found no way to is not, for a while ({@code Unreached}).
      */
     public static boolean gatherable(Drop drop, dev.luizloyola.anima.core.brain.BrainContext ctx) {
         // Asked first: a plain map walk, while everything below it spends the perception wallet.
-        if (ctx.claims().claimedByOther(drop.pos(), ctx.percepts().time())) {
+        if (ctx.claims().claimedByOther(drop.pos(), ctx.percepts().time())
+                || ctx.unreached().struck(drop.pos(), ctx.percepts().time())) {
             return false;
         }
         Region box = drop.box();

@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
@@ -32,6 +33,21 @@ class GatherNearbyDropsTest {
         assertEquals(TaskStatus.RUNNING, sweep.tick(ctx));
         fail(ctx, MoveFailure.STRANDED);
         assertEquals(TaskStatus.FAILED, sweep.tick(ctx), "nothing else lies in sight");
+        assertEquals(1, ctx.mover.moveToCalls);
+    }
+
+    /** An obtain starts a fresh sweep each round: the body, not the sweep, must remember. */
+    @Test
+    void theNextSweepDoesNotWalkForADropTheLastFoundNoWayTo() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.drops = List.of(drop(5, 0));
+        GatherNearbyDrops sweep = new GatherNearbyDrops(ItemSpec.ANYTHING);
+        sweep.tick(ctx);
+        fail(ctx, MoveFailure.STRANDED);
+        sweep.tick(ctx);
+        ctx.mover.setState(MoveState.IDLE);
+        assertFalse(new PickUpNearby(ItemSpec.ANYTHING).applicable(ctx));
+        assertEquals(TaskStatus.FAILED, new GatherNearbyDrops(ItemSpec.ANYTHING).tick(ctx));
         assertEquals(1, ctx.mover.moveToCalls);
     }
 

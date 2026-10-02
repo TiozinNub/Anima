@@ -27,7 +27,9 @@ import java.util.Set;
  * pickup method and move on to producing.
  *
  * <p>A flock the legs found no way to is struck from the sweep: a drop up in a tree crown cost nine
- * searches in nine ticks, one per lap (2026-10-01).
+ * searches in nine ticks, one per lap (2026-10-01). It is struck for the body too
+ * ({@link dev.luizloyola.anima.core.brain.history.Unreached}), or the next sweep an obtain starts
+ * walks for it again: thirty-two rounds for dirt across a gap (2026-10-02).
  */
 public final class GatherNearbyDrops implements PrimitiveTask {
     private final ItemSpec spec;
@@ -64,6 +66,9 @@ public final class GatherNearbyDrops implements PrimitiveTask {
         if (walkIssued && ctx.actuators().mover().state() == MoveState.FAILED
                 && unwalkable(ctx.actuators().mover().failure())) {
             struck.addAll(aimed);
+            for (Pos drop : aimed) {
+                ctx.unreached().strike(drop, ctx.percepts().time());
+            }
             aimed = List.of();
         }
         List<Pos> matching = new ArrayList<>();
