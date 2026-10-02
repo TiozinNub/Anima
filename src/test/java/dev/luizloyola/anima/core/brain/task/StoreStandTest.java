@@ -1,10 +1,15 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
+import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.craft.Furnace;
+import dev.luizloyola.anima.core.craft.Workbench;
 import dev.luizloyola.anima.core.store.Depot;
 import dev.luizloyola.anima.core.store.Store;
 import dev.luizloyola.anima.core.territory.ChunkKey;
@@ -103,5 +108,113 @@ class StoreStandTest {
 
         assertFalse(stand.equals(new Pos(11, 64, 11)),
                 "the diagonal past both walls is nearest, but the arm would reach through them");
+    }
+
+    /** A side open at the chest's level over a pit is no stand; a floor one down is stood on there. */
+    @Test
+    void aStandBesideAChestHasAFloorUnderIt() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.blocks.set(CHEST.x(), CHEST.y(), CHEST.z(), Store.BLOCK);
+        for (int[] side : Ground.SIDES) {
+            ctx.percepts.blocks.set(CHEST.x() + side[0], CHEST.y(), CHEST.z() + side[1], BlockKind.OTHER);
+        }
+        Pos west = new Pos(CHEST.x() - 1, CHEST.y(), CHEST.z());
+        for (int y = CHEST.y(); y >= CHEST.y() - 8; y--) {
+            ctx.percepts.blocks.set(west.x(), y, west.z(), BlockKind.AIR); // a pit, eight deep
+        }
+        ctx.percepts.position = new Pos(west.x(), CHEST.y() - 8, west.z());
+
+        assertTrue(EnsureTable.WalkToKnown.standBeside(CHEST, ctx).isEmpty(),
+                "the only open side has its floor eight down, out of reach of the chest");
+
+        ctx.percepts.blocks.set(west.x(), CHEST.y() - 2, west.z(), BlockKind.OTHER);
+        assertEquals(new Pos(west.x(), CHEST.y() - 1, west.z()),
+                EnsureTable.WalkToKnown.standBeside(CHEST, ctx).orElseThrow(),
+                "with a floor one down, the stand is on it, not in the air over it");
+    }
+
+    @Test
+    void aStoreNeverGoesOnTopOfAFurnace() {
+        FakeContext ctx = new FakeContext();
+        Pos furnace = new Pos(10, 64, 10);
+        ctx.percepts.blocks.set(furnace.x(), furnace.y(), furnace.z(), Furnace.BLOCK);
+        ctx.percepts.position = new Pos(14, 64, 14);
+
+        Pos site = Ground.near(ctx, new Pos(10, 65, 10), 1, cell -> true).orElseThrow();
+
+        assertNotEquals(new Pos(10, 65, 10), site, "a station's top is no floor for another");
+        assertTrue(ctx.percepts.blocks.at(site.x(), site.y() - 1, site.z()).ground());
+    }
+
+    /**
+     * Columns y 60..79 from x -332 and z -493, read from run/normal's region file: Elmer's base in a
+     * quarry, its first chest full. {@code #} solid, {@code .} air, {@code W} water, {@code C} the
+     * chest, {@code F} the furnace, {@code T} the workbench. Read after the loop, so
+     * {@link #quarry} fills {@code (-327, 73, -487)}: the choice made shows it was not on offer then,
+     * and here it ties the furnace's top and wins.
+     */
+    private static final String[] QUARRY = {
+            "WWW................. WWW................. WWW................. WWW................. WWW................. WWW................. WWW.....#........... #WW..#####......#... #############...###. ####################",
+            "WWW................. WWW................. WWW................. WWW................. WWW................. WWW................. WWW..####.....###... ##########....#####. ##############...### ####################",
+            "WWW................. WWW................. WWW................. WWW................. WWW................. ##W................. #####........####... ##########.....##### ###############...## ####################",
+            "WWW................. WWW................. #WW....#............ ###....#............ ####...#............ #######............. ########....#######. #############...#### ################...# ####################",
+            "WWW................. WWW................. ###....#............ ####................ #####............... ######....##F....... #################### ##############...### #################... ####################",
+            "WWW................. ##W................. ###....#............ ####................ #####.....#T........ #######...##C....... #################### ###############...## ##################.. ####################",
+            "WWW................. #WW................. ####........#....... #####..#....#....... ######.......###.... ########...##..##### #################### ################...# #################### ####################",
+            "WWW................. WWW................. ####....##.......... #########....#...... #######....########. #########..######### #################### #################..# #################### ####################",
+            "WWW................. WWW................. ####.######...#..... #########.....#..... ########....######## #################### #################### #################### #################### ####################",
+            "WWW................. WWW................. ###..#######...#.... ##########.....#.... #################### #################### #################### #################### #################### ####################",
+    };
+
+    private static void quarry(FakeContext ctx) {
+        for (int row = 0; row < QUARRY.length; row++) {
+            String[] columns = QUARRY[row].split(" ");
+            for (int col = 0; col < columns.length; col++) {
+                for (int i = 0; i < columns[col].length(); i++) {
+                    BlockKind kind = switch (columns[col].charAt(i)) {
+                        case '#' -> BlockKind.OTHER;
+                        case 'W' -> BlockKind.WATER;
+                        case 'C' -> Store.BLOCK;
+                        case 'F' -> Furnace.BLOCK;
+                        case 'T' -> Workbench.BLOCK;
+                        default -> BlockKind.AIR;
+                    };
+                    ctx.percepts.blocks.set(-332 + col, 60 + i, -493 + row, kind);
+                }
+            }
+        }
+        ctx.percepts.blocks.set(-327, 73, -487, BlockKind.OTHER);
+    }
+
+    /**
+     * run/normal, 2026-10-02: the chest went on the furnace at (-327, 73, -489), to be reached from
+     * (-328, 73, -489), eight above the quarry floor. Elmer walked to the floor and "arrived" there
+     * 2,129 times a minute.
+     */
+    @Test
+    void aSecondStoreInTheQuarryHasFootingAndSoDoesItsStand() {
+        FakeContext ctx = new FakeContext();
+        quarry(ctx);
+        Pos full = new Pos(-327, 72, -488);
+        ctx.claim(Store.POI, full);
+        ctx.knowledge.avoid(Store.POI, full, 1_000_000L);
+        ctx.percepts.position = new Pos(-328, 65, -489);
+        home(ctx, new Pos(-328, 71, -488));
+        Method openAStore = new EnsureStore().methods().get(1);
+
+        assertTrue(openAStore.applicable(ctx));
+        List<Task> steps = openAStore.decompose(ctx);
+        Pos placed = steps.stream().filter(step -> step instanceof FoundPlace)
+                .map(step -> ((FoundPlace) step).anchor()).findFirst().orElseThrow();
+        BlockProbe probe = ctx.percepts.blocks;
+        BlockKind floor = probe.at(placed.x(), placed.y() - 1, placed.z());
+
+        assertTrue(floor.ground(), "the chest stands on the ground, not on " + floor + " at "
+                + placed);
+        Pos stand = steps.stream().filter(step -> step instanceof GoTo).map(step -> (GoTo) step)
+                .map(walk -> new Pos(walk.x(), walk.y(), walk.z())).findFirst()
+                .orElse(ctx.percepts.position);
+        assertNotEquals(BlockKind.AIR, probe.at(stand.x(), stand.y() - 1, stand.z()),
+                "and its stand has a floor: " + stand);
     }
 }

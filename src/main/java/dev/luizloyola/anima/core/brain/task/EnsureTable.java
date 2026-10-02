@@ -96,6 +96,9 @@ public final class EnsureTable implements AchieveTask {
 
     /** Walk into reach of the nearest remembered table. */
     public static final class WalkToKnown implements Method {
+        /** How far under the anchor's level a side may be stood on: the arm still reaches it. */
+        static final int STAND_DROP = 2;
+
         @Override
         public boolean applicable(BrainContext ctx) {
             return Workbench.nearestKnown(ctx).isPresent();
@@ -135,7 +138,8 @@ public final class EnsureTable implements AchieveTask {
          * The side cell {@link #standableBeside} would pick, empty when there is none: no open side,
          * or every one a walk lately found no way to ({@link BrainContext#unreached}). A corner
          * counts only past an open side, for the arm does not reach a chest through the edge of a
-         * wall.
+         * wall. The stand has a floor: the open side itself, or the first floor under it within
+         * {@link #STAND_DROP}.
          */
         public static Optional<Pos> standBeside(Pos anchor, BrainContext ctx) {
             long now = ctx.percepts().time();
@@ -157,8 +161,8 @@ public final class EnsureTable implements AchieveTask {
             Pos best = null;
             double bestDistance = Double.MAX_VALUE;
             for (int[] side : SIDES) {
-                Pos cell = new Pos(anchor.x() + side[0], anchor.y(), anchor.z() + side[1]);
-                if (probe.at(cell.x(), cell.y(), cell.z()) != BlockKind.AIR || struck.test(cell)) {
+                Pos cell = footed(probe, anchor.x() + side[0], anchor.y(), anchor.z() + side[1]);
+                if (cell == null || struck.test(cell)) {
                     continue;
                 }
                 if (side[0] != 0 && side[1] != 0
@@ -173,6 +177,23 @@ public final class EnsureTable implements AchieveTask {
                 }
             }
             return Optional.ofNullable(best);
+        }
+
+        /**
+         * The first cell of column {@code (x, z)} from {@code y} down that is open with a floor under
+         * it. A side open over a pit is no stand: one eight above the pit floor was walked to the
+         * floor, out of reach, for good (run/normal, 2026-10-02).
+         */
+        private static @Nullable Pos footed(BlockProbe probe, int x, int y, int z) {
+            for (int at = y; at >= y - STAND_DROP; at--) {
+                if (probe.at(x, at, z) != BlockKind.AIR) {
+                    return null;
+                }
+                if (probe.at(x, at - 1, z) != BlockKind.AIR) {
+                    return new Pos(x, at, z);
+                }
+            }
+            return null;
         }
     }
 

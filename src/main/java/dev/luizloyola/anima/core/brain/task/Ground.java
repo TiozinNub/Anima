@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.craft.Furnace;
 import dev.luizloyola.anima.core.craft.Workbench;
 import dev.luizloyola.anima.core.store.Store;
 import java.util.ArrayList;
@@ -79,7 +80,8 @@ final class Ground {
      * COLUMN of four rather than a row (in-world, 2026-08-25, at {@code (-690, 72..75, 893)}): each
      * settler found the cell taken, looked one higher, and found a floor. Only the bottom chest was
      * ever reachable. A workbench is the same trap one block over: a base's chest aimed at its centre
-     * climbed onto the table standing there.
+     * climbed onto the table standing there, and a furnace the next: a second chest went on top of
+     * the base's (run/normal, 2026-10-02).
      */
     static boolean canHold(BrainContext ctx, Pos cell) {
         BlockProbe probe = ctx.percepts().blocks();
@@ -88,7 +90,7 @@ final class Ground {
         }
         BlockKind floor = probe.at(cell.x(), cell.y() - 1, cell.z());
         return floor != BlockKind.AIR && !Store.isStore(floor) && floor != Workbench.BLOCK
-                && !PlaceBlock.occupied(ctx, cell);
+                && floor != Furnace.BLOCK && !PlaceBlock.occupied(ctx, cell);
     }
 
     /**
