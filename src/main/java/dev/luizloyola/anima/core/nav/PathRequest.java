@@ -12,19 +12,21 @@ import dev.luizloyola.anima.core.brain.sense.SetbackField;
  * @param variety which of the equally cheap routes this agent prefers — see {@link #variety()}.
  * @param pillars the recorded pillar blocks around the route ({@link LaidBlocks}), as packed cells:
  *                a body that may scale climbs beside one or goes down one, spending nothing
+ * @param caution how the walk weighs ground that could hurt it — see {@link Caution}
  */
 public record PathRequest(
         int startX, int startY, int startZ,
         int goalX, int goalY, int goalZ,
         MoveCapabilities profile, DangerField danger, NavDomain domain, int maxNodes,
-        long variety, SetbackField setbacks, java.util.Set<Long> pillars, HandsOff handsOff) {
+        long variety, SetbackField setbacks, java.util.Set<Long> pillars, HandsOff handsOff,
+        Caution caution) {
 
     /** A request that knows of no recorded pillars — every caller that has not been told of any. */
     public PathRequest(int startX, int startY, int startZ, int goalX, int goalY, int goalZ,
                        MoveCapabilities profile, DangerField danger, NavDomain domain, int maxNodes,
                        long variety, SetbackField setbacks) {
         this(startX, startY, startZ, goalX, goalY, goalZ, profile, danger, domain, maxNodes, variety,
-                setbacks, java.util.Set.of(), HandsOff.NONE);
+                setbacks, java.util.Set.of(), HandsOff.NONE, Caution.NONE);
     }
 
     /**
@@ -49,18 +51,27 @@ public record PathRequest(
         if (handsOff == null) {
             handsOff = HandsOff.NONE;
         }
+        if (caution == null) {
+            caution = Caution.NONE;
+        }
+    }
+
+    /** The same route, weighing harm as {@code caution} says. */
+    public PathRequest cautious(Caution caution) {
+        return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
+                profile, danger, domain, maxNodes, variety, setbacks, pillars, handsOff, caution);
     }
 
     /** The same route, laying and cutting nothing in these columns — see {@link HandsOff}. */
     public PathRequest keepingOff(HandsOff handsOff) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
-                profile, danger, domain, maxNodes, variety, setbacks, pillars, handsOff);
+                profile, danger, domain, maxNodes, variety, setbacks, pillars, handsOff, caution);
     }
 
     /** The same route, knowing of these recorded pillar blocks — see {@link #pillars()}. */
     public PathRequest near(java.util.Set<Long> pillars) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
-                profile, danger, domain, maxNodes, variety, setbacks, pillars, handsOff);
+                profile, danger, domain, maxNodes, variety, setbacks, pillars, handsOff, caution);
     }
 
     /**
@@ -70,7 +81,7 @@ public record PathRequest(
      */
     public PathRequest avoiding(SetbackField setbacks) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
-                profile, danger, domain, maxNodes, variety, setbacks, pillars, handsOff);
+                profile, danger, domain, maxNodes, variety, setbacks, pillars, handsOff, caution);
     }
 
     /** A route for a body with nothing to be afraid of — every test, and most of the world. */
@@ -86,7 +97,7 @@ public record PathRequest(
      */
     public PathRequest within(NavDomain domain) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
-                profile, danger, domain, maxNodes, variety, setbacks, pillars, handsOff);
+                profile, danger, domain, maxNodes, variety, setbacks, pillars, handsOff, caution);
     }
 
     /**
@@ -104,7 +115,7 @@ public record PathRequest(
      */
     public PathRequest varying(long variety) {
         return new PathRequest(startX, startY, startZ, goalX, goalY, goalZ,
-                profile, danger, domain, maxNodes, variety, setbacks, pillars, handsOff);
+                profile, danger, domain, maxNodes, variety, setbacks, pillars, handsOff, caution);
     }
 
     /**

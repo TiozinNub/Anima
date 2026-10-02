@@ -73,7 +73,7 @@ public final class Crossings {
         return new PathRequest(request.startX(), request.startY(), request.startZ(), request.goalX(),
                 request.goalY(), request.goalZ(), body, request.danger(), request.domain(),
                 request.maxNodes(), request.variety(), request.setbacks(), request.pillars(),
-                request.handsOff());
+                request.handsOff(), request.caution());
     }
 
     /** A route's walked length, waypoint to waypoint — the builder's measure, not the search's cost. */

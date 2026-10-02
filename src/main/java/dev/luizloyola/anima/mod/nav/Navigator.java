@@ -23,6 +23,7 @@ import dev.luizloyola.anima.core.nav.LaidBlocks;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.nav.NavDomain;
+import dev.luizloyola.anima.core.nav.Caution;
 import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.nav.NavGrids;
@@ -623,9 +624,11 @@ public final class Navigator {
                 ? PathfinderService.FLIGHT_MARGIN : PathfinderService.HORIZONTAL_MARGIN;
         PathfinderService.Dispatched dispatched = PathfinderService.inThread()
                 ? PathfinderService.computeNow(level(), who, start, this.goal, body,
-                        DangerFields.of(this.person), troubles(), where, pillars, handsOff, margin)
+                        DangerFields.of(this.person), troubles(), where, pillars, handsOff, margin,
+                        Caution.of(this.gait))
                 : PathfinderService.request(level(), who, start, this.goal, body,
-                        DangerFields.of(this.person), troubles(), where, pillars, handsOff, margin);
+                        DangerFields.of(this.person), troubles(), where, pillars, handsOff, margin,
+                        Caution.of(this.gait));
         this.grid = dispatched.snapshot();
         this.pending = dispatched.result();
     }

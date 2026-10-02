@@ -105,6 +105,17 @@ public final class Pathfinder {
      */
     private static final double CAREFUL_COST_FACTOR = 2.2;
     /**
+     * What an {@link Caution#ERRAND} pays, in steps, to set foot beside something that hurts to
+     * touch: a walk with work to do goes a few cells round a lava stream rather than along it, and
+     * through when there is no way round. A {@link Caution#STROLL} never does.
+     */
+    private static final double HARM_TOLL = 8.0;
+    /**
+     * What an {@link Caution#ERRAND} pays on top of a leap over a gap a short leap would be hurt in.
+     * Leaps falling short were 19 of the 30 falls that hurt in one forest afternoon (2026-10-02).
+     */
+    private static final double HURTING_LEAP_TOLL = 10.0;
+    /**
      * Cost of one cardinal cell of swimming — the swim-vs-detour dial. Well above a walk (1.0) and
      * around the careful factor (2.2), so the search takes a dry route of comparable length and
      * only crosses water when swimming genuinely saves distance. Narrow water still gets
@@ -367,6 +378,10 @@ public final class Pathfinder {
     /** Careful-ground memo: each cell is probed by every incident edge, and one probe costs ~20
      *  grid reads — cache it per search. */
     private final CellTable.Flags carefulCache = new CellTable.Flags(8192);
+    /** {@link NavGrids#besideHarm} memo, as a walk with this request's caution asks it. */
+    private final CellTable.Flags harmCache = new CellTable.Flags(4096);
+    /** How this walk weighs harm — {@link PathRequest#caution()}. */
+    private final Caution caution;
     /**
      * Water-node memo, same reasoning as {@link #carefulCache}: the test is not cheap (a
      * standability check plus a clearance loop) and every cell is re-tested by each of its own
@@ -483,6 +498,7 @@ public final class Pathfinder {
         this.grid = grid;
         this.profile = request.profile();
         this.danger = request.danger();
+        this.caution = request.caution();
         this.setbacks = request.setbacks();
         this.refusing = this.setbacks.hasRefusals();
         this.startKey = pack(request.startX(), request.startY(), request.startZ());
@@ -636,7 +652,7 @@ public final class Pathfinder {
         Confinement there = survey(grid, new PathRequest(end.x(), end.y(), end.z(), end.x(),
                 end.y(), end.z(), request.profile(), request.danger(), request.domain(),
                 request.maxNodes(), request.variety(), request.setbacks(), request.pillars(),
-                request.handsOff()));
+                request.handsOff(), Caution.NONE));
         if (!there.sealed()) {
             return path;
         }
@@ -1591,6 +1607,9 @@ public final class Pathfinder {
                 // A stride prices itself by its length alone, so letting one sweep a wet cell would
                 // buy three blocks of wading for the price of walking them.
                 if (isCareful(cx, y, cz) || isWater(cx, y, cz)) return;
+                // So does any cell this walk's caution weighs, or a stride would carry the body
+                // past lava paying for the one cell it lands on.
+                if (this.caution != Caution.NONE && isBesideHarm(cx, y, cz)) return;
                 if (cx != x + dx || cz != z + dz) { // the destination is charged by relax itself
                     crossed = Math.max(crossed, grudge(pack(cx, y, cz)));
                 }
@@ -2437,6 +2456,10 @@ public final class Pathfinder {
         if (!this.domain.contains(unpackX(neighbor), ny, unpackZ(neighbor))) {
             return; // outside the fence there is no world, not merely a worse one
         }
+        double wary = this.caution == Caution.NONE ? 0.0 : wariness(current, neighbor, move, takeoff);
+        if (wary < 0.0) {
+            return;
+        }
         if (this.refusing) {
             // From where the body sets out, which for a leap sourced behind a run-up is its
             // takeoff: the cell the follower was leaving when it got hurt.
@@ -2461,7 +2484,7 @@ public final class Pathfinder {
         // so it multiplies the crossing, while dread is a flat toll for setting foot at all. The
         // heuristic survives both because neither can make a move cost less than its length.
         double g = from.g + cost * (1.0 + roughness(neighbor)) + dread(neighbor) + grudge(neighbor)
-                + toll;
+                + toll + wary;
         int laid = from.laid + (move.lays() ? 1 : 0);
         int layRun = !move.lays() ? 0 : from.move == move ? from.layRun + 1 : 1;
         int taken = from.taken + take;
@@ -2494,6 +2517,59 @@ public final class Pathfinder {
         this.open.push(neighbor, this.headed
                 ? toNearestSide(unpackX(neighbor), unpackZ(neighbor))
                 : this.byCost ? g : g + heuristic(unpackX(neighbor), ny, unpackZ(neighbor)));
+    }
+
+    /**
+     * What this walk's {@link Caution} adds to a move into {@code neighbor}, in steps, or a negative
+     * number for a move it refuses. Only ever raises a cost, so the heuristic stays admissible.
+     */
+    private double wariness(long current, long neighbor, MoveType move, long takeoff) {
+        boolean stroll = this.caution == Caution.STROLL;
+        double toll = 0.0;
+        if (move == MoveType.LEAP && hurtingGap(takeoff != NO_PARENT ? takeoff : current, neighbor)) {
+            if (stroll) return -1.0;
+            toll += HURTING_LEAP_TOLL;
+        }
+        if (isBesideHarm(unpackX(neighbor), unpackY(neighbor), unpackZ(neighbor))) {
+            if (stroll) return -1.0;
+            toll += HARM_TOLL;
+        }
+        return toll;
+    }
+
+    /**
+     * Whether a leap from {@code launch} to {@code landing} flies over a column a short leap would
+     * be hurt in — the follower's leaps do fall short, and the fall is the gap's.
+     */
+    private boolean hurtingGap(long launch, long landing) {
+        int x = unpackX(launch);
+        int y = unpackY(launch);
+        int z = unpackZ(launch);
+        int dx = Integer.signum(unpackX(landing) - x);
+        int dz = Integer.signum(unpackZ(landing) - z);
+        int gap = Math.max(Math.abs(unpackX(landing) - x), Math.abs(unpackZ(landing) - z)) - 1;
+        for (int i = 1; i <= gap; i++) {
+            if (NavGrids.fallHurts(this.grid, this.profile, x + i * dx, y, z + i * dz)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Memoized {@link NavGrids#besideHarm}: a stroll counts a drop that would hurt as harm, an
+     * errand only what hurts to touch — the careful factor already prices its drops.
+     */
+    private boolean isBesideHarm(int x, int y, int z) {
+        long key = pack(x, y, z);
+        byte known = this.harmCache.get(key);
+        if (known != CellTable.Flags.UNKNOWN) {
+            return known == CellTable.Flags.TRUE;
+        }
+        boolean answer = NavGrids.besideHarm(this.grid, this.profile, x, y, z,
+                this.caution == Caution.STROLL);
+        this.harmCache.put(key, answer);
+        return answer;
     }
 
     /**

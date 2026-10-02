@@ -19,6 +19,7 @@ import dev.luizloyola.anima.core.nav.GoalCell;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.PathRequest;
+import dev.luizloyola.anima.core.nav.Caution;
 import dev.luizloyola.anima.core.nav.Pathfinder;
 import dev.luizloyola.anima.mod.AnimaMod;
 import java.util.HashMap;
@@ -146,9 +147,18 @@ public final class PathfinderService {
     public static Dispatched request(ServerLevel level, @Nullable AgentId who, BlockPos start,
             BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
             NavDomain fence, java.util.Set<Long> pillars, HandsOff handsOff, int margin) {
+        return request(level, who, start, goal, body, danger, setbacks, fence, pillars, handsOff,
+                margin, Caution.NONE);
+    }
+
+    /** As above, weighing harm as {@code caution} says — see {@link Caution}. */
+    public static Dispatched request(ServerLevel level, @Nullable AgentId who, BlockPos start,
+            BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
+            NavDomain fence, java.util.Set<Long> pillars, HandsOff handsOff, int margin,
+            Caution caution) {
         WorldSnapshot snapshot = snapshotAround(level, start, goal, margin);
         PathRequest pathRequest = buildRequest(snapshot, start, goal, body, danger, who, setbacks)
-                .within(fence).near(pillars).keepingOff(handsOff);
+                .within(fence).near(pillars).keepingOff(handsOff).cautious(caution);
         String handle = who == null ? "?" : who.shortText();
         CompletableFuture<Path> result = CompletableFuture.supplyAsync(() -> {
             Path path = Pathfinder.find(snapshot, pathRequest);
@@ -196,9 +206,18 @@ public final class PathfinderService {
     public static Dispatched computeNow(ServerLevel level, @Nullable AgentId who, BlockPos start,
             BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
             NavDomain fence, java.util.Set<Long> pillars, HandsOff handsOff, int margin) {
+        return computeNow(level, who, start, goal, body, danger, setbacks, fence, pillars, handsOff,
+                margin, Caution.NONE);
+    }
+
+    /** As above, weighing harm as {@code caution} says. */
+    public static Dispatched computeNow(ServerLevel level, @Nullable AgentId who, BlockPos start,
+            BlockPos goal, MoveCapabilities body, DangerField danger, SetbackField setbacks,
+            NavDomain fence, java.util.Set<Long> pillars, HandsOff handsOff, int margin,
+            Caution caution) {
         WorldSnapshot snapshot = snapshotAround(level, start, goal, margin);
         Path path = Pathfinder.find(snapshot, buildRequest(snapshot, start, goal, body, danger, who,
-                setbacks).within(fence).near(pillars).keepingOff(handsOff));
+                setbacks).within(fence).near(pillars).keepingOff(handsOff).cautious(caution));
         return new Dispatched(CompletableFuture.completedFuture(path), snapshot);
     }
 

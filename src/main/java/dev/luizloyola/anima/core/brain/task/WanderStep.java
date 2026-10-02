@@ -8,6 +8,7 @@ import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
+import dev.luizloyola.anima.core.nav.NavGrids;
 import java.util.List;
 import java.util.Optional;
 import java.util.random.RandomGenerator;
@@ -22,7 +23,8 @@ import org.jspecify.annotations.Nullable;
  * rejected candidate costs a draw): with probability {@link #WALK_CHANCE} a random {@code (dx, dz)}
  * each uniform in {@code [-radius, radius]}, re-rolled while both are zero, whose column is then
  * resolved through {@link Standing} to footing this body could actually stand on near its feet
- * cell, and no lower than {@code jumpHeight × max(|dx|, |dz|)} under them. That gives {@code [GoTo(target, STROLL), Idle(pause)]}; a beat that never rolled to walk —
+ * cell, no lower than {@code jumpHeight × max(|dx|, |dz|)} under them, and not one slip from harm
+ * ({@link NavGrids#besideHarm}). That gives {@code [GoTo(target, STROLL), Idle(pause)]}; a beat that never rolled to walk —
  * or drew nowhere standable inside {@link #MAX_ROLLS} — is just {@code [Idle(pause)]}. Pauses run
  * {@code IDLE_MIN + [0, IDLE_RANGE)} ticks either way.
  *
@@ -167,6 +169,12 @@ public final class WanderStep implements CompoundTask {
                 // A steady slope passes; a hollow the legs cannot climb back out of does not. A
                 // stroll down two into one cost ~1,800 ticks of stranded walks (2026-10-01).
                 if (here.y() - candidate.y() > body.jumpHeight() * Math.max(Math.abs(dx), Math.abs(dz))) {
+                    continue;
+                }
+                // One slip from lava or from a drop that hurts is no spot to idle on, diagonals
+                // included (Luiz, 2026-10-02); the stroll there is refused the same cells.
+                if (NavGrids.besideHarm(terrain, body, candidate.x(), candidate.y(), candidate.z(),
+                        true)) {
                     continue;
                 }
                 acceptable++;

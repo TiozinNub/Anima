@@ -84,4 +84,36 @@ class NavGridsTest {
         assertFalse(NavGrids.satisfies(world, new CellNeed(1, 6, 0, CellNeed.Need.HOLD)),
                 "and past the top, nothing to hold");
     }
+
+    private static boolean besideHarm(NavGrid world, int x, int y, int z, boolean drops) {
+        return NavGrids.besideHarm(world, TestBodies.BIPED, x, y, z, drops);
+    }
+
+    @Test
+    void lavaAtTheFeetIsHarmThoughNoStepLandsInIt() {
+        AsciiWorld world = AsciiWorld.of("111", "111", "111");
+        world.fill(2, 1, 2, 2, 1, 2, CellType.DANGER);
+        assertFalse(nearDrop(world, 1, 1, 1), "the throttle never looked there");
+        assertTrue(besideHarm(world, 1, 1, 1, false), "diagonal, at the feet");
+    }
+
+    @Test
+    void harmAtTheHeadCountsAndAboveItDoesNot() {
+        AsciiWorld head = AsciiWorld.of("111", "111", "111");
+        head.fill(0, 2, 1, 0, 2, 1, CellType.DANGER);
+        assertTrue(besideHarm(head, 1, 1, 1, false));
+        AsciiWorld above = AsciiWorld.of("111", "111", "111");
+        above.fill(0, 3, 1, 0, 3, 1, CellType.DANGER);
+        assertFalse(besideHarm(above, 1, 1, 1, false));
+    }
+
+    @Test
+    void aDropThatHurtsCountsOnlyWhenAsked() {
+        AsciiWorld corner = AsciiWorld.of("55 ", "555", "555");
+        assertFalse(nearDrop(corner, 1, 5, 1), "diagonal: no cardinal step lands in it");
+        assertTrue(besideHarm(corner, 1, 5, 1, true));
+        assertFalse(besideHarm(corner, 1, 5, 1, false));
+        assertFalse(besideHarm(AsciiWorld.of("442", "444", "444"), 1, 4, 1, true),
+                "two down is an everyday move");
+    }
 }

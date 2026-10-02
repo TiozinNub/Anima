@@ -52,21 +52,72 @@ public final class NavGrids {
                 // rather than a hole.
                 continue;
             }
-            int floor = y - 1;
-            int limit = y - maxDrop - 1;
-            while (floor >= limit && grid.cell(nx, floor, nz) == CellType.PASSABLE) {
-                floor--;
-            }
-            if (floor < limit) {
-                return true; // open all the way past survivable depth
-            }
-            CellType landing = grid.cell(nx, floor, nz);
-            if (landing == CellType.DANGER) {
+            if (fallHurts(grid, maxDrop, drowns, nx, y, nz)) {
                 return true;
             }
-            if (drowns && landing == CellType.WATER
-                    && grid.cell(nx, floor - 1, nz) != CellType.GROUND) {
-                return true; // deep enough that stepping in is swimming, not wading
+        }
+        return false;
+    }
+
+    /**
+     * Whether a body that steps into the open cell {@code (x,y,z)} and falls comes to harm: no
+     * floor within {@code maxDrop} under it, a floor that hurts, or — to a body that drowns — water
+     * too deep to stand up in.
+     */
+    private static boolean fallHurts(NavGrid grid, int maxDrop, boolean drowns, int x, int y, int z) {
+        int floor = y - 1;
+        int limit = y - maxDrop - 1;
+        while (floor >= limit && grid.cell(x, floor, z) == CellType.PASSABLE) {
+            floor--;
+        }
+        if (floor < limit) {
+            return true; // open all the way past survivable depth
+        }
+        CellType landing = grid.cell(x, floor, z);
+        if (landing == CellType.DANGER) {
+            return true;
+        }
+        return drowns && landing == CellType.WATER && grid.cell(x, floor - 1, z) != CellType.GROUND;
+    }
+
+    /**
+     * {@link #fallHurts} asked of a body: whether falling through the open cell {@code (x,y,z)}
+     * hurts it — what a leap that falls short of its landing drops into.
+     */
+    public static boolean fallHurts(NavGrid grid, MoveCapabilities body, int x, int y, int z) {
+        return fallHurts(grid, body.maxDrop(), !body.canSwim(), x, y, z);
+    }
+
+    /**
+     * Whether a body standing in feet-cell {@code (x,y,z)} is one slip from harm: a cell beside it,
+     * diagonals included and at any height the body fills, that hurts to touch
+     * ({@link CellType#DANGER}) — and with {@code drops}, a neighbour open at its feet over a fall
+     * that would hurt it ({@link #fallHurts}).
+     *
+     * <p>Wider than {@link #isNearDeepDrop}, which is the follower's throttle and looks only where a
+     * cardinal step lands: a 0.6-wide body brushes the cells it passes at a corner, and a lava
+     * stream beside a cave floor is harm at the feet, not under them — a settler strolling one cell
+     * from it stepped in and burned (2026-10-02).
+     */
+    public static boolean besideHarm(NavGrid grid, MoveCapabilities body, int x, int y, int z,
+            boolean drops) {
+        int top = y + body.topCell(0.0);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx == 0 && dz == 0) {
+                    continue;
+                }
+                int nx = x + dx;
+                int nz = z + dz;
+                for (int cell = y; cell <= top; cell++) {
+                    if (grid.cell(nx, cell, nz) == CellType.DANGER) {
+                        return true;
+                    }
+                }
+                if (drops && grid.cell(nx, y, nz) == CellType.PASSABLE
+                        && fallHurts(grid, body, nx, y, nz)) {
+                    return true;
+                }
             }
         }
         return false;

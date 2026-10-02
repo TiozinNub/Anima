@@ -13,6 +13,7 @@ import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
+import dev.luizloyola.anima.core.nav.NavGrids;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -264,6 +265,50 @@ class WanderStepTest {
         FakeContext step = besideALedge(1);
         assertEquals(1, step.mover.moveToCalls, "a step down a slope it can climb back up");
         assertEquals(63, step.mover.lastY);
+    }
+
+    /**
+     * Lava at the feet in a stream and in a pool, and a pit one cell wide that hurts to fall into:
+     * a spot to idle on is not one slip from any of them, diagonals included.
+     */
+    private static NavGrid harmWorld() {
+        return AsciiWorld.of(
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "111111111111L1111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111 11111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111",
+                "11111111111111111")
+                .fill(2, 1, 2, 14, 1, 2, CellType.DANGER);
+    }
+
+    @Test
+    void aWanderNeverTargetsASpotOneSlipFromHarm() {
+        NavGrid world = harmWorld();
+        RandomGenerator random = new Random(1234);
+        int walked = 0;
+        for (int i = 0; i < 400; i++) {
+            Beat beat = runBeat(random, new Pos(8, 1, 8), world);
+            if (!beat.walked()) {
+                continue;
+            }
+            walked++;
+            Pos target = beat.target();
+            assertFalse(NavGrids.besideHarm(world, BODY, target.x(), target.y(), target.z(), true),
+                    "wandered to " + target + ", one slip from harm");
+        }
+        assertTrue(walked > 0, "the stream must walk sometimes, or this asserts nothing");
     }
 
     /** An open pond ('W') and a wadeable puddle ('w'): dry land only means both. */
