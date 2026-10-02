@@ -11,6 +11,9 @@
 # lane's goal pad with the station they are named after, and the in-world score asks
 # only whether SOMEBODY is standing on it. One line, ids last - report.py reads it.
 # headless-only: A1.R A2.R A3.R A4.R
+# The hand layer walks these as a brain's errand, which may dig the blocks its bare
+# plan lacks and then walk the blocks route. One line, ids last - report.py reads it.
+# errand-walk: K17 K18
 # blocks-carried: minecraft:dirt 64
 # `expectBlocks` and `plansBlocks` are the same two for the second layer, every runner
 # carrying a stack of dirt it may lay, its search fenced to its own lane. Last, so they
