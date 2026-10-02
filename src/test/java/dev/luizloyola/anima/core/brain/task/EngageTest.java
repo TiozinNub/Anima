@@ -285,6 +285,21 @@ class EngageTest {
     }
 
     @Test
+    void aKillIsJournaledByTheNameLastSeen() {
+        Being zombie = zombieAt(2, 2.0);
+        ctx.striker.reach = Striker.Reach.IN_REACH;
+        Engage engage = new Engage(zombie.id(), zombie.pos());
+        engage.tick(ctx);
+
+        ctx.percepts.beings = List.of(); // the dead drop out of sight
+        ctx.striker.reach = Striker.Reach.DEAD;
+        assertEquals(TaskStatus.SUCCESS, engage.tick(ctx));
+        assertTrue(ctx.journalService.recent(ctx.journal().id(), Integer.MAX_VALUE).stream()
+                .anyMatch(entry -> entry.detail().equals("killed " + zombie.knownAs())),
+                "a kill must not read like a despawn");
+    }
+
+    @Test
     void aTargetThatLeftTheWorldFails() {
         Being zombie = zombieAt(2, 2.0);
         ctx.striker.reach = Striker.Reach.GONE;

@@ -7,6 +7,7 @@ import dev.luizloyola.anima.core.brain.act.Striker;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.WalkLevel;
 import org.jspecify.annotations.Nullable;
@@ -51,6 +52,8 @@ public final class Engage implements PrimitiveTask {
     private double inset = Double.NaN;
     /** Ticks left of this blow's reaction, counted from when the target came into reach; -1 out of it. */
     private int reaction = -1;
+    /** Who the target was last seen to be, for the line a kill writes: the dead drop out of sight. */
+    private String knownAs = "";
 
     /**
      * @param target whom to fight
@@ -70,6 +73,10 @@ public final class Engage implements PrimitiveTask {
         Striker.Reach reach = arm.reach(target, inset);
         if (reach == Striker.Reach.DEAD) {
             dropLeg(ctx);
+            Being last = seen(ctx);
+            String who = last != null ? last.knownAs()
+                    : knownAs.isEmpty() ? target.toString() : knownAs;
+            ctx.journal().record(Category.BRAIN, "fight", "killed " + who);
             return TaskStatus.SUCCESS;
         }
         if (reach == Striker.Reach.GONE) {
@@ -80,6 +87,7 @@ public final class Engage implements PrimitiveTask {
             return fail(ctx, "lost track of them");
         }
         lastKnown = seen.pos();
+        knownAs = seen.knownAs();
         boolean asked = false;
         boolean handChanged = false;
         if (!drawn || arm.changing()) {
@@ -214,8 +222,13 @@ public final class Engage implements PrimitiveTask {
         return legFrom;
     }
 
+    public String knownAs() {
+        return knownAs;
+    }
+
     public Engage resume(int fruitless, boolean drawn, double inset, int reaction,
-                         @Nullable GoTo leg, double legFrom) {
+                         @Nullable GoTo leg, double legFrom, String knownAs) {
+        this.knownAs = knownAs;
         this.fruitless = fruitless;
         this.drawn = drawn;
         this.inset = inset;

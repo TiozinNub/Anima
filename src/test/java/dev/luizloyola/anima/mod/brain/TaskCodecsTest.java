@@ -513,7 +513,7 @@ class TaskCodecsTest {
         dev.luizloyola.anima.core.brain.task.Engage engage = assertInstanceOf(
                 dev.luizloyola.anima.core.brain.task.Engage.class,
                 roundTrip(new dev.luizloyola.anima.core.brain.task.Engage(zombie, new Pos(5, 64, 1))
-                        .resume(2, true, 0.35, 3, leg, 6.5)));
+                        .resume(2, true, 0.35, 3, leg, 6.5, "a zombie")));
         assertEquals(zombie, engage.target());
         assertEquals(new Pos(5, 64, 1), engage.lastKnown());
         assertEquals(2, engage.fruitless(), "a chase one leg from giving up must not get three more");
@@ -523,6 +523,7 @@ class TaskCodecsTest {
         assertEquals(new Pos(7, 64, 1), new Pos(engage.leg().x(), engage.leg().y(), engage.leg().z()),
                 "the chase carries on rather than being ordered again");
         assertEquals(6.5, engage.legFrom(), 1e-9);
+        assertEquals("a zombie", engage.knownAs(), "a kill after the load still names its target");
 
         dev.luizloyola.anima.core.brain.task.Engage fresh = assertInstanceOf(
                 dev.luizloyola.anima.core.brain.task.Engage.class,

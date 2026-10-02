@@ -640,12 +640,15 @@ public final class AnimaTasks {
                         TaskCodecs.codec().optionalFieldOf("leg").forGetter(task ->
                                 java.util.Optional.ofNullable((Task) task.leg())),
                         Codec.DOUBLE.optionalFieldOf("legFrom", 0.0)
-                                .forGetter(dev.luizloyola.anima.core.brain.task.Engage::legFrom)
-                ).apply(t, (target, lastKnown, fruitless, drawn, inset, reaction, leg, legFrom) ->
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Engage::legFrom),
+                        Codec.STRING.optionalFieldOf("knownAs", "")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Engage::knownAs)
+                ).apply(t, (target, lastKnown, fruitless, drawn, inset, reaction, leg, legFrom,
+                            knownAs) ->
                         new dev.luizloyola.anima.core.brain.task.Engage(target, lastKnown)
                                 .resume(fruitless, drawn, inset, reaction,
                                         leg.orElse(null) instanceof GoTo walk ? walk : null,
-                                        legFrom))));
+                                        legFrom, knownAs))));
 
         // A hunt's two searches, saved to the step: a restart mid-scout walks on to the same stop.
         TaskCodecs.register("anima:scout", dev.luizloyola.anima.core.brain.task.Scout.class,
