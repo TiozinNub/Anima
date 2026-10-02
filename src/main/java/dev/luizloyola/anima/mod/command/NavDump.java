@@ -132,6 +132,8 @@ public final class NavDump {
                 out.write("# a line 'hatch x y z' marks a shut trapdoor over a ladder\n");
                 out.write("# a line 'soft x y z' marks soft ground a hand may cut and put back; a"
                         + " fifth field 1, ground whose cover grows back\n");
+                out.write("# a line 'farmland x y z' marks a " + CellType.STEP.name()
+                        + " that is farmland, kept off unless a walk allows it\n");
                 out.write("# a line 'laid x y z' marks a block of a recorded pillar\n");
 
                 BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
@@ -156,6 +158,9 @@ public final class NavDump {
                             if (type == CellType.GROUND && WorldSnapshot.softAt(level, pos)) {
                                 out.write("soft " + x + " " + y + " " + z
                                         + (WorldSnapshot.regrowsAt(level, pos) ? " 1" : "") + "\n");
+                            }
+                            if (type == CellType.STEP && WorldSnapshot.farmlandAt(level, pos)) {
+                                out.write("farmland " + x + " " + y + " " + z + "\n");
                             }
                             if (WorldSnapshot.hatchAt(level, pos)) {
                                 out.write("hatch " + x + " " + y + " " + z + "\n");
