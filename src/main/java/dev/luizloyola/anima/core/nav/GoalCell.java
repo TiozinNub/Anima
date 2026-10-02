@@ -5,14 +5,15 @@ package dev.luizloyola.anima.core.nav;
  * reached without passing through anything solid.
  *
  * <p>A goal named inside a block — a click lands on a face, a height read names the top block —
- * climbs out to the cell above; an open goal falls through air to the first floor. Neither crosses
- * solid ground. The scan this replaced went down through anything that was not an obstacle, and a
- * walk to the foot of a tree whose head cell was leaves ended in a cave seven blocks under it, which
- * the legs called arriving (2026-09-10, reproduced 2026-09-25).
+ * climbs out to the cell above; an open goal falls through air to the first floor, but no further
+ * than the body would willingly drop. Neither crosses solid ground. The scan this replaced went
+ * down through anything that was not an obstacle, and a walk to the foot of a tree whose head cell
+ * was leaves ended in a cave seven blocks under it, which the legs called arriving (2026-09-10,
+ * reproduced 2026-09-25).
  */
 public final class GoalCell {
 
-    /** How far an open goal may fall to its floor. Clicks and height reads are rarely this far off. */
+    /** How far down an open goal is scanned for a ladder's foot or a swimmer's surface. */
     static final int DROP_SCAN = 12;
     /**
      * How far a goal named inside a block may climb out. Two: the block a click or a height read
@@ -28,6 +29,11 @@ public final class GoalCell {
      * The y to walk to in column {@code (x, z)} for a goal named at {@code y}, or {@code y} itself when
      * nothing standable is in reach — the search then gets as near as it can, which is the honest
      * answer for a goal a body cannot stand in.
+     *
+     * <p>Through open air the goal falls at most the body's willing drop (never less than one: the
+     * head cell of a body standing under it). Further up it is a cell in the air, not a place: a
+     * stand eight above a pit floor "arrived" on the floor, out of the placer's reach, and was
+     * walked to again every 13 ticks (run/normal, 2026-10-02).
      */
     public static int groundY(NavGrid grid, int x, int y, int z, MoveCapabilities body) {
         if (solid(grid.cell(x, y, z))) {
@@ -38,9 +44,11 @@ public final class GoalCell {
             }
             return y;
         }
+        int willing = Math.max(1, body.maxDrop());
+        int fallen = 0;
         for (int down = y; down > y - DROP_SCAN; down--) {
             if (Pathfinder.standable(grid, body, x, down, z)) {
-                return down;
+                return fallen <= willing ? down : y;
             }
             CellType here = grid.cell(x, down, z);
             if (body.canSwim() && here == CellType.WATER
@@ -51,6 +59,9 @@ public final class GoalCell {
             // floor under it, since nobody can stand on the rung itself.
             if (here != CellType.PASSABLE && here != CellType.CLIMB) {
                 return y; // ground, water or danger under an open goal: no floor in reach
+            }
+            if (here == CellType.PASSABLE) {
+                fallen++; // a rung is climbed down, not fallen past
             }
         }
         return y;

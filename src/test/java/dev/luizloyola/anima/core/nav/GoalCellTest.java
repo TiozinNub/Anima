@@ -1,6 +1,8 @@
 package dev.luizloyola.anima.core.nav;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -37,8 +39,43 @@ class GoalCellTest {
     }
 
     @Test
-    void aGoalInTheAirFallsToTheFloor() {
-        assertEquals(3, groundY(AsciiWorld.of("3"), 7));
+    void aGoalInTheAirFallsToTheFloorAWillingDropUnder() {
+        assertEquals(3, groundY(AsciiWorld.of("3"), 3 + BODY.maxDrop()));
+    }
+
+    /**
+     * run/normal, 2026-10-02: a chest's stand named eight above a pit floor. Walked to the floor, the
+     * legs called it arriving, and every walk after that "arrived" without a step, 2,129 times a
+     * minute, the chest out of reach overhead.
+     */
+    @Test
+    void aGoalHigherInTheAirThanAWillingDropIsLeftWhereItWasNamed() {
+        assertEquals(4 + BODY.maxDrop(), groundY(AsciiWorld.of("3"), 4 + BODY.maxDrop()));
+        assertEquals(9, groundY(AsciiWorld.of("1"), 9));
+    }
+
+    /** The body's own head cell, whatever its willing drop: a body standing under it is there. */
+    @Test
+    void aGoalOneUpFallsEvenForABodyThatWillNotDrop() {
+        MoveCapabilities timid = new MoveCapabilities(1.8, 1, 0, 0, false, 0, false, false);
+        assertEquals(3, GoalCell.groundY(AsciiWorld.of("3"), 0, 4, 0, timid));
+        assertEquals(5, GoalCell.groundY(AsciiWorld.of("3"), 0, 5, 0, timid));
+    }
+
+    /**
+     * Under a goal left in the air the search has nowhere to go: the walk ends stranded where the
+     * body stands rather than arriving there — the Navigator fails a result like this one.
+     */
+    @Test
+    void aBodyInAPitUnderAGoalInTheAirDoesNotArrive() {
+        AsciiWorld pit = AsciiWorld.of("999", "919", "999");
+        int goalY = GoalCell.groundY(pit, 1, 9, 1, BODY);
+        Path path = Pathfinder.find(pit, PathRequest.of(1, 1, 1, 1, goalY, 1, BODY));
+
+        assertFalse(path.reachedGoal(), "standing on the pit floor is not standing in the air "
+                + "eight above it");
+        assertTrue(path.isEmpty() || (path.last().x() == 1 && path.last().y() == 1
+                && path.last().z() == 1), "and nothing to walk: " + path.waypoints());
     }
 
     /** A slab is its own feet-cell; the old scan pushed a STEP goal down its column. */
