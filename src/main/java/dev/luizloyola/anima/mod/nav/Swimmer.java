@@ -216,7 +216,7 @@ public final class Swimmer {
      *
      * <p><b>The climb-out is a separate press, ahead of both controllers.</b> It used to arrive by
      * accident from the over-eager reflex, and narrowing that reflex left both plunge stations
-     * unable to leave their pools. It is pressed for the whole approach because there is no edge
+     * unable to leave their pools. It is pressed for the whole approach up, because there is no edge
      * to time it against (the water lets go gradually), and it must sit above the ride-depth
      * controller, which a body riding high onto a bank is guaranteed to argue with.
      */
@@ -237,8 +237,15 @@ public final class Swimmer {
         // of a block and sat there long enough to count as wedged. It only showed once the
         // per-tick re-paths of submerged legs stopped resetting the wedge counters, so fixing
         // those (see PathIntegrity) took the cover away rather than causing this.
+        //
+        // Only while the feet are still under where the step stands them. A wade onto the next
+        // cell of a one-deep pool is an exit at the bed's own height, and pressing then floated the
+        // body off the bed: the cell a run-up starts from is arrived at on the feet, so it never
+        // was (forest, 2026-10-02).
         if (inWater && intent == Navigator.WaterIntent.EXIT) {
-            this.body.driveJump();
+            if (liftsOut(entity.getY(), this.body.navigator().waterTargetY())) {
+                this.body.driveJump();
+            }
             return;
         }
         if (deep) {
@@ -261,6 +268,14 @@ public final class Swimmer {
                 this.body.driveJump(); // upright, treading: keep the head out
             }
         }
+    }
+
+    /**
+     * Whether a body getting out still needs the lift: its feet are under where the step stands
+     * them.
+     */
+    static boolean liftsOut(double feetY, double stepFeetY) {
+        return feetY < stepFeetY;
     }
 
     /**
