@@ -158,6 +158,23 @@ class GauntletPathTest {
                         + "re-record the row.");
     }
 
+    /** Replaying the first search's moves is invisible: both bodies, every station, as probed. */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("stations")
+    void replayingChangesNoRoute(Station s) {
+        for (PathRequest request : List.of(ask(s, BODY), ask(s, BLOCKS).within(lane(s)),
+                ask(s, BLOCKS).within(lane(s)).varying(s.id().hashCode()))) {
+            assertEquals(Pathfinder.find(world, request, false).waypoints(),
+                    Pathfinder.find(world, request, true).waypoints(),
+                    () -> s.id() + " (" + s.title() + "): replaying changed the route");
+            Pathfinder.Searches probed = Pathfinder.searches(world, request, false);
+            if (probed.built() != null) {
+                assertEquals(probed.built(), Pathfinder.searches(world, request, true).built(),
+                        () -> s.id() + " (" + s.title() + "): the building search answered differently");
+            }
+        }
+    }
+
     /** The first layer's walkability rule, for routes that lay: each lay is a cell there is room for. */
     @ParameterizedTest(name = "{0}")
     @MethodSource("stations")

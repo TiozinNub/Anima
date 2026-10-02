@@ -353,6 +353,11 @@ public final class Pathfinder {
          */
         int taken;
         boolean closed;
+        /** This cell's moves on the first search's {@link Tape}, when it taped them. */
+        int tapeFrom = -1;
+        int tapeTo;
+        /** Which of the non-world refusals taping this cell's moves set — see {@link #sealedIn}. */
+        int tapeRefused;
     }
 
     // Sized for an ordinary search rather than grown into: DEFAULT_MAX_NODES is 4096, and the
@@ -415,6 +420,14 @@ public final class Pathfinder {
     private final CellTable.Flags gapCache = new CellTable.Flags(256);
     /** What the route to the goal cost, when this search reached it — {@link #worthBuilding}. */
     private double arrivedCost = Double.NaN;
+    /** The first search's record of its moves, when a building search may follow — {@link Tape}. */
+    private Tape tape;
+    /** Whether the expansion under way is being recorded onto {@link #tape}. */
+    private boolean taping;
+    /** The building search's view of the first search, whose taped moves it replays. */
+    private Pathfinder replaying;
+    private int probed;
+    private int replayed;
 
     /**
      * Set when a plunge probe walked off the bottom of the grid still looking for water — the one
@@ -513,17 +526,42 @@ public final class Pathfinder {
      * and a body must never stack blocks toward somewhere it cannot get to.
      */
     public static Path find(NavGrid grid, PathRequest request) {
-        Pathfinder first = new Pathfinder(grid, request);
-        Path path = first.search(request);
+        return find(grid, request, true);
+    }
+
+    /** {@link #find}, with the building search replaying the first's moves or probing its own. */
+    static Path find(NavGrid grid, PathRequest request, boolean replay) {
+        Searches both = searches(grid, request, replay);
+        Path built = both.built();
+        return trapped(grid, request,
+                built != null && built.reachedGoal() && movesBlocks(built) ? built : both.first());
+    }
+
+    /**
+     * {@link #find}'s two answers before one is chosen, {@code built} null when it was not asked,
+     * and how many of the building search's expansions were probed and how many replayed.
+     */
+    record Searches(Path first, Path built, int probed, int replayed) {
+    }
+
+    static Searches searches(NavGrid grid, PathRequest request, boolean replay) {
         int budget = Math.min(request.profile().maxLaid(), ROUTE_CAP);
         // A recorded pillar is used with nothing in the pocket, by any walk that may scale: it only
         // moves blocks the record says are temporary.
         boolean reuse = request.profile().canScale() && !request.pillars().isEmpty();
-        if ((budget <= 0 && !reuse) || !first.worthBuilding(path, request)) {
-            return trapped(grid, request, path);
+        boolean mayBuild = budget > 0 || reuse;
+        Pathfinder first = new Pathfinder(grid, request);
+        if (mayBuild && replay) {
+            first.tape = new Tape();
         }
-        Path built = new Pathfinder(grid, request, budget, true).search(request);
-        return trapped(grid, request, built.reachedGoal() && movesBlocks(built) ? built : path);
+        Path path = first.search(request);
+        if (!mayBuild || !first.worthBuilding(path, request)) {
+            return new Searches(path, null, 0, 0);
+        }
+        Pathfinder second = new Pathfinder(grid, request, budget, true);
+        second.replaying = first.tape == null ? null : first;
+        Path built = second.search(request);
+        return new Searches(path, built, second.probed, second.replayed);
     }
 
     /**
@@ -800,7 +838,7 @@ public final class Pathfinder {
                 exhausted = false;
                 break;
             }
-            expandNeighbors(current, node);
+            expand(current, node);
         }
         return reconstruct(exhausted ? bestRest : bestAir, false, exhausted && sealedIn(request),
                 expanded, rest);
@@ -899,6 +937,139 @@ public final class Pathfinder {
                 || !this.grid.inBounds(x, y, z - margin) || !this.grid.inBounds(x, y, z + margin);
     }
 
+    /** {@link #expandNeighbors}, taped by a first search and replayed where a building one can. */
+    private void expand(long current, Node node) {
+        if (this.replaying != null && replay(current, node)) {
+            this.replayed++;
+            return;
+        }
+        if (this.building) {
+            this.probed++;
+        }
+        if (this.tape != null && this.tape.size < Tape.LIMIT) {
+            // What this cell's probes refused for reasons other than the world, kept with its
+            // moves: a replay owes the same refusals to sealedIn.
+            boolean bounds = this.boundsRefused;
+            boolean breath = this.breathRefused;
+            boolean farmland = this.farmlandRefused;
+            this.boundsRefused = false;
+            this.breathRefused = false;
+            this.farmlandRefused = false;
+            node.tapeFrom = this.tape.size;
+            this.taping = true;
+            expandNeighbors(current, node);
+            this.taping = false;
+            node.tapeTo = this.tape.size;
+            node.tapeRefused = (this.boundsRefused ? 1 : 0) | (this.breathRefused ? 2 : 0)
+                    | (this.farmlandRefused ? 4 : 0);
+            this.boundsRefused |= bounds;
+            this.breathRefused |= breath;
+            this.farmlandRefused |= farmland;
+            return;
+        }
+        expandNeighbors(current, node);
+    }
+
+    /**
+     * Relaxes what the first search relaxed out of this cell, in the order it did, when this
+     * search arrives in the same state — the fields an expansion reads — and probes only the moves
+     * that build. A pillar top is probed: here the drop off it is refused.
+     */
+    private boolean replay(long current, Node node) {
+        Node seen = this.replaying.nodes.get(current);
+        if (seen == null || seen.tapeFrom < 0 || seen.parent != node.parent
+                || seen.move != node.move || seen.surface16 != node.surface16
+                || seen.takeoff != node.takeoff || seen.submergedRun != node.submergedRun) {
+            return false;
+        }
+        int x = unpackX(current);
+        int y = unpackY(current);
+        int z = unpackZ(current);
+        if (this.pillars.contains(x, y - 1, z)) {
+            return false;
+        }
+        // Read by doorToll inside relax, so set as expandNeighbors sets it.
+        this.leavingDoorway = this.doors
+                && hasDoor(x, y, y + this.profile.topCell(node.surface16 / 16.0), z);
+        this.boundsRefused |= (seen.tapeRefused & 1) != 0;
+        this.breathRefused |= (seen.tapeRefused & 2) != 0;
+        this.farmlandRefused |= (seen.tapeRefused & 4) != 0;
+        Tape moves = this.replaying.tape;
+        for (int i = seen.tapeFrom; i < seen.tapeTo; i++) {
+            int meta = moves.meta[i];
+            switch (meta & Tape.KIND) {
+                case Tape.RELAX -> relax(current, node, moves.to[i], moves.footing[i],
+                        MOVES[(meta >>> 2) & 31], moves.cost[i], moves.run[i], moves.takeoff[i],
+                        meta >>> 7);
+                case Tape.BRIDGE -> bridgeNeighbor(current, node, x, y, z, unpackX(moves.to[i]),
+                        unpackZ(moves.to[i]));
+                default -> {
+                    pillarNeighbor(current, node, x, y, z);
+                    lowerNeighbor(current, node, x, y, z);
+                }
+            }
+        }
+        return true;
+    }
+
+    private static final MoveType[] MOVES = MoveType.values();
+
+    /**
+     * Every move a first search relaxed out of each cell it expanded, in order, with a mark where
+     * the building search would have probed a deck or a pillar. A swim prices dearer than the line,
+     * so every swim reads as a detour and is searched twice; a building search that reaches a cell
+     * in the state the first left it relaxes the same moves in the same order, so it replays them
+     * rather than probing them again. Per search, and bounded: past {@link #LIMIT} the rest is
+     * probed.
+     */
+    private static final class Tape {
+        /** Entries, 40 bytes each: 10 MiB at most, for one search's lifetime. */
+        static final int LIMIT = 1 << 18;
+        static final int KIND = 3;
+        static final int RELAX = 0;
+        static final int BRIDGE = 1;
+        static final int BUILD = 2;
+
+        long[] to = new long[256];
+        double[] footing = new double[256];
+        double[] cost = new double[256];
+        long[] takeoff = new long[256];
+        int[] run = new int[256];
+        /** Kind in bits 0-1, move 2-6, blocks taken from 7. */
+        int[] meta = new int[256];
+        int size;
+
+        void relax(long neighbor, double footing, MoveType move, double cost, int submergedRun,
+                   long takeoff, int take) {
+            int i = next();
+            this.to[i] = neighbor;
+            this.footing[i] = footing;
+            this.cost[i] = cost;
+            this.takeoff[i] = takeoff;
+            this.run[i] = submergedRun;
+            this.meta[i] = RELAX | move.ordinal() << 2 | take << 7;
+        }
+
+        void mark(int kind, long cell) {
+            int i = next();
+            this.to[i] = cell;
+            this.meta[i] = kind;
+        }
+
+        private int next() {
+            if (this.size == this.meta.length) {
+                int n = this.size * 2;
+                this.to = Arrays.copyOf(this.to, n);
+                this.footing = Arrays.copyOf(this.footing, n);
+                this.cost = Arrays.copyOf(this.cost, n);
+                this.takeoff = Arrays.copyOf(this.takeoff, n);
+                this.run = Arrays.copyOf(this.run, n);
+                this.meta = Arrays.copyOf(this.meta, n);
+            }
+            return this.size++;
+        }
+    }
+
     /** Probes every move the agent could make out of {@code current} and relaxes the reached cells. */
     private void expandNeighbors(long current, Node node) {
         int x = unpackX(current);
@@ -920,6 +1091,8 @@ public final class Pathfinder {
         if (this.building) {
             pillarNeighbor(current, node, x, y, z);
             lowerNeighbor(current, node, x, y, z);
+        } else if (this.taping) {
+            this.tape.mark(Tape.BUILD, current);
         }
         if (node.move.lays() || node.move.cutsItsCell()) {
             // Standing on a block the grid has not got, or in one it still has. Leaps, strides,
@@ -1417,6 +1590,8 @@ public final class Pathfinder {
         // Open air all the way down, with nowhere in reach to land.
         if (this.building) {
             bridgeNeighbor(current, node, x, y, z, nx, nz);
+        } else if (this.taping) {
+            this.tape.mark(Tape.BRIDGE, pack(nx, y, nz));
         }
     }
 
@@ -2198,6 +2373,9 @@ public final class Pathfinder {
     /** @param take blocks this move puts in the hand — see {@link Node#taken} */
     private void relax(long current, Node from, long neighbor, double footing, MoveType move,
                        double cost, int submergedRun, long takeoff, int take) {
+        if (this.taping) {
+            this.tape.relax(neighbor, footing, move, cost, submergedRun, takeoff, take);
+        }
         int ny = unpackY(neighbor);
         if (!this.domain.contains(unpackX(neighbor), ny, unpackZ(neighbor))) {
             return; // outside the fence there is no world, not merely a worse one
