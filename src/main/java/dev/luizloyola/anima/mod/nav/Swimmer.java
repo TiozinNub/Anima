@@ -8,6 +8,7 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -264,11 +265,27 @@ public final class Swimmer {
                 }
                 return;
             }
-            if (submerged > entity.getEyeHeight() - HEAD_CLEARANCE) {
+            // Not into a ceiling: pressed against one, a body shut in a flooded gap hung off the
+            // floor and mined the turf over its head five times slower, 450 ticks for one grass
+            // block by hand (breath flight, 2026-10-02). Let go, it settles onto the bed.
+            if (submerged > entity.getEyeHeight() - HEAD_CLEARANCE && roomOverhead(entity)) {
                 this.body.driveJump(); // upright, treading: keep the head out
             }
         }
     }
+
+    /** Whether nothing solid sits within {@link #CEILING_LOOK} over the body's head. */
+    private static boolean roomOverhead(LivingEntity entity) {
+        AABB box = entity.getBoundingBox();
+        BlockPos above = BlockPos.containing(entity.getX(), box.maxY + CEILING_LOOK, entity.getZ());
+        return entity.level().getBlockState(above).getCollisionShape(entity.level(), above).isEmpty();
+    }
+
+    /**
+     * How far over the top of its box a treading body looks for a ceiling. More than the bob, so a
+     * body that sank a little under a lid does not see the gap and press back up into it.
+     */
+    private static final double CEILING_LOOK = 0.5;
 
     /**
      * Whether a body getting out still needs the lift: its feet are under where the step stands

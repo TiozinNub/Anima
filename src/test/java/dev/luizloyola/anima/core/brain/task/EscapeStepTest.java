@@ -399,6 +399,75 @@ class EscapeStepTest {
         assertTrue(plan.get(0) instanceof EscapeStep.Tread);
     }
 
+    /**
+     * A one-cell flooded gap under turf, one grass block from the sky, water below and rock all
+     * round (forest, 2026-10-02: the settler said it could not cut a way out, and drowned).
+     */
+    private void floodedGapUnderTurf(int[] air) {
+        ctx.percepts.needs.add(new BreathNeed(() -> air[0], () -> 300, () -> TestSpecies.PROFILE));
+        ctx.percepts.terrain = (x, y, z) -> {
+            if (x == 0 && z == 0 && y >= FEET - 3 && y <= FEET) {
+                return CellType.WATER;
+            }
+            return y <= FEET + 1 ? CellType.GROUND : CellType.PASSABLE;
+        };
+        blocks.set(0, FEET + 1, 0, BlockKind.OTHER);
+    }
+
+    @Test
+    void shutInUnderWaterWithNoSwimToAirItCutsTheCeilingOverItsHead() {
+        int[] air = {300};
+        floodedGapUnderTurf(air);
+        for (int left : new int[] {300, 100, 0}) {
+            air[0] = left;
+            EscapeStep fresh = new EscapeStep();
+            Method best = null;
+            for (Method method : fresh.methods()) {
+                if (method.applicable(ctx) && (best == null
+                        || method.estimateCost(ctx) < best.estimateCost(ctx))) {
+                    best = method;
+                }
+            }
+            assertEquals("cut up for air", best.describe(), "air " + left);
+            List<Task> plan = best.decompose(ctx);
+            assertEquals(2, plan.size());
+            assertTrue(plan.get(0) instanceof BreakBlock cut
+                    && cut.target().equals(new Pos(0, FEET + 1, 0)), "the turf over its head");
+            assertTrue(plan.get(1) instanceof EscapeStep.Tread, "then up through it");
+        }
+    }
+
+    /** No proof the way up opens is asked for: it cuts what it can reach and looks again. */
+    @Test
+    void itCutsUpThoughNoAirShowsAbove() {
+        floodedGapUnderTurf(new int[] {60});
+        ctx.percepts.terrain = (x, y, z) -> x == 0 && z == 0 && y >= FEET - 3 && y <= FEET
+                ? CellType.WATER : CellType.GROUND;
+        for (int y = FEET + 1; y <= FEET + 12; y++) {
+            blocks.set(0, y, 0, BlockKind.OTHER);
+        }
+        assertEquals("cut up for air", chosen());
+        List<Task> plan = plan();
+        assertEquals(4, plan.size(), "three cuts in reach, then rise");
+        assertTrue(plan.get(2) instanceof BreakBlock top && top.target().y() == FEET + 3);
+    }
+
+    /** Nothing is cut that would pour danger onto the body. */
+    @Test
+    void itWillNotCutUpIntoLava() {
+        floodedGapUnderTurf(new int[] {60});
+        ctx.percepts.terrain = (x, y, z) -> {
+            if (x == 0 && z == 0 && y >= FEET - 3 && y <= FEET) {
+                return CellType.WATER;
+            }
+            if (x == 0 && z == 0 && y == FEET + 2) {
+                return CellType.DANGER;
+            }
+            return CellType.GROUND;
+        };
+        assertEquals("call for help", chosen());
+    }
+
     @Test
     void treadingEndsWithTheLungsFull() {
         int[] air = {100};

@@ -38,9 +38,11 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>The rungs, in preference order:
  * <ol>
- *   <li><b>Rise</b> — in water and short of air, swim to the nearest air first and tread there
- *       until the lungs are full. Nothing is cut under water unless the breath is still easy: a
- *       body sealed in a flooded gap once cut at the rock above it until it drowned.
+ *   <li><b>Rise</b> — in water and short of air, or shut in with the head under, swim to the
+ *       nearest air first and tread there until the lungs are full.
+ *   <li><b>Straight up</b> — no swim to air: cut the ceiling over the head and rise through it,
+ *       proven way out or not. Nothing else is cut under water unless the breath is still easy:
+ *       a body sealed in a flooded gap once cut a stair sideways into the rock until it drowned.
  *   <li><b>Step out</b> — cut through the wall beside us, only where the way out is sideways.
  *   <li><b>Cut a stair</b> — open the two cells above the block next door and step up, our own
  *       ceiling first. The way out of anything with a lid.
@@ -50,13 +52,14 @@ import org.jspecify.annotations.Nullable;
  *       FAILURE, so the drive takes its cooldown and the board hears about it.
  * </ol>
  *
- * <p>The first three need an arm ({@link ProfileAspect#BODY_CAN_DIG}); a body without one still
+ * <p>The cutting rungs need an arm ({@link ProfileAspect#BODY_CAN_DIG}); a body without one still
  * notices it is shut in and still says so.
  */
 public final class EscapeStep implements CompoundTask {
 
     private final List<Method> methods =
-            List.of(new Rise(), new StepOut(), new CutAStair(), new LowerYourself(), new SaySo());
+            List.of(new Rise(), new StraightUp(), new StepOut(), new CutAStair(),
+                    new LowerYourself(), new SaySo());
 
     @Override
     public List<Method> methods() {
@@ -306,6 +309,21 @@ public final class EscapeStep implements CompoundTask {
                 .orElse(false);
     }
 
+    /** In water with something other than air over its head cell — water, or a flooded gap's rock. */
+    private static boolean headUnder(BrainContext ctx) {
+        if (!inWater(ctx)) {
+            return false;
+        }
+        Pos here = ctx.percepts().position();
+        int head = here.y() + height(ctx) - 1;
+        return ctx.percepts().terrain().cell(here.x(), head, here.z()) != CellType.PASSABLE;
+    }
+
+    /** Whether getting to air is this ladder's first business: short of it, or shut in under water. */
+    private static boolean airFirst(BrainContext ctx) {
+        return shortOfAir(ctx) || headUnder(ctx);
+    }
+
     @Ephemeral("a memo, asked again when a method is next chosen")
     private @Nullable Pos air;
     @Ephemeral("goes with the memo above")
@@ -355,7 +373,7 @@ public final class EscapeStep implements CompoundTask {
     private final class Rise implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
-            return shortOfAir(ctx) && air(ctx) != null;
+            return airFirst(ctx) && air(ctx) != null;
         }
 
         @Override
@@ -378,6 +396,116 @@ public final class EscapeStep implements CompoundTask {
         @Override
         public String describe() {
             return "swim up for air";
+        }
+    }
+
+    // ── rung 0b: straight up ─────────────────────────────────────────────────────────────────
+
+    /** How far above the feet the way up is read, in cells. */
+    private static final int UP_LOOK = 8;
+    /**
+     * The highest cell above the feet cut from where the body floats: eyes to block centre stays
+     * inside a 4.5 reach for a swimming body and a treading one alike. Anything higher waits for the
+     * body to rise to it.
+     */
+    private static final int UP_REACH = 3;
+    /** What a way up costs over the cuts when nothing above it was seen to be air. */
+    private static final double UNPROVEN_UP = 1.0;
+
+    /** The solid cells over the head within reach, bottom-up, and whether air was seen above. */
+    private record WayUp(List<Pos> cuts, boolean airAbove) {
+    }
+
+    /**
+     * Straight up from here, or null when up gains nothing. Water is swum through; danger or an
+     * uncuttable cell stops the look, and the cut right under it is dropped so nothing pours in.
+     */
+    private static @Nullable WayUp wayUp(BrainContext ctx) {
+        Pos here = ctx.percepts().position();
+        NavGrid terrain = ctx.percepts().terrain();
+        List<Pos> cuts = new ArrayList<>();
+        boolean air = false;
+        boolean lid = false;
+        for (int dy = 1; dy <= UP_LOOK; dy++) {
+            int y = here.y() + dy;
+            CellType cell = terrain.cell(here.x(), y, here.z());
+            if (cell == CellType.WATER) {
+                continue;
+            }
+            if (cell == CellType.PASSABLE || cell == CellType.CLIMB) {
+                air = true;
+                break;
+            }
+            if (cell == CellType.DANGER || !cuttable(ctx, here.x(), y, here.z())) {
+                if (!cuts.isEmpty() && cuts.get(cuts.size() - 1).y() == y - 1) {
+                    cuts.remove(cuts.size() - 1);
+                }
+                break;
+            }
+            if (dy > UP_REACH) {
+                lid = true; // a lid out of reach: rise to it, and the next look cuts it
+                break;
+            }
+            cuts.add(new Pos(here.x(), y, here.z()));
+        }
+        return cuts.isEmpty() && !air && !lid ? null : new WayUp(cuts, air);
+    }
+
+    @Ephemeral("a memo, asked again when a method is next chosen")
+    private @Nullable WayUp up;
+    @Ephemeral("goes with the memo above")
+    private boolean upSought;
+
+    private @Nullable WayUp up(BrainContext ctx) {
+        if (!this.upSought) {
+            this.upSought = true;
+            WayUp way = wayUp(ctx);
+            this.up = way != null && (way.cuts().isEmpty() || canDig(ctx)) ? way : null;
+        }
+        return this.up;
+    }
+
+    /**
+     * Cut the ceiling over the head and rise through it — for a body under water with no swim to
+     * air, whether or not anything proves the way up opens. A settler drowned in a one-cell flooded
+     * gap under turf, one grass block from the sky, because nothing was cut under water unless the
+     * breath was easy and the stair needed a tread beside it (forest, 2026-10-02).
+     */
+    private final class StraightUp implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return airFirst(ctx) && up(ctx) != null;
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            WayUp way = up(ctx);
+            // Under any sideways cut of the same size: the water is already where the body is.
+            return way == null ? Double.MAX_VALUE
+                    : way.cuts().size() * 0.5 + (way.airAbove() ? 0.0 : UNPROVEN_UP);
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            WayUp way = up(ctx);
+            List<Task> tasks = new ArrayList<>(way.cuts().size() + 1);
+            if (way.cuts().isEmpty()) {
+                narrate(ctx, "escape", "rising straight up for air");
+            } else {
+                Pos first = way.cuts().get(0);
+                narrate(ctx, "escape", "cutting up for air at (" + first.x() + ", " + first.y()
+                        + ", " + first.z() + ")");
+            }
+            for (Pos cut : way.cuts()) {
+                tasks.add(new BreakBlock(cut.x(), cut.y(), cut.z()));
+            }
+            tasks.add(new Tread());
+            return tasks;
+        }
+
+        @Override
+        public String describe() {
+            return "cut up for air";
         }
     }
 
