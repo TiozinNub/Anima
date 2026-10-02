@@ -309,6 +309,35 @@ class FightOrFlightInstinctTest {
         assertInstanceOf(FleeStep.class, next(), "a whole zombie at four health is not");
     }
 
+    /** An arrow of 4 every 3 s, from a body as slow as a zombie's chase. */
+    private static final Combatant SKELETON = new Combatant(20, 20, 0, 0, 4, 1.0 / 3.0, 0.138, 0, 0,
+            Combatant.Entry.WALKS, false, true);
+
+    @Test
+    void aShooterAtRangeIsChasedUnderItsFire() {
+        // Watcher's fight, 2026-10-01: hurt, a wooden sword, a skeleton 12 blocks off. Contact odds
+        // are 2.8; the 3.2 s chase under fire takes them to 1.4, under the start line.
+        ctx.percepts.self = me(4, 1.6, 11.65);
+        add("skeleton", 12, SKELETON);
+
+        assertInstanceOf(FleeStep.class, next());
+        assertTrue(mind.status().contains("kills it in 6.3 s"), mind.status());
+
+        ctx.percepts.beings = List.of();
+        add("skeleton", 3, SKELETON);
+        assertInstanceOf(Fight.class, next(), "at arm's length there is nothing to close");
+        assertTrue(mind.status().contains("kills it in 3.1 s"), mind.status());
+    }
+
+    @Test
+    void aFoeThatComesToTheBladeHasNoChasePriced() {
+        ctx.percepts.self = me(4, 1.6, 11.65);
+        add("zombie", 12, ZOMBIE);
+        next();
+
+        assertTrue(mind.status().contains("kills it in 3.2 s"), mind.status());
+    }
+
     @Test
     void emptyHandedItFightsASpider() {
         ctx.percepts.self = me(1, 4, 20); // 16 hp at 4 a second, against 2 a second at it

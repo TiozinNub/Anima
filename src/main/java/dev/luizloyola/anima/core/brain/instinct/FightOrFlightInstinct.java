@@ -99,6 +99,16 @@ public final class FightOrFlightInstinct implements Instinct {
     /** How long a threat that stopped being counted — out of view, out of range — still counts. */
     static final long PACK_MEMORY_TICKS = 100;
 
+    /** Arm's length for a blow: a body's default {@code entity_interaction_range}. */
+    static final double MELEE_REACH = 3.0;
+
+    /**
+     * The slowest a chase is taken to close on a shooter, blocks a tick. One as quick as this body
+     * is still caught as it strafes back, slowly; an infinite chase would read as unkillable and
+     * price the fight at nothing taken.
+     */
+    static final double CLOSING_FLOOR = 0.02;
+
     /** Targets a fight could not get to, until when (game time). */
     private final Map<BeingId, Long> unreachable = new HashMap<>();
     /** The strongest each perceived body has shown, while it is perceived. */
@@ -336,7 +346,8 @@ public final class FightOrFlightInstinct implements Instinct {
                 continue;
             }
             double killTime = percepts.drawSeconds(being.id())
-                    + killTime(percepts.selfAsCombatant(being.id()).orElse(me), being, them);
+                    + killTime(percepts.selfAsCombatant(being.id()).orElse(me), being, them,
+                            ranged(ctx.danger(), being) || them.shoots());
             foes.add(new Foe(being.id(), them, killTime));
             double value = fear * (attackedMe ? ATTACKER_BONUS : 1.0) / (1.0 + killTime)
                     * (being.id().equals(fighting) ? TARGET_STICKINESS : 1.0);
@@ -487,11 +498,20 @@ public final class FightOrFlightInstinct implements Instinct {
         return a.damage() * a.hitsPerSecond() > b.damage() * b.hitsPerSecond();
     }
 
-    /** Seconds this body would take to kill {@code being}: unhurt as far as it knows unless seen. */
-    private static double killTime(Combatant me, Being being, Combatant them) {
+    /**
+     * Seconds this body would take to kill {@code being}: unhurt as far as it knows unless seen. A
+     * shooter keeps its distance rather than coming to the blade, so the chase to it counts too,
+     * under its fire like the rest of the fight.
+     */
+    private static double killTime(Combatant me, Being being, Combatant them, boolean shoots) {
         double perSecond = me.damagePerSecondAgainst(them.armor(), them.toughness());
+        if (perSecond <= 0.0) {
+            return Double.POSITIVE_INFINITY;
+        }
         double health = being.awareness() == Being.Awareness.SEEN ? them.health() : them.maxHealth();
-        return perSecond > 0.0 ? health / perSecond : Double.POSITIVE_INFINITY;
+        double closingTicks = shoots ? Math.max(0.0, being.distance() - MELEE_REACH)
+                / Math.max(CLOSING_FLOOR, me.pace() - them.pace()) : 0.0;
+        return closingTicks / 20.0 + health / perSecond;
     }
 
     @Override
