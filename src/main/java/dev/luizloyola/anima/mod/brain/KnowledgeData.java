@@ -107,13 +107,26 @@ public final class KnowledgeData extends SavedData implements StoreGuard.Checked
             Codec.LONG.fieldOf("seen").forGetter(InsideRow::seen)
     ).apply(r, InsideRow::new));
 
+    /** One avoid-mark — see {@link AgentKnowledge#strike}. */
+    private record AvoidRow(PoiKind kind, Pos at, AgentKnowledge.Avoid mark) {
+    }
+
+    private static final Codec<AvoidRow> AVOID_ROW_CODEC = RecordCodecBuilder.create(r -> r.group(
+            KIND_CODEC.fieldOf("kind").forGetter(AvoidRow::kind),
+            POS_CODEC.fieldOf("at").forGetter(AvoidRow::at),
+            Codec.LONG.fieldOf("until").forGetter(row -> row.mark().until()),
+            Codec.INT.fieldOf("strikes").forGetter(row -> row.mark().strikes()),
+            Codec.LONG.fieldOf("length").forGetter(row -> row.mark().length())
+    ).apply(r, (kind, at, until, strikes, length) ->
+            new AvoidRow(kind, at, new AgentKnowledge.Avoid(until, strikes, length))));
+
     /**
      * One person's knowledge, flattened across kinds ({@code kind} rides in each entry). The three
      * tiers are stored apart because they ARE apart — see {@link Sighting} and
      * {@link AgentKnowledge.Seen}.
      */
     private record PersonEntry(AgentId id, List<PoiMemory> pois, List<Sighting> sightings,
-            List<InsideRow> insides) {
+            List<InsideRow> insides, List<AvoidRow> avoids) {
     }
 
     private static final Codec<PersonEntry> ENTRY_CODEC = RecordCodecBuilder.create(e -> e.group(
@@ -125,9 +138,11 @@ public final class KnowledgeData extends SavedData implements StoreGuard.Checked
             // Absent in every save written before a body could look inside a container — a store
             // nobody has opened has no rows, which is exactly what an old file also has none of.
             INSIDE_ROW_CODEC.listOf().optionalFieldOf("insides", List.of())
-                    .forGetter(PersonEntry::insides)
-    ).apply(e, (uuid, pois, sightings, insides) ->
-            new PersonEntry(AgentId.of(uuid), pois, sightings, insides)));
+                    .forGetter(PersonEntry::insides),
+            AVOID_ROW_CODEC.listOf().optionalFieldOf("avoids", List.of())
+                    .forGetter(PersonEntry::avoids)
+    ).apply(e, (uuid, pois, sightings, insides, avoids) ->
+            new PersonEntry(AgentId.of(uuid), pois, sightings, insides, avoids)));
 
     /** This store's schema. Bump when the shape above changes incompatibly. */
     private static final int SCHEMA = 1;
@@ -213,17 +228,22 @@ public final class KnowledgeData extends SavedData implements StoreGuard.Checked
             AgentKnowledge knowledge = registry.forPerson(id);
             List<PoiMemory> pois = new ArrayList<>();
             List<Sighting> sightings = new ArrayList<>();
+            List<AvoidRow> avoids = new ArrayList<>();
             for (PoiKind kind : PoiKind.all()) {
                 pois.addAll(knowledge.sighted(kind));
                 sightings.addAll(knowledge.glimpses(kind));
+                for (Map.Entry<Pos, AgentKnowledge.Avoid> mark : knowledge.avoids(kind).entrySet()) {
+                    avoids.add(new AvoidRow(kind, mark.getKey(), mark.getValue()));
+                }
             }
             List<InsideRow> insides = new ArrayList<>();
             for (Map.Entry<Pos, AgentKnowledge.Seen> row : knowledge.insides().entrySet()) {
                 AgentKnowledge.Seen seen = row.getValue();
                 insides.add(new InsideRow(row.getKey(), seen.stacks(), seen.seenTick()));
             }
-            if (!pois.isEmpty() || !sightings.isEmpty() || !insides.isEmpty()) {
-                entries.add(new PersonEntry(id, pois, sightings, insides));
+            if (!pois.isEmpty() || !sightings.isEmpty() || !insides.isEmpty()
+                    || !avoids.isEmpty()) {
+                entries.add(new PersonEntry(id, pois, sightings, insides, avoids));
             }
         }
         return entries;
@@ -242,6 +262,9 @@ public final class KnowledgeData extends SavedData implements StoreGuard.Checked
             }
             for (InsideRow row : entry.insides()) {
                 knowledge.restoreInside(row.at(), row.stacks(), row.seen());
+            }
+            for (AvoidRow row : entry.avoids()) {
+                knowledge.restoreAvoid(row.kind(), row.at(), row.mark());
             }
         }
         return new KnowledgeData(registry, version, declaredRows);

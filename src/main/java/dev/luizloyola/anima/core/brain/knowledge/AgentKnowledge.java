@@ -10,7 +10,6 @@ import dev.luizloyola.anima.core.social.Places;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,11 +44,11 @@ public final class AgentKnowledge {
 
     private final Map<PoiKind, Map<Pos, PoiMemory>> byKind = new java.util.LinkedHashMap<>();
     /**
-     * TRANSIENT avoid-marks: anchors that are true but not worth retrying right now (an
-     * unworkable tree). Never serialized (a fresh boot retries clean), and consulted only by
-     * method selection; the memory itself stays.
+     * Avoid-marks: anchors that are true but not worth retrying right now (an unworkable tree).
+     * Consulted only by method selection; the memory itself stays. Saved with the knowledge, so a
+     * restart does not hand a body back the place it gave up on.
      */
-    private final Map<PoiKind, Map<Pos, Long>> avoidedUntil = new java.util.LinkedHashMap<>();
+    private final Map<PoiKind, Map<Pos, Avoid>> avoided = new java.util.LinkedHashMap<>();
 
     /**
      * What this body may claim, as against what it has seen — installed by the registry, empty for
@@ -254,16 +253,61 @@ public final class AgentKnowledge {
                 : Collections.unmodifiableCollection(entries.values());
     }
 
-    /** Marks an anchor as not-worth-retrying until the given game time. Transient. */
+    /**
+     * An avoid-mark: avoided until {@code until}, for the {@code strikes}-th give-up in a row, which
+     * earned it {@code length} ticks.
+     */
+    public record Avoid(long until, int strikes, long length) {
+    }
+
+    /** Marks an anchor as not-worth-retrying until the given game time. */
     public void avoid(PoiKind kind, Pos anchor, long untilTick) {
-        avoidedUntil.computeIfAbsent(kind, k -> new HashMap<>()).put(anchor, untilTick);
+        marks(kind).put(anchor, new Avoid(untilTick, 1, 0));
+    }
+
+    /**
+     * An anchor this body gave up on: avoided for {@code base} ticks, twice as long for each give-up
+     * that follows before the last mark has lapsed by its own length, at most {@code cap}. A strike
+     * while the anchor is still avoided changes nothing, so a give-up struck as it begins and again
+     * as it ends counts once. At a flat two minutes a lone settler gave the same water-locked tree up
+     * 25 times in one forest session (2026-10-02).
+     *
+     * @return the mark the anchor now carries
+     */
+    public Avoid strike(PoiKind kind, Pos anchor, long now, long base, long cap) {
+        Map<Pos, Avoid> marks = marks(kind);
+        marks.values().removeIf(mark -> now >= mark.until() + mark.length());
+        Avoid last = marks.get(anchor);
+        if (last != null && last.until() > now) {
+            return last;
+        }
+        int strikes = last == null ? 1 : last.strikes() + 1;
+        long length = Math.min(cap, base << Math.min(strikes - 1, 20));
+        Avoid mark = new Avoid(now + length, strikes, length);
+        marks.put(anchor, mark);
+        return mark;
     }
 
     /** Whether the anchor is currently avoided — consult with the same clock memories carry. */
     public boolean isAvoided(PoiKind kind, Pos anchor, long now) {
-        Map<Pos, Long> marks = avoidedUntil.get(kind);
-        Long until = marks == null ? null : marks.get(anchor);
-        return until != null && until > now;
+        Map<Pos, Avoid> marks = avoided.get(kind);
+        Avoid mark = marks == null ? null : marks.get(anchor);
+        return mark != null && mark.until() > now;
+    }
+
+    /** Every avoid-mark of a kind — the codec's view. */
+    public Map<Pos, Avoid> avoids(PoiKind kind) {
+        Map<Pos, Avoid> marks = avoided.get(kind);
+        return marks == null ? Map.of() : Collections.unmodifiableMap(marks);
+    }
+
+    /** Puts back a mark that was already this body's. */
+    public void restoreAvoid(PoiKind kind, Pos anchor, Avoid mark) {
+        marks(kind).put(anchor, mark);
+    }
+
+    private Map<Pos, Avoid> marks(PoiKind kind) {
+        return avoided.computeIfAbsent(kind, k -> new LinkedHashMap<>());
     }
 
     // --- insides: what this body last saw when it opened a container -------------------------

@@ -95,6 +95,24 @@ class KnowledgeDataTest {
     }
 
     @Test
+    void aStruckPlaceStaysStruckAcrossARestart() {
+        AgentId hazel = AgentId.random();
+        Pos anchor = new Pos(522, 54, -453);
+
+        KnowledgeData data = new KnowledgeData();
+        AgentKnowledge.Avoid mark = data.registry().forPerson(hazel)
+                .strike(TREE, anchor, 1_000L, 2_400L, 24_000L);
+
+        var encoded = KnowledgeData.CODEC.encodeStart(JsonOps.INSTANCE, data).getOrThrow();
+        KnowledgeData decoded = KnowledgeData.CODEC.parse(JsonOps.INSTANCE, encoded).getOrThrow();
+
+        AgentKnowledge back = decoded.registry().forPerson(hazel);
+        assertTrue(back.isAvoided(TREE, anchor, 3_399L),
+                "a restart handed a body back the tree it had just given up on");
+        assertEquals(mark, back.avoids(TREE).get(anchor), "and the count that lengthens the next");
+    }
+
+    @Test
     void aDetailFreeMemoryEncodesWithNoDetailKeyAtAll() {
         AgentId hazel = AgentId.random();
         Pos anchor = new Pos(4, 64, 4);

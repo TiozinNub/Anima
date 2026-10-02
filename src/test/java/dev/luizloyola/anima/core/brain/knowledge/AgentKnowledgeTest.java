@@ -38,6 +38,38 @@ class AgentKnowledgeTest {
     }
 
     @Test
+    void aPlaceGivenUpOnAgainIsStruckForLongerEachTime() {
+        AgentKnowledge knowledge = new AgentKnowledge();
+        Pos at = new Pos(522, 54, -453);
+
+        AgentKnowledge.Avoid first = knowledge.strike(TestPois.TREE, at, 1_000, 100, 350);
+        assertEquals(new AgentKnowledge.Avoid(1_100, 1, 100), first);
+        assertTrue(knowledge.isAvoided(TestPois.TREE, at, 1_099));
+        assertFalse(knowledge.isAvoided(TestPois.TREE, at, 1_100));
+
+        assertEquals(first, knowledge.strike(TestPois.TREE, at, 1_050, 100, 350),
+                "struck again while still struck: one give-up, counted once");
+
+        assertEquals(new AgentKnowledge.Avoid(1_350, 2, 200),
+                knowledge.strike(TestPois.TREE, at, 1_150, 100, 350));
+        assertEquals(new AgentKnowledge.Avoid(1_750, 3, 350),
+                knowledge.strike(TestPois.TREE, at, 1_400, 100, 350), "never past the cap");
+    }
+
+    @Test
+    void aStrikeLongLapsedStartsOverAtTheFirst() {
+        AgentKnowledge knowledge = new AgentKnowledge();
+        Pos at = new Pos(563, 69, -536);
+        knowledge.strike(TestPois.TREE, at, 1_000, 100, 10_000);
+        knowledge.strike(TestPois.TREE, at, 1_100, 100, 10_000); // until 1_300, length 200
+
+        assertEquals(new AgentKnowledge.Avoid(1_600, 1, 100),
+                knowledge.strike(TestPois.TREE, at, 1_500, 100, 10_000),
+                "lapsed by its own length: the place is judged afresh");
+        assertEquals(1, knowledge.avoids(TestPois.TREE).size());
+    }
+
+    @Test
     void nearestPicksTheClosestAnchorOfTheAskedKind() {
         AgentKnowledge knowledge = new AgentKnowledge();
         knowledge.note(tree(10, 64, 0, 6, 100), AgentKnowledge.maxPerKind(TestSpecies.PROFILE));
