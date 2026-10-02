@@ -9,6 +9,7 @@ import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.nav.NavGrids;
+import dev.luizloyola.anima.core.nav.Surface;
 import java.util.List;
 import java.util.Optional;
 import java.util.random.RandomGenerator;
@@ -23,9 +24,11 @@ import org.jspecify.annotations.Nullable;
  * rejected candidate costs a draw): with probability {@link #WALK_CHANCE} a random {@code (dx, dz)}
  * each uniform in {@code [-radius, radius]}, re-rolled while both are zero, whose column is then
  * resolved through {@link Standing} to footing this body could actually stand on near its feet
- * cell, no lower than {@code jumpHeight × max(|dx|, |dz|)} under them, and not one slip from harm
- * ({@link NavGrids#besideHarm}). That gives {@code [GoTo(target, STROLL), Idle(pause)]}; a beat that never rolled to walk —
- * or drew nowhere standable inside {@link #MAX_ROLLS} — is just {@code [Idle(pause)]}. Pauses run
+ * cell, no lower than {@code jumpHeight × max(|dx|, |dz|)} under them, not one slip from harm
+ * ({@link NavGrids#besideHarm}) and on the {@link Surface} or no deeper under it than the body
+ * already is — from underground, the shallowest of a few. That gives
+ * {@code [GoTo(target, STROLL), Idle(pause)]}; a beat that never rolled to walk — or drew nowhere
+ * standable inside {@link #MAX_ROLLS} — is just {@code [Idle(pause)]}. Pauses run
  * {@code IDLE_MIN + [0, IDLE_RANGE)} ticks either way.
  *
  * <p>Tuned down deliberately (Luiz): idling is the default, walking the exception, the walk a
@@ -146,7 +149,12 @@ public final class WanderStep implements CompoundTask {
             // would have read as a pathfinder bug.
             int reach = Math.max(body.jumpHeight(), body.maxDrop());
             boolean weighing = Comfort.worthWeighing(beings, field);
-            int wanted = weighing ? CAUTIOUS_ROLLS : 1;
+            // Never deeper under the surface than it stands, and from underground the shallowest
+            // of a few: each beat a step up or along, never down (Luiz, 2026-10-02).
+            int deep = Surface.depth(terrain, here.x(), here.y(), here.z());
+            int allowed = Math.max(Surface.TOLERANCE, deep);
+            boolean under = deep > Surface.TOLERANCE;
+            int wanted = weighing || under ? CAUTIOUS_ROLLS : 1;
             Pos best = null;
             double bestCost = Double.MAX_VALUE;
             int acceptable = 0;
@@ -177,11 +185,15 @@ public final class WanderStep implements CompoundTask {
                         true)) {
                     continue;
                 }
+                int depth = Surface.depth(terrain, candidate.x(), candidate.y(), candidate.z());
+                if (depth > allowed) {
+                    continue;
+                }
                 acceptable++;
-                double cost = weighing
+                double cost = (weighing
                         ? Comfort.cost(candidate, beings, field, ctx.percepts().needs(),
                                 ctx.profile())
-                        : 0.0;
+                        : 0.0) + (under ? depth : 0.0);
                 if (cost < bestCost) {
                     bestCost = cost;
                     best = candidate;

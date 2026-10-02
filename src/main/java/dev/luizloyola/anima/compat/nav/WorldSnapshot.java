@@ -4,6 +4,8 @@ import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.Doorway;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
+import dev.luizloyola.anima.core.nav.Surface;
+import dev.luizloyola.anima.compat.terrain.NaturalGroundReader;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import java.util.Arrays;
@@ -224,6 +226,10 @@ public final class WorldSnapshot implements NavGrid {
     private @Nullable Level live;
     /** Which cells a {@link #lazy} snapshot has read so far. */
     private @Nullable BitSet read;
+    /** Each column's {@link NavGrid#naturalTop}, row by row in x; null for a {@link #lazy} one. */
+    private int @Nullable [] tops;
+    /** Each column's {@link NavGrid#surfaceLevel}, indexed like {@link #tops}. */
+    private int @Nullable [] levels;
 
     private WorldSnapshot(int minX, int minY, int minZ, int sizeX, int sizeY, int sizeZ,
             int worldMinY, int worldMaxY, byte[] cells) {
@@ -246,7 +252,25 @@ public final class WorldSnapshot implements NavGrid {
     public static WorldSnapshot capture(Level level, BlockPos min, BlockPos max) {
         WorldSnapshot snapshot = unread(level, min, max);
         snapshot.bake(level, min, max);
+        snapshot.readSurface(level);
         return snapshot;
+    }
+
+    /**
+     * The surface over the box ({@link Surface}), read here because the search that asks runs off
+     * this thread. The tops are read {@link Surface#RIM_REACH} past the box, so a rim at its edge
+     * is still a rim: a few reads a column, against the box's dozens.
+     */
+    private void readSurface(Level level) {
+        int reach = Surface.RIM_REACH;
+        int[] wide = NaturalGroundReader.tops(level, this.minX - reach, this.minZ - reach,
+                this.minX + this.sizeX - 1 + reach, this.minZ + this.sizeZ - 1 + reach);
+        int span = this.sizeX + 2 * reach;
+        this.tops = new int[this.sizeX * this.sizeZ];
+        for (int z = 0; z < this.sizeZ; z++) {
+            System.arraycopy(wide, (z + reach) * span + reach, this.tops, z * this.sizeX, this.sizeX);
+        }
+        this.levels = Surface.levels(wide, this.sizeX, this.sizeZ);
     }
 
     /**
@@ -910,6 +934,25 @@ public final class WorldSnapshot implements NavGrid {
     public boolean farmland(int x, int y, int z) {
         int index = slot(x, y, z);
         return index >= 0 && farmland(this.cells[index]);
+    }
+
+    @Override
+    public int naturalTop(int x, int z) {
+        return column(this.tops, x, z);
+    }
+
+    @Override
+    public int surfaceLevel(int x, int z) {
+        return column(this.levels, x, z);
+    }
+
+    private int column(int @Nullable [] values, int x, int z) {
+        int ix = x - this.minX;
+        int iz = z - this.minZ;
+        if (values == null || ix < 0 || ix >= this.sizeX || iz < 0 || iz >= this.sizeZ) {
+            return Surface.UNKNOWN;
+        }
+        return values[iz * this.sizeX + ix];
     }
 
     /**

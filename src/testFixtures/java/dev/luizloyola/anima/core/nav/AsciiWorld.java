@@ -34,6 +34,8 @@ public final class AsciiWorld implements NavGrid {
     private final java.util.Set<Long> soft = new java.util.HashSet<>();
     private final java.util.Set<Long> regrowing = new java.util.HashSet<>();
     private final java.util.Set<Long> farmland = new java.util.HashSet<>();
+    /** Whether this map has a surface — see {@link #natural}. */
+    private boolean natural;
 
     private AsciiWorld(String[] rows) {
         this.rows = rows;
@@ -135,6 +137,7 @@ public final class AsciiWorld implements NavGrid {
             @Override public boolean soft(int x, int y, int z) { return map.soft(x, y, z); }
             @Override public boolean regrows(int x, int y, int z) { return map.regrows(x, y, z); }
             @Override public boolean farmland(int x, int y, int z) { return map.farmland(x, y, z); }
+            @Override public int naturalTop(int x, int z) { return map.naturalTop(x, z); }
             @Override public boolean inBounds(int x, int y, int z) {
                 return x >= 0 && x < w && z >= 0 && z < depth;
             }
@@ -281,4 +284,30 @@ public final class AsciiWorld implements NavGrid {
         if (drawn != null) return drawn;
         return NavGrid.super.surface(x, y, z);
     }
+
+    /**
+     * This map with a surface ({@link NavGrid#naturalTop}): every block drawn is natural, so a
+     * column's top is over its highest ground, overrides included — a hill over a tunnel is the
+     * hill's. Without it the map has none, as every map had before there was one.
+     */
+    public AsciiWorld natural() {
+        this.natural = true;
+        return this;
+    }
+
+    @Override
+    public int naturalTop(int x, int z) {
+        if (!this.natural || z < 0 || z >= this.rows.length || x < 0 || x >= this.rows[z].length()) {
+            return Surface.UNKNOWN;
+        }
+        for (int y = NATURAL_SCAN; y >= -NATURAL_SCAN; y--) {
+            if (cell(x, y, z) == CellType.GROUND) {
+                return y + 1;
+            }
+        }
+        return Surface.UNKNOWN;
+    }
+
+    /** How high and low {@link #naturalTop} looks: past any drawn height or override in a test. */
+    private static final int NATURAL_SCAN = 40;
 }

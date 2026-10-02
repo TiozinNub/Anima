@@ -14,6 +14,7 @@ import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.nav.NavGrids;
+import dev.luizloyola.anima.core.nav.Surface;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -309,6 +310,59 @@ class WanderStepTest {
                     "wandered to " + target + ", one slip from harm");
         }
         assertTrue(walked > 0, "the stream must walk sometimes, or this asserts nothing");
+    }
+
+    /**
+     * {@code PathfinderSurfaceTest}'s ravine, longer: plateaus at 9, sides a block down a column,
+     * a floor at 2 five wide and seven under the rim.
+     */
+    private static NavGrid ravine() {
+        String row = "9999876543222223456789999";
+        String[] rows = new String[17];
+        java.util.Arrays.fill(rows, row);
+        return AsciiWorld.of(rows).natural();
+    }
+
+    @Test
+    void aWanderDownTheSideOfARavineStopsAtTheSurface() {
+        NavGrid world = ravine();
+        RandomGenerator random = new Random(1234);
+        int walked = 0;
+        for (int i = 0; i < 300; i++) {
+            Beat beat = runBeat(random, new Pos(8, 4, 8), world); // the floor two down, in reach
+            if (!beat.walked()) {
+                continue;
+            }
+            walked++;
+            Pos target = beat.target();
+            assertFalse(Surface.under(world, target.x(), target.y(), target.z()),
+                    "wandered down to " + target);
+        }
+        assertTrue(walked > 0, "the stream must walk sometimes, or this asserts nothing");
+    }
+
+    @Test
+    void aWanderOnTheRavineFloorNeverGoesDeeperAndClimbsWhenItCan() {
+        NavGrid world = ravine();
+        RandomGenerator random = new Random(1234);
+        int walked = 0;
+        int up = 0;
+        for (int i = 0; i < 300; i++) {
+            Beat beat = runBeat(random, new Pos(10, 2, 8), world);
+            if (!beat.walked()) {
+                continue;
+            }
+            walked++;
+            Pos target = beat.target();
+            int depth = Surface.depth(world, target.x(), target.y(), target.z());
+            assertTrue(depth <= 7, "wandered deeper, to " + target);
+            if (depth < 7) {
+                up++;
+            }
+        }
+        // About half the spots in reach are up the side, so a plain roll would climb about half
+        // the time; the shallowest of four, nearly always.
+        assertTrue(up > walked * 0.8, up + " of " + walked + " beats climbed");
     }
 
     /** An open pond ('W') and a wadeable puddle ('w'): dry land only means both. */

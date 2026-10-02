@@ -2,6 +2,9 @@ package dev.luizloyola.anima.compat.nav;
 
 import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.NavGrid;
+import dev.luizloyola.anima.core.nav.Surface;
+import dev.luizloyola.anima.compat.terrain.NaturalGroundReader;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.chunk.ChunkAccess;
@@ -29,6 +32,10 @@ public final class LevelGrid implements NavGrid {
     private int chunkZ;
     /** Which tick {@link #chunk} was resolved on; why that is enough: {@code LevelProbe.chunkAt}. */
     private long chunkAt = Long.MIN_VALUE;
+    /** {@link #naturalTop} answers, for the tick in {@link #topsAt}. */
+    private final Long2IntOpenHashMap tops = new Long2IntOpenHashMap();
+    private long topsAt = Long.MIN_VALUE;
+    private final BlockPos.MutableBlockPos topScratch = new BlockPos.MutableBlockPos();
 
     public LevelGrid(Level level) {
         this.level = level;
@@ -126,6 +133,28 @@ public final class LevelGrid implements NavGrid {
         }
         this.scratch.set(x, y, z);
         return WorldSnapshot.farmlandAt(this.level, this.scratch);
+    }
+
+    /**
+     * Read through the chunk, and remembered for the tick: one {@link NavGrid#surfaceLevel} reads
+     * a hundred columns round its own, and a wander asks it of every spot it weighs.
+     */
+    @Override
+    public int naturalTop(int x, int z) {
+        long now = this.level.getGameTime();
+        if (now != this.topsAt) {
+            this.tops.clear();
+            this.topsAt = now;
+        }
+        long key = (long) x << 32 | (z & 0xFFFFFFFFL);
+        if (this.tops.containsKey(key)) {
+            return this.tops.get(key);
+        }
+        ChunkAccess column = chunkFor(x, z);
+        int top = column == null ? Surface.UNKNOWN
+                : NaturalGroundReader.top(column, this.topScratch, x, z);
+        this.tops.put(key, top);
+        return top;
     }
 
     @Override

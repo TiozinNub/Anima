@@ -136,6 +136,24 @@ public interface NavGrid {
         return false;
     }
 
+    /**
+     * The feet height over this column's top natural block — what is there with every tree,
+     * building and plant taken off it, or a fluid's surface — or {@link Surface#UNKNOWN}.
+     *
+     * <p>The default knows none, correct for a drawn grid that did not say: nothing is underground.
+     */
+    default int naturalTop(int x, int z) {
+        return Surface.UNKNOWN;
+    }
+
+    /**
+     * This column's {@link Surface#level}: its {@link #naturalTop}, or the rim of the ravine it lies
+     * in. A grid that keeps tops should keep these beside them; the default works them out.
+     */
+    default int surfaceLevel(int x, int z) {
+        return Surface.level(this::naturalTop, x, z);
+    }
+
     /** A heading as a bit, for {@link #ramps}: toward -z. */
     int NORTH = 1;
     /** Toward +z. */

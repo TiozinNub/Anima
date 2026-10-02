@@ -19,7 +19,8 @@ import java.util.Map;
  * {@link CellType#GROUND}'s ramps, a {@link CellType#DOOR}'s doorway code, a {@link CellType#CLIMB}'s
  * floor (absent means none); a {@code hatch x y z} line marks a hatch, a {@code soft x y z} line
  * soft ground (with a fifth field {@code 1}, ground that regrows), a {@code farmland x y z} line a
- * {@link CellType#STEP} that is farmland, a {@code laid x y z} line a block of a recorded pillar ({@link #pillars}).
+ * {@link CellType#STEP} that is farmland, a {@code laid x y z} line a block of a recorded pillar ({@link #pillars}),
+ * a {@code top x z y} line a column's {@link NavGrid#naturalTop} (a capture without them knows no surface).
  * Unmentioned cells inside the box are {@link CellType#PASSABLE}, everything outside
  * {@link CellType#OBSTACLE}, per the {@link NavGrid} contract. World coordinates let a query
  * recorded in-game replay verbatim.
@@ -41,6 +42,9 @@ public final class CapturedWorld implements NavGrid {
     private final java.util.Set<Long> regrowing;
     private final java.util.Set<Long> farmland;
     private final java.util.Set<Long> pillars;
+    /** {@link NavGrid#naturalTop} by {@link #column}, and the levels worked out from them so far. */
+    private final Map<Long, Integer> tops = new HashMap<>();
+    private final Map<Long, Integer> levels = new HashMap<>();
 
     private CapturedWorld(int minX, int minY, int minZ, int maxX, int maxY, int maxZ,
                           Map<Long, CellType> cells, Map<Long, Double> surfaces,
@@ -75,6 +79,7 @@ public final class CapturedWorld implements NavGrid {
         java.util.Set<Long> regrowing = new java.util.HashSet<>();
         java.util.Set<Long> farmland = new java.util.HashSet<>();
         java.util.Set<Long> pillars = new java.util.HashSet<>();
+        Map<Long, Integer> tops = new HashMap<>();
         int lineNo = 0;
         for (String raw : lines) {
             lineNo++;
@@ -108,6 +113,11 @@ public final class CapturedWorld implements NavGrid {
                         parse(parts[3], lineNo)));
                 continue;
             }
+            if (parts[0].equals("top") && parts.length == 4) {
+                tops.put(column(parse(parts[1], lineNo), parse(parts[2], lineNo)),
+                        parse(parts[3], lineNo));
+                continue;
+            }
             if (parts[0].equals("laid") && parts.length == 4) {
                 pillars.add(Pathfinder.pack(parse(parts[1], lineNo), parse(parts[2], lineNo),
                         parse(parts[3], lineNo)));
@@ -135,8 +145,10 @@ public final class CapturedWorld implements NavGrid {
         if (box == null) {
             throw new IllegalArgumentException("capture has no '# box minX minY minZ maxX maxY maxZ' header");
         }
-        return new CapturedWorld(box[0], box[1], box[2], box[3], box[4], box[5], cells, surfaces,
-                payloads, hatches, soft, regrowing, farmland, pillars);
+        CapturedWorld world = new CapturedWorld(box[0], box[1], box[2], box[3], box[4], box[5],
+                cells, surfaces, payloads, hatches, soft, regrowing, farmland, pillars);
+        world.tops.putAll(tops);
+        return world;
     }
 
     private static int[] ints(String text, int count, int lineNo) {
@@ -224,6 +236,20 @@ public final class CapturedWorld implements NavGrid {
     @Override
     public int doorway(int x, int y, int z) {
         return cell(x, y, z) == CellType.DOOR ? payloads.getOrDefault(Pathfinder.pack(x, y, z), 0) : 0;
+    }
+
+    @Override
+    public int naturalTop(int x, int z) {
+        return this.tops.getOrDefault(column(x, z), Surface.UNKNOWN);
+    }
+
+    @Override
+    public int surfaceLevel(int x, int z) {
+        return this.levels.computeIfAbsent(column(x, z), key -> Surface.level(this::naturalTop, x, z));
+    }
+
+    private static long column(int x, int z) {
+        return (long) x << 32 | (z & 0xFFFFFFFFL);
     }
 
     /**

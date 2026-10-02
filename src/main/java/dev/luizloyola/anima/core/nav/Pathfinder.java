@@ -116,6 +116,12 @@ public final class Pathfinder {
      */
     private static final double HURTING_LEAP_TOLL = 10.0;
     /**
+     * What an {@link Caution#ERRAND} pays per step under the {@link Surface} when its goal is not
+     * down there: a route round a ravine beats one through its floor of up to three times its
+     * length, and a walk out of a cave still goes.
+     */
+    private static final double UNDERGROUND_TOLL = 2.0;
+    /**
      * Cost of one cardinal cell of swimming — the swim-vs-detour dial. Well above a walk (1.0) and
      * around the careful factor (2.2), so the search takes a dry route of comparable length and
      * only crosses water when swimming genuinely saves distance. Narrow water still gets
@@ -383,6 +389,13 @@ public final class Pathfinder {
     /** How this walk weighs harm — {@link PathRequest#caution()}. */
     private final Caution caution;
     /**
+     * How far under the {@link Surface} a {@link Caution#STROLL} may set foot: no deeper than it set
+     * out, so a body underground walks up or along and never down.
+     */
+    private final int depthAllowed;
+    /** Whether the goal itself lies under the surface: an errand down there pays nothing to go. */
+    private final boolean goalUnder;
+    /**
      * Water-node memo, same reasoning as {@link #carefulCache}: the test is not cheap (a
      * standability check plus a clearance loop) and every cell is re-tested by each of its own
      * neighbours. It matters more here — a swimmer has a hundred neighbours where a walker has
@@ -499,6 +512,9 @@ public final class Pathfinder {
         this.profile = request.profile();
         this.danger = request.danger();
         this.caution = request.caution();
+        this.depthAllowed = Math.max(Surface.TOLERANCE,
+                Surface.depth(grid, request.startX(), request.startY(), request.startZ()));
+        this.goalUnder = Surface.under(grid, request.goalX(), request.goalY(), request.goalZ());
         this.setbacks = request.setbacks();
         this.refusing = this.setbacks.hasRefusals();
         this.startKey = pack(request.startX(), request.startY(), request.startZ());
@@ -1608,8 +1624,9 @@ public final class Pathfinder {
                 // buy three blocks of wading for the price of walking them.
                 if (isCareful(cx, y, cz) || isWater(cx, y, cz)) return;
                 // So does any cell this walk's caution weighs, or a stride would carry the body
-                // past lava paying for the one cell it lands on.
-                if (this.caution != Caution.NONE && isBesideHarm(cx, y, cz)) return;
+                // past lava or under a hill paying for the one cell it lands on.
+                if (this.caution != Caution.NONE && (isBesideHarm(cx, y, cz)
+                        || Surface.depth(this.grid, cx, y, cz) > Surface.TOLERANCE)) return;
                 if (cx != x + dx || cz != z + dz) { // the destination is charged by relax itself
                     crossed = Math.max(crossed, grudge(pack(cx, y, cz)));
                 }
@@ -2530,9 +2547,18 @@ public final class Pathfinder {
             if (stroll) return -1.0;
             toll += HURTING_LEAP_TOLL;
         }
-        if (isBesideHarm(unpackX(neighbor), unpackY(neighbor), unpackZ(neighbor))) {
+        int x = unpackX(neighbor);
+        int y = unpackY(neighbor);
+        int z = unpackZ(neighbor);
+        if (isBesideHarm(x, y, z)) {
             if (stroll) return -1.0;
             toll += HARM_TOLL;
+        }
+        int depth = Surface.depth(this.grid, x, y, z);
+        if (stroll) {
+            if (depth > this.depthAllowed) return -1.0;
+        } else if (!this.goalUnder && depth > Surface.TOLERANCE) {
+            toll += UNDERGROUND_TOLL;
         }
         return toll;
     }

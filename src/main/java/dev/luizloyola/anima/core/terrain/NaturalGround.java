@@ -80,6 +80,20 @@ public final class NaturalGround {
         set(x, z, UNKNOWN, columnFlags);
     }
 
+    /**
+     * The top natural block's Y walking one column down from {@code top}, or a fluid's top where
+     * the walk ends in one — {@link #UNKNOWN} when neither turns up within {@code maxDepth}.
+     */
+    public static int groundOf(int top, int maxDepth, IntFunction<Cell> cellAt) {
+        for (int y = top; y > top - maxDepth; y--) {
+            Cell cell = cellAt.apply(y);
+            if (cell == Cell.NATURAL || cell == Cell.FLUID) {
+                return y;
+            }
+        }
+        return UNKNOWN;
+    }
+
     /** Records one column, by world coordinates. */
     public void set(int x, int z, int groundY, int columnFlags) {
         int i = index(x, z);

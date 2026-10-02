@@ -3,9 +3,11 @@ package dev.luizloyola.anima.mod.command;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
+import dev.luizloyola.anima.compat.terrain.NaturalGroundReader;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.LaidBlocks;
+import dev.luizloyola.anima.core.nav.Surface;
 import dev.luizloyola.anima.mod.nav.LaidBlocksData;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -135,6 +137,8 @@ public final class NavDump {
                 out.write("# a line 'farmland x y z' marks a " + CellType.STEP.name()
                         + " that is farmland, kept off unless a walk allows it\n");
                 out.write("# a line 'laid x y z' marks a block of a recorded pillar\n");
+                out.write("# a line 'top x z y' gives a column's feet height over its top natural"
+                        + " block, " + Surface.RIM_REACH + " columns past the box each side\n");
 
                 BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
                 for (int x = min.getX(); x <= max.getX(); x++) {
@@ -166,6 +170,17 @@ public final class NavDump {
                                 out.write("hatch " + x + " " + y + " " + z + "\n");
                             }
                         }
+                    }
+                }
+                // Past the box, so a replay finds a ravine's rim where the live capture did.
+                int reach = Surface.RIM_REACH;
+                int[] tops = NaturalGroundReader.tops(level, min.getX() - reach,
+                        min.getZ() - reach, max.getX() + reach, max.getZ() + reach);
+                int span = max.getX() - min.getX() + 1 + 2 * reach;
+                for (int i = 0; i < tops.length; i++) {
+                    if (tops[i] != Surface.UNKNOWN) {
+                        out.write("top " + (min.getX() - reach + i % span) + " "
+                                + (min.getZ() - reach + i / span) + " " + tops[i] + "\n");
                     }
                 }
                 for (LaidBlocks.Row row : LaidBlocksData.get(level.getServer()).laid().rows()) {

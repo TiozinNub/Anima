@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.compat.terrain;
 
+import dev.luizloyola.anima.core.nav.Surface;
 import dev.luizloyola.anima.core.terrain.NaturalGround;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
@@ -63,6 +64,48 @@ public final class NaturalGroundReader {
             }
         }
         return ground;
+    }
+
+    /**
+     * The feet height over the top natural block of each column of
+     * {@code [minX, maxX] × [minZ, maxZ]}, row by row in x — {@link Surface#UNKNOWN} where the chunk
+     * is absent or unprimed or nothing natural lies within reach. Walked down from the top that
+     * leaves leave out: under a canopy that is the ground itself, one read.
+     */
+    public static int[] tops(Level level, int minX, int minZ, int maxX, int maxZ) {
+        int width = maxX - minX + 1;
+        int[] tops = new int[width * (maxZ - minZ + 1)];
+        java.util.Arrays.fill(tops, Surface.UNKNOWN);
+        BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+        for (int chunkX = minX >> 4; chunkX <= maxX >> 4; chunkX++) {
+            for (int chunkZ = minZ >> 4; chunkZ <= maxZ >> 4; chunkZ++) {
+                ChunkAccess chunk = level.getChunk(chunkX, chunkZ, ChunkStatus.FULL, false);
+                if (chunk == null) {
+                    continue;
+                }
+                int x0 = Math.max(minX, chunkX << 4);
+                int x1 = Math.min(maxX, (chunkX << 4) + 15);
+                int z0 = Math.max(minZ, chunkZ << 4);
+                int z1 = Math.min(maxZ, (chunkZ << 4) + 15);
+                for (int x = x0; x <= x1; x++) {
+                    for (int z = z0; z <= z1; z++) {
+                        tops[(z - minZ) * width + (x - minX)] = top(chunk, at, x, z);
+                    }
+                }
+            }
+        }
+        return tops;
+    }
+
+    /** {@link #tops} for one column of a loaded chunk. */
+    public static int top(ChunkAccess chunk, BlockPos.MutableBlockPos at, int x, int z) {
+        if (!chunk.hasPrimedHeightmap(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES)) {
+            return Surface.UNKNOWN;
+        }
+        int from = chunk.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        int ground = NaturalGround.groundOf(from, MAX_DEPTH,
+                y -> cell(chunk.getBlockState(at.set(x, y, z))));
+        return ground == NaturalGround.UNKNOWN ? Surface.UNKNOWN : ground + 1;
     }
 
     private static NaturalGround.Cell cell(BlockState state) {
