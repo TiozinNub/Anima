@@ -62,6 +62,8 @@ class GauntletPathTest {
 
     private static CapturedWorld world;
     private static List<Station> stations;
+    /** The stations walked in-world as a wander strolls (the table's {@code # stroll-walk:} line). */
+    private static final java.util.Set<String> STROLLS = new java.util.HashSet<>();
 
     @BeforeAll
     static void load() {
@@ -80,6 +82,10 @@ class GauntletPathTest {
     private static List<Station> readStations() {
         List<Station> out = new ArrayList<>();
         for (String line : CapturedWorld.lines(resource("/nav/gauntlet-stations.tsv"))) {
+            if (line.startsWith("# stroll-walk:")) {
+                String ids = line.substring("# stroll-walk:".length()).trim();
+                STROLLS.addAll(List.of(ids.split("\\s+")));
+            }
             if (line.isBlank() || line.startsWith("#")) {
                 continue;
             }
@@ -99,10 +105,13 @@ class GauntletPathTest {
 
     /**
      * A station's request, carrying the capture's recorded pillars as a walk in the world carries the
-     * record's: K13 and K14 are about them, and they are not terrain.
+     * record's: K13 and K14 are about them, and they are not terrain. A stroll station's hand layer
+     * asks as its runner walks; the blocks layer is a building walk, never a stroll.
      */
     private static PathRequest ask(Station s, MoveCapabilities body) {
-        return PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), body).near(world.pillars());
+        PathRequest request = PathRequest.of(s.sx(), s.sy(), s.sz(), s.gx(), s.gy(), s.gz(), body)
+                .near(world.pillars());
+        return body == BODY && STROLLS.contains(s.id()) ? request.cautious(Caution.STROLL) : request;
     }
 
     private static boolean plans(Station s) {

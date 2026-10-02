@@ -1315,8 +1315,9 @@ public final class AgentCommands {
             EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET);
 
     /**
-     * {@code goto <pos> walk|scale|build [within <from> <to>]}: what the walk may do to the ground,
-     * and the columns it must keep to — the gauntlet's blocks layer fences each runner to its lane.
+     * {@code goto <pos> walk|scale|build [run|stroll|within <from> <to>]}: what the walk may do to
+     * the ground, its pace, and the columns it must keep to — the gauntlet's blocks layer fences
+     * each runner to its lane.
      */
     private static ArgumentBuilder<CommandSourceStack, ?> walkLevel(String name, WalkLevel level) {
         return Commands.literal(name)
@@ -1326,6 +1327,10 @@ public final class AgentCommands {
                 .then(Commands.literal("run")
                         .executes(ctx -> navGoto(ctx, BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
                                 level, null, Gait.SPRINT)))
+                // As a wander strolls: its caution is the question (see Caution).
+                .then(Commands.literal("stroll")
+                        .executes(ctx -> navGoto(ctx, BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+                                level, null, Gait.STROLL)))
                 .then(Commands.literal("within")
                         .then(Commands.argument("from", ColumnPosArgument.columnPos())
                                 .then(Commands.argument("to", ColumnPosArgument.columnPos())
@@ -1350,7 +1355,8 @@ public final class AgentCommands {
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         person.navigator().pathTo(pos, gait, level, fence);
-        OpJournal.record(source, person.agentId(), (gait == Gait.SPRINT ? "ran" : "walked") + " to "
+        OpJournal.record(source, person.agentId(), (gait == Gait.SPRINT ? "ran"
+                : gait == Gait.STROLL ? "strolled" : "walked") + " to "
                 + pos.toShortString() + " by hand"
                 + (level == WalkLevel.SCALE ? "" : " (" + level.name().toLowerCase(Locale.ROOT) + ")"));
         Replies.send(source, () -> Component.translatable("anima.command.nav.goto",
