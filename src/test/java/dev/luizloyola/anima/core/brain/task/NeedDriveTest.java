@@ -11,7 +11,10 @@ import dev.luizloyola.anima.core.agent.need.Binding;
 import dev.luizloyola.anima.core.agent.need.NeedKind;
 import dev.luizloyola.anima.core.brain.instinct.Drives;
 import dev.luizloyola.anima.core.brain.instinct.NeedDrive;
+import dev.luizloyola.anima.core.brain.sense.Being;
+import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.config.KnobSpec.Kind;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -104,6 +107,21 @@ class NeedDriveTest {
 
         ctx.percepts.company.setValue(0.98); // well above it
         assertEquals(0.0, seek.pressure(ctx), "nor from the crowded end, which is not its own");
+    }
+
+    @Test
+    void seekingPeopleBidsOnlyWithSomebodyToGoTo() {
+        ctx.percepts.company.setValue(0.0); // desolate
+        assertEquals(0.0, Drives.SEEK_PEOPLE.pressure(ctx), "nobody perceived: it could only fail");
+
+        Being someone = FakePercepts.personAt(new Pos(6, 64, 0), 6.0, "");
+        ctx.percepts.beings = List.of(someone);
+        assertEquals(ctx.percepts.needs.pressure(NeedKind.COMPANY), Drives.SEEK_PEOPLE.pressure(ctx), 1e-9,
+                "somebody to go to: the gauge's own bid");
+        assertTrue(Drives.SEEK_PEOPLE.pressure(ctx) > 0.0);
+
+        ctx.percepts.called.add(someone.id());
+        assertEquals(0.0, Drives.SEEK_PEOPLE.pressure(ctx), "called lately is no one to go to either");
     }
 
     @Test

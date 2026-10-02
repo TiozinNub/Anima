@@ -202,12 +202,16 @@ public final class Arbiter {
 
         // 1. Eligibility is noted before the countdown, so a fresh cooldown buys that many ticks.
         boolean[] eligible = new boolean[n];
+        Task held = active != null && !workRunning ? executor.root() : null;
         for (int i = 0; i < n; i++) {
             eligible[i] = cooldowns[i] == 0;
             if (cooldowns[i] > 0) {
                 cooldowns[i]--;
             }
-            lastPressures[i] = instincts.get(i).pressure(ctx);
+            Instinct instinct = instincts.get(i);
+            lastPressures[i] = instinct == active && held != null
+                    ? instinct.pressure(ctx, held)
+                    : instinct.pressure(ctx);
         }
 
         // 2. Top eligible bidder by effective pressure (incumbent gets STICKINESS; ties -> earlier).

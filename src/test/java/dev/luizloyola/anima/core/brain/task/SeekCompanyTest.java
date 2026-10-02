@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
+import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.instinct.Drives;
 import dev.luizloyola.anima.core.brain.sense.Being;
@@ -224,6 +225,32 @@ class SeekCompanyTest {
         assertTrue(ctx.percepts.calledLately(strolling.id()),
                 "walking with idle arms is somebody out for a stroll, and free");
         assertFalse(ctx.percepts.calledLately(busy.id()));
+    }
+
+    /** Targeting spends the mark on the only person around; the seek under way must not lose its bid. */
+    @Test
+    void aSeekUnderWayKeepsItsBidOnceItsOnlyTargetIsMarked() {
+        ctx.percepts.company.setValue(0.0);
+        Being only = FakePercepts.personAt(new Pos(10, 64, 0), 10.0, "");
+        ctx.percepts.beings = List.of(only);
+        double lonely = Drives.SEEK_PEOPLE.pressure(ctx);
+        assertTrue(lonely > 0.0);
+
+        Arbiter arbiter = new Arbiter(List.of(Drives.SEEK_PEOPLE));
+        arbiter.tick(ctx);
+        assertTrue(ctx.percepts.calledLately(only.id()), "picked, and the mark spent");
+        assertEquals(0.0, Drives.SEEK_PEOPLE.pressure(ctx), "nobody left for a fresh seek");
+
+        ctx.mover.setState(MoveState.MOVING);
+        arbiter.tick(ctx);
+        assertEquals(String.format(java.util.Locale.ROOT, "seek_people %.2f (active)", lonely),
+                arbiter.pressureLines().get(0),
+                "the walk over keeps its bid");
+
+        ctx.percepts.beings = List.of();
+        arbiter.tick(ctx);
+        assertTrue(arbiter.pressureLines().get(0).startsWith("seek_people 0.00"),
+                "a target gone from sight leaves it nothing: " + arbiter.pressureLines());
     }
 
     @Test

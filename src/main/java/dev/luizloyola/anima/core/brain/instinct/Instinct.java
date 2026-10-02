@@ -26,6 +26,15 @@ public interface Instinct {
     double pressure(BrainContext ctx);
 
     /**
+     * The bid while this drive holds the wheel, running {@code root}. The same as
+     * {@link #pressure(BrainContext)} by default; a drive that bids only when it could get anywhere
+     * lets the root already under way answer that.
+     */
+    default double pressure(BrainContext ctx, Task root) {
+        return pressure(ctx);
+    }
+
+    /**
      * A FRESH task tree to pursue this drive, built anew on every grant — never a cached instance.
      * That freshness is the continuous-behavior loop: the arbiter re-grants the incumbent after a
      * SUCCESS by calling this again.

@@ -9,6 +9,7 @@ import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.social.speech.Speech;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Go and be near somebody — company's lonely end, and the only thing in rung 4 that OPENS a hail.
@@ -167,6 +168,19 @@ public final class SeekCompany implements PrimitiveTask {
         // No `calledLately` check here — `nearest` already refused a called target, so reaching
         // this point means the reason is intact. Checking twice would read as two guardrails.
         return true; // a stranger, or a friend worth calling: both intents want the same shout
+    }
+
+    /**
+     * Whether a seek could get anywhere: somebody to walk to now, or, for the seek already
+     * {@code running}, its target still perceived. Targeting spends the mark that {@link #nearest}
+     * skips, so a lone target is nobody to a fresh seek the moment it is picked.
+     */
+    public static boolean possible(BrainContext ctx, @Nullable Task running) {
+        if (running instanceof SeekCompany seek && seek.target != null
+                && ctx.percepts().being(seek.target).isPresent()) {
+            return true;
+        }
+        return nearest(ctx) != null;
     }
 
     /**

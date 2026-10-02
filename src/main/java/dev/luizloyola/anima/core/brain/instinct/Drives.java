@@ -32,11 +32,13 @@ public final class Drives {
 
     /**
      * Company's lonely end: go and be near somebody. Its bid is the gauge's own V-shaped ramp, so
-     * only the BELOW side fires here — a crowded body's opinion is the wander's to act on.
+     * only the BELOW side fires here — a crowded body's opinion is the wander's to act on. None
+     * while nobody it could go to is perceived, since {@link SeekCompany} cannot search; a seek
+     * under way keeps its bid while its target is.
      */
     public static final NeedDrive SEEK_PEOPLE =
             new NeedDrive(NeedKind.COMPANY.binding("seek_people"), Doings.LOOKING_FOR_COMPANY,
-                    ctx -> new SeekCompany());
+                    ctx -> new SeekCompany(), SeekCompany::possible);
 
     private Drives() {
     }

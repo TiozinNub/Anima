@@ -10,16 +10,21 @@ import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.history.Doing;
 import dev.luizloyola.anima.core.brain.task.Task;
 import java.util.Objects;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A drive a need declared, wired to the task it proposes — the one shape every hand-written
  * "pressure is {@code 1 - food/20}" instinct collapses into.
  *
- * <p><b>It reads the need and nothing else.</b> The bid is the gauge's own pressure, so where the
+ * <p><b>It reads the need, and whether serving it is possible at all.</b> The bid is the gauge's own
+ * pressure, so where the
  * knees of that ramp sit is a config file's business and not this class's; the cost ceiling is the
  * level the body is currently at, so a starving body pays anything and a peckish one pays for a
- * short errand. Both used to be constants in two places that were reconciled by a comment.
+ * short errand. Both used to be constants in two places that were reconciled by a comment. A drive
+ * that can only fail right now bids nothing: a lonely body alone in the world preempted its wander
+ * every 100 ticks to fail at once (2026-10-01).
  *
  * <p><b>It is stateless, and one instance serves every body</b> — everything it needs arrives in
  * the context. See {@code Drives} for the declared ones.
@@ -33,19 +38,29 @@ public final class NeedDrive implements Instinct {
     private final Binding binding;
     private final Doing doing;
     private final Function<BrainContext, Task> root;
+    private final BiPredicate<BrainContext, @Nullable Task> possible;
+
+    /** As below, for a drive that is always worth a try. */
+    public NeedDrive(Binding binding, Doing doing, Function<BrainContext, Task> root) {
+        this(binding, doing, root, (ctx, running) -> true);
+    }
 
     /**
      * @param binding what the need declared — which need, which end of it, and under what name
      * @param doing what serving it has the body doing — one class serves several needs, so the
      *     doing cannot be the class's own
      * @param root a FRESH task tree per grant; see {@link Instinct#root}
+     * @param possible whether a root could get anywhere now, given the one this drive is running
+     *     (null when it is not); no bid while it says no
      * @throws IllegalArgumentException if the binding is a modulator, which by definition proposes
      *     nothing and can never be an instinct
      */
-    public NeedDrive(Binding binding, Doing doing, Function<BrainContext, Task> root) {
+    public NeedDrive(Binding binding, Doing doing, Function<BrainContext, Task> root,
+            BiPredicate<BrainContext, @Nullable Task> possible) {
         this.binding = Objects.requireNonNull(binding, "binding");
         this.doing = Objects.requireNonNull(doing, "doing");
         this.root = Objects.requireNonNull(root, "root");
+        this.possible = Objects.requireNonNull(possible, "possible");
         if (binding.verb() != Binding.Verb.DRIVE) {
             throw new IllegalArgumentException(
                     binding.key() + " is a modulator — it weighs a decision, it does not make one");
@@ -63,12 +78,21 @@ public final class NeedDrive implements Instinct {
     }
 
     /**
-     * The need's own pressure, or 0 when the body is on the other side of comfortable. A two-sided
-     * need presses at both ends with the same number and opposite errands, so the side gate is what
-     * stops a crowded body bidding to go and find someone.
+     * The need's own pressure, or 0 when the body is on the other side of comfortable or the drive
+     * is not {@code possible}. A two-sided need presses at both ends with the same number and
+     * opposite errands, so the side gate is what stops a crowded body bidding to go and find someone.
      */
     @Override
     public double pressure(BrainContext ctx) {
+        return pressure(ctx, null, false);
+    }
+
+    @Override
+    public double pressure(BrainContext ctx, Task root) {
+        return pressure(ctx, root, true);
+    }
+
+    private double pressure(BrainContext ctx, @Nullable Task root, boolean running) {
         NeedKind need = binding.need();
         Needs needs = ctx.percepts().needs();
         if (!needs.has(need)) {
@@ -79,7 +103,8 @@ public final class NeedDrive implements Instinct {
                 && !binding.pressing(ramp.side(ctx.profile(), needs.value(need)))) {
             return 0.0;
         }
-        return needs.pressure(need);
+        double pressure = needs.pressure(need);
+        return pressure > 0.0 && !possible.test(ctx, running ? root : null) ? 0.0 : pressure;
     }
 
     /**
