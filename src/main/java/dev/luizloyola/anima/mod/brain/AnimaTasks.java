@@ -234,6 +234,11 @@ public final class AnimaTasks {
                 com.mojang.serialization.MapCodec.unit(EscapeStep::new));
         TaskCodecs.register("anima:stuck", EscapeStep.Stuck.class,
                 com.mojang.serialization.MapCodec.unit(EscapeStep.Stuck::new));
+        TaskCodecs.register("anima:tread", EscapeStep.Tread.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        Codec.DOUBLE.fieldOf("last").forGetter(EscapeStep.Tread::last),
+                        Codec.INT.fieldOf("stalled").forGetter(EscapeStep.Tread::stalled)
+                ).apply(t, EscapeStep.Tread::new)));
 
         TaskCodecs.register("anima:idle", Idle.class, RecordCodecBuilder.mapCodec(t -> t.group(
                 Codec.INT.fieldOf("ticks").forGetter(Idle::ticks),

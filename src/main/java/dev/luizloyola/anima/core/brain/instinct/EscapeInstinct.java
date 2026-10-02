@@ -20,7 +20,8 @@ import dev.luizloyola.anima.core.brain.task.Task;
  * the bid is flat.
  *
  * <p><b>And on running out of air in water</b>, which is being shut in by the one wall a body
- * cannot see through a route search: it bids the same, and its step swims up first.
+ * cannot see through a route search: from {@code short} breath on the bid is
+ * {@link #urgent urgent}, over every other drive, and its step swims or cuts up first.
  *
  * <p>It also stops a loop: a sealed body used to fail a wander, sit out a hundred ticks, roll
  * another target and fail again forever, each turn costing a fresh terrain capture and a full
@@ -66,6 +67,11 @@ public final class EscapeInstinct implements Instinct {
             return 0.0;
         }
         return ctx.percepts().confinement().sealed() ? pressure(ctx.profile()) : 0.0;
+    }
+
+    @Override
+    public boolean urgent(BrainContext ctx) {
+        return EscapeStep.shortOfAir(ctx);
     }
 
     @Override

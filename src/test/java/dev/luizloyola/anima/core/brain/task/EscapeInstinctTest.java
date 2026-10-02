@@ -2,6 +2,8 @@ package dev.luizloyola.anima.core.brain.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.agent.TestSpecies;
 import dev.luizloyola.anima.core.agent.need.BreathNeed;
@@ -93,11 +95,33 @@ class EscapeInstinctTest {
         assertEquals(EscapeInstinct.pressure(TestSpecies.PROFILE), escape.pressure(ctx));
 
         surface[0] = feet.y();
-        assertEquals(0.0, escape.pressure(ctx),
-                "head out of the water: the air comes back on its own, and the rise is done");
+        assertEquals(EscapeInstinct.pressure(TestSpecies.PROFILE), escape.pressure(ctx),
+                "open air over its cell is not a head out: a swimmer's eyes ride under the surface");
 
         surface[0] = feet.y() + 1;
         air[0] = 300;
         assertEquals(0.0, escape.pressure(ctx), "a full lungful under water is a swim, not a plight");
+    }
+
+    /**
+     * From the moment breath goes short, nothing outranks it: a settler at the surface with her
+     * eyes under ate and wandered every hundred ticks until she drowned (forest, 2026-10-02).
+     */
+    @Test
+    void breathGoingShortInWaterIsUrgentAndNotBefore() {
+        int[] air = {141};
+        ctx.percepts.needs.add(new BreathNeed(() -> air[0], () -> 300, () -> TestSpecies.PROFILE));
+        Pos feet = ctx.percepts.position;
+        ctx.percepts.terrain = (x, y, z) -> x == feet.x() && z == feet.z() && y == feet.y()
+                ? CellType.WATER : y < feet.y() ? CellType.GROUND : CellType.PASSABLE;
+        ctx.percepts.confinement = Confinement.NONE;
+        assertFalse(escape.urgent(ctx), "easy, if only just");
+        air[0] = 140;
+        assertTrue(escape.urgent(ctx), "short");
+        air[0] = 0;
+        assertTrue(escape.urgent(ctx), "drowning");
+
+        ctx.percepts.terrain = (x, y, z) -> y < feet.y() ? CellType.GROUND : CellType.PASSABLE;
+        assertFalse(escape.urgent(ctx), "out of the water the air comes back on its own");
     }
 }

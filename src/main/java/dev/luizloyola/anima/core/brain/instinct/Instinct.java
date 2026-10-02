@@ -74,6 +74,17 @@ public interface Instinct {
     }
 
     /**
+     * Whether this drive's bid is one nothing may outrank or wait out right now: it wins whatever
+     * else bids, cuts into any errand at once, and sits out at most
+     * {@link dev.luizloyola.anima.core.brain.Arbiter#URGENT_RETRY} ticks after a failure. Only a
+     * body about to die of something has one — a settler going short of air under water ate, then
+     * wandered, every hundred ticks until she drowned (forest, 2026-10-02).
+     */
+    default boolean urgent(BrainContext ctx) {
+        return false;
+    }
+
+    /**
      * Why the root this drive was granted is no longer its answer, or null while it still is. Asked
      * every tick while this drive holds the wheel; a reason ends that root at once and the arbiter
      * grants afresh the same tick, so {@link #root} is asked again. Most drives commit to a root

@@ -35,7 +35,8 @@ import org.jspecify.annotations.Nullable;
  *       {@link #stickiness(AgentProfile)}, ties to the earlier instinct in the constructor list.
  *       <b>Zero raw pressure is not a bid</b>: all-zero idles rather than granting by default
  *       (live-caught — zero-pressure Flee won that tie by list order and sprinted them out of the
- *       loaded world).</li>
+ *       loaded world). An {@link Instinct#urgent urgent} drive outranks every bid, cuts into
+ *       anything at once and waits out at most {@link #URGENT_RETRY} of a cooldown.</li>
  *   <li>Idle → grant the top bidder, {@code root()} called anew: re-granting the incumbent after
  *       SUCCESS is the continuous-behavior loop.</li>
  *   <li>Busy → switch only if the challenger beats the incumbent on effective pressure and its RAW
@@ -143,6 +144,13 @@ public final class Arbiter {
     /** Ticks between looks at a backing-off drive's stock: food arriving is acted on within a second. */
     static final int STOCK_CHECK_TICKS = 20;
 
+    /**
+     * The longest an {@link Instinct#urgent urgent} drive sits out after failing: a second, so a
+     * drowning body tries again while it still can, and a body with no way out does not re-survey
+     * every tick.
+     */
+    public static final int URGENT_RETRY = 20;
+
     static int backOffAfter(int failures) {
         return BACK_OFF << Math.min(Math.max(failures, 1) - 1, MOST_DOUBLINGS);
     }
@@ -244,18 +252,24 @@ public final class Arbiter {
         // 1. Eligibility is noted before the countdown, so a fresh cooldown buys that many ticks.
         //    A drive backing off is freed first when what it could draw on has changed.
         boolean[] eligible = new boolean[n];
+        boolean[] urgent = new boolean[n];
         Task held = active != null && !workRunning ? executor.root() : null;
         for (int i = 0; i < n; i++) {
+            Instinct instinct = instincts.get(i);
+            urgent[i] = instinct.urgent(ctx);
             if (backOffs[i] != null && cooldowns[i] > 0 && cooldowns[i] % STOCK_CHECK_TICKS == 0
-                    && supplied(instincts.get(i), backOffs[i], ctx)) {
+                    && supplied(instinct, backOffs[i], ctx)) {
                 cooldowns[i] = 0;
                 backOffs[i] = null;
+            }
+            // Whatever set the wait — a failure while it was not urgent, being cut off.
+            if (urgent[i] && cooldowns[i] > URGENT_RETRY) {
+                cooldowns[i] = URGENT_RETRY;
             }
             eligible[i] = cooldowns[i] == 0;
             if (cooldowns[i] > 0) {
                 cooldowns[i]--;
             }
-            Instinct instinct = instincts.get(i);
             lastPressures[i] = instinct == active && held != null
                     ? instinct.pressure(ctx, held)
                     : instinct.pressure(ctx);
@@ -273,7 +287,9 @@ public final class Arbiter {
             if (!eligible[i] || lastPressures[i] <= 0.0) {
                 continue; // cooling down, or wanting nothing — zero pressure is not a bid
             }
-            double effective = lastPressures[i] + (i == activeIndex ? stickiness : 0.0);
+            double effective = urgent[i]
+                    ? Double.POSITIVE_INFINITY
+                    : lastPressures[i] + (i == activeIndex ? stickiness : 0.0);
             if (effective > topEffective) { // strict > keeps the earlier entry on a tie
                 secondIndex = topIndex;
                 secondEffective = topEffective;
@@ -340,7 +356,8 @@ public final class Arbiter {
                 grant(topIndex, runnerUp, ctx);
             }
         } else if (workRunning) {
-            if (topIndex >= 0 && lastPressures[topIndex] >= preempt && topEffective > workEffective) {
+            if (topIndex >= 0 && (lastPressures[topIndex] >= preempt || urgent[topIndex])
+                    && topEffective > workEffective) {
                 ctx.journal().record(Category.PROJECT, claimedItem.describe(), String.format(Locale.ROOT,
                         "suspended (by %s %.2f)",
                         instincts.get(topIndex).describe(), lastPressures[topIndex]));
@@ -355,7 +372,7 @@ public final class Arbiter {
             // everything else holds the wheel until the challenger reaches the preempt bar.
             boolean incumbentYields = activeIndex >= 0 && instincts.get(activeIndex).yields(ctx);
             if (topEffective > activeEffective
-                    && (lastPressures[topIndex] >= preempt || incumbentYields)) {
+                    && (lastPressures[topIndex] >= preempt || incumbentYields || urgent[topIndex])) {
                 // secondDrive, not runnerUp: work is excluded from this branch by the rule above,
                 // so it lost nothing here. Naming it claimed a contest that never ran — and, since
                 // an unconsidered offer may outrank the winner, printed "beat work 0.90" under a
@@ -485,6 +502,9 @@ public final class Arbiter {
         int activeIndex = indexOf(active);
         if (activeIndex < 0) {
             return pressure >= preempt; // a manual order yields only to a bid that preempts
+        }
+        if (instincts.get(activeIndex).urgent(ctx)) {
+            return false;
         }
         double activeEffective = lastPressures[activeIndex] + stickiness;
         return pressure > activeEffective

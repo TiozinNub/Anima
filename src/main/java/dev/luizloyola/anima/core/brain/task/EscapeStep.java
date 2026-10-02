@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.agent.need.NeedKind;
+import dev.luizloyola.anima.core.agent.need.NeedLevel;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
@@ -37,9 +38,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>The rungs, in preference order:
  * <ol>
- *   <li><b>Rise</b> — in water and short of air, swim to the nearest air first. Nothing is cut
- *       under water unless the breath is still easy: a body sealed in a flooded gap once cut at
- *       the rock above it until it drowned.
+ *   <li><b>Rise</b> — in water and short of air, swim to the nearest air first and tread there
+ *       until the lungs are full. Nothing is cut under water unless the breath is still easy: a
+ *       body sealed in a flooded gap once cut at the rock above it until it drowned.
  *   <li><b>Step out</b> — cut through the wall beside us, only where the way out is sideways.
  *   <li><b>Cut a stair</b> — open the two cells above the block next door and step up, our own
  *       ceiling first. The way out of anything with a lid.
@@ -276,10 +277,11 @@ public final class EscapeStep implements CompoundTask {
     // ── rung 0: rise ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * How short of air a body in water must be before getting out of it comes first — between
-     * short and gasping, so a dive the route planned for is not cut off halfway.
+     * The level at which a body in water drops everything for air: {@code short}, whatever else it
+     * is doing (Luiz, 2026-10-02). The bar used to sit between short and gasping, and a settler at
+     * the surface with her eyes under ate and wandered until she drowned.
      */
-    public static final double RISE_AT = 0.5;
+    private static final NeedLevel SHORT = NeedKind.BREATH.level("short").orElseThrow();
     /** How much water is searched for air. A lake's surface is rarely far; a flooded cave may be. */
     private static final int AIR_SEARCH_CELLS = 512;
 
@@ -294,17 +296,14 @@ public final class EscapeStep implements CompoundTask {
     }
 
     /**
-     * In water with its head under — water or the rock of a flooded gap — and short enough of air
-     * that getting out outranks everything. Not once the head is out: the air comes back on its own
-     * over the next ticks, and a body already at the surface re-took the rise until it had.
+     * In water and short of air, so getting out outranks everything. Whether the head is under is
+     * not asked: a swimmer's eyes ride below the surface with open air over its cell, and that is
+     * where a settler drowned while the old head check called her free (forest, 2026-10-02).
      */
     public static boolean shortOfAir(BrainContext ctx) {
-        if (!inWater(ctx) || breath(ctx) < RISE_AT) {
-            return false;
-        }
-        Pos here = ctx.percepts().position();
-        int head = here.y() + height(ctx) - 1;
-        return ctx.percepts().terrain().cell(here.x(), head, here.z()) != CellType.PASSABLE;
+        return inWater(ctx) && ctx.percepts().needs().gauge(NeedKind.BREATH)
+                .map(air -> air.value() <= SHORT.value(ctx.profile()))
+                .orElse(false);
     }
 
     @Ephemeral("a memo, asked again when a method is next chosen")
@@ -349,7 +348,10 @@ public final class EscapeStep implements CompoundTask {
         return null;
     }
 
-    /** Swim to the nearest air. First, and costless, whenever it applies. */
+    /**
+     * Swim to the nearest air and get the breath back there. First, and costless, whenever it
+     * applies; already at the surface, only the second half.
+     */
     private final class Rise implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
@@ -364,14 +366,82 @@ public final class EscapeStep implements CompoundTask {
         @Override
         public List<Task> decompose(BrainContext ctx) {
             Pos to = air(ctx);
+            if (to.equals(ctx.percepts().position())) {
+                narrate(ctx, "escape", "holding its head up for air");
+                return List.of(new Tread());
+            }
             narrate(ctx, "escape", "swimming up for air at (" + to.x() + ", " + to.y() + ", "
                     + to.z() + ")");
-            return List.of(new GoTo(to.x(), to.y(), to.z()).leavingShelter());
+            return List.of(new GoTo(to.x(), to.y(), to.z()).leavingShelter(), new Tread());
         }
 
         @Override
         public String describe() {
             return "swim up for air";
+        }
+    }
+
+    /**
+     * Hold still in the water and let buoyancy lift the head out, until the lungs are full or the
+     * body is out of the water. With no route the swimmer treads upright, head clear. Fails once the air stops coming back for
+     * {@link #TREAD_PATIENCE} ticks — still under something — so the ladder looks again from
+     * wherever the body has risen to.
+     */
+    public static final class Tread implements PrimitiveTask {
+        /** Ticks without the breath coming back before treading is given up as still under. */
+        public static final int TREAD_PATIENCE = 40;
+
+        private double last = -1.0;
+        private int stalled;
+
+        public Tread() {
+        }
+
+        public Tread(double last, int stalled) {
+            this.last = last;
+            this.stalled = stalled;
+        }
+
+        @Override
+        public TaskStatus tick(BrainContext ctx) {
+            double now = breath(ctx);
+            if (!inWater(ctx) || now <= 0.0) {
+                return TaskStatus.SUCCESS;
+            }
+            if (this.last < 0.0) {
+                ctx.actuators().mover().stop(); // a stroke under way keeps the eyes under
+            }
+            if (this.last < 0.0 || now < this.last) {
+                this.stalled = 0;
+            } else if (++this.stalled > TREAD_PATIENCE) {
+                return TaskStatus.FAILED;
+            }
+            this.last = now;
+            return TaskStatus.RUNNING;
+        }
+
+        @Override
+        public void cancel(BrainContext ctx) {
+        }
+
+        @Override
+        public String describe() {
+            return "tread water";
+        }
+
+        @Override
+        public String failureDetail() {
+            return "still under, the air not coming back";
+        }
+
+        /** The breath pressure last read, or -1 before the first tick. */
+        public double last() {
+            return this.last;
+        }
+
+        /** Ticks in a row the breath has not come back. */
+        public int stalled() {
+            return this.stalled;
         }
     }
 

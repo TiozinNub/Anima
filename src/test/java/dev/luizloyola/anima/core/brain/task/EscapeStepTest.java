@@ -387,6 +387,48 @@ class EscapeStepTest {
         assertEquals("call for help", chosen());
     }
 
+    /** Swimming at the surface with its eyes under: nowhere to swim to, so it stops and treads. */
+    @Test
+    void shortOfAirAtTheSurfaceItTreadsRatherThanSwimsToWhereItIs() {
+        ctx.percepts.needs.add(new BreathNeed(() -> 100, () -> 300, () -> TestSpecies.PROFILE));
+        ctx.percepts.terrain = (x, y, z) -> y < FEET ? CellType.GROUND
+                : y == FEET ? CellType.WATER : CellType.PASSABLE;
+        assertEquals("swim up for air", chosen());
+        List<Task> plan = plan();
+        assertEquals(1, plan.size(), "no walk to the cell it is in");
+        assertTrue(plan.get(0) instanceof EscapeStep.Tread);
+    }
+
+    @Test
+    void treadingEndsWithTheLungsFull() {
+        int[] air = {100};
+        underWater(air);
+        EscapeStep.Tread tread = new EscapeStep.Tread();
+        assertEquals(TaskStatus.RUNNING, tread.tick(ctx));
+        assertEquals(1, ctx.mover.stopCalls, "the stroke stops: it keeps the eyes under");
+        air[0] = 200;
+        assertEquals(TaskStatus.RUNNING, tread.tick(ctx));
+        air[0] = 300;
+        assertEquals(TaskStatus.SUCCESS, tread.tick(ctx));
+    }
+
+    @Test
+    void treadingEndsOutOfTheWater() {
+        ctx.percepts.needs.add(new BreathNeed(() -> 100, () -> 300, () -> TestSpecies.PROFILE));
+        assertEquals(TaskStatus.SUCCESS, new EscapeStep.Tread().tick(ctx));
+    }
+
+    /** Still under something: the air never comes back, so the ladder looks again from here. */
+    @Test
+    void treadingGivesUpWhenTheAirDoesNotComeBack() {
+        underWater(new int[] {0});
+        EscapeStep.Tread tread = new EscapeStep.Tread();
+        for (int i = 0; i <= EscapeStep.Tread.TREAD_PATIENCE; i++) {
+            assertEquals(TaskStatus.RUNNING, tread.tick(ctx), "tick " + i);
+        }
+        assertEquals(TaskStatus.FAILED, tread.tick(ctx));
+    }
+
     @Test
     void theSurfaceIsFoundThroughTheWaterOnly() {
         NavGrid pond = (x, y, z) -> x >= 0 && x <= 3 && z == 0 && y >= 0 && y <= 2

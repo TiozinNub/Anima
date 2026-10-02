@@ -99,6 +99,7 @@ class ArbiterTest {
         int failCooldownOverride = Instinct.DEFAULT_FAIL_COOLDOWN;
         double budget = Double.POSITIVE_INFINITY;
         boolean yields;
+        boolean urgent;
         Deed deed = Deed.of(FakeDoings.DID_IT);
         /** What {@link #reconsider} answers for the running root; null keeps it. */
         java.util.function.Function<Task, String> rethink = root -> null;
@@ -135,6 +136,11 @@ class ArbiterTest {
         @Override
         public boolean yields(BrainContext ctx) {
             return yields;
+        }
+
+        @Override
+        public boolean urgent(BrainContext ctx) {
+            return urgent;
         }
 
         @Override
@@ -287,6 +293,65 @@ class ArbiterTest {
         assertEquals(List.of(FLED_ZOMBIE),
                 arbiter.history().recent(0).stream().map(History.Entry::deed).toList(),
                 "the meal was cut off, not finished");
+    }
+
+    // --- urgent -----------------------------------------------------------------------------------
+
+    /**
+     * Short of air under water, eat at 0.75 and wander took turns every hundred ticks until a
+     * settler drowned (forest, 2026-10-02). An urgent bid wins however low it is, cutting into a
+     * running drive that outbids it, and the drive first in the list.
+     */
+    @Test
+    void anUrgentBidOutranksEveryOtherAndCutsInAtOnce() {
+        FakeInstinct flee = new FakeInstinct("flee", 0.0, forever("run"));
+        FakeInstinct escape = new FakeInstinct("escape", 0.1, forever("up"));
+        FakeInstinct eat = new FakeInstinct("eat", 0.95, forever("bite"));
+        Arbiter arbiter = new Arbiter(List.of(flee, escape, eat));
+        arbiter.tick(ctx);
+        assertEquals(1, eat.grantedRoots.size(), "eat holds the wheel");
+
+        flee.pressure = 1.0;
+        escape.urgent = true;
+        arbiter.tick(ctx);
+        assertEquals(1, escape.grantedRoots.size(), "short of air beats a meal and a zombie");
+        assertEquals(1, step(eat.grantedRoots.get(0)).cancels, "the meal is cut off, not waited out");
+        assertTrue(flee.grantedRoots.isEmpty());
+    }
+
+    /** At most a second's wait, whatever set the cooldown: a drowning body tries again in time. */
+    @Test
+    void anUrgentDriveThatFailedIsAskedAgainWithinTheRetry() {
+        FakeInstinct escape = new FakeInstinct("escape", 0.9, failsImmediately("up"));
+        escape.failCooldownOverride = 200;
+        escape.urgent = true;
+        Arbiter arbiter = new Arbiter(List.of(escape));
+        arbiter.tick(ctx);
+        assertEquals(1, escape.grantedRoots.size());
+        for (int i = 0; i < Arbiter.URGENT_RETRY; i++) {
+            arbiter.tick(ctx);
+        }
+        assertEquals(1, escape.grantedRoots.size(), "it sits the retry out");
+        arbiter.tick(ctx);
+        assertEquals(2, escape.grantedRoots.size(), "and no more of its own cooldown");
+    }
+
+    /** Failed while its breath was easy, and the air started to run out: the long wait is off. */
+    @Test
+    void aCooldownSetBeforeTheDriveTurnedUrgentIsCutShort() {
+        FakeInstinct escape = new FakeInstinct("escape", 0.9, failsImmediately("up"));
+        escape.failCooldownOverride = 200;
+        Arbiter arbiter = new Arbiter(List.of(escape));
+        arbiter.tick(ctx);
+        for (int i = 0; i < 50; i++) {
+            arbiter.tick(ctx);
+        }
+        assertEquals(1, escape.grantedRoots.size(), "an ordinary failure waits its cooldown");
+        escape.urgent = true;
+        for (int i = 0; i <= Arbiter.URGENT_RETRY; i++) {
+            arbiter.tick(ctx);
+        }
+        assertEquals(2, escape.grantedRoots.size(), "the rest of the long wait is cut to the retry");
     }
 
     // --- idle grant ------------------------------------------------------------------------------

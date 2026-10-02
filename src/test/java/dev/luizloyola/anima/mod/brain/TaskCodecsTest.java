@@ -155,6 +155,18 @@ class TaskCodecsTest {
         assertFalse(assertInstanceOf(GoTo.class, roundTrip(new GoTo(1, 2, 3))).leavesShelter());
     }
 
+    /**
+     * Treading out a breath across a restart keeps how long the air has not come back: forgetting
+     * it gives a body stuck under a ceiling a fresh forty ticks to drown in on every reload.
+     */
+    @Test
+    void aTreadComesBackWithHowLongItHasWaited() {
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.EscapeStep.Tread.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.EscapeStep.Tread(0.75, 23)));
+        assertEquals(0.75, after.last());
+        assertEquals(23, after.stalled());
+    }
+
     @Test
     void aPauseResumesWhereItWasRatherThanAtTheStart() {
         // 40 ticks into a 60-tick pause, a reload that forgets the counter pauses for 60 more.
