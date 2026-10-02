@@ -32,12 +32,20 @@ public final class DangerNoter {
      */
     private static final int ABSENCE_RADIUS = 6;
 
+    /**
+     * How far a danger must have moved since the last beat for a re-sighting to be news. A mob
+     * holding its ground shuffles within this; inside it the memory is re-stamped silently, as
+     * {@code HerdNoter} does, or one standing creeper writes a line every beat.
+     */
+    static final int MOVED_RADIUS = 4;
+
     private DangerNoter() {
     }
 
     /**
      * One noting beat: write down what is frightening right now, and drop what has been disproven.
-     * Returns the events worth narrating — empty on the common nothing-new beat.
+     * Returns the events worth narrating: a new danger, one that moved past {@link #MOVED_RADIUS},
+     * one forgotten — empty on the common nothing-new beat.
      */
     public static List<SenseEvent> note(DangerTable danger, Pos observer, List<Being> beings,
                                         AgentKnowledge knowledge, long now, int maxPerKind) {
@@ -55,13 +63,17 @@ public final class DangerNoter {
             if (being.awareness() == Being.Awareness.REMEMBERED && existing != null) {
                 continue;
             }
+            boolean news = existing == null
+                    || chebyshev(existing.anchor(), being.pos()) > MOVED_RADIUS;
             if (existing != null) {
                 knowledge.forget(PoiKind.DANGER, existing.anchor()); // moved, not duplicated
             }
             PoiMemory memory = new PoiMemory(PoiKind.DANGER, keyFor(being), being.id().value(),
                     being.pos(), Region.of(being.pos()), 1, false, now);
             knowledge.note(memory, maxPerKind);
-            events.add(SenseEvent.noted(memory));
+            if (news) {
+                events.add(SenseEvent.noted(memory));
+            }
         }
         return events;
     }
