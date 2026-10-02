@@ -408,7 +408,7 @@ public final class Pathfinder {
      */
     private final boolean building;
     /** {@link PathRequest#pillars()}, read once. */
-    private final java.util.Set<Long> pillars;
+    private final RecordedPillars pillars;
     /** Columns where nothing is laid or cut — see {@link HandsOff}. */
     private final HandsOff handsOff;
     /** {@link #hazardBelow}'s memo: every deck across a ravine reads the same kind of gap. */
@@ -465,7 +465,7 @@ public final class Pathfinder {
     private Pathfinder(NavGrid grid, PathRequest request, int layBudget, boolean building) {
         this.layBudget = layBudget;
         this.building = building;
-        this.pillars = request.pillars();
+        this.pillars = RecordedPillars.of(request.pillars());
         this.handsOff = request.handsOff();
         this.grid = grid;
         this.profile = request.profile();
@@ -1472,13 +1472,13 @@ public final class Pathfinder {
      * one it took, and it is prised into the hand rather than dropped.
      */
     private boolean recordedBeside(int x, int y, int z) {
-        if (this.pillars.isEmpty()) {
+        if (!this.pillars.beside(x, y, z)) {
             return false;
         }
         for (int[] d : CARDINALS) {
             int fx = x + d[0];
             int fz = z + d[1];
-            if (this.pillars.contains(pack(fx, y, fz)) && this.grid.cell(fx, y, fz) == CellType.GROUND) {
+            if (this.pillars.contains(fx, y, fz) && this.grid.cell(fx, y, fz) == CellType.GROUND) {
                 return true;
             }
         }
@@ -1492,7 +1492,7 @@ public final class Pathfinder {
      */
     private void lowerNeighbor(long current, Node node, int x, int y, int z) {
         if (this.pillars.isEmpty() || node.surface16 != 0) return;
-        if (!this.pillars.contains(pack(x, y - 1, z))) return;
+        if (!this.pillars.contains(x, y - 1, z)) return;
         if (this.grid.cell(x, y - 2, z) != CellType.GROUND) return;
         relax(current, node, pack(x, y - 1, z), y - 1, MoveType.LOWER, LOWER_COST, 0, NO_PARENT, 1);
     }
@@ -1736,7 +1736,7 @@ public final class Pathfinder {
         if (depth > this.profile.maxDrop()) return;
         // Off a recorded pillar a body goes down it, not over the side: that is what cleans it up,
         // and a drop a column nearer the goal left three blocks of it standing.
-        if (this.building && this.pillars.contains(pack(x, y - 1, z))) return;
+        if (this.building && this.pillars.contains(x, y - 1, z)) return;
         if (ramped(x, y, z, from, nx, ny, nz, to)) {
             relax(current, node, pack(nx, ny, nz), to, MoveType.WALK,
                     WALK_COST * terrainFactor(x, y, z, nx, ny, nz));
@@ -1831,7 +1831,7 @@ public final class Pathfinder {
         if (depth > this.profile.maxDrop()) return;
         // Off a recorded pillar a body goes down it, not over the side: that is what cleans it up,
         // and a drop a column nearer the goal left three blocks of it standing.
-        if (this.building && this.pillars.contains(pack(x, y - 1, z))) return;
+        if (this.building && this.pillars.contains(x, y - 1, z)) return;
         relax(current, node, pack(nx, ny, nz), to, MoveType.DROP,
                 Math.max(DIAGONAL_COST, dropCost(depth)) * terrainFactor(x, y, z, nx, ny, nz));
     }
