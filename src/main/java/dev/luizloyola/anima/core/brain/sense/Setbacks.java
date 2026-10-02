@@ -179,6 +179,20 @@ public final class Setbacks {
     }
 
     /**
+     * Whether {@code at} already holds a {@code kind} setback as strong as one gets, so recording it
+     * again only refreshes it: a search asked from there is told what the last one was told.
+     */
+    public boolean spent(Pos at, Kind kind, long now) {
+        prune(now);
+        for (Setback entry : this.entries) {
+            if (entry.at().equals(at)) {
+                return entry.kind() == kind && entry.strength() >= MAX_STRENGTH;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Never again that move: this body got hurt following it. A repeat refreshes the day it is
      * refused for.
      */

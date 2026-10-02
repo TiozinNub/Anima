@@ -59,6 +59,21 @@ class SetbacksTest {
         assertEquals(4, setbacks.snapshot().entries().get(0).strength());
     }
 
+    /** A place is spent once a repeat there can tell a search nothing new: four of the one kind. */
+    @Test
+    void aPlaceIsSpentAtFullStrengthOfItsOwnKind() {
+        Pos here = new Pos(1, 1, 1);
+        for (int i = 0; i < 3; i++) {
+            setbacks.record(here, Setbacks.Kind.STALLED, i);
+            assertFalse(setbacks.spent(here, Setbacks.Kind.STALLED, i), "a repeat still counts for more");
+        }
+        setbacks.record(here, Setbacks.Kind.STALLED, 3);
+        assertTrue(setbacks.spent(here, Setbacks.Kind.STALLED, 3));
+        assertFalse(setbacks.spent(here, Setbacks.Kind.WEDGED, 3), "a wedge here would be news");
+        assertFalse(setbacks.spent(new Pos(1, 2, 1), Setbacks.Kind.STALLED, 3), "a cell up is another place");
+        assertFalse(setbacks.spent(here, Setbacks.Kind.STALLED, 3 + Setbacks.LIFETIME_TICKS), "forgotten");
+    }
+
     /** The newest news about a place is the truest: a different kind takes the cell over. */
     @Test
     void aDifferentKindAtTheSameCellReplacesTheOldReading() {

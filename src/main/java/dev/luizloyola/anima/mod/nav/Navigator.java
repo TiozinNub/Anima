@@ -1147,7 +1147,8 @@ public final class Navigator {
         }
 
         if (++this.stuckTicks > STUCK_LIMIT) {
-            retryOrFail(MoveFailure.STALLED);
+            log("stuck", "swim timeout at " + this.person.blockPosition().toShortString());
+            retryAfloat(MoveFailure.STALLED);
             return;
         }
         // In water, DEPTH is progress: the grounded path's horizontal-only measure calls a body
@@ -1161,7 +1162,8 @@ public final class Navigator {
         this.lastTickZ = pos.z;
         if (movedSq < NO_MOVE_EPSILON * NO_MOVE_EPSILON) {
             if (++this.noMoveTicks > NO_MOVE_LIMIT) {
-                retryOrFail(MoveFailure.WEDGED);
+                log("stuck", "not swimming at " + this.person.blockPosition().toShortString());
+                retryAfloat(MoveFailure.WEDGED);
                 return;
             }
         } else {
@@ -1694,18 +1696,44 @@ public final class Navigator {
      * strayed twice and then wedged fails wedged.
      */
     private void retryOrFail(MoveFailure why) {
+        retryOrFail(why, false);
+    }
+
+    /**
+     * {@link #retryOrFail} for a swim, which spends the retry on the same route without a search
+     * when one would be the last question again: the body is still in the cell its route was
+     * planned from, and the setback there is already as strong as one gets
+     * ({@link Setbacks#spent}). A swimmer stalled in a flooded cave re-planned the identical
+     * route 126 times a minute, each search over the whole flooded capture (forest, 2026-10-02).
+     */
+    private void retryAfloat(MoveFailure why) {
+        retryOrFail(why, true);
+    }
+
+    private void retryOrFail(MoveFailure why, boolean afloat) {
         this.failure = why;
         // Put the trouble on the record before re-asking, so the retry is a different question.
         // Without it the same request from the same spot produced the same route into the same
         // obstruction.
         Setbacks.Kind kind = kindOf(why);
+        boolean asked = false;
         if (kind != null) {
             BlockPos here = this.person.blockPosition();
-            this.person.setbacks().record(new Pos(here.getX(), here.getY(), here.getZ()), kind,
-                    level().getGameTime());
+            Pos at = new Pos(here.getX(), here.getY(), here.getZ());
+            long now = level().getGameTime();
+            asked = afloat && here.equals(this.routeFrom) && this.person.setbacks().spent(at, kind, now);
+            this.person.setbacks().record(at, kind, now);
         }
         if (this.repathsLeft-- > 0) {
-            requestPath();
+            if (asked) {
+                log("stuck", "the same question from " + this.person.blockPosition().toShortString()
+                        + ", not asked again");
+                this.failure = MoveFailure.NONE;
+                this.stuckTicks = 0;
+                this.noMoveTicks = 0;
+            } else {
+                requestPath();
+            }
         } else {
             log("failed", "gave up after retries — " + why.describe());
             this.path = null;
