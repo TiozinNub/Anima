@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -137,15 +138,27 @@ public final class EnsureTable implements AchieveTask {
          * wall.
          */
         public static Optional<Pos> standBeside(Pos anchor, BrainContext ctx) {
-            BlockProbe probe = ctx.percepts().blocks();
+            long now = ctx.percepts().time();
+            return standBeside(anchor, ctx.percepts().blocks(), ctx.percepts().position(),
+                    cell -> ctx.unreached().struck(cell, now));
+        }
+
+        /**
+         * Whether the anchor has a side to stand at by its blocks alone — the shape
+         * {@link #standBeside} keeps, for a caller with no body whose walks it could ask about: a
+         * party counting what its stores hold that anybody could take out.
+         */
+        public static boolean hasOpenSide(Pos anchor, BlockProbe probe) {
+            return standBeside(anchor, probe, anchor, cell -> false).isPresent();
+        }
+
+        private static Optional<Pos> standBeside(Pos anchor, BlockProbe probe, Pos here,
+                                                 Predicate<Pos> struck) {
             Pos best = null;
             double bestDistance = Double.MAX_VALUE;
-            Pos here = ctx.percepts().position();
-            long now = ctx.percepts().time();
             for (int[] side : SIDES) {
                 Pos cell = new Pos(anchor.x() + side[0], anchor.y(), anchor.z() + side[1]);
-                if (probe.at(cell.x(), cell.y(), cell.z()) != BlockKind.AIR
-                        || ctx.unreached().struck(cell, now)) {
+                if (probe.at(cell.x(), cell.y(), cell.z()) != BlockKind.AIR || struck.test(cell)) {
                     continue;
                 }
                 if (side[0] != 0 && side[1] != 0

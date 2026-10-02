@@ -69,18 +69,30 @@ public final class TakeFromStore implements Method {
     /**
      * Whether one of the party's stores was seen holding {@code spec}. A store worth a look is not
      * evidence the thing exists, so "can it be had now" asks this rather than {@link #applicable},
-     * or every recipe would look reachable while an unopened chest stood nearby.
+     * or every recipe would look reachable while an unopened chest stood nearby. Only a store
+     * {@link #bestStore} would go to counts: a chest walled in by the base's own stations held a
+     * settler's one mutton, and a cook claimed and failed on it 336 times (forest, 2026-10-02).
      */
     public static boolean seenHolding(BrainContext ctx, ItemSpec spec) {
         long now = ctx.percepts().time();
         for (PoiMemory store : Store.ours(ctx)) {
-            if (!ctx.knowledge().isAvoided(Store.POI, store.anchor(), now)
+            if (canGoTo(ctx, store.anchor(), now)
                     && ctx.knowledge().insideOf(store.anchor()).map(seen -> seen.count(spec) > 0)
                     .orElse(false)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Not shut to us — without this a chest that stays unopened would be the cheapest way every
+     * round until the cap — and with a side a walk could get to: a fetch walked to the same stand
+     * 17,685 times in 18 minutes (forest, 2026-09-27).
+     */
+    private static boolean canGoTo(BrainContext ctx, Pos at, long now) {
+        return !ctx.knowledge().isAvoided(Store.POI, at, now)
+                && EnsureTable.WalkToKnown.standBeside(at, ctx).isPresent();
     }
 
     private Optional<Candidate> bestStore(BrainContext ctx) {
@@ -94,14 +106,7 @@ public final class TakeFromStore implements Method {
         Candidate best = null;
         for (PoiMemory store : Store.ours(ctx)) {
             Pos at = store.anchor();
-            // A chest shut to us stays unopened however often it is tried, so without this it
-            // would be the cheapest way every round until the cap.
-            if (ctx.knowledge().isAvoided(Store.POI, at, now)) {
-                continue;
-            }
-            // Nor one with no side a walk could get to: a fetch walked to the same stand 17,685
-            // times in 18 minutes (forest, 2026-09-27).
-            if (EnsureTable.WalkToKnown.standBeside(at, ctx).isEmpty()) {
+            if (!canGoTo(ctx, at, now)) {
                 continue;
             }
             double distance = Store.distance(at, here);

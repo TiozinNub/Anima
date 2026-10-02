@@ -9,10 +9,13 @@ import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
+import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Drop;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.craft.Furnace;
+import dev.luizloyola.anima.core.craft.Workbench;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.inv.ItemStack;
 import dev.luizloyola.anima.core.social.PartyId;
@@ -198,6 +201,37 @@ class TakeFromStoreTest {
                 "unopened forever, so it would be the cheapest way every round until the cap");
         ctx.percepts.time = 100L;
         assertTrue(new TakeFromStore(LOGS, 4).applicable(ctx));
+    }
+
+    /**
+     * Forest, 2026-10-02: the base's first chest, its workbench north, its furnace south, the hill
+     * west, and a second chest set down on its one open side. Every ring cell is filled or blocked
+     * at the corners, so no walk reaches it however much it was seen holding.
+     */
+    private void walledIn(Pos at) {
+        ctx.percepts.blocks.set(at.x(), at.y(), at.z(), Store.BLOCK);
+        ctx.percepts.blocks.set(at.x(), at.y(), at.z() - 1, Workbench.BLOCK);
+        ctx.percepts.blocks.set(at.x(), at.y(), at.z() + 1, Furnace.BLOCK);
+        ctx.percepts.blocks.set(at.x() + 1, at.y(), at.z(), Store.BLOCK);
+        for (int dz = -1; dz <= 1; dz++) {
+            ctx.percepts.blocks.set(at.x() - 1, at.y(), at.z() + dz, BlockKind.OTHER);
+        }
+    }
+
+    @Test
+    void aStoreWalledInIsNotSeenHoldingWhatNoWalkCanTake() {
+        Pos at = new Pos(6, 64, 0);
+        storeWithLogs(at, 0L);
+        walledIn(at);
+
+        assertFalse(new TakeFromStore(LOGS, 4).applicable(ctx));
+        assertFalse(TakeFromStore.seenHolding(ctx, LOGS),
+                "\"can it be had now\" must answer what the take would: a cook claimed on it 336 times");
+        assertFalse(EnsureTable.WalkToKnown.hasOpenSide(at, ctx.percepts.blocks));
+
+        ctx.percepts.blocks.set(at.x() + 1, at.y(), at.z(), BlockKind.AIR);
+        assertTrue(TakeFromStore.seenHolding(ctx, LOGS), "the second chest gone, its side is open again");
+        assertTrue(EnsureTable.WalkToKnown.hasOpenSide(at, ctx.percepts.blocks));
     }
 
     @Test
