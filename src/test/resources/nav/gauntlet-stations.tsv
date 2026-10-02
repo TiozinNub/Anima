@@ -183,7 +183,7 @@ I1.8	795	-49	39	801	-49	39	true	reach	STAND ON IT: snow[layers=2]	reach	true	0
 I1.9	795	-49	44	801	-49	44	true	reach	STAND ON IT: snow[layers=5]	reach	true	0
 I1.10	795	-49	49	801	-49	49	true	reach	STAND ON IT: snow[layers=7]	reach	true	0
 I1.11	795	-49	54	801	-49	54	true	reach	STAND ON IT: dirt_path	reach	true	0
-I1.12	795	-49	59	801	-49	59	true	block	STAND ON IT: farmland[moisture=7]	build	true	0
+I1.12	795	-49	59	801	-49	59	false	block	STAND ON IT: farmland[moisture=7]	build	true	6
 I1.13	795	-49	64	801	-49	64	true	reach	STAND ON IT: soul_sand	reach	true	0
 I1.14	795	-49	69	801	-49	69	true	reach	STAND ON IT: mud	reach	true	0
 I1.15	795	-49	74	801	-49	74	true	reach	STAND ON IT: honey_block	reach	true	0
