@@ -341,6 +341,17 @@ public final class TaskExecutor {
      */
     private PrimitiveTask descend(BrainContext ctx) {
         while (root != null) {
+            if (!stack.isEmpty()) {
+                Frame top = stack.get(stack.size() - 1);
+                if (top.index >= top.subtasks.size()) {
+                    // A plan saved mid-choose restores with its cursor past the last step: a crash
+                    // inside a method's decompose saved one, and every boot then crashed on it
+                    // (forest, 2026-10-02). Finish the sequence as if that step had just succeeded.
+                    top.index = top.subtasks.size() - 1;
+                    succeedCurrent(ctx);
+                    continue;
+                }
+            }
             Task node = currentNode();
             if (node instanceof PrimitiveTask primitive) {
                 return primitive;

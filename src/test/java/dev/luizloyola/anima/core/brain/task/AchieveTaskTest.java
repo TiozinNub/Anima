@@ -136,6 +136,30 @@ class AchieveTaskTest {
         assertEquals(List.of(false, false), answers, "the second round decomposed without throwing");
     }
 
+    /** A plan saved with its cursor past the last step, as a crash mid-decompose leaves one. */
+    @Test
+    void aSaveWithItsCursorPastTheEndCarriesOn() {
+        Produce one = new Produce(1);
+        AchieveTask root = goal(2, way("make one", 1, () -> List.of(one)));
+        executor.run(root, ctx);
+        executor.tick(ctx);
+        TaskExecutor.State saved = executor.snapshot();
+        List<TaskExecutor.FrameState> frames = new java.util.ArrayList<>(saved.frames());
+        TaskExecutor.FrameState top = frames.get(frames.size() - 1);
+        frames.set(frames.size() - 1, new TaskExecutor.FrameState(top.compound(), top.methodIndex(),
+                top.tried(), top.subtasks(), top.subtasks().size(), top.rounds(), top.lastProgress(),
+                top.pricedOut(), top.acted()));
+        TaskExecutor restored = new TaskExecutor();
+        restored.restore(new TaskExecutor.State(saved.root(), frames, saved.lastDescription(),
+                saved.lastStatus(), saved.failureReason()));
+
+        for (int i = 0; i < 20 && restored.isBusy(); i++) {
+            restored.tick(ctx);
+        }
+        assertEquals(Optional.of(TaskStatus.SUCCESS), restored.lastStatus());
+        assertEquals(2, stock);
+    }
+
     @Test
     void roundsRepeatUntilTheConditionHolds() {
         Produce one = new Produce(1);
