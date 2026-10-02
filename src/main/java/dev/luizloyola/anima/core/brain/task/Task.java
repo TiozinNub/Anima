@@ -67,4 +67,13 @@ public sealed interface Task permits PrimitiveTask, CompoundTask {
     default boolean buildsOnTheWay() {
         return false;
     }
+
+    /**
+     * Whether this operation picks up the body's own field tables itself once it ends — see
+     * {@link AtOneBench}. A table craft beneath it leaves its table standing for the next craft
+     * rather than packing it up. Asked of the whole running chain like {@link #reshapesGround()}.
+     */
+    default boolean packsUpTables() {
+        return false;
+    }
 }

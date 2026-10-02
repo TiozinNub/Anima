@@ -332,6 +332,11 @@ public final class BrainDriver {
             }
 
             @Override
+            public boolean tablesPackedUpAbove() {
+                return arbiter.executor().tablesPackedUpAbove();
+            }
+
+            @Override
             public double costTolerance() {
                 // Manual driving answers to no pressure: a dev-issued task runs to completion (or
                 // failure) on its own terms rather than getting judged against the arbiter's

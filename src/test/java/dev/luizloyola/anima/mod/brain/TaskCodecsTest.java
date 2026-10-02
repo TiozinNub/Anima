@@ -401,6 +401,17 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aRunAtOneBenchComesBackWithItsErrandsInOrder() {
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.AtOneBench.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.AtOneBench(java.util.List.of(
+                        new GoTo(1, 2, 3), new Idle(4)))));
+        assertEquals(2, after.work().size());
+        assertEquals(3, assertInstanceOf(GoTo.class, after.work().get(0)).z());
+        assertInstanceOf(Idle.class, after.work().get(1));
+        assertTrue(after.packsUpTables());
+    }
+
+    @Test
     void aCraftMidPauseComesBackMidPauseWithItsWholeRecipe() {
         // The recipe rides inline (a /reload can remove it from the book mid-craft), and the
         // pause counter is the part a body would feel restarting.

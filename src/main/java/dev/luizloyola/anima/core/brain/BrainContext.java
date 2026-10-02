@@ -156,6 +156,14 @@ public interface BrainContext {
     }
 
     /**
+     * Whether an operation above the current one packs up the body's own tables when it ends — see
+     * {@link dev.luizloyola.anima.core.brain.task.Task#packsUpTables()}. A table craft asks it.
+     */
+    default boolean tablesPackedUpAbove() {
+        return false;
+    }
+
+    /**
      * This body's stream of chance — drawn from when an instinct or a method has a genuine choice
      * to make.
      *

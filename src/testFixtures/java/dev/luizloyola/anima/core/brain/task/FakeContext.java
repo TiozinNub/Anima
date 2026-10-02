@@ -82,6 +82,11 @@ public final class FakeContext implements BrainContext {
     public boolean reshapingGround = false;
     /** Whether the work under way lets its walks build — see {@link BrainContext#walksMayBuild()}. */
     public boolean walksMayBuild = false;
+    /**
+     * See {@link BrainContext#tablesPackedUpAbove()}. A supplier so a test driving an executor can
+     * point it at {@link TaskExecutor#tablesPackedUpAbove()}.
+     */
+    public java.util.function.BooleanSupplier tablesPackedUpAbove = () -> false;
     /** This body's party's claims, made on first {@link #claim}; a test wiring its own leaves it null. */
     private dev.luizloyola.anima.core.social.Places places;
 
@@ -244,6 +249,11 @@ public final class FakeContext implements BrainContext {
     @Override
     public boolean walksMayBuild() {
         return walksMayBuild;
+    }
+
+    @Override
+    public boolean tablesPackedUpAbove() {
+        return tablesPackedUpAbove.getAsBoolean();
     }
 
     @Override

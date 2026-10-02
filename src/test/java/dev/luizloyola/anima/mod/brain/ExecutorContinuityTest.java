@@ -1,14 +1,17 @@
 package dev.luizloyola.anima.mod.brain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.mojang.serialization.JsonOps;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.sense.Confinement;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.brain.task.AtOneBench;
 import dev.luizloyola.anima.core.brain.task.EscapeStep;
 import dev.luizloyola.anima.core.brain.task.FakeContext;
+import dev.luizloyola.anima.core.brain.task.GoTo;
 import dev.luizloyola.anima.core.brain.task.HandlingPhase;
 import dev.luizloyola.anima.core.brain.task.PlaceStation;
 import dev.luizloyola.anima.core.brain.task.PutItems;
@@ -75,6 +78,22 @@ class ExecutorContinuityTest {
         TaskExecutor live = running(
                 new Try(new PlaceStation(Workbench.POI, Workbench.ITEM_ID, new Pos(6, 64, 0))), ctx, 3);
         assertEquals(List.of(), lost(live));
+    }
+
+    /** A run at one bench comes back as one tree, still packing up after its last errand. */
+    @Test
+    void aRunAtOneBenchComesBackWhole() {
+        FakeContext ctx = carryingABench();
+        TaskExecutor live = running(new AtOneBench(List.of(
+                new PlaceStation(Workbench.POI, Workbench.ITEM_ID, new Pos(6, 64, 0)),
+                new GoTo(1, 64, 1))), ctx, 3);
+        assertEquals(List.of(), lost(live));
+
+        var codec = BrainState.executor();
+        TaskExecutor restored = new TaskExecutor();
+        restored.restore(codec.parse(JsonOps.INSTANCE,
+                codec.encodeStart(JsonOps.INSTANCE, live.snapshot()).getOrThrow()).getOrThrow());
+        assertTrue(restored.tablesPackedUpAbove(), "a craft after the restart leaves its table up");
     }
 
     @Test

@@ -254,6 +254,11 @@ public final class TaskExecutor {
         return chainAnswers(Task::buildsOnTheWay);
     }
 
+    /** Whether something in the work under way packs up the body's tables — see {@link Task#packsUpTables()}. */
+    public boolean tablesPackedUpAbove() {
+        return chainAnswers(Task::packsUpTables);
+    }
+
     /** Whether the work under way is a conversation — see {@link Task#converses()}. */
     public boolean conversing() {
         return chainAnswers(Task::converses);

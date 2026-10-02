@@ -584,13 +584,17 @@ public final class AnimaTasks {
                 ).apply(t, (pursued, spot, stood) -> new dev.luizloyola.anima.core.brain.task.EnsureTable(
                         new java.util.HashSet<>(pursued), spot.orElse(null), stood.orElse(null)))));
 
-        // The two wrappers carry TASKS, so both lean on the dispatch codec — whose per-key
-        // lookups happen at parse time. That is what makes the recursion legal here.
+        // The wrappers carry TASKS, so they lean on the dispatch codec — whose per-key lookups
+        // happen at parse time. That is what makes the recursion legal here.
         TaskCodecs.register("anima:try", dev.luizloyola.anima.core.brain.task.Try.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         TaskCodecs.codec().fieldOf("attempt")
                                 .forGetter(dev.luizloyola.anima.core.brain.task.Try::attempt)
                 ).apply(t, dev.luizloyola.anima.core.brain.task.Try::new)));
+        TaskCodecs.register("anima:at_one_bench", dev.luizloyola.anima.core.brain.task.AtOneBench.class,
+                TaskCodecs.codec().listOf().fieldOf("work").xmap(
+                        dev.luizloyola.anima.core.brain.task.AtOneBench::new,
+                        dev.luizloyola.anima.core.brain.task.AtOneBench::work));
 
         // The two social roots. Both are arbiter-grantable, so a body saved mid-answer or
         // mid-seek writes one of them as its plan's root — unregistered, that save is refused
