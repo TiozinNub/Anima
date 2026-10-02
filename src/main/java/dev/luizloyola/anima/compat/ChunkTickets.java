@@ -25,10 +25,16 @@ public final class ChunkTickets {
      */
     public static final long TIMEOUT = 300;
 
-    /** The smallest radius whose centre chunk ticks entities: at 1 it loads and its agents freeze. */
-    static final int SIMULATION_RADIUS = 2;
+    /**
+     * Level 29 at the centre, so entities tick out to 2 chunks (≤ 31), a true 5×5. At 2 only the
+     * centre entity-ticked, and a mob one chunk over froze while the body still saw it.
+     */
+    static final int SIMULATION_RADIUS = 4;
 
-    /** 64 blocks from anywhere in the centre chunk: a horizon scan's reach and a path's margin. */
+    /**
+     * 64 blocks from anywhere in the centre chunk: a horizon scan's reach and a path's margin. Must
+     * be at least {@link #SIMULATION_RADIUS}: a chunk's entities tick only once loaded to ≤ 31 too.
+     */
     static final int LOADING_RADIUS = 4;
 
     private static TicketType simulation;
