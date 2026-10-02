@@ -479,7 +479,7 @@ class GauntletPathTest {
      * nothing plans them yet; add each one here as its rung lands.
      */
     private static final List<String> MUST_GET_WET =
-            List.of("E1", "E2", "E4", "E6", "E7", "H6");
+            List.of("E1", "E2", "E4", "E6", "E7", "E11", "H6");
 
     /**
      * E6's only way through is under, so a route that never puts the body's head below the surface

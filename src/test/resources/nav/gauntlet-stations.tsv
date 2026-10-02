@@ -100,7 +100,7 @@ E7	697	-49	76	714	-44	76	true	reach	WATERFALL climb 5	reach	true	0
 E8	697	-49	88	714	-44	88	false	reach	swim UP a still 5-block column	reach	true	11
 E9	697	-49	100	714	-49	100	true	reach	BLUE ICE run, 12 long	reach	true	0
 E10	697	-49	112	714	-49	112	true	reach	LILY PADS across 8 of water	reach	true	0
-E11	697	-49	124	714	-49	124	?	reach	wade a draining lip past a log	reach	?	?
+E11	697	-49	124	714	-49	124	true	reach	wade a draining lip past a log	reach	true	0
 F1	721	-49	4	738	-49	4	true	reach	CLOSED oak door (blocks)	reach	true	0
 F2	721	-49	16	738	-49	16	true	reach	OPEN oak door (clear)	reach	true	0
 F3	721	-49	28	738	-49	28	true	reach	CLOSED fence gate	reach	true	0
@@ -173,8 +173,8 @@ K13	854	-57	148	870	-49	148	true	build	PIT 8 deep, a recorded pillar in the corn
 K14	853	-49	159	856	-57	160	true	build	on top of a recorded pillar, 8 up	build	true	-8
 K15	854	-57	172	870	-49	172	false	block	PIT 8 deep, an unrecorded pillar in the corner	build	true	7
 K16	853	-49	184	870	-47	184	true	build	PODZOL STEP 2 high	build	true	0
-K17	853	-49	196	870	-49	196	?	build	GAP 4 wide, nothing carried, a grass mound by the start	build	?	?
-K18	853	-49	208	870	-49	208	?	block	GAP 4 wide, nothing carried, flat grass by the start	build	?	?
+K17	853	-49	196	870	-49	196	false	build	GAP 4 wide, nothing carried, a grass mound by the start	build	true	4
+K18	853	-49	208	870	-49	208	false	block	GAP 4 wide, nothing carried, flat grass by the start	build	true	4
 I1.1	795	-49	4	801	-49	4	true	reach	STAND ON IT: stone	reach	true	0
 I1.2	795	-49	9	801	-49	9	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=bottom]	reach	true	0
 I1.3	795	-49	14	801	-49	14	true	reach	STAND ON IT: stone_brick_stairs[facing=east,half=top]	reach	true	0
