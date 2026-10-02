@@ -140,7 +140,9 @@ public final class PlaceFrom implements CompoundTask {
         Set<Pos> others = notToStandIn(ctx);
         others.addAll(walkedOff);
         Pos here = ctx.percepts().position();
-        if (Standing.reaches(ctx.percepts().terrain(), body, here, placing.cell(), others, STAND_REACH)) {
+        if (inTheWay(ctx)) {
+            others.add(here); // the placer refuses a block into its own box: step off first
+        } else if (Standing.reaches(ctx.percepts().terrain(), body, here, placing.cell(), others, STAND_REACH)) {
             return Optional.of(here);
         }
         return Standing.reaching(ctx.percepts().terrain(), body, placing.cell(), others, stand, STAND_REACH);
@@ -219,6 +221,12 @@ public final class PlaceFrom implements CompoundTask {
             }
         }
         return true;
+    }
+
+    /** Whether this body's own box reaches into a cell the block fills. */
+    private boolean inTheWay(BrainContext ctx) {
+        dev.luizloyola.anima.core.brain.knowledge.Region box = ctx.percepts().footprint();
+        return box.contains(placing.cell()) || also.stream().anyMatch(box::contains);
     }
 
     /** After a walk that did not get to its stand, that stand is off the list. */

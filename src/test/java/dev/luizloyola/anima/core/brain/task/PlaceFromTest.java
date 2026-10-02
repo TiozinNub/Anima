@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.brain.act.Placing;
+import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
@@ -110,6 +111,18 @@ class PlaceFromTest {
         GoTo again = assertInstanceOf(GoTo.class, place.methods().get(1).decompose(ctx).get(0));
         assertNotEquals(PLANNED, new Pos(again.x(), again.y(), again.z()));
         assertEquals(List.of(PLANNED), place.walkedOff());
+    }
+
+    @Test
+    void aBodyWhoseBoxReachesIntoTheCellStepsOffFirst() {
+        FakeContext ctx = new FakeContext();
+        Pos beside = new Pos(7, 64, 0);
+        ctx.percepts.position = beside;
+        ctx.percepts.footprint = new Region(beside, new Pos(8, 65, 0));
+        PlaceFrom place = new PlaceFrom(PLANKS, List.of(), null, false);
+        GoTo walk = assertInstanceOf(GoTo.class, place.methods().get(0).decompose(ctx).get(0),
+                "placed from here, the placer would refuse it");
+        assertNotEquals(beside, new Pos(walk.x(), walk.y(), walk.z()));
     }
 
     @Test
