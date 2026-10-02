@@ -715,7 +715,14 @@ public final class AgentCommands {
                                 .then(Commands.literal("goto")
                                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                                 .executes(ctx -> brainGoto(ctx,
-                                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+                                                        WalkLevel.SCALE))
+                                                // As a work errand walks: stranded short of blocks,
+                                                // it goes and gets them.
+                                                .then(Commands.literal("build")
+                                                        .executes(ctx -> brainGoto(ctx,
+                                                                BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+                                                                WalkLevel.BUILD)))))
                                 .then(Commands.literal("eat")
                                         .executes(ctx -> brainEat(ctx)))
                                 .then(Commands.literal("hail")
@@ -1561,12 +1568,12 @@ public final class AgentCommands {
 
     /** Runs a {@link GoTo} task on the resolved Person through the brain's executor — same walk
      *  as {@link #navGoto}, but through the task machinery, so the whole pipeline is exercised. */
-    private static int brainGoto(CommandContext<CommandSourceStack> ctx, BlockPos pos) {
+    private static int brainGoto(CommandContext<CommandSourceStack> ctx, BlockPos pos, WalkLevel level) {
         CommandSourceStack source = ctx.getSource();
         AgentBody person = Subject.body(ctx);
         if (person == null) return 0;
         boolean autoDisabled = person.brain().run(
-                new GoTo(pos.getX(), pos.getY(), pos.getZ()).leavingShelter());
+                new GoTo(pos.getX(), pos.getY(), pos.getZ(), Gait.WALK, level).leavingShelter());
         Component suffix = autoDisabledNote(autoDisabled);
         OpJournal.record(source, person.agentId(), "given a walk to " + pos.toShortString()
                 + (autoDisabled ? ", autonomy off" : ""));
