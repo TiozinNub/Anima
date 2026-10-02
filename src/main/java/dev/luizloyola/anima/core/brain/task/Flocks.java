@@ -31,7 +31,13 @@ public final class Flocks {
 
     /** The centroid of the flock nearest to {@code from}, or null when there are no drops. */
     public static Pos nearestCentroid(List<Pos> drops, Pos from) {
-        Pos best = null;
+        List<Pos> flock = nearestFlock(drops, from);
+        return flock.isEmpty() ? null : centroid(flock);
+    }
+
+    /** The members of the flock whose centroid is nearest to {@code from}; empty when there are no drops. */
+    public static List<Pos> nearestFlock(List<Pos> drops, Pos from) {
+        List<Pos> best = List.of();
         long bestDist = Long.MAX_VALUE;
         for (List<Pos> flock : clusters(drops)) {
             Pos centroid = centroid(flock);
@@ -41,7 +47,7 @@ public final class Flocks {
             long dist = dx * dx + dy * dy + dz * dz;
             if (dist < bestDist) {
                 bestDist = dist;
-                best = centroid;
+                best = flock;
             }
         }
         return best;
@@ -75,7 +81,7 @@ public final class Flocks {
         return flocks;
     }
 
-    private static Pos centroid(List<Pos> flock) {
+    static Pos centroid(List<Pos> flock) {
         int x = 0;
         int y = 0;
         int z = 0;

@@ -107,6 +107,17 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aSweepComesBackWithTheFlocksItStruck() {
+        var before = new dev.luizloyola.anima.core.brain.task.GatherNearbyDrops(
+                dev.luizloyola.anima.core.inv.ItemSpec.ANYTHING).resume(2, 3, 9, true,
+                java.util.List.of(new Pos(4, 70, 1)), java.util.List.of(new Pos(-1, 86, 5), new Pos(0, 86, 5)));
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.GatherNearbyDrops.class, roundTrip(before));
+        assertEquals(3, after.laps());
+        assertEquals(before.aimed(), after.aimed());
+        assertEquals(before.struck(), after.struck());
+    }
+
+    @Test
     void aWalkComesBackWithItsDestination() {
         GoTo before = new GoTo(12, -60, -34);
         GoTo after = assertInstanceOf(GoTo.class, roundTrip(before));
