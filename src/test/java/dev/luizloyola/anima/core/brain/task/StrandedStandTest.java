@@ -129,6 +129,54 @@ class StrandedStandTest {
         assertFalse(stow(ctx).isEmpty(), "a back-off, not a ban: once the strikes lapse it tries again");
     }
 
+    private static void strikeRound(FakeContext ctx, Pos middle, int reach) {
+        for (int dx = -reach; dx <= reach; dx++) {
+            for (int dz = -reach; dz <= reach; dz++) {
+                ctx.unreached.strike(new Pos(middle.x() + dx, middle.y(), middle.z() + dz), ctx.percepts.time);
+            }
+        }
+    }
+
+    private static Method putDown(FakeContext ctx) {
+        ctx.percepts.inventory().add(ItemStack.of("minecraft:furnace", 1, 64));
+        return new PutDown(dev.luizloyola.anima.core.craft.Furnace.POI, "minecraft:furnace", CHEST)
+                .methods().get(0);
+    }
+
+    /** Forest, 2026-10-02: from a cave below HOME, the spot itself once every side was struck. */
+    @Test
+    void aPutDownNeverFallsBackToAStruckCell() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(0, 64, 0);
+        strikeRound(ctx, CHEST, 1);
+        Method way = putDown(ctx);
+
+        Pos walk = walkedTo(way.decompose(ctx));
+
+        assertFalse(ctx.unreached.struck(walk, ctx.percepts.time), "walked to a struck cell " + walk);
+    }
+
+    @Test
+    void aPutDownWithEveryStandStruckIsNoWay() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.position = new Pos(0, 64, 0);
+        // A floor of tables round the place holds no station: the place itself is the one spot.
+        for (int dx = -PutDown.RINGS; dx <= PutDown.RINGS; dx++) {
+            for (int dz = -PutDown.RINGS; dz <= PutDown.RINGS; dz++) {
+                if (dx != 0 || dz != 0) {
+                    ctx.percepts.blocks.set(CHEST.x() + dx, CHEST.y() - 1, CHEST.z() + dz,
+                            dev.luizloyola.anima.core.craft.Workbench.BLOCK);
+                }
+            }
+        }
+        strikeRound(ctx, CHEST, 1);
+        Method way = putDown(ctx);
+
+        assertFalse(way.applicable(ctx), "the retry fails without a walk until the strikes lapse");
+        ctx.percepts.time += Unreached.LIFETIME_TICKS;
+        assertTrue(way.applicable(ctx));
+    }
+
     @Test
     void aWalkThatGetsThereLiftsTheStrike() {
         FakeContext ctx = new FakeContext();
