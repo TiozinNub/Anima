@@ -373,11 +373,36 @@ public final class PoiSensorCore {
      * meeting one tree from opposite sides walk to opposite feet of it.
      */
     private void notePlace(PlaceIndex.Place place, Pos from, long now, List<SenseEvent> events) {
-        PoiMemory memory = knowledge.note(place.toMemory(from, now),
-                AgentKnowledge.maxPerKind(profile));
+        PoiMemory memory = note(place.toMemory(from, now), events);
         claims.claimRegion(place.kind(), memory.anchor(), place.blocks());
         knowledge.supersede(place.kind(), memory.anchor()); // the gist was right; keep the belief
-        events.add(SenseEvent.noted(memory));
+    }
+
+    /**
+     * Stores a belief, journalling it only when it is news. A held belief comes back through here
+     * whenever its claims fell out of the bounded {@link ClaimIndex} — in a forest that is every
+     * sixty-odd trees, so re-noting it was ~150 "noticed" lines per tree in three minutes
+     * (run/forest, 2026-10-02).
+     */
+    private PoiMemory note(PoiMemory seen, List<SenseEvent> events) {
+        PoiMemory held = knowledge.merging(seen);
+        PoiMemory memory = knowledge.note(seen, AgentKnowledge.maxPerKind(profile));
+        if (held == null || changed(held, memory)) {
+            events.add(SenseEvent.noted(memory));
+        }
+        return memory;
+    }
+
+    /**
+     * Whether a re-measured belief differs from the one it replaces. The anchor is not compared:
+     * it is picked for where the body stands ({@link Anchors#choose}). Two partial measures are
+     * both "at least this much", their counts differing with the seed the scan started from.
+     */
+    static boolean changed(PoiMemory held, PoiMemory seen) {
+        if (held.partial() && seen.partial()) {
+            return false;
+        }
+        return held.partial() != seen.partial() || held.units() != seen.units();
     }
 
     private void finish(GrownRegion region, Pos from, long now, List<SenseEvent> events) {
@@ -393,12 +418,10 @@ public final class PoiSensorCore {
         }
         java.util.Set<Pos> spoken = new java.util.HashSet<>();
         for (GrownRegion.Part part : region.parts()) {
-            PoiMemory memory = knowledge.note(region.toMemory(part, from, now),
-                    AgentKnowledge.maxPerKind(profile));
+            PoiMemory memory = note(region.toMemory(part, from, now), events);
             claims.claimRegion(region.kind(), memory.anchor(), part.blocks());
             spoken.addAll(part.blocks().keySet());
             knowledge.supersede(region.kind(), memory.anchor()); // the gist was right; keep the belief
-            events.add(SenseEvent.noted(memory));
         }
         if (spoken.size() < region.blocks().size()) {
             java.util.Map<Pos, BlockKind> leftovers = new java.util.LinkedHashMap<>();

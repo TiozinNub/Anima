@@ -111,6 +111,13 @@ public final class AgentKnowledge {
         return memory;
     }
 
+    /** The held memory {@link #note} would merge this one into, or null when it would insert. */
+    PoiMemory merging(PoiMemory memory) {
+        Map<Pos, PoiMemory> entries = byKind.get(memory.kind());
+        Pos at = entries == null ? null : findWithin(entries, memory);
+        return at == null ? null : entries.get(at);
+    }
+
     /**
      * Puts back a memory that was already this agent's — what loading a saved world does.
      *

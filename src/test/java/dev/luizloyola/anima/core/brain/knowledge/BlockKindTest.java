@@ -219,13 +219,15 @@ class BlockKindTest {
                     probe.set(dx, FakeProbe.GROUND_Y + 1, dz, GOURD);
                 }
             }
-            PoiSensorCore sensor = new PoiSensorCore(new AgentKnowledge(), eyed());
-            long grown = 0;
+            // Counted at the cache, not in the journal: a re-measure of a patch already held is
+            // a growth all the same, and is not news.
+            RegionCache regions = new RegionCache();
+            PoiSensorCore sensor =
+                    new PoiSensorCore(new AgentKnowledge(), eyed(), regions, new PlaceIndex());
             for (int tick = 1; tick <= 200; tick++) {
-                grown += sensor.tick(HERE, AHEAD, tick, probe).stream()
-                        .filter(e -> e.type() == SenseEvent.Type.NOTED).count();
+                sensor.tick(HERE, AHEAD, tick, probe);
             }
-            return grown;
+            return regions.misses();
         } finally {
             GrowthRules.reset();
         }
