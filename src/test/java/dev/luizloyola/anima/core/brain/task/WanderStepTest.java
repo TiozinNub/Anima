@@ -242,6 +242,30 @@ class WanderStepTest {
         assertEquals(0, open.mover.nowhereCalls);
     }
 
+    /** Flat ground {@code drop} under the feet everywhere but the body's own column. */
+    private static NavGrid ledge(int drop) {
+        return (x, y, z) -> y < (x == 0 && z == 0 ? 64 : 64 - drop) ? CellType.GROUND : CellType.PASSABLE;
+    }
+
+    /** One block out, as every candidate of a radius-1 wander is. */
+    private static FakeContext besideALedge(int drop) {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.terrain = ledge(drop);
+        TaskExecutor executor = new TaskExecutor();
+        executor.run(new WanderStep(1), ctx.seed(new Random(4096)));
+        executor.tick(ctx);
+        return ctx;
+    }
+
+    @Test
+    void aWanderNeverDropsFurtherThanItsJumpCouldClimbBack() {
+        FakeContext hollow = besideALedge(2);
+        assertEquals(0, hollow.mover.moveToCalls, "two down, one across: no way back up");
+        FakeContext step = besideALedge(1);
+        assertEquals(1, step.mover.moveToCalls, "a step down a slope it can climb back up");
+        assertEquals(63, step.mover.lastY);
+    }
+
     /** An open pond ('W') and a wadeable puddle ('w'): dry land only means both. */
     private static AsciiWorld pondWorld() {
         return AsciiWorld.of(

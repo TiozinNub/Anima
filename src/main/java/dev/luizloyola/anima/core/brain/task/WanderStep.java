@@ -22,7 +22,7 @@ import org.jspecify.annotations.Nullable;
  * rejected candidate costs a draw): with probability {@link #WALK_CHANCE} a random {@code (dx, dz)}
  * each uniform in {@code [-radius, radius]}, re-rolled while both are zero, whose column is then
  * resolved through {@link Standing} to footing this body could actually stand on near its feet
- * cell. That gives {@code [GoTo(target, STROLL), Idle(pause)]}; a beat that never rolled to walk —
+ * cell, and no lower than {@code jumpHeight × max(|dx|, |dz|)} under them. That gives {@code [GoTo(target, STROLL), Idle(pause)]}; a beat that never rolled to walk —
  * or drew nowhere standable inside {@link #MAX_ROLLS} — is just {@code [Idle(pause)]}. Pauses run
  * {@code IDLE_MIN + [0, IDLE_RANGE)} ticks either way.
  *
@@ -163,8 +163,13 @@ public final class WanderStep implements CompoundTask {
                 if (footing.isEmpty()) {
                     continue; // a rejected candidate costs a draw
                 }
-                acceptable++;
                 Pos candidate = footing.get();
+                // A steady slope passes; a hollow the legs cannot climb back out of does not. A
+                // stroll down two into one cost ~1,800 ticks of stranded walks (2026-10-01).
+                if (here.y() - candidate.y() > body.jumpHeight() * Math.max(Math.abs(dx), Math.abs(dz))) {
+                    continue;
+                }
+                acceptable++;
                 double cost = weighing
                         ? Comfort.cost(candidate, beings, field, ctx.percepts().needs(),
                                 ctx.profile())
