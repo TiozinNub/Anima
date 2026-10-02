@@ -225,8 +225,9 @@ public final class AnimaTasks {
         TaskCodecs.register("anima:consume", ConsumeItem.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         Codec.INT.fieldOf("slot").forGetter(ConsumeItem::slot),
-                        Codec.BOOL.fieldOf("issued").forGetter(ConsumeItem::issued)
-                ).apply(t, (slot, issued) -> new ConsumeItem(slot).resume(issued))));
+                        Codec.BOOL.fieldOf("issued").forGetter(ConsumeItem::issued),
+                        Codec.STRING.optionalFieldOf("item", "").forGetter(ConsumeItem::item)
+                ).apply(t, (slot, issued, item) -> new ConsumeItem(slot, item).resume(issued))));
 
         TaskCodecs.register("anima:break", BreakBlock.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

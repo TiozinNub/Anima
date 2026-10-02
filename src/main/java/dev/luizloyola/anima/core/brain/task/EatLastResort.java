@@ -59,7 +59,7 @@ public final class EatLastResort implements Method {
         Inventory.Entry entry = EatSelection.bestLastResort(ctx).orElseThrow(() ->
                 new IllegalStateException(
                         "EatLastResort.decompose with no last-resort stack — applicable() gates this"));
-        return List.of(new ConsumeItem(entry.slot()));
+        return List.of(new ConsumeItem(entry.slot(), entry.stack().id()));
     }
 
     @Override

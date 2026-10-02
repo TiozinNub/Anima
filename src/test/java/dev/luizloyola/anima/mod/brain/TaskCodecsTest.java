@@ -501,6 +501,17 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aMealComesBackKnowingWhatIsBeingEaten() {
+        dev.luizloyola.anima.core.brain.task.ConsumeItem meal = assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.ConsumeItem.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.ConsumeItem(5, "minecraft:bread")
+                        .resume(true)));
+        assertEquals(5, meal.slot());
+        assertTrue(meal.issued(), "a reload must not order the eat a second time");
+        assertEquals("minecraft:bread", meal.item(), "the slot is empty by the time it is journaled");
+    }
+
+    @Test
     void aFightComesBackWithItsTargetAndTheChaseWithItsCount() {
         BeingId zombie = BeingId.of(UUID.randomUUID());
         dev.luizloyola.anima.core.brain.task.Fight fight = assertInstanceOf(

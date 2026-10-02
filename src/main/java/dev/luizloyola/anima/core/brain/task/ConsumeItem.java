@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.act.ConsumeState;
+import dev.luizloyola.anima.core.log.Category;
 
 /**
  * The second primitive: eat what is in an inventory slot — the thinnest wrapper over the
@@ -19,11 +20,21 @@ import dev.luizloyola.anima.core.brain.act.ConsumeState;
  */
 public final class ConsumeItem implements PrimitiveTask {
     private final int slot;
+    private final String item;
     private boolean issued;
 
-    /** @param slot the core inventory slot (41-slot indexing) whose stack to consume */
+    /** A slot whose contents nobody named: the meal is eaten, but not journaled. */
     public ConsumeItem(int slot) {
+        this(slot, "");
+    }
+
+    /**
+     * @param slot the core inventory slot (41-slot indexing) whose stack to consume
+     * @param item the id of what is in it, for the journal: the slot is empty once eaten
+     */
+    public ConsumeItem(int slot, String item) {
         this.slot = slot;
+        this.item = item;
     }
 
     @Override
@@ -38,6 +49,9 @@ public final class ConsumeItem implements PrimitiveTask {
             case CONSUMING:
                 return TaskStatus.RUNNING;
             case FINISHED:
+                if (!item.isEmpty()) {
+                    ctx.journal().record(Category.BRAIN, "eat", "ate " + item);
+                }
                 return TaskStatus.SUCCESS;
             case FAILED:
             case IDLE:
@@ -64,6 +78,10 @@ public final class ConsumeItem implements PrimitiveTask {
 
     public int slot() {
         return slot;
+    }
+
+    public String item() {
+        return item;
     }
 
     /** Whether the eat has already been ordered — a reload must not order it a second time. */

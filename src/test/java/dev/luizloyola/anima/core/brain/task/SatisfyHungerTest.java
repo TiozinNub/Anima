@@ -81,6 +81,9 @@ class SatisfyHungerTest {
         executor.tick(ctx); // SUCCESS bubbles: primitive -> method -> compound -> root
         assertFalse(executor.isBusy());
         assertEquals("idle (last: satisfy hunger -> SUCCESS)", executor.describe());
+        assertTrue(ctx.journalService.recent(ctx.journal().id(), Integer.MAX_VALUE).stream()
+                .anyMatch(entry -> entry.detail().equals("ate minecraft:cooked_beef")),
+                "the meal names what was eaten, not just a slot");
     }
 
     /**

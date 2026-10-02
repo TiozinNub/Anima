@@ -33,7 +33,7 @@ public final class EatReadyFood implements Method {
                 // same context, same tick); if it ever fires, the executor's call order is broken.
                 new IllegalStateException(
                         "EatReadyFood.decompose with no ready stack — applicable() gates this"));
-        return List.of(new ConsumeItem(entry.slot()));
+        return List.of(new ConsumeItem(entry.slot(), entry.stack().id()));
     }
 
     @Override

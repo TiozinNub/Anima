@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.brain.act.ConsumeState;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,25 @@ class ConsumeItemTest {
         assertEquals(1, consumer.beginCalls);
         assertEquals(14, consumer.lastSlot);
         assertEquals(TaskStatus.SUCCESS, task.tick(ctx), "second tick reads the state");
+    }
+
+    @Test
+    void aFinishedMealSaysWhatWasEaten() {
+        ConsumeItem task = new ConsumeItem(14, "minecraft:bread");
+        task.tick(ctx);
+        consumer.setState(ConsumeState.FINISHED);
+        assertEquals(TaskStatus.SUCCESS, task.tick(ctx));
+        assertTrue(ctx.journalService.recent(ctx.journal().id(), Integer.MAX_VALUE).stream()
+                .anyMatch(entry -> entry.detail().equals("ate minecraft:bread")));
+    }
+
+    @Test
+    void anUnfinishedMealSaysNothing() {
+        ConsumeItem task = new ConsumeItem(14, "minecraft:bread");
+        task.tick(ctx);
+        consumer.setState(ConsumeState.FAILED);
+        assertEquals(TaskStatus.FAILED, task.tick(ctx));
+        assertTrue(ctx.journalService.recent(ctx.journal().id(), Integer.MAX_VALUE).isEmpty());
     }
 
     /** The refinement over GoTo: begin answers synchronously, so a refusal fails tick one. */
