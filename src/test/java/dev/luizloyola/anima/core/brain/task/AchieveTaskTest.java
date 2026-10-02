@@ -121,6 +121,21 @@ class AchieveTaskTest {
         return executor.lastStatus();
     }
 
+    /** A method that asks the running chain from inside its decompose, as {@code CraftFor} does. */
+    @Test
+    void aFreshRoundMayAskTheChainWhileItDecomposes() {
+        ctx.tablesPackedUpAbove = executor::tablesPackedUpAbove;
+        Produce one = new Produce(1);
+        List<Boolean> answers = new java.util.ArrayList<>();
+        Optional<TaskStatus> status = drive(goal(2, way("make one", 1, () -> {
+            answers.add(ctx.tablesPackedUpAbove.getAsBoolean());
+            return List.of(one);
+        })), 20);
+
+        assertEquals(Optional.of(TaskStatus.SUCCESS), status);
+        assertEquals(List.of(false, false), answers, "the second round decomposed without throwing");
+    }
+
     @Test
     void roundsRepeatUntilTheConditionHolds() {
         Produce one = new Produce(1);

@@ -276,7 +276,7 @@ public final class TaskExecutor {
                 return true;
             }
         }
-        Task node = currentNode();
+        Task node = liveNode();
         return node != null && question.test(node);
     }
 
@@ -296,7 +296,7 @@ public final class TaskExecutor {
                 return frame.compound.coverage();
             }
         }
-        Task node = currentNode();
+        Task node = liveNode();
         return node == null ? Coverage.NONE : node.coverage();
     }
 
@@ -309,6 +309,20 @@ public final class TaskExecutor {
         }
         Frame top = stack.get(stack.size() - 1);
         return top.subtasks.get(top.index);
+    }
+
+    /**
+     * {@link #currentNode()}, or null while the top frame's index is past its subtasks. A method can
+     * ask the chain from inside its own decompose, and a fresh round decomposes before the index is
+     * reset: a craft asking whether a run packs up its tables crashed the forest server there
+     * (2026-10-02).
+     */
+    private @Nullable Task liveNode() {
+        if (stack.isEmpty()) {
+            return root;
+        }
+        Frame top = stack.get(stack.size() - 1);
+        return top.index < top.subtasks.size() ? top.subtasks.get(top.index) : null;
     }
 
     /** {@link Task} is a pure marker (see its doc); both kinds describe themselves. */
