@@ -78,12 +78,12 @@ public final class PlaceBlock implements PrimitiveTask {
      * the placer will refuse on arrival; the placer refuses anyway, since somebody can walk into
      * the spot while the settler is on their way to it.
      *
-     * <p>Counts the ASKING body too: a settler standing where they meant to build has to step out
-     * first, and a chooser that ignored this would hand them their own feet.
+     * <p>Counts the ASKING body too, by its whole box: a settler standing 0.04 into the cell beside
+     * its feet was handed that cell for a workbench, refused, and handed it again for seven minutes
+     * (2026-10-01).
      */
     public static boolean occupied(BrainContext ctx, Pos cell) {
-        Pos feet = ctx.percepts().position();
-        if (feet.x() == cell.x() && feet.y() == cell.y() && feet.z() == cell.z()) {
+        if (ctx.percepts().footprint().contains(cell)) {
             return true;
         }
         return ctx.percepts().beings().stream().anyMatch(being ->

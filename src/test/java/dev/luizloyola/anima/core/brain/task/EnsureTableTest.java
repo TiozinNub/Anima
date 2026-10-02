@@ -3,12 +3,15 @@ package dev.luizloyola.anima.core.brain.task;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.FakeProbe;
+import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.craft.Workbench;
+import dev.luizloyola.anima.core.inv.ItemStack;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -89,5 +92,36 @@ class EnsureTableTest {
         assertTrue(plan.stream().noneMatch(FoundPlace.class::isInstance),
                 "the body's own, not the party's: no claim");
         assertEquals(FakeProbe.GROUND_Y + 1, put.target().y(), "on the ground, beside the body");
+    }
+
+    @Test
+    void aCellTheBodysOwnBoxReachesIntoIsNeverTheSpot() {
+        standAt(10, 10);
+        int y = FakeProbe.GROUND_Y + 1;
+        // 0.04 into the cell east of the feet, as the watch run's settler stood (2026-10-01).
+        ctx.percepts.footprint = new Region(new Pos(10, y, 10), new Pos(11, y + 1, 10));
+        List<Task> plan = new EnsureTable().methods().get(1).decompose(ctx);
+        PlaceBlock put = assertInstanceOf(PlaceBlock.class, plan.get(1));
+        assertNotEquals(new Pos(11, y, 10), put.target(), "the placer would refuse it");
+        assertFalse(ctx.percepts.footprint.contains(put.target()));
+    }
+
+    @Test
+    void aTableCarriedButRefusedSaysWhyOnceAndThenTriesAgain() {
+        standAt(10, 10);
+        EnsureTable goal = new EnsureTable();
+        Method say = goal.methods().get(2);
+        assertFalse(say.applicable(ctx), "nothing tried yet");
+        List<Task> plan = goal.methods().get(1).decompose(ctx);
+        Pos spot = assertInstanceOf(PlaceBlock.class, plan.get(1)).target();
+        assertFalse(say.applicable(ctx), "the table was never had: the obtain says why, not this");
+
+        ctx.percepts.inventory.add(ItemStack.of(Workbench.ITEM_ID, 1, 64));
+        assertTrue(say.applicable(ctx));
+        PlaceFrom.WhyNot why = assertInstanceOf(PlaceFrom.WhyNot.class, say.decompose(ctx).get(0));
+        assertEquals(spot, why.placing().cell());
+        assertEquals(TaskStatus.FAILED, why.tick(ctx));
+        assertEquals("the placer refused it from (10, 64, 10)", why.failureDetail());
+        assertFalse(say.applicable(ctx), "said once; the next round places before it says anything");
     }
 }

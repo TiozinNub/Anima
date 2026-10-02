@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.act.Placing;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
@@ -11,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.jspecify.annotations.Nullable;
 
 /**
  * BE at a workbench — the achieve-goal the 3×3 half of {@link CraftFor} runs through. Satisfied when
@@ -24,6 +26,8 @@ import java.util.Set;
  *       table, or one already in the pack) and place it beside. It is this body's own, not the
  *       party's: {@link PackUpTable} picks it back up once the craft is made.</li>
  * </ul>
+ *
+ * <p>A table carried but refused where it was to go says why in the journal, once per refusal.
  */
 public final class EnsureTable implements AchieveTask {
 
@@ -40,14 +44,33 @@ public final class EnsureTable implements AchieveTask {
      */
     private final Set<String> pursued;
 
-    private final List<Method> methods = List.of(new WalkToKnown(), new MakeAndPlace());
+    private final List<Method> methods = List.of(new WalkToKnown(), new MakeAndPlace(), new SayWhyNot());
+
+    /** Where the last make-and-place put the table, and where the body stood; null once said. */
+    private @Nullable Pos spot;
+    private @Nullable Pos stood;
 
     public EnsureTable() {
         this(Set.of());
     }
 
     public EnsureTable(Set<String> pursued) {
+        this(pursued, null, null);
+    }
+
+    /** One restored mid-way: the spot a table was last put down at, and where the body stood. */
+    public EnsureTable(Set<String> pursued, @Nullable Pos spot, @Nullable Pos stood) {
         this.pursued = Set.copyOf(pursued);
+        this.spot = spot;
+        this.stood = stood;
+    }
+
+    public Optional<Pos> spot() {
+        return Optional.ofNullable(spot);
+    }
+
+    public Optional<Pos> stood() {
+        return Optional.ofNullable(stood);
     }
 
     /** What the codec writes so a reload keeps refusing the same cycles. */
@@ -136,7 +159,8 @@ public final class EnsureTable implements AchieveTask {
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
-            Pos spot = spotBeside(ctx);
+            spot = spotBeside(ctx);
+            stood = ctx.percepts().position();
             List<Task> steps = new ArrayList<>(4);
             steps.add(new ObtainItem(ItemSpec.anyOf(Set.of(Workbench.ITEM_ID)), 1, pursued));
             steps.addAll(Ground.clearAndPlace(ctx, Workbench.ITEM_ID, spot));
@@ -170,6 +194,35 @@ public final class EnsureTable implements AchieveTask {
                 }
             }
             return null;
+        }
+    }
+
+    /**
+     * After a make-and-place that got the table but did not put it down: the refusal, in the
+     * journal ({@link PlaceFrom.WhyNot}), and a failure.
+     */
+    private final class SayWhyNot implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return spot != null && ctx.percepts().inventory().count(Workbench.ITEM_ID::equals) > 0
+                    && ctx.percepts().blocks().at(spot.x(), spot.y(), spot.z()) != Workbench.BLOCK;
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            return 1.0;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            Pos at = spot;
+            spot = null; // said once: the next round tries again before it says anything
+            return List.of(new PlaceFrom.WhyNot(Placing.of(Workbench.ITEM_ID, at), null, stood));
+        }
+
+        @Override
+        public String describe() {
+            return "say why the workbench would not go down";
         }
     }
 

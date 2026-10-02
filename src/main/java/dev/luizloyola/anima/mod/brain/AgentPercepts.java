@@ -146,6 +146,11 @@ public final class AgentPercepts implements Percepts {
         return new Pos(pos.getX(), pos.getY(), pos.getZ());
     }
 
+    @Override
+    public Region footprint() {
+        return cellsTouchedBy(this.person.entity().getBoundingBox());
+    }
+
     /** The world's blocks through the one {@link BlockProbe} vocabulary — the task-time re-walk sense. */
     @Override
     public BlockProbe blocks() {

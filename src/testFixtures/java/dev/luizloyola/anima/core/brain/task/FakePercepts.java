@@ -42,6 +42,8 @@ public final class FakePercepts implements Percepts {
     public final Needs needs = new Needs().add(new FoodNeed(metabolism, () -> TestSpecies.PROFILE)).add(company);
     /** The feet cell — settable; defaults to a plausible stance so wander targets are sane. */
     public Pos position = new Pos(0, 64, 0);
+    /** The cells the body's box touches; null, the default, is the feet cell alone. */
+    public dev.luizloyola.anima.core.brain.knowledge.Region footprint;
     public List<Being> beings = List.of();
     /** The block world — a real {@link FakeProbe} (flat ground at y 63, sparse blocks on top). */
     public final FakeProbe blocks = new FakeProbe();
@@ -129,6 +131,11 @@ public final class FakePercepts implements Percepts {
     @Override
     public Pos position() {
         return position;
+    }
+
+    @Override
+    public dev.luizloyola.anima.core.brain.knowledge.Region footprint() {
+        return footprint != null ? footprint : dev.luizloyola.anima.core.brain.knowledge.Region.of(position);
     }
 
     @Override

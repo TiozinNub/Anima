@@ -53,6 +53,15 @@ public interface Percepts {
     Pos position();
 
     /**
+     * Every cell this body's own box touches: wider than {@link #position()}, since a body is rarely
+     * centred on its cell and a 0.6-wide one reaches up to 0.3 into the next. The placer refuses a
+     * block into any of them. The default is the feet cell alone.
+     */
+    default dev.luizloyola.anima.core.brain.knowledge.Region footprint() {
+        return dev.luizloyola.anima.core.brain.knowledge.Region.of(position());
+    }
+
+    /**
      * Everything living they currently perceive — one list across every kind (see {@link Being}):
      * persons, monsters, neutrals, herds, villagers, and the yet-unmade-out somethings, each
      * masked to its achieved identification tier. {@code FightOrFlightInstinct} prices the AGGRESSIVE

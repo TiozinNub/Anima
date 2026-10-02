@@ -576,9 +576,11 @@ public final class AnimaTasks {
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         Codec.STRING.listOf().optionalFieldOf("pursued", java.util.List.of())
                                 .forGetter(task -> java.util.List.copyOf(
-                                        new java.util.TreeSet<>(task.pursued())))
-                ).apply(t, pursued -> new dev.luizloyola.anima.core.brain.task.EnsureTable(
-                        new java.util.HashSet<>(pursued)))));
+                                        new java.util.TreeSet<>(task.pursued()))),
+                        POS.optionalFieldOf("spot").forGetter(dev.luizloyola.anima.core.brain.task.EnsureTable::spot),
+                        POS.optionalFieldOf("stood").forGetter(dev.luizloyola.anima.core.brain.task.EnsureTable::stood)
+                ).apply(t, (pursued, spot, stood) -> new dev.luizloyola.anima.core.brain.task.EnsureTable(
+                        new java.util.HashSet<>(pursued), spot.orElse(null), stood.orElse(null)))));
 
         // The two wrappers carry TASKS, so both lean on the dispatch codec — whose per-key
         // lookups happen at parse time. That is what makes the recursion legal here.

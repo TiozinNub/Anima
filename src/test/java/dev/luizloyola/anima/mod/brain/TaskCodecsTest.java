@@ -270,6 +270,19 @@ class TaskCodecsTest {
     }
 
     @Test
+    void anEnsureTableComesBackWithTheSpotItLastTried() {
+        var before = new dev.luizloyola.anima.core.brain.task.EnsureTable(java.util.Set.of("minecraft:crafting_table"),
+                new Pos(1, 64, 2), new Pos(0, 64, 2));
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.EnsureTable.class, roundTrip(before));
+        assertEquals(before.pursued(), after.pursued());
+        assertEquals(before.spot(), after.spot());
+        assertEquals(before.stood(), after.stood());
+        var fresh = assertInstanceOf(dev.luizloyola.anima.core.brain.task.EnsureTable.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.EnsureTable()));
+        assertTrue(fresh.spot().isEmpty() && fresh.stood().isEmpty());
+    }
+
+    @Test
     void aWhyNotComesBackWithTheStandsItCompares() {
         var before = new dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot(
                 dev.luizloyola.anima.core.brain.act.Placing.of("minecraft:oak_slab", new Pos(1, 70, 3)),
