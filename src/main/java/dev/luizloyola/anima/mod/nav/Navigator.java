@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.mod.nav;
 
 import dev.luizloyola.anima.compat.nav.LevelGrid;
+import dev.luizloyola.anima.compat.nav.WaterCurrent;
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.need.Gauge;
@@ -27,6 +28,7 @@ import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.nav.NavGrids;
 import dev.luizloyola.anima.core.nav.Path;
 import dev.luizloyola.anima.core.nav.PathIntegrity;
+import dev.luizloyola.anima.core.nav.SwimAim;
 import dev.luizloyola.anima.core.nav.Waypoint;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -151,6 +153,8 @@ public final class Navigator {
      */
     private static final int NO_MOVE_LIMIT = 15;
     private static final double NO_MOVE_EPSILON = 0.01;
+    /** Vanilla's swimming stroke, in blocks a tick at full input — what {@link SwimAim} spends. */
+    private static final double SWIM_STROKE = 0.02;
     /**
      * How near the middle of its column a climbing body counts as in it, and stops steering. Under
      * the slack a 0.6-wide body has in a one-wide shaft, so centring never presses it into a wall
@@ -1177,7 +1181,9 @@ public final class Navigator {
         // scaling, so a body told to swim straight down still pushed forward and sank at a third of
         // the rate it should have.
         if (horizontalSq > NO_MOVE_EPSILON) {
-            float heading = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F;
+            Vec3 push = WaterCurrent.push(this.person.entity());
+            SwimAim aim = SwimAim.toward(dx, dz, push.x, push.z, SWIM_STROKE);
+            float heading = (float) (Mth.atan2(aim.z(), aim.x()) * Mth.RAD_TO_DEG) - 90.0F;
             this.person.driveForward(heading);
         } else {
             this.person.driveForward(this.person.entity().getYRot(), 0.0F);
