@@ -126,6 +126,15 @@ public final class EnsureTable implements AchieveTask {
          * store, a consumer's plant — shares this rather than keeping its own copy of the shape.
          */
         public static Pos standableBeside(Pos anchor, BrainContext ctx) {
+            return standBeside(anchor, ctx).orElse(anchor);
+        }
+
+        /**
+         * The side cell {@link #standableBeside} would pick, empty when there is no open side. A
+         * corner counts only past an open side, for the arm does not reach a chest through the edge
+         * of a wall.
+         */
+        public static Optional<Pos> standBeside(Pos anchor, BrainContext ctx) {
             BlockProbe probe = ctx.percepts().blocks();
             Pos best = null;
             double bestDistance = Double.MAX_VALUE;
@@ -135,13 +144,18 @@ public final class EnsureTable implements AchieveTask {
                 if (probe.at(cell.x(), cell.y(), cell.z()) != BlockKind.AIR) {
                     continue;
                 }
+                if (side[0] != 0 && side[1] != 0
+                        && probe.at(anchor.x() + side[0], anchor.y(), anchor.z()) != BlockKind.AIR
+                        && probe.at(anchor.x(), anchor.y(), anchor.z() + side[1]) != BlockKind.AIR) {
+                    continue;
+                }
                 double distance = Workbench.distance(cell, here);
                 if (distance < bestDistance) {
                     best = cell;
                     bestDistance = distance;
                 }
             }
-            return best != null ? best : anchor;
+            return Optional.ofNullable(best);
         }
     }
 

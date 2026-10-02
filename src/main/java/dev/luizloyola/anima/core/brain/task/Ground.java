@@ -8,6 +8,8 @@ import dev.luizloyola.anima.core.craft.Workbench;
 import dev.luizloyola.anima.core.store.Store;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Predicate;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -33,24 +35,40 @@ final class Ground {
      * refuse and the round re-derive rather than inventing somewhere far away.
      */
     static Pos near(BrainContext ctx, Pos wanted, int rings) {
-        // The COLUMN first, then the neighbours' columns. An operator points at a spot from
-        // wherever they are standing, and on real ground that is routinely a storey out — a
-        // yard asked for at y 73 over ground at y 63 left a settler "arriving" ten blocks
-        // beneath a cell she could never reach, re-deriving for ever (in-world, 2026-08-20).
-        Pos here = standable(ctx, wanted);
-        if (here != null) {
-            return here;
-        }
-        for (int ring = 1; ring <= rings; ring++) {
-            for (int[] side : SIDES) {
+        return near(ctx, wanted, rings, cell -> true).orElse(wanted);
+    }
+
+    /**
+     * The cell {@link #near(BrainContext, Pos, int)} would pick among those {@code accept} takes;
+     * empty when none.
+     */
+    static Optional<Pos> near(BrainContext ctx, Pos wanted, int rings, Predicate<Pos> accept) {
+        // The COLUMN, then the neighbours' columns, the cell nearest the asked-for one winning and
+        // the column at a tie. An operator points at a spot from wherever they are standing, and on
+        // real ground that is routinely a storey out — a yard asked for at y 73 over ground at y 63
+        // left a settler "arriving" ten blocks beneath a cell she could never reach, re-deriving for
+        // ever (in-world, 2026-08-20). Nearest, not first: the first side of a house chest was its
+        // wall, whose column climbed onto the roof (forest, 2026-10-02).
+        Pos best = null;
+        long bestDistance = Long.MAX_VALUE;
+        for (int ring = 0; ring <= rings; ring++) {
+            for (int[] side : ring == 0 ? new int[][] {{0, 0}} : SIDES) {
                 Pos cell = standable(ctx, new Pos(wanted.x() + side[0] * ring, wanted.y(),
                         wanted.z() + side[1] * ring));
-                if (cell != null) {
-                    return cell;
+                if (cell == null || !accept.test(cell)) {
+                    continue;
+                }
+                long dx = cell.x() - wanted.x();
+                long dy = cell.y() - wanted.y();
+                long dz = cell.z() - wanted.z();
+                long distance = dx * dx + dy * dy + dz * dz;
+                if (distance < bestDistance) {
+                    best = cell;
+                    bestDistance = distance;
                 }
             }
         }
-        return wanted;
+        return Optional.ofNullable(best);
     }
 
     /**
