@@ -436,6 +436,18 @@ class GauntletPathTest {
     }
 
     /**
+     * G12 is reached across its wheat as readily as round it, so a planner that forgot farmland
+     * still passes it: the route must never stand on the field. G13 has no free row, and refuses.
+     */
+    @Test
+    void theWheatFieldIsWalkedRoundNotAcross() {
+        List<Waypoint> route = routeOf("G12");
+        assertTrue(route.stream().noneMatch(w -> world.cell(w.x(), w.y(), w.z()) == CellType.STEP
+                        && world.farmland(w.x(), w.y(), w.z())),
+                () -> "G12 crosses its wheat field: " + route);
+    }
+
+    /**
      * Stations whose whole subject is the water. Same disease as {@link #DIAGONAL_ONLY}: H6 read a
      * clean pass for a route that walked the length of its pool's RETAINING WALL and dropped onto
      * the goal pad without getting wet.
