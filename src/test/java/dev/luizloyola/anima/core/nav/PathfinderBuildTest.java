@@ -168,6 +168,34 @@ class PathfinderBuildTest {
                 .reachedGoal());
     }
 
+    // ── ground fenced against cutting only: a party's HOME ───────────────────────────────────
+
+    @Test
+    void aCutOnlyGapIsBridged() {
+        HandsOff home = HandsOff.columns(java.util.List.of(), java.util.List.of(new int[] {0, 0, 10, 2}));
+        Path path = Pathfinder.find(gap(6), PathRequest.of(1, 1, 1, 10, 1, 1, carrying(6)).keepingOff(home));
+        assertTrue(path.reachedGoal(), "a natural gap inside HOME may be decked");
+        assertEquals(6, path.laid());
+    }
+
+    @Test
+    void aCutOnlyLipIsNeitherScaledNorCarved() {
+        String row = "111333";
+        NavGrid step = AsciiWorld.of(row, row, row).soft(3, 0, 0, 5, 1, 2).regrows(3, 2, 0, 5, 2, 2)
+                .bounded();
+        HandsOff home = HandsOff.columns(java.util.List.of(), java.util.List.of(new int[] {3, 0, 5, 2}));
+        assertFalse(Pathfinder.find(step, PathRequest.of(1, 1, 1, 5, 3, 1, TestBodies.BIPED.withScaling(true))
+                .keepingOff(home)).reachedGoal(), "nothing is dug inside HOME");
+    }
+
+    @Test
+    void aPillarRisesWhereOnlyCuttingIsFenced() {
+        NavGrid pit = pitWithAPillar().bounded();
+        HandsOff home = HandsOff.columns(java.util.List.of(), java.util.List.of(new int[] {0, 0, 4, 4}));
+        assertTrue(Pathfinder.find(pit, PathRequest.of(2, 1, 2, 2, 5, 0, carrying(8)).keepingOff(home))
+                .reachedGoal());
+    }
+
     // ── goals nothing may be built toward ────────────────────────────────────────────────────
 
     @Test

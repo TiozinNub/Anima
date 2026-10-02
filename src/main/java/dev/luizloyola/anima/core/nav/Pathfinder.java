@@ -1742,7 +1742,7 @@ public final class Pathfinder {
         if (this.profile.jumpHeight() < 1 || !roomy(x, y + this.profile.topCell(0.0) + 1, z)) return;
         int nx = x + dx;
         int nz = z + dz;
-        if (this.grid.cell(nx, y, nz) != CellType.GROUND || this.handsOff.contains(nx, nz)) return;
+        if (this.grid.cell(nx, y, nz) != CellType.GROUND || this.handsOff.barsCut(nx, nz)) return;
         for (int rise = 2; rise <= MAX_SCALE; rise++) {
             int lip = y + rise - 1;
             if (!this.grid.soft(nx, lip, nz) || touchesLiquid(nx, lip, nz)) return;
