@@ -553,7 +553,7 @@ public final class TaskExecutor {
                 // rounds cap and by a pool that empties for real.
                 if (achieve.satisfied(ctx)) {
                     stack.remove(stack.size() - 1);
-                    succeedCurrent(ctx);
+                    absorbed(ctx);
                     return;
                 }
                 parent.tried[parent.methodIndex] = true; // this round: yield to the next way
@@ -571,7 +571,7 @@ public final class TaskExecutor {
                 if (chosen) {
                     if (parent.subtasks.isEmpty()) {
                         stack.remove(stack.size() - 1);
-                        succeedCurrent(ctx);
+                        absorbed(ctx);
                     }
                     return;
                 }
@@ -585,12 +585,22 @@ public final class TaskExecutor {
             if (chooseRound(parent, ctx)) {
                 if (parent.subtasks.isEmpty()) {
                     stack.remove(stack.size() - 1);
-                    succeedCurrent(ctx); // the replacement trivially succeeds -> so does the compound
+                    absorbed(ctx); // the replacement trivially succeeds -> so does the compound
                 }
                 return;
             }
             stack.remove(stack.size() - 1); // methods exhausted -> the compound fails -> bubble
         }
+    }
+
+    /**
+     * A failure turned into success: its reason goes with it. Left standing, a {@link Try} that
+     * shrugged off a priced-out axe would have the price blamed for whatever failed next, and the
+     * errand would earn budget for a want it never needed.
+     */
+    private void absorbed(BrainContext ctx) {
+        failureReason = null;
+        succeedCurrent(ctx);
     }
 
     /** Terminal outcome at the root: remember it (root description + status) and clear the slot. */
