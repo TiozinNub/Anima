@@ -20,7 +20,7 @@ class WalkCodecTest {
             new BlockPos(4, 70, 2),
             List.of(new Waypoint(3, 65, 2, MoveType.CLIMB), new Waypoint(4, 70, 2, MoveType.CLIMB)),
             true, 0, "WALK", 0, 0, 0, -1, 3, 0, 0, "NONE",
-            List.of(new Doorways.Passed(new BlockPos(1, 64, 2), true)), "BUILD");
+            List.of(new Doorways.Passed(new BlockPos(1, 64, 2), true)), "BUILD", 7);
 
     @Test
     void aWalkRoundTripsWithItsDoorsAndItsClimb() {
@@ -34,6 +34,16 @@ class WalkCodecTest {
                 .getAsJsonObject();
         encoded.remove("doors");
         assertEquals(List.of(), BrainState.WALK.parse(JsonOps.INSTANCE, encoded).getOrThrow().doors());
+    }
+
+    /** A stranding saved before it said what it lacked lacked nothing anybody knew of. */
+    @Test
+    void aWalkSavedBeforeBlocksNeededLoadsNeedingNone() {
+        JsonObject encoded = BrainState.WALK.encodeStart(JsonOps.INSTANCE, WALK).getOrThrow()
+                .getAsJsonObject();
+        assertEquals(7, encoded.get("blocksNeeded").getAsInt());
+        encoded.remove("blocksNeeded");
+        assertEquals(0, BrainState.WALK.parse(JsonOps.INSTANCE, encoded).getOrThrow().blocksNeeded());
     }
 
     /** Before walks had levels, every walk was a plain one, which may scale a soft step. */

@@ -532,16 +532,24 @@ public final class Pathfinder {
     /** {@link #find}, with the building search replaying the first's moves or probing its own. */
     static Path find(NavGrid grid, PathRequest request, boolean replay) {
         Searches both = searches(grid, request, replay);
-        Path built = both.built();
-        return trapped(grid, request,
-                built != null && built.reachedGoal() && movesBlocks(built) ? built : both.first());
+        return trapped(grid, request, both.chosen()).needing(both.blocksNeeded());
     }
 
     /**
      * {@link #find}'s two answers before one is chosen, {@code built} null when it was not asked,
-     * and how many of the building search's expansions were probed and how many replayed.
+     * how many of the building search's expansions were probed and how many replayed, and what a
+     * stranded body short of blocks would need ({@link Path#blocksNeeded}).
      */
-    record Searches(Path first, Path built, int probed, int replayed) {
+    record Searches(Path first, Path built, int probed, int replayed, int blocksNeeded) {
+        Searches(Path first, Path built, int probed, int replayed) {
+            this(first, built, probed, replayed, 0);
+        }
+
+        /** The building route when it arrived moving blocks, else the first. */
+        Path chosen() {
+            return this.built != null && this.built.reachedGoal() && movesBlocks(this.built)
+                    ? this.built : this.first;
+        }
     }
 
     static Searches searches(NavGrid grid, PathRequest request, boolean replay) {
@@ -555,13 +563,57 @@ public final class Pathfinder {
             first.tape = new Tape();
         }
         Path path = first.search(request);
-        if (!mayBuild || !first.worthBuilding(path, request)) {
-            return new Searches(path, null, 0, 0);
+        Searches both = new Searches(path, null, 0, 0);
+        if (mayBuild && first.worthBuilding(path, request)) {
+            Pathfinder second = new Pathfinder(grid, request, budget, true);
+            second.replaying = first.tape == null ? null : first;
+            both = new Searches(path, second.search(request), second.probed, second.replayed);
         }
-        Pathfinder second = new Pathfinder(grid, request, budget, true);
-        second.replaying = first.tape == null ? null : first;
-        Path built = second.search(request);
-        return new Searches(path, built, second.probed, second.replayed);
+        if (!request.profile().canBuild() || budget >= ROUTE_CAP
+                || !strands(both.chosen(), request) || !first.standableGoal()) {
+            return both;
+        }
+        // Stranded with too few blocks to build its way out: ask as if the pocket held the route
+        // cap, so the walk can go and get what that route lays (Luiz, 2026-10-02).
+        Pathfinder fuller = new Pathfinder(grid, request, ROUTE_CAP, true);
+        fuller.replaying = first.tape == null ? null : first;
+        Path full = fuller.search(request);
+        int needed = full.reachedGoal() && movesBlocks(full)
+                ? fuller.peakSpend(pack(request.goalX(), request.goalY(), request.goalZ())) : 0;
+        return new Searches(both.first(), both.built(), both.probed() + fuller.probed,
+                both.replayed() + fuller.replayed, needed > budget ? needed : 0);
+    }
+
+    /**
+     * Whether a route leaves the body where it stands: none at all, or a partial one ending a step
+     * away — what the follower calls stranded.
+     */
+    private static boolean strands(Path path, PathRequest request) {
+        if (path.isEmpty()) {
+            return true;
+        }
+        if (path.reachedGoal()) {
+            return false;
+        }
+        Waypoint last = path.last();
+        int dx = last.x() - request.startX();
+        int dy = last.y() - request.startY();
+        int dz = last.z() - request.startZ();
+        return dx * dx + dy * dy + dz * dz <= 2;
+    }
+
+    /**
+     * The most blocks the route to {@code end} has out of the pocket at once: what it laid less
+     * what it took, at its dearest point. A carve after the decks pays nothing back to them.
+     */
+    private int peakSpend(long end) {
+        int peak = 0;
+        Node node = this.nodes.get(end);
+        while (node != null) {
+            peak = Math.max(peak, node.laid - node.taken);
+            node = node.parent == NO_PARENT ? null : this.nodes.get(node.parent);
+        }
+        return peak;
     }
 
     /**
@@ -625,11 +677,16 @@ public final class Pathfinder {
      * no route at all, or a long way round.
      */
     private boolean worthBuilding(Path path, PathRequest request) {
-        if (!standable(this.grid, this.profile, this.goalX, this.goalY, this.goalZ)) {
+        if (!standableGoal()) {
             return false;
         }
         return !path.reachedGoal() || this.arrivedCost
                 > DETOUR_RATIO * heuristic(request.startX(), request.startY(), request.startZ());
+    }
+
+    /** Whether the goal could be stood on as the world is — the first of the safety rules. */
+    private boolean standableGoal() {
+        return standable(this.grid, this.profile, this.goalX, this.goalY, this.goalZ);
     }
 
     /**

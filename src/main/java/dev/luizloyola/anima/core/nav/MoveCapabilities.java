@@ -39,11 +39,23 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
  *                   every walk that did not ask: a body landing on farmland tramples it and pops the
  *                   crop, so only work in the field itself (sowing, harvesting) sets it — see
  *                   {@link #withFarmland}
+ * @param canBuild   whether this walk may lay blocks at all — it asked to, and the body has a hand —
+ *                   whatever the pocket holds. With {@code maxLaid} short, the search can still say
+ *                   how many blocks a route would need ({@link Path#blocksNeeded})
  */
 public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
                                boolean canSwim, int maxSubmerged, boolean canOpenDoors,
                                boolean canClimb, int maxLaid, boolean canScale,
-                               boolean treadsFarmland) {
+                               boolean treadsFarmland, boolean canBuild) {
+
+    /** A body that may build exactly when it carries something to lay. */
+    public MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
+                            boolean canSwim, int maxSubmerged, boolean canOpenDoors,
+                            boolean canClimb, int maxLaid, boolean canScale,
+                            boolean treadsFarmland) {
+        this(height, jumpHeight, maxDrop, maxLeap, canSwim, maxSubmerged, canOpenDoors, canClimb,
+                maxLaid, canScale, treadsFarmland, maxLaid > 0);
+    }
 
     /** A body kept off farmland — every caller that has not said it works the field. */
     public MoveCapabilities(double height, int jumpHeight, int maxDrop, int maxLeap,
@@ -122,18 +134,25 @@ public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int m
         }
     }
 
-    /** The same body with {@code blocks} it may lay on this route. */
+    /** The same body with {@code blocks} it may lay on this route, and building only if any. */
     public MoveCapabilities withLaid(int blocks) {
         return new MoveCapabilities(this.height, this.jumpHeight, this.maxDrop, this.maxLeap,
                 this.canSwim, this.maxSubmerged, this.canOpenDoors, this.canClimb, blocks,
-                this.canScale, this.treadsFarmland);
+                this.canScale, this.treadsFarmland, blocks > 0);
+    }
+
+    /** The same body on a walk that may build, carrying {@code blocks} it may lay — none included. */
+    public MoveCapabilities building(int blocks) {
+        return new MoveCapabilities(this.height, this.jumpHeight, this.maxDrop, this.maxLeap,
+                this.canSwim, this.maxSubmerged, this.canOpenDoors, this.canClimb, blocks,
+                this.canScale, this.treadsFarmland, true);
     }
 
     /** The same body, allowed or not to scale a soft step on this route. */
     public MoveCapabilities withScaling(boolean scale) {
         return new MoveCapabilities(this.height, this.jumpHeight, this.maxDrop, this.maxLeap,
                 this.canSwim, this.maxSubmerged, this.canOpenDoors, this.canClimb, this.maxLaid,
-                scale, this.treadsFarmland);
+                scale, this.treadsFarmland, this.canBuild);
     }
 
     /**
@@ -144,7 +163,7 @@ public record MoveCapabilities(double height, int jumpHeight, int maxDrop, int m
     public MoveCapabilities withFarmland(boolean tread) {
         return new MoveCapabilities(this.height, this.jumpHeight, this.maxDrop, this.maxLeap,
                 this.canSwim, this.maxSubmerged, this.canOpenDoors, this.canClimb, this.maxLaid,
-                this.canScale, tread);
+                this.canScale, tread, this.canBuild);
     }
 
     /** Reads one body's capabilities out of its resolved profile, here and now. */

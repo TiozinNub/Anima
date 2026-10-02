@@ -56,6 +56,11 @@ public final class AgentMover implements Mover {
         return this.person.navigator().failure();
     }
 
+    @Override
+    public int blocksNeeded() {
+        return this.person.navigator().blocksNeeded();
+    }
+
     /**
      * PATHING, unfolded — the answer for a task counting TICKS against a search whose cost is in
      * milliseconds. Bounded at one tick when the search runs in the tick

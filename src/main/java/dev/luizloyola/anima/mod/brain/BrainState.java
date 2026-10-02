@@ -295,11 +295,11 @@ public final class BrainState {
     ).apply(d, Doorways.Passed::new));
 
     /**
-     * A walk in progress. The route is carried rather than re-pathed: paths of similar cost are
-     * chosen among, so asking again gives <em>a</em> route rather than <em>the</em> route, and the
-     * waypoint index and stuck counters only mean anything against the route they were counted on.
+     * Every field of a walk but one: a record codec takes sixteen, and the walk has more. What a
+     * stranded walk would have needed rides beside it in {@link #WALK}.
      */
-    public static final Codec<Navigator.Walk> WALK = RecordCodecBuilder.create(n -> n.group(
+    private static final com.mojang.serialization.MapCodec<Navigator.Walk> WALK_FIELDS =
+            RecordCodecBuilder.mapCodec(n -> n.group(
             Codec.STRING.fieldOf("state").forGetter(Navigator.Walk::state),
             BlockPos.CODEC.optionalFieldOf("goal").forGetter(
                     walk -> Optional.ofNullable(walk.goal())),
@@ -328,7 +328,25 @@ public final class BrainState {
     ).apply(n, (state, goal, waypoints, reached, index, gait, stuck, noMove, grounded, lastLeap,
                 repaths, integrity, cooldown, failure, doors, level) -> new Navigator.Walk(state,
                     goal.orElse(null), waypoints, reached, index, gait, stuck, noMove, grounded,
-                    lastLeap, repaths, integrity, cooldown, failure, doors, level)));
+                    lastLeap, repaths, integrity, cooldown, failure, doors, level, 0)));
+
+    /**
+     * A walk in progress. The route is carried rather than re-pathed: paths of similar cost are
+     * chosen among, so asking again gives <em>a</em> route rather than <em>the</em> route, and the
+     * waypoint index and stuck counters only mean anything against the route they were counted on.
+     */
+    public static final Codec<Navigator.Walk> WALK = Codec.mapPair(WALK_FIELDS,
+                    // Absent from a walk saved before a stranding said what it lacked: nothing.
+                    Codec.INT.optionalFieldOf("blocksNeeded", 0))
+            .xmap(pair -> {
+                Navigator.Walk w = pair.getFirst();
+                return new Navigator.Walk(w.state(), w.goal(), w.waypoints(), w.reachedGoal(),
+                        w.index(), w.gait(), w.stuckTicks(), w.noMoveTicks(), w.groundedTicks(),
+                        w.lastLeapPressIndex(), w.repathsLeft(), w.integrityCheckedIndex(),
+                        w.proactiveRepathCooldown(), w.failure(), w.doors(), w.level(),
+                        pair.getSecond());
+            }, walk -> com.mojang.datafixers.util.Pair.of(walk, walk.blocksNeeded()))
+            .codec();
 
     /** One journal line. Categories round-trip by name; an unknown one errors rather than
      *  silently re-filing a line under the wrong subsystem. */

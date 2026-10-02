@@ -61,6 +61,15 @@ public interface Mover {
     }
 
     /**
+     * With {@link MoveFailure#STRANDED} on a walk that may build: how many blocks in hand would have
+     * got it there, more than it carried. Zero at every other moment, and from a mover that cannot
+     * say.
+     */
+    default int blocksNeeded() {
+        return 0;
+    }
+
+    /**
      * Whether the legs are still WAITING ON A ROUTE rather than walking one — the difference
      * {@link MoveState} hides.
      *

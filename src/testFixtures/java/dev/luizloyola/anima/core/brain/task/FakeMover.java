@@ -31,6 +31,8 @@ public final class FakeMover implements Mover {
     public WalkLevel lastLevel;
     private MoveState state = MoveState.IDLE;
     private MoveFailure failure = MoveFailure.NONE;
+    /** What {@link #blocksNeeded()} reports: zero until a test scripts a stranding short of blocks. */
+    public int blocksNeeded;
     /** What {@link #route()} reports: null until a test scripts one. */
     public Path route;
     /** What {@link #goal()} reports: null, a mover that cannot say, until a test scripts one. */
@@ -65,6 +67,11 @@ public final class FakeMover implements Mover {
     @Override
     public MoveFailure failure() {
         return failure;
+    }
+
+    @Override
+    public int blocksNeeded() {
+        return blocksNeeded;
     }
 
     @Override

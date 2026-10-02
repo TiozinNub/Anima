@@ -28,11 +28,21 @@ import java.util.List;
  * @param trapped     whether the route leaves the body somewhere walled in: it drops further than
  *                    the body climbs, and where it ends is proven to have no way out. A pit, a
  *                    moat — see {@link Pathfinder#find}
+ * @param blocksNeeded on a route that left a body that may build stranded: the blocks in hand the
+ *                    route a fuller pocket would walk needs at its start, more than it carries. Zero
+ *                    when that was not asked, or no number of blocks would get it there
  */
 public record Path(List<Waypoint> waypoints, boolean reachedGoal, boolean sealed,
-                   int reachableCells, int restCells, int taken, boolean trapped) {
+                   int reachableCells, int restCells, int taken, boolean trapped,
+                   int blocksNeeded) {
     public Path {
         waypoints = List.copyOf(waypoints);
+    }
+
+    /** A searched path, asked whether it traps the body, with no word on blocks. */
+    public Path(List<Waypoint> waypoints, boolean reachedGoal, boolean sealed, int reachableCells,
+                int restCells, int taken, boolean trapped) {
+        this(waypoints, reachedGoal, sealed, reachableCells, restCells, taken, trapped, 0);
     }
 
     /** A searched path, not yet asked whether it traps the body. */
@@ -59,7 +69,13 @@ public record Path(List<Waypoint> waypoints, boolean reachedGoal, boolean sealed
     /** This path, found to leave the body somewhere it cannot walk out of. */
     public Path trap() {
         return new Path(this.waypoints, this.reachedGoal, this.sealed, this.reachableCells,
-                this.restCells, this.taken, true);
+                this.restCells, this.taken, true, this.blocksNeeded);
+    }
+
+    /** This path, saying how many blocks would have got the body there — see {@link #blocksNeeded}. */
+    public Path needing(int blocks) {
+        return new Path(this.waypoints, this.reachedGoal, this.sealed, this.reachableCells,
+                this.restCells, this.taken, this.trapped, blocks);
     }
 
     public boolean isEmpty() {

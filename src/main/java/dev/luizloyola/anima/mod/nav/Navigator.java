@@ -208,6 +208,8 @@ public final class Navigator {
     private @Nullable Path path;
     /** Why the last order died; see {@link #failure()}. Cleared by a new order and by a good path. */
     private MoveFailure failure = MoveFailure.NONE;
+    /** What would have got a stranded walk there — {@link #blocksNeeded()}. */
+    private int blocksNeeded;
     /** What the last search said about being shut in; see {@link #sealed()}. */
     private boolean sealed;
     private int reachableCells;
@@ -350,6 +352,7 @@ public final class Navigator {
         this.groundWork.reset();
         this.state = State.IDLE;
         this.failure = MoveFailure.NONE;
+        this.blocksNeeded = 0;
         this.person.stopMoving();
     }
 
@@ -372,6 +375,15 @@ public final class Navigator {
      */
     public MoveFailure failure() {
         return this.failure;
+    }
+
+    /**
+     * When the last order stranded a walk that may build: how many blocks in hand the route a
+     * fuller pocket would walk needs, more than the body carried. Zero otherwise — no route even
+     * then, or the walk was not stranded.
+     */
+    public int blocksNeeded() {
+        return this.failure == MoveFailure.STRANDED ? this.blocksNeeded : 0;
     }
 
     /**
@@ -736,6 +748,7 @@ public final class Navigator {
         if (result.isEmpty() || (!result.reachedGoal() && endsWhereWeStand(result))) {
             this.state = State.FAILED;
             this.failure = MoveFailure.STRANDED;
+            this.blocksNeeded = result.blocksNeeded();
             if (this.routeFrom != null && this.goal != null) {
                 this.person.setbacks().stranded(
                         new Pos(this.routeFrom.getX(), this.routeFrom.getY(), this.routeFrom.getZ()),
@@ -744,7 +757,8 @@ public final class Navigator {
             }
             log("failed", "no path to " + this.goal.toShortString() + " — "
                     + MoveFailure.STRANDED.describe()
-                    + (result.sealed() ? ", sealed in " + result.reachableCells() + " cells" : ""));
+                    + (result.sealed() ? ", sealed in " + result.reachableCells() + " cells" : "")
+                    + (this.blocksNeeded > 0 ? ", " + this.blocksNeeded + " blocks would cross" : ""));
             return;
         }
         this.path = result;
@@ -1868,9 +1882,9 @@ public final class Navigator {
         AgentProfile profile = this.person.profile();
         boolean hand = profile.b(ProfileAspect.BODY_CAN_BUILD);
         boolean arm = profile.b(ProfileAspect.BODY_CAN_DIG);
-        return capabilities()
-                .withScaling(this.level.scales() && hand && arm)
-                .withLaid(this.level.builds() && hand ? Laying.carried(this.person.inventory()) : 0);
+        MoveCapabilities body = capabilities().withScaling(this.level.scales() && hand && arm);
+        return this.level.builds() && hand ? body.building(Laying.carried(this.person.inventory()))
+                : body.withLaid(0);
     }
 
     /**
@@ -1909,7 +1923,8 @@ public final class Navigator {
                         boolean reachedGoal, int index, String gait, int stuckTicks,
                         int noMoveTicks, int groundedTicks, int lastLeapPressIndex,
                         int repathsLeft, int integrityCheckedIndex, int proactiveRepathCooldown,
-                        String failure, List<Doorways.Passed> doors, String level) {
+                        String failure, List<Doorways.Passed> doors, String level,
+                        int blocksNeeded) {
     }
 
     /** What this navigator would need to carry on the same walk. */
@@ -1920,7 +1935,7 @@ public final class Navigator {
                 this.index, this.gait.name(), this.stuckTicks, this.noMoveTicks,
                 this.groundedTicks, this.lastLeapPressIndex, this.repathsLeft,
                 this.integrityCheckedIndex, this.proactiveRepathCooldown, this.failure.name(),
-                this.doorways.held(), this.level.name());
+                this.doorways.held(), this.level.name(), this.blocksNeeded);
     }
 
     /**
@@ -1943,6 +1958,7 @@ public final class Navigator {
         this.integrityCheckedIndex = saved.integrityCheckedIndex();
         this.proactiveRepathCooldown = saved.proactiveRepathCooldown();
         this.failure = MoveFailure.valueOf(saved.failure());
+        this.blocksNeeded = saved.blocksNeeded();
         this.level = WalkLevel.valueOf(saved.level());
         this.doorways.restore(saved.doors());
         this.pending = null;
