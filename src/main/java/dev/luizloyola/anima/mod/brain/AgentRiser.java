@@ -1,13 +1,20 @@
 package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.compat.agent.Arms;
+import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.act.RiseState;
 import dev.luizloyola.anima.core.brain.act.Riser;
+import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
+import dev.luizloyola.anima.core.nav.LaidBlocks;
+import dev.luizloyola.anima.core.social.PartyId;
 import dev.luizloyola.anima.mod.body.AgentBody;
+import dev.luizloyola.anima.mod.nav.LaidBlocksData;
+import dev.luizloyola.anima.mod.social.PartyData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
@@ -83,8 +90,16 @@ public final class AgentRiser implements Riser {
         this.person = person;
     }
 
+    /** Whether the step in flight is recorded in the ledger of laid blocks. */
+    private boolean recorded;
+
     @Override
     public boolean up(String itemId) {
+        return up(itemId, false);
+    }
+
+    @Override
+    public boolean up(String itemId, boolean recorded) {
         if (state == RiseState.RISING) {
             return false;
         }
@@ -108,6 +123,7 @@ public final class AgentRiser implements Riser {
         person.driveSprint(false);
         this.base = feet;
         this.itemId = itemId;
+        this.recorded = recorded;
         this.ticks = 0;
         this.centringTicks = 0;
         this.centring = !centred(feet);
@@ -158,6 +174,9 @@ public final class AgentRiser implements Riser {
                     (sound.getVolume() + 1.0F) / 2.0F, sound.getPitch() * 0.8F);
             Arms.swingToInteract(person.entity(), InteractionHand.MAIN_HAND);
             person.inventory().remove(itemId, 1);
+            if (recorded) {
+                record(base, itemId);
+            }
             state = RiseState.RISEN;
             failedCell = null; // the cell yielded — whatever was wrong with it is over
             failedStreak = 0;
@@ -167,6 +186,23 @@ public final class AgentRiser implements Riser {
         if (++ticks > STEP_TIMEOUT_TICKS) {
             fail("never cleared block height above " + base.toShortString());
         }
+    }
+
+    /** One block of a pillar, in the run of the block under it, or a new run on natural ground. */
+    private void record(BlockPos cell, String item) {
+        if (!(person.level() instanceof ServerLevel server)) {
+            return;
+        }
+        LaidBlocks ledger = LaidBlocksData.get(server.getServer()).laid();
+        int run = ledger.at(new Pos(cell.getX(), cell.getY() - 1, cell.getZ()))
+                .filter(row -> row.kind() == LaidBlocks.Kind.PILLAR)
+                .map(LaidBlocks.Row::run)
+                .orElseGet(() -> ledger.open(LaidBlocks.Kind.PILLAR));
+        AgentId who = person.agentId();
+        PartyId party = who == null ? null
+                : PartyData.get(server.getServer()).currentPartyOf(who).orElse(null);
+        ledger.lay(new Pos(cell.getX(), cell.getY(), cell.getZ()), item, LaidBlocks.Kind.PILLAR, who, party,
+                server.getGameTime(), run);
     }
 
     /** Whether the body has left the ground for this step already. */

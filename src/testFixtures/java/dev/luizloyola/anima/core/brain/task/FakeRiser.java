@@ -13,6 +13,14 @@ public final class FakeRiser implements Riser {
     public boolean refuse;
     public int ups;
     public String lastItem;
+    /** Whether the last step asked to be recorded as a pillar. */
+    public boolean lastRecorded;
+
+    @Override
+    public boolean up(String itemId, boolean recorded) {
+        lastRecorded = recorded;
+        return up(itemId);
+    }
 
     @Override
     public boolean up(String itemId) {

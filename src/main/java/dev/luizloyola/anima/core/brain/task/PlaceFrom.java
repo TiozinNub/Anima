@@ -5,8 +5,11 @@ import dev.luizloyola.anima.core.brain.act.Placing;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.log.Category;
+import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
+import dev.luizloyola.anima.core.nav.NavGrid;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -23,6 +26,11 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>With {@code clearing}, what stands in the cells first is broken — grass where a floor goes —
  * unless it is already the block wanted.
+ *
+ * <p>When no stand on the ground reaches, or the walks to them fail, a body given a {@code scaffold}
+ * rises on a pillar of it beside the work, places, and breaks its way back down; every pillar block
+ * is recorded as laid, so one left standing can be found and taken down (builder spec, *The body*,
+ * 3).
  *
  * <p>When the walk or the placing fails, or no stand reaches the cell, the last way says why in the
  * journal before the task fails: a builder's handed-back step names its cause.
@@ -43,7 +51,12 @@ public final class PlaceFrom implements CompoundTask {
     private final List<Pos> also;
     private final @Nullable Pos stand;
     private final boolean clearing;
-    private final List<Method> methods = List.of(new WalkAndPlace(false), new WalkAndPlace(true), new SayWhyNot());
+    /** The most a scaffold pillar rises: its top block stays in reach from the ground. */
+    public static final int MAX_PILLAR = 5;
+
+    private final @Nullable ItemSpec scaffold;
+    private final List<Method> methods = List.of(new WalkAndPlace(false), new WalkAndPlace(true), new FromAPillar(),
+            new SayWhyNot());
     /** The stand the last decomposition walked to. */
     private @Nullable Pos chosen;
     /** Stands a walk did not get to: never chosen again for this block. */
@@ -54,18 +67,29 @@ public final class PlaceFrom implements CompoundTask {
      * @param stand    where a plan would stand, tried before any other; null for none
      */
     public PlaceFrom(Placing placing, List<Pos> also, @Nullable Pos stand, boolean clearing) {
-        this(placing, also, stand, clearing, null, List.of());
+        this(placing, also, stand, clearing, null, null, List.of());
+    }
+
+    /** @param scaffold what a pillar is laid of when no stand on the ground will do; null for none */
+    public PlaceFrom(Placing placing, List<Pos> also, @Nullable Pos stand, boolean clearing,
+            @Nullable ItemSpec scaffold) {
+        this(placing, also, stand, clearing, scaffold, null, List.of());
     }
 
     /** One restored mid-way: the stand last walked to, and those a walk did not get to. */
-    public PlaceFrom(Placing placing, List<Pos> also, @Nullable Pos stand, boolean clearing, @Nullable Pos chosen,
-            List<Pos> walkedOff) {
+    public PlaceFrom(Placing placing, List<Pos> also, @Nullable Pos stand, boolean clearing,
+            @Nullable ItemSpec scaffold, @Nullable Pos chosen, List<Pos> walkedOff) {
         this.placing = placing;
+        this.scaffold = scaffold;
         this.also = List.copyOf(also);
         this.stand = stand;
         this.clearing = clearing;
         this.chosen = chosen;
         this.walkedOff.addAll(walkedOff);
+    }
+
+    public Optional<ItemSpec> scaffold() {
+        return Optional.ofNullable(scaffold);
     }
 
     public Optional<Pos> chosen() {
@@ -113,17 +137,88 @@ public final class PlaceFrom implements CompoundTask {
      */
     private Optional<Pos> standFor(BrainContext ctx) {
         MoveCapabilities body = MoveCapabilities.of(ctx.profile());
-        Set<Pos> others = new HashSet<>(also);
+        Set<Pos> others = notToStandIn(ctx);
         others.addAll(walkedOff);
-        for (Being being : ctx.percepts().beings()) {
-            others.add(being.pos());
-            others.add(new Pos(being.pos().x(), being.pos().y() + 1, being.pos().z()));
-        }
         Pos here = ctx.percepts().position();
         if (Standing.reaches(ctx.percepts().terrain(), body, here, placing.cell(), others, STAND_REACH)) {
             return Optional.of(here);
         }
         return Standing.reaching(ctx.percepts().terrain(), body, placing.cell(), others, stand, STAND_REACH);
+    }
+
+    /** The block's other cells, and where other bodies stand: their feet and the cell over them. */
+    private Set<Pos> notToStandIn(BrainContext ctx) {
+        Set<Pos> others = new HashSet<>(also);
+        for (Being being : ctx.percepts().beings()) {
+            others.add(being.pos());
+            others.add(new Pos(being.pos().x(), being.pos().y() + 1, being.pos().z()));
+        }
+        return others;
+    }
+
+    /** A pillar: where it stands on the ground, and how many blocks it rises. */
+    private record Pillar(Pos base, int height) {
+    }
+
+    /**
+     * The lowest pillar of what the body carries that puts a stand in reach: on a cell a body could
+     * stand on, its column clear for the body to rise through, nearest the body at that height.
+     */
+    private Optional<Pillar> pillarFor(BrainContext ctx) {
+        if (scaffold == null) {
+            return Optional.empty();
+        }
+        int carried = ctx.percepts().inventory().count(scaffold::matches);
+        NavGrid grid = ctx.percepts().terrain();
+        MoveCapabilities body = MoveCapabilities.of(ctx.profile());
+        double eye = body.height() * Standing.EYE;
+        int head = (int) Math.ceil(body.height()) - 1;
+        Set<Pos> others = notToStandIn(ctx);
+        others.add(placing.cell());
+        Pos cell = placing.cell();
+        Pos here = ctx.percepts().position();
+        int span = (int) Math.ceil(STAND_REACH);
+        for (int height = 1; height <= Math.min(MAX_PILLAR, carried); height++) {
+            Pillar best = null;
+            long bestDistance = Long.MAX_VALUE;
+            for (int y = cell.y() - span - height - 1; y <= cell.y() - height + span; y++) {
+                for (int z = cell.z() - span; z <= cell.z() + span; z++) {
+                    for (int x = cell.x() - span; x <= cell.x() + span; x++) {
+                        double dx = cell.x() - x;
+                        double dy = cell.y() + 0.5 - (y + height + eye);
+                        double dz = cell.z() - z;
+                        if (dx * dx + dy * dy + dz * dz > STAND_REACH * STAND_REACH) {
+                            continue;
+                        }
+                        Pos base = new Pos(x, y, z);
+                        if (others.contains(base) || !Standing.standable(grid, body, x, y, z)
+                                || !clear(grid, x, y, z, height + head, others)) {
+                            continue;
+                        }
+                        long distance = (long) (x - here.x()) * (x - here.x()) + (long) (y - here.y()) * (y - here.y())
+                                + (long) (z - here.z()) * (z - here.z());
+                        if (distance < bestDistance) {
+                            best = new Pillar(base, height);
+                            bestDistance = distance;
+                        }
+                    }
+                }
+            }
+            if (best != null) {
+                return Optional.of(best);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** The {@code cells} over the base clear to rise through, and none of them taken. */
+    private static boolean clear(NavGrid grid, int x, int y, int z, int cells, Set<Pos> others) {
+        for (int up = 1; up <= cells; up++) {
+            if (grid.cell(x, y + up, z) != CellType.PASSABLE || others.contains(new Pos(x, y + up, z))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** After a walk that did not get to its stand, that stand is off the list. */
@@ -190,6 +285,56 @@ public final class PlaceFrom implements CompoundTask {
         @Override
         public String describe() {
             return again ? "walk to another stand, then place" : "walk to a stand that reaches, then place";
+        }
+    }
+
+    /** Rise on a recorded pillar beside the work, place, and break back down to the ground. */
+    private final class FromAPillar implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return pillarFor(ctx).isPresent();
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            return 0.75;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            Pillar pillar = pillarFor(ctx).orElseThrow();
+            Pos base = pillar.base();
+            chosen = new Pos(base.x(), base.y() + pillar.height(), base.z());
+            List<Task> steps = new ArrayList<>();
+            if (!base.equals(ctx.percepts().position())) {
+                steps.add(new GoTo(base.x(), base.y(), base.z()));
+            }
+            for (int i = 0; i < pillar.height(); i++) {
+                steps.add(new Rise(scaffold, true));
+            }
+            if (clearing) {
+                BlockProbe probe = ctx.percepts().blocks();
+                List<Pos> cells = new ArrayList<>();
+                cells.add(placing.cell());
+                cells.addAll(also);
+                for (Pos cell : cells) {
+                    if (!probe.empty(cell.x(), cell.y(), cell.z())
+                            && !wanted().equals(probe.idAt(cell.x(), cell.y(), cell.z()))) {
+                        steps.add(new Try(new BreakBlock(cell.x(), cell.y(), cell.z())));
+                    }
+                }
+            }
+            // Down again whatever the placing did: a pillar is not left for a refused block.
+            steps.add(new Try(new PlaceBlock(placing)));
+            for (int i = pillar.height() - 1; i >= 0; i--) {
+                steps.add(new BreakBlock(base.x(), base.y() + i, base.z()));
+            }
+            return steps;
+        }
+
+        @Override
+        public String describe() {
+            return "rise on a pillar beside it, place, and come down";
         }
     }
 

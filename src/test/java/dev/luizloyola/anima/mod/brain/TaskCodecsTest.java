@@ -247,7 +247,10 @@ class TaskCodecsTest {
 
         var midway = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PlaceFrom.class, roundTrip(
                 new dev.luizloyola.anima.core.brain.task.PlaceFrom(before.placing(), before.also(),
-                        new Pos(3, 65, -5), true, new Pos(2, 65, -4), java.util.List.of(new Pos(3, 65, -5)))));
+                        new Pos(3, 65, -5), true, dev.luizloyola.anima.core.inv.ItemSpec.anyOf(
+                                java.util.Set.of("minecraft:dirt")), new Pos(2, 65, -4),
+                        java.util.List.of(new Pos(3, 65, -5)))));
+        assertTrue(midway.scaffold().orElseThrow().matches("minecraft:dirt"));
         assertEquals(java.util.Optional.of(new Pos(2, 65, -4)), midway.chosen());
         assertEquals(java.util.List.of(new Pos(3, 65, -5)), midway.walkedOff());
 
@@ -275,6 +278,15 @@ class TaskCodecsTest {
         assertEquals(before.placing(), after.placing());
         assertEquals(before.planned(), after.planned());
         assertTrue(after.chosen().isEmpty());
+    }
+
+    @Test
+    void aRiseComesBackWithWhatItLaysAndWhetherItIsRecorded() {
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.Rise.class, roundTrip(
+                new dev.luizloyola.anima.core.brain.task.Rise(dev.luizloyola.anima.core.inv.ItemSpec.anyOf(
+                        java.util.Set.of("minecraft:dirt", "minecraft:cobblestone")), true)));
+        assertTrue(after.spec().matches("minecraft:cobblestone"));
+        assertTrue(after.recorded());
     }
 
     @Test

@@ -10,6 +10,8 @@ import dev.luizloyola.anima.core.brain.act.Placing;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.inv.ItemSpec;
+import dev.luizloyola.anima.core.inv.ItemStack;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -48,7 +50,7 @@ class PlaceFromTest {
 
     /** Runs the last way, as the executor does once walking and placing have failed. */
     private static String whyNot(PlaceFrom place, FakeContext ctx) {
-        Task why = place.methods().get(2).decompose(ctx).get(0);
+        Task why = place.methods().get(3).decompose(ctx).get(0);
         PlaceFrom.WhyNot whyNot = assertInstanceOf(PlaceFrom.WhyNot.class, why);
         assertEquals(TaskStatus.FAILED, whyNot.tick(ctx));
         return whyNot.failureDetail();
@@ -117,5 +119,48 @@ class PlaceFromTest {
         place.methods().get(0).decompose(ctx);
         ctx.percepts.position = PLANNED;
         assertFalse(place.methods().get(1).applicable(ctx), "at the stand, the placer refused: no other walk");
+    }
+
+    private static final ItemSpec DIRT = ItemSpec.anyOf(java.util.Set.of("minecraft:dirt"));
+    private static final Placing HIGH = Placing.of("minecraft:oak_slab", new Pos(8, 70, 0));
+
+    @Test
+    void aCellNoGroundStandReachesIsPlacedFromAPillarAndTheBodyComesDown() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.inventory.set(0, ItemStack.of("minecraft:dirt", 5, 64));
+        PlaceFrom place = new PlaceFrom(HIGH, List.of(), PLANNED, false, DIRT);
+        assertFalse(place.methods().get(0).applicable(ctx), "nothing on the ground reaches y 70");
+        assertTrue(place.methods().get(2).applicable(ctx));
+        List<Task> steps = place.methods().get(2).decompose(ctx);
+        GoTo walk = assertInstanceOf(GoTo.class, steps.get(0));
+        Pos base = new Pos(walk.x(), walk.y(), walk.z());
+        long rises = steps.stream().filter(Rise.class::isInstance).count();
+        assertTrue(rises >= 1 && rises <= PlaceFrom.MAX_PILLAR, steps.toString());
+        assertTrue(steps.stream().filter(Rise.class::isInstance).allMatch(r -> ((Rise) r).recorded()),
+                "a scaffold is recorded");
+        List<BreakBlock> down = steps.stream().filter(BreakBlock.class::isInstance).map(BreakBlock.class::cast).toList();
+        assertEquals(rises, down.size(), "every block laid is broken again");
+        assertEquals(new Pos(base.x(), base.y(), base.z()), down.get(down.size() - 1).target(),
+                "the last block broken is the bottom one");
+    }
+
+    @Test
+    void noScaffoldOrNothingCarriedIsNoPillar() {
+        FakeContext ctx = new FakeContext();
+        assertFalse(new PlaceFrom(HIGH, List.of(), PLANNED, false).methods().get(2).applicable(ctx));
+        assertFalse(new PlaceFrom(HIGH, List.of(), PLANNED, false, DIRT).methods().get(2).applicable(ctx),
+                "no dirt in the pack");
+    }
+
+    @Test
+    void aRiseLaysWhatTheBodyCarriesAndSaysItIsRecorded() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.inventory.set(0, ItemStack.of("minecraft:dirt", 5, 64));
+        Rise rise = new Rise(DIRT, true);
+        assertEquals(TaskStatus.RUNNING, rise.tick(ctx));
+        assertEquals("minecraft:dirt", ctx.riser.lastItem);
+        assertTrue(ctx.riser.lastRecorded);
+        ctx.riser.state = dev.luizloyola.anima.core.brain.act.RiseState.RISEN;
+        assertEquals(TaskStatus.SUCCESS, rise.tick(ctx));
     }
 }

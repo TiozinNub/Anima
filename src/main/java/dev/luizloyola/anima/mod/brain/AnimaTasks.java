@@ -420,13 +420,23 @@ public final class AnimaTasks {
                         POS.optionalFieldOf("stand").forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::stand),
                         Codec.BOOL.optionalFieldOf("clearing", false)
                                 .forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::clearing),
+                        ITEM_SPEC.optionalFieldOf("scaffold")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::scaffold),
                         POS.optionalFieldOf("chosen").forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::chosen),
                         POS.listOf().optionalFieldOf("walked_off", List.of())
                                 .forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::walkedOff)
-                ).apply(t, (item, at, block, state, also, stand, clearing, chosen, walkedOff) ->
+                ).apply(t, (item, at, block, state, also, stand, clearing, scaffold, chosen, walkedOff) ->
                         new dev.luizloyola.anima.core.brain.task.PlaceFrom(
                                 new dev.luizloyola.anima.core.brain.act.Placing(item, at, block, state), also,
-                                stand.orElse(null), clearing, chosen.orElse(null), walkedOff))));
+                                stand.orElse(null), clearing, scaffold.orElse(null), chosen.orElse(null),
+                                walkedOff))));
+
+        TaskCodecs.register("anima:rise", dev.luizloyola.anima.core.brain.task.Rise.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        ITEM_SPEC.fieldOf("spec").forGetter(dev.luizloyola.anima.core.brain.task.Rise::spec),
+                        Codec.BOOL.optionalFieldOf("recorded", false)
+                                .forGetter(dev.luizloyola.anima.core.brain.task.Rise::recorded)
+                ).apply(t, dev.luizloyola.anima.core.brain.task.Rise::new)));
 
         TaskCodecs.register("anima:place_why_not", dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

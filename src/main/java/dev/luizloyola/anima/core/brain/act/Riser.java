@@ -26,6 +26,15 @@ public interface Riser {
      */
     boolean up(String itemId);
 
+    /**
+     * {@link #up}, the block laid recorded when {@code recorded} as a pillar in the level's ledger of
+     * laid blocks, so what is left standing can be found and taken down — a builder's scaffold. The
+     * rows are the ledger's: a pillar's blocks are one run.
+     */
+    default boolean up(String itemId, boolean recorded) {
+        return up(itemId);
+    }
+
     /** Progress of the most recent step; IDLE when none. */
     RiseState state();
 
