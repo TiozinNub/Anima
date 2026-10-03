@@ -30,7 +30,7 @@ public final class ReadyFood {
     }
 
     /** Edible, with no better cooked form, and not a treat saved for starving. */
-    static boolean isReady(FoodLookup lookup, ItemStack stack) {
+    public static boolean isReady(FoodLookup lookup, ItemStack stack) {
         return lookup.of(stack).filter(food -> !EatSelection.isLastResort(lookup, food, stack))
                 .isPresent();
     }

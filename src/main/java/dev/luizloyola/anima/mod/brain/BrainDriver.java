@@ -52,10 +52,12 @@ import dev.luizloyola.anima.mod.brain.AgentPercepts;
 import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.social.EncounterData;
+import dev.luizloyola.anima.mod.social.PartyData;
 import dev.luizloyola.anima.mod.social.Speeches;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import net.minecraft.server.MinecraftServer;
@@ -346,6 +348,15 @@ public final class BrainDriver {
             @Override
             public boolean tablesPackedUpAbove() {
                 return arbiter.executor().tablesPackedUpAbove();
+            }
+
+            @Override
+            public boolean colleague(AgentId other) {
+                MinecraftServer server = ((ServerLevel) person.level()).getServer();
+                PartyData parties = PartyData.get(server);
+                Optional<dev.luizloyola.anima.core.social.PartyId> mine =
+                        parties.currentPartyOf(person.agentId());
+                return mine.isPresent() && mine.equals(parties.currentPartyOf(other));
             }
 
             @Override

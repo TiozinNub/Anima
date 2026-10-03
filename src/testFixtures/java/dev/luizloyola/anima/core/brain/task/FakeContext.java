@@ -69,6 +69,8 @@ public final class FakeContext implements BrainContext {
      * ∞). Defaults to ∞, so tests predating cost tolerance see every applicable method.
      */
     public double costTolerance = Double.POSITIVE_INFINITY;
+    /** Who {@link #colleague} answers yes for — the party, as far as a test needs one. */
+    public final java.util.Set<dev.luizloyola.anima.core.agent.AgentId> colleagues = new java.util.HashSet<>();
     /** What the rig says is spoken for — standing in for the arbiter's publication. */
     public java.util.List<dev.luizloyola.anima.core.inv.ItemCall> reserved = new java.util.ArrayList<>();
     /** What this rig "did lately", newest first — seeded by small-talk tests. */
@@ -272,6 +274,11 @@ public final class FakeContext implements BrainContext {
     @Override
     public java.util.List<dev.luizloyola.anima.core.inv.ItemCall> reserved() {
         return reserved;
+    }
+
+    @Override
+    public boolean colleague(dev.luizloyola.anima.core.agent.AgentId other) {
+        return colleagues.contains(other);
     }
 
     @Override

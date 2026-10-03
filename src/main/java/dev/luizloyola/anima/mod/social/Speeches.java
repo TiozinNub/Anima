@@ -152,6 +152,11 @@ public final class Speeches {
                     }
                 }
                 deliver(server, body, radius.getAsInt(), e, u);
+                if (u.act().equals(SpeechActs.ACCEPT_OFFER.key())) {
+                    Handovers.accepted(server, e, e.transcript().size() - 1);
+                } else if (u.act().equals(SpeechActs.TAKE_BACK.key())) {
+                    Handovers.takenBack(server, e, e.transcript().size() - 1);
+                }
             }
 
             @Override

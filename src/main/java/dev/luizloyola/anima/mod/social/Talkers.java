@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.mod.social;
 
+import dev.luizloyola.anima.compat.inv.GiveMenu;
+import dev.luizloyola.anima.compat.inv.ItemStacks;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.task.Converse;
@@ -8,6 +10,7 @@ import dev.luizloyola.anima.core.config.Knob;
 import dev.luizloyola.anima.core.social.speech.Chooser;
 import dev.luizloyola.anima.core.social.speech.Encounter;
 import dev.luizloyola.anima.core.social.speech.Encounters;
+import dev.luizloyola.anima.core.social.speech.Handover;
 import dev.luizloyola.anima.core.social.speech.Menu;
 import dev.luizloyola.anima.core.social.speech.Parting;
 import dev.luizloyola.anima.core.social.speech.Picker;
@@ -98,6 +101,8 @@ public final class Talkers {
 
     /** How much of the record the panel shows. */
     static final int PANEL_LINES = 3;
+    /** Below this much food a player shows hunger: natural healing stops at 18, sprinting at 6. */
+    static final int HUNGRY_BELOW = 15;
 
     /**
      * A body still loaded but whose mind has left the conversation — something more pressing
@@ -128,6 +133,11 @@ public final class Talkers {
         final Parting parting = new Parting();
         /** Ticks the counterpart's mind has been elsewhere — see {@link #BROKE_OFF_TICKS}. */
         int away;
+        /**
+         * The give screen is up. The chest replacing the panel is not the player putting the
+         * conversation down, and the panel is not redrawn over the chest until it closes.
+         */
+        boolean giving;
 
         Talker(SpeechEngine engine) {
             this.engine = engine;
@@ -242,6 +252,12 @@ public final class Talkers {
         if (!pick.ok()) {
             return refusal(pick.reason());
         }
+        if (!playerMay(player, e, pick.line().act())) {
+            return refusal(Menu.Reason.NOT_OFFERED);
+        }
+        if (pick.line().act() == SpeechActs.GIVE) {
+            return openGive(server, player, e);
+        }
         Chooser.Line line = pick.line();
         // A chat left to the draw asks the consumer first: the sky over the player, their pack,
         // the settler in front of them — never the same thing twice (decision: Luiz, 2026-09-24).
@@ -295,6 +311,9 @@ public final class Talkers {
      */
     public static @Nullable String putDown(MinecraftServer server, ServerPlayer player) {
         Talker talker = seat(server, player);
+        if (talker.giving) {
+            return null; // the give screen took the panel's place; that is not setting it aside
+        }
         talker.panelRecord = null;
         Encounter e = talker.engine.current().orElse(null);
         if (e == null) {
@@ -496,6 +515,9 @@ public final class Talkers {
      */
     private static boolean show(MinecraftServer server, ServerPlayer player, Talker talker,
             Encounter e) {
+        if (talker.giving) {
+            return false; // drawn again once the give screen closes
+        }
         AgentId self = ContactsSync.idOf(player);
         AgentId other = e.other(self).orElse(null);
         long now = server.overworld().getGameTime();
@@ -520,12 +542,16 @@ public final class Talkers {
         if (!theirTurn(server, player, e)) {
             Optional<PlayerTopics.Source> topics = PlayerTopics.source();
             for (SpeechAct act : Menu.offered(e, self, cap(e, now), ContactData.get(server)::knows)) {
+                if (!playerMay(player, e, act)) {
+                    continue;
+                }
                 if (!act.topics().isEmpty() && topics.isPresent()
                         && !topics.get().anythingLeft(server, player, e, act)) {
                     continue; // nothing left to say with it: the goodbye is still there
                 }
                 offers.add(new TalkPayload.Offer(act.key(),
-                        Component.translatable(act.langKey() + ".button"),
+                        Component.translatable(act.langKey() + ".button"
+                                + (act == SpeechActs.GIVE && askedForFood(e, self) ? ".asked" : "")),
                         hover(server, player, act)));
             }
         }
@@ -539,6 +565,98 @@ public final class Talkers {
         talker.parting.pickedUp();
         TalkSync.panel(player, new TalkPayload(true, who, lines, offers));
         return !offers.isEmpty();
+    }
+
+    /**
+     * What a player may say beyond the menu's own rules, read off the player: asking for food only
+     * while hungry — below {@link #HUNGRY_BELOW}, as a body with no gauges shows it — and once a
+     * chat; and holding something out not at all until the give screen exists, since a player's
+     * offer is made through it (2026-10-02-food-and-replies-design.md).
+     */
+    private static boolean playerMay(ServerPlayer player, Encounter e, SpeechAct act) {
+        if (act == SpeechActs.OFFER || act == SpeechActs.NOT_WANTED) {
+            return false; // a player hands things over through the give screen, and takes what comes
+        }
+        if (act == SpeechActs.ASK_FOOD) {
+            AgentId self = ContactsSync.idOf(player);
+            return player.getFoodData().getFoodLevel() < HUNGRY_BELOW
+                    && e.transcript().stream().noneMatch(u -> self.equals(u.author())
+                            && u.act().equals(SpeechActs.ASK_FOOD.key()));
+        }
+        return true;
+    }
+
+    private static boolean askedForFood(Encounter e, AgentId self) {
+        return Picker.pendingOn(e, self).filter(u -> u.act().equals(SpeechActs.ASK_FOOD.key()))
+                .isPresent();
+    }
+
+    /**
+     * Opens the give screen on the counterpart (2026-10-02-food-and-replies-design.md): as many
+     * usable slots as they have free storage, up to nine. Returns a refusal key, or null once open.
+     */
+    private static @Nullable String openGive(MinecraftServer server, ServerPlayer player, Encounter e) {
+        AgentId self = ContactsSync.idOf(player);
+        AgentBody body = e.other(self).map(other -> AgentBodies.findLoaded(server, other)).orElse(null);
+        if (body == null) {
+            return "anima.talk.not_talking";
+        }
+        int room = 0;
+        for (int slot = 0; slot < dev.luizloyola.anima.core.inv.Inventory.ARMOR_START; slot++) {
+            if (body.inventory().get(slot).isEmpty()) {
+                room++;
+            }
+        }
+        if (room == 0) {
+            return "anima.talk.no_room";
+        }
+        Talker talker = seat(server, player);
+        talker.giving = true;
+        GiveMenu.open(player, Component.translatable("anima.give.title",
+                        Speeches.nameFor(server, player, body.agentId())),
+                room, Component.translatable("anima.give.no_room"),
+                (who, given) -> given(server, who, given));
+        return null;
+    }
+
+    /**
+     * The give screen closed: what was put in goes into the counterpart's pack, and the player says
+     * the line that records it. A record that ended meanwhile, or a give no longer on offer, hands
+     * everything back; whatever does not fit comes back too.
+     */
+    private static void given(MinecraftServer server, ServerPlayer player,
+            List<net.minecraft.world.item.ItemStack> given) {
+        Talker talker = seat(server, player);
+        talker.giving = false;
+        Encounter e = talker.engine.current().orElse(null);
+        AgentId self = ContactsSync.idOf(player);
+        AgentBody body = e == null ? null
+                : e.other(self).map(other -> AgentBodies.findLoaded(server, other)).orElse(null);
+        long now = server.overworld().getGameTime();
+        boolean offered = e != null && body != null && Menu.offered(e, self, cap(e, now),
+                ContactData.get(server)::knows).contains(SpeechActs.GIVE);
+        Map<String, Integer> moved = new java.util.LinkedHashMap<>();
+        for (net.minecraft.world.item.ItemStack stack : given) {
+            if (!offered) {
+                GiveMenu.giveBack(player, stack);
+                continue;
+            }
+            dev.luizloyola.anima.core.inv.ItemStack core = ItemStacks.toCore(stack, server.registryAccess());
+            dev.luizloyola.anima.core.inv.ItemStack left = body.inventory().add(core);
+            if (left.count() < core.count()) {
+                moved.merge(core.id(), core.count() - left.count(), Integer::sum);
+            }
+            if (!left.isEmpty()) {
+                GiveMenu.giveBack(player, ItemStacks.toVanilla(left, server.registryAccess()));
+            }
+        }
+        if (!moved.isEmpty()) {
+            List<Handover.Item> items = new ArrayList<>();
+            moved.forEach((id, count) -> items.add(new Handover.Item(id, count)));
+            talker.engine.say(e, new Chooser.Line(SpeechActs.GIVE, Handover.payload(items)));
+        } else if (e != null && e.id().equals(talker.panelRecord)) {
+            show(server, player, talker, e); // nothing given: the panel comes back as it was
+        }
     }
 
     /**

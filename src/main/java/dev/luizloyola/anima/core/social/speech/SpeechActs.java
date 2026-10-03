@@ -28,6 +28,51 @@ public final class SpeechActs {
 	 */
 	public static final SpeechAct END_CHAT = register(new SpeechAct(
 			"end_chat", "anima.speech.end_chat", 4, true, true, false, true, List.of("end_chat")));
+	/**
+	 * Asking for food — what a wolf begs and a settler asks (2026-10-02-food-and-replies-design.md).
+	 * Obliges; turning it down comes first, so a chooser with no rule of its own ({@link
+	 * Choosers#BASIC}) refuses rather than offering nothing.
+	 */
+	public static final SpeechAct ASK_FOOD = register(new SpeechAct(
+			"ask_food", "anima.speech.ask_food", 2, true, true, false, false,
+			List.of("cannot_spare", "offer", "give")));
+	/** Nothing to spare: the answer to {@link #ASK_FOOD} that gives nothing. */
+	public static final SpeechAct CANNOT_SPARE = register(new SpeechAct(
+			"cannot_spare", "anima.speech.cannot_spare", 2, true, false, false, false, List.of()));
+	/**
+	 * Holding something out ({@link Handover}): the items ride the payload, and the giver holds the
+	 * first of them in hand until the offer is answered.
+	 */
+	public static final SpeechAct OFFER = register(new SpeechAct(
+			"offer", "anima.speech.offer", 2, true, true, false, false,
+			List.of("accept_offer", "decline_offer")));
+	/** Taking what was held out — the line the items move on. */
+	public static final SpeechAct ACCEPT_OFFER = register(new SpeechAct(
+			"accept_offer", "anima.speech.accept_offer", 2, true, false, false, false, List.of()));
+	public static final SpeechAct DECLINE_OFFER = register(new SpeechAct(
+			"decline_offer", "anima.speech.decline_offer", 2, true, false, false, false, List.of()));
+	/**
+	 * Something already handed over — a player's, through the give screen, where closing it is the
+	 * hand-over (decision: Luiz, 2026-10-02). The items ride the payload as an offer's do, but are
+	 * in the other's pack by the time it is said; what is owed back is the verdict on them.
+	 */
+	public static final SpeechAct GIVE = register(new SpeechAct(
+			"give", "anima.speech.give", 2, true, true, false, false,
+			List.of("accept_offer", "not_wanted")));
+	/**
+	 * What came was not what was wanted — not food, food with something else, or nothing asked for
+	 * at all, as its topic. The unwanted items ride the payload, and the giver picks whether to take
+	 * them back or leave them as a gift.
+	 */
+	public static final SpeechAct NOT_WANTED = register(new SpeechAct(
+			"not_wanted", "anima.speech.not_wanted", 2, true, true, false, false,
+			List.of("take_back", "keep_gift")));
+	/** The giver takes back what {@link #NOT_WANTED} named — the line those items move on. */
+	public static final SpeechAct TAKE_BACK = register(new SpeechAct(
+			"take_back", "anima.speech.take_back", 2, true, false, false, false, List.of()));
+	/** The giver leaves them: a gift, kept on the record for whatever later judges one. */
+	public static final SpeechAct KEEP_GIFT = register(new SpeechAct(
+			"keep_gift", "anima.speech.keep_gift", 2, true, false, false, false, List.of()));
 	/** SYSTEM vocabulary — written by whoever notices, never chosen by a chooser. */
 	public static final SpeechAct IGNORED = register(new SpeechAct(
 			"ignored", "anima.speech.system.ignored", 1, false, false, false, true, List.of()));

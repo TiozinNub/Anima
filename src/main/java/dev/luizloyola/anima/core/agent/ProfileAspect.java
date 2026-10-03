@@ -261,6 +261,9 @@ public final class ProfileAspect {
     public static final ProfileAspect SOCIAL_PATIENCE_TICKS = register("social.patience_ticks", Kind.INT, 20, 12_000,
             "How long this body waits on an unanswered question before calling it ignored — the "
                     + "snub clock, per obligation, in world ticks. 300 ticks is fifteen seconds.");
+    public static final ProfileAspect SOCIAL_SHARE_FRACTION = register("social.share_fraction", Kind.DOUBLE, 0.0, 1.0,
+            "The most of the food it carries this body gives a stranger who asks, as a fraction — "
+                    + "and only from what it carries beyond a full bar of its own.");
 
     // --- body: what this one can physically do -------------------------------------------------
 

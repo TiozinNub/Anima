@@ -174,6 +174,15 @@ public interface BrainContext {
     }
 
     /**
+     * Whether {@code other} is in this body's party — a colleague, who is shared with on different
+     * terms than a stranger (decision: Luiz, 2026-10-02). False by default: a rig with no roster
+     * knows nobody.
+     */
+    default boolean colleague(dev.luizloyola.anima.core.agent.AgentId other) {
+        return false;
+    }
+
+    /**
      * This body's stream of chance — drawn from when an instinct or a method has a genuine choice
      * to make.
      *

@@ -7,15 +7,19 @@ import dev.luizloyola.anima.core.brain.act.Gazer;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.inv.HandChanges;
+import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.social.speech.Chooser;
 import dev.luizloyola.anima.core.social.speech.Encounter;
+import dev.luizloyola.anima.core.social.speech.Handover;
 import dev.luizloyola.anima.core.social.speech.Picker;
 import dev.luizloyola.anima.core.social.speech.Speech;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import dev.luizloyola.anima.core.social.speech.Utterance;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -99,6 +103,9 @@ public final class Converse implements PrimitiveTask {
     private int lineCount = -1;
     /** Ticks this body waits on top of the grace floor before its next line — see {@link #JITTER_TICKS}. */
     private int jitter;
+    /** Whether this body brought something into its hand to hold out — so it stows it once the
+     *  offer is answered. Never saved: a reload finds the offer still pending and wields again. */
+    private boolean holdingOut;
 
     public Converse(BeingId other, Speech.Opening opening) {
         this.other = other;
@@ -142,6 +149,14 @@ public final class Converse implements PrimitiveTask {
         // Speaking on anyway is what lets a conversation carry on through a wall.
         // Within range now, or the counterpart dropped out of sight — either way the walk is
         // spent; a live order left behind would keep the legs moving toward a stale cell.
+        Chooser.Turn turn = speech.turn(encounter);
+        holdOut(ctx, turn);
+        if (inRange && counterpart.distance() > Handover.REACH && offeredToMe(turn)) {
+            // Something is held out to this body: it steps up to take it before it says a word.
+            // Toward a still, held-out hand, so not the chase that no-chase-after-contact forbids.
+            face(ctx, counterpart);
+            return stepIn(ctx, counterpart);
+        }
         dropWalk(ctx);
         face(ctx, counterpart);
         // The record's rule first (an answer owed, the monologue cap), then this body's own beat. A
@@ -245,6 +260,54 @@ public final class Converse implements PrimitiveTask {
             return TaskStatus.RUNNING;
         }
         dropWalk(ctx); // the leg ended on its own; the next tick orders a fresh one, unpriced
+        return TaskStatus.RUNNING;
+    }
+
+    /** Whether an offer of the counterpart's is pending on this body — something to step up and take. */
+    private static boolean offeredToMe(Chooser.Turn turn) {
+        return turn.pending().filter(u -> u.act().equals(SpeechActs.OFFER.key())).isPresent();
+    }
+
+    /**
+     * While this body's own offer is unanswered it holds the first thing offered in its hand — "get
+     * close, hold it out, wait for the other to take it" — and puts it away once answered.
+     */
+    private void holdOut(BrainContext ctx, Chooser.Turn turn) {
+        Inventory pack = ctx.percepts().inventory();
+        HandChanges.Timing timing = new HandChanges.Timing(
+                ctx.profile().i(ProfileAspect.HANDLING_SELECT_TICKS),
+                ctx.profile().i(ProfileAspect.HANDLING_STACK_TICKS));
+        long now = ctx.percepts().time();
+        Optional<Utterance> mine = turn.awaiting().filter(u -> u.act().equals(SpeechActs.OFFER.key()));
+        if (mine.isPresent()) {
+            List<Handover.Item> items = Handover.read(mine.get().payload());
+            if (items.isEmpty() || pack.mainHand().id().equals(items.get(0).id())) {
+                return;
+            }
+            for (int slot = Inventory.HOTBAR_START; slot < Inventory.ARMOR_START; slot++) {
+                if (pack.get(slot).id().equals(items.get(0).id())) {
+                    HandChanges.wield(pack, slot, now, timing);
+                    holdingOut = true;
+                    return;
+                }
+            }
+        } else if (holdingOut && HandChanges.stow(pack, now, timing)) {
+            holdingOut = false;
+        }
+    }
+
+    /** Walks up to {@code counterpart} to take what they hold out — re-ordered only when they move. */
+    private TaskStatus stepIn(BrainContext ctx, Being counterpart) {
+        Pos at = counterpart.pos();
+        if (walk == null || walk.x() != at.x() || walk.y() != at.y() || walk.z() != at.z()) {
+            dropWalk(ctx);
+            walk = new GoTo(at.x(), at.y(), at.z(), Gait.WALK, WalkLevel.WALK_ONLY);
+        }
+        if (walk.tick(ctx) != TaskStatus.RUNNING) {
+            dropWalk(ctx);
+        }
+        // No clock of ours runs here: the offer is the giver's question, so the giver's patience
+        // decides when one that cannot be reached has lapsed, and the record closing ends this.
         return TaskStatus.RUNNING;
     }
 

@@ -184,6 +184,15 @@ public final class SeekCompany implements PrimitiveTask {
     }
 
     /**
+     * How far the body {@link #nearest} would pick is, or {@code Double.MAX_VALUE} with nobody to
+     * go to — what a method sending a body to somebody is priced by.
+     */
+    static double distanceToNearest(BrainContext ctx) {
+        Being best = nearest(ctx);
+        return best == null ? Double.MAX_VALUE : best.distance();
+    }
+
+    /**
      * The closest minded body worth walking to, or null when there is none.
      *
      * <p>Somebody already called is skipped — the same mark that stops a second shout stops a
