@@ -74,4 +74,17 @@ class GatherNearbyDropsTest {
         assertEquals(TaskStatus.RUNNING, sweep.tick(ctx));
         assertEquals(2, ctx.mover.moveToCalls);
     }
+
+    /** Down a hill a drop is named over there in the air: the walk is to the floor under it. */
+    @Test
+    void aDropDownAHillIsWalkedToOnTheFloorUnderIt() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.fallsAwayFrom(3, 4);
+        ctx.percepts.drops = List.of(drop(5, 0));
+
+        new GatherNearbyDrops(ItemSpec.ANYTHING).tick(ctx);
+
+        assertEquals(List.of(5, 60, 0), List.of(ctx.mover.lastX, ctx.mover.lastY, ctx.mover.lastZ),
+                "the legs lower a goal one cell at most (Luiz, 2026-10-02)");
+    }
 }

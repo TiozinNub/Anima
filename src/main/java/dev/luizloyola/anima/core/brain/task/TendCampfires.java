@@ -361,7 +361,8 @@ public final class TendCampfires implements PrimitiveTask {
     }
 
     private TaskStatus walk(BrainContext ctx, Pos to) {
-        ctx.actuators().mover().moveTo(to.x(), to.y(), to.z());
+        Pos floor = Standing.floorUnder(ctx, to); // a drop may still be falling
+        ctx.actuators().mover().moveTo(floor.x(), floor.y(), floor.z());
         walking = true;
         return TaskStatus.RUNNING;
     }

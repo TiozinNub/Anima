@@ -49,11 +49,22 @@ class AnswerTest {
     void theWalkTargetsWhereTheHailCarriedFrom() {
         BeingId caller = BeingId.of(UUID.randomUUID());
         Pos where = new Pos(-12, 70, 33);
+        ctx.percepts.position = new Pos(0, 70, 0); // on ground at the hail's height, not under it
 
         GoTo walk = assertInstanceOf(GoTo.class, decompose(caller, where).get(0));
 
         assertEquals(-12, walk.x());
         assertEquals(70, walk.y());
         assertEquals(33, walk.z());
+    }
+
+    @Test
+    void aHailFromDownAHillIsAnsweredOnTheFloor() {
+        ctx.percepts.fallsAwayFrom(3, 4);
+
+        GoTo walk = assertInstanceOf(GoTo.class,
+                decompose(BeingId.of(UUID.randomUUID()), new Pos(6, 64, 0)).get(0));
+
+        assertEquals(60, walk.y(), "the legs lower a goal one cell at most (Luiz, 2026-10-02)");
     }
 }

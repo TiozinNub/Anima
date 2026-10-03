@@ -89,7 +89,7 @@ public final class GatherNearbyDrops implements PrimitiveTask {
             return TaskStatus.RUNNING;
         }
         aimed = List.copyOf(Flocks.nearestFlock(matching, ctx.percepts().position()));
-        Pos centroid = Flocks.centroid(aimed);
+        Pos centroid = Standing.floorUnder(ctx, Flocks.centroid(aimed)); // an average y, or a drop still falling
         ctx.actuators().mover().moveTo(centroid.x(), centroid.y(), centroid.z(), Gait.WALK,
                 WalkLevel.SCALE.underWork(ctx.walksMayBuild()));
         walkIssued = true;

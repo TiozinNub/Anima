@@ -229,7 +229,7 @@ public final class Converse implements PrimitiveTask {
      * is just this body's own stride.
      */
     private TaskStatus closeIn(BrainContext ctx, Being counterpart) {
-        Pos at = counterpart.pos();
+        Pos at = Standing.floorUnder(ctx, counterpart.pos()); // they may be up a ladder, or falling
         if (walk == null || walk.x() != at.x() || walk.y() != at.y() || walk.z() != at.z()) {
             if (walk != null) {
                 if (counterpart.distance() < walkedFrom) {

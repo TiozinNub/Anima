@@ -311,4 +311,15 @@ class SeekCompanyTest {
         Encounter e = ctx.speech.current().orElseThrow();
         assertTrue(e.transcript().isEmpty(), "QUIET opens with nothing prefilled — nobody was hailed");
     }
+
+    @Test
+    void goingOverDownAHillWalksOnTheFloor() {
+        ctx.percepts.company.setValue(0.0);
+        ctx.percepts.fallsAwayFrom(3, 4);
+        ctx.percepts.beings = List.of(FakePercepts.personAt(new Pos(40, 64, 0), 40.0, ""));
+
+        new SeekCompany().tick(ctx);
+
+        assertEquals(60, ctx.mover.lastY, "the legs lower a goal one cell at most (Luiz, 2026-10-02)");
+    }
 }

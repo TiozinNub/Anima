@@ -72,7 +72,7 @@ public final class SeekCompany implements PrimitiveTask {
                 ctx.journal().record(Category.BRAIN, "seek_people",
                         "went over to " + being.knownAs());
             }
-            Pos at = being.pos();
+            Pos at = Standing.floorUnder(ctx, being.pos());
             walk = new GoTo(at.x(), at.y(), at.z(), Gait.WALK, WalkLevel.WALK_ONLY);
         }
         TaskStatus status = walk.tick(ctx);

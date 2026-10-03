@@ -13,7 +13,7 @@ package dev.luizloyola.anima.core.nav;
  */
 public final class GoalCell {
 
-    /** How far down an open goal is scanned for a ladder's foot or a swimmer's surface. */
+    /** How far down a goal is scanned for its floor: a ladder's foot, or {@link #floorY}'s fall. */
     static final int DROP_SCAN = 12;
     /**
      * How far a goal named inside a block may climb out. Two: the block a click or a height read
@@ -33,9 +33,23 @@ public final class GoalCell {
      * <p>Through open air the goal falls at most the body's willing drop (never less than one: the
      * head cell of a body standing under it). Further up it is a cell in the air, not a place: a
      * stand eight above a pit floor "arrived" on the floor, out of the placer's reach, and was
-     * walked to again every 13 ticks (run/normal, 2026-10-02).
+     * walked to again every 13 ticks (run/normal, 2026-10-02). A caller that means "the floor under
+     * there" asks {@link #floorY}.
      */
     public static int groundY(NavGrid grid, int x, int y, int z, MoveCapabilities body) {
+        return lower(grid, x, y, z, body, Math.max(1, body.maxDrop()));
+    }
+
+    /**
+     * The floor under a cell named loosely — a dropped item, another body, a point on a heading:
+     * {@link #groundY} with the fall through open air allowed down to {@link #DROP_SCAN}, so the
+     * walk is asked for a cell a body can stand in.
+     */
+    public static int floorY(NavGrid grid, int x, int y, int z, MoveCapabilities body) {
+        return lower(grid, x, y, z, body, DROP_SCAN);
+    }
+
+    private static int lower(NavGrid grid, int x, int y, int z, MoveCapabilities body, int fall) {
         if (solid(grid.cell(x, y, z))) {
             for (int up = y + 1; up <= y + CLIMB; up++) {
                 if (!solid(grid.cell(x, up, z))) {
@@ -44,11 +58,10 @@ public final class GoalCell {
             }
             return y;
         }
-        int willing = Math.max(1, body.maxDrop());
         int fallen = 0;
         for (int down = y; down > y - DROP_SCAN; down--) {
             if (Pathfinder.standable(grid, body, x, down, z)) {
-                return fallen <= willing ? down : y;
+                return fallen <= fall ? down : y;
             }
             CellType here = grid.cell(x, down, z);
             if (body.canSwim() && here == CellType.WATER

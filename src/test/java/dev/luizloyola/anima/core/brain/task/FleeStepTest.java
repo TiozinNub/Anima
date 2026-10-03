@@ -115,4 +115,16 @@ class FleeStepTest {
     void describeReadsAsFleeStep() {
         assertEquals("flee step", new FleeStep().describe());
     }
+
+    @Test
+    void aFlightDownAHillRunsToTheFloor() {
+        ctx.percepts.position = new Pos(0, 64, 0);
+        ctx.percepts.fallsAwayFrom(3, 4);
+        ctx.percepts.beings = List.of(threatAt(-10, 0, 10.0, false));
+        executor.run(new FleeStep(), ctx.seed(new Random(1)));
+        executor.tick(ctx);
+
+        assertTrue(ctx.mover.lastX > 3, "east, away from the western threat");
+        assertEquals(60, ctx.mover.lastY, "the legs lower a goal one cell at most (Luiz, 2026-10-02)");
+    }
 }

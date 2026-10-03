@@ -99,7 +99,8 @@ public final class Follow implements PrimitiveTask {
     private void walk(BrainContext ctx, Pos to) {
         aim = to;
         issued = false; // the legs report on this order from the next tick on
-        ctx.actuators().mover().moveTo(to.x(), to.y(), to.z());
+        Pos floor = Standing.floorUnder(ctx, to); // the leader's level, over a slope beside them
+        ctx.actuators().mover().moveTo(floor.x(), floor.y(), floor.z());
     }
 
     /** The cell {@link #NEAR} out from the one followed, on the follower's own side. */

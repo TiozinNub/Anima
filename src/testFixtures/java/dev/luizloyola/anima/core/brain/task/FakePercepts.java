@@ -62,6 +62,22 @@ public final class FakePercepts implements Percepts {
             return y < position.y() ? CellType.GROUND : CellType.PASSABLE;
         }
     };
+
+    /**
+     * A hillside: from column {@code x} east the floor is {@code drop} under the one this body stands
+     * on. What a walk to a point named at the body's own height — another body, a drop, a heading —
+     * finds over there in the air.
+     */
+    public void fallsAwayFrom(int x, int drop) {
+        int feet = position.y();
+        terrain = new NavGrid() {
+            @Override
+            public CellType cell(int cx, int cy, int cz) {
+                return cy < (cx >= x ? feet - drop : feet) ? CellType.GROUND : CellType.PASSABLE;
+            }
+        };
+    }
+
     public List<Drop> drops = List.of();
     /** The game clock — settable; tests that price staleness advance it. */
     public long time;

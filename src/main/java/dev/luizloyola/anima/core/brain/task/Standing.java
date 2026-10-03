@@ -1,7 +1,9 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.CellType;
+import dev.luizloyola.anima.core.nav.GoalCell;
 import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.nav.NavGrids;
@@ -26,6 +28,18 @@ import java.util.Set;
 public final class Standing {
 
     private Standing() {
+    }
+
+    /**
+     * Where to ask the legs for to get to a point named loosely — a dropped item, another body, a
+     * cell on a heading: the floor under it, as this body's terrain has it. The legs lower a goal by
+     * one cell at most, so a walk to a point any higher above its floor fails instead of ending under
+     * it (Luiz, 2026-10-02).
+     */
+    public static Pos floorUnder(BrainContext ctx, Pos cell) {
+        int y = GoalCell.floorY(ctx.percepts().terrain(), cell.x(), cell.y(), cell.z(),
+                MoveCapabilities.of(ctx.profile()));
+        return y == cell.y() ? cell : new Pos(cell.x(), y, cell.z());
     }
 
     /** Whether this body could stand in this exact cell — see the class doc for what "could" excludes. */

@@ -371,4 +371,20 @@ class EngageTest {
         Engage engage = assertInstanceOf(Engage.class, steps.get(0));
         assertEquals(zombie.id(), engage.target());
     }
+
+    @Test
+    void aChaseDownAHillRunsOnTheFloor() {
+        ctx.percepts.fallsAwayFrom(3, 4);
+        Being zombie = zombieAt(10, 10.0);
+        Engage engage = new Engage(zombie.id(), zombie.pos());
+
+        for (int tick = 0; tick < 5 && ctx.mover.moveToCalls == 0; tick++) {
+            engage.tick(ctx);
+        }
+
+        assertEquals(1, ctx.mover.moveToCalls);
+        assertEquals(60, ctx.mover.lastY, "the legs lower a goal one cell at most (Luiz, 2026-10-02)");
+        engage.tick(ctx);
+        assertEquals(1, ctx.mover.moveToCalls, "the same leg while they stand still, not one a tick");
+    }
 }

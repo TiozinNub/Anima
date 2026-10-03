@@ -118,4 +118,16 @@ class FollowTest {
         assertEquals(TaskStatus.SUCCESS, wait.tick(ctx));
         assertEquals(0, wait.remaining());
     }
+
+    @Test
+    void besideALeaderOverASlopeIsTheFloorThere() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.fallsAwayFrom(10, 4);
+        leaderAt(ctx, 20, 0);
+
+        new Follow(leader, null).tick(ctx);
+
+        assertEquals(16, ctx.mover.lastX);
+        assertEquals(60, ctx.mover.lastY, "the legs lower a goal one cell at most (Luiz, 2026-10-02)");
+    }
 }

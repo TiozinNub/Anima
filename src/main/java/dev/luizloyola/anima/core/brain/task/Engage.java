@@ -131,7 +131,7 @@ public final class Engage implements PrimitiveTask {
 
     /** One tick of closing in on where they are now. */
     private TaskStatus chase(BrainContext ctx, Being seen) {
-        Pos at = seen.pos();
+        Pos at = Standing.floorUnder(ctx, seen.pos()); // a spider on a wall, a mob knocked aloft
         if (leg == null || leg.x() != at.x() || leg.y() != at.y() || leg.z() != at.z()) {
             dropLeg(ctx);
             leg = new GoTo(at.x(), at.y(), at.z(),

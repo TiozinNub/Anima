@@ -423,8 +423,10 @@ public final class FleeStep implements CompoundTask {
         takeCoverFrom(ctx, here, threats)
                 .filter(cover -> field.isEmpty() || field.at(cover) <= ceiling)
                 .ifPresent(cover -> ranked.add(0, cover));
+        // The fan is at this body's height, and the ground falls away down a hill: run to the floor.
         // The first of the fan is straight away too, and a pit found once is not searched twice.
-        return List.copyOf(new LinkedHashSet<>(ranked));
+        return List.copyOf(new LinkedHashSet<>(ranked.stream()
+                .map(cell -> Standing.floorUnder(ctx, cell)).toList()));
     }
 
     /**

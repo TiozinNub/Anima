@@ -743,4 +743,20 @@ class ConverseTest {
             return body.random();
         }
     }
+
+    @Test
+    @DisplayName("closing in down a hill walks on the floor, one order while they stand")
+    void closingInDownAHillWalksOnTheFloor() {
+        BeingId counterpartId = BeingId.of(AgentId.random());
+        ctx.percepts.fallsAwayFrom(3, 4);
+        ctx.percepts.beings = List.of(FakePercepts.personAt(counterpartId, new Pos(20, 64, 0), 20.0, "Rex"));
+        Converse converse = new Converse(counterpartId, Speech.Opening.QUIET);
+        ctx.speech.chooser = (c, turn) -> null;
+
+        converse.tick(ctx);
+        converse.tick(ctx);
+
+        assertEquals(1, ctx.mover.moveToCalls);
+        assertEquals(60, ctx.mover.lastY, "the legs lower a goal one cell at most (Luiz, 2026-10-02)");
+    }
 }

@@ -260,4 +260,21 @@ class CampfireTasksTest {
         assertInstanceOf(GoTo.class, plan.get(2));
         assertEquals(8, assertInstanceOf(TendCampfires.class, plan.get(3)).count());
     }
+
+    @Test
+    void aDropThatRolledDownAHillIsWalkedToOnTheFloor() {
+        ctx.percepts.inventory.set(0, ItemStack.of("minecraft:beef", 1, 64));
+        TendCampfires cook = new TendCampfires(fire, BEEF, 1);
+        run(cook, 200);
+        ctx.campfires.at(fire).cookAll();
+        ctx.percepts.fallsAwayFrom(3, 4);
+
+        Pos rolled = new Pos(3, 64, 1);
+        ctx.percepts.drops = List.of(new Drop(rolled, COOKED, Region.of(rolled)));
+        ctx.mover.setState(MoveState.IDLE);
+        cook.tick(ctx);
+
+        assertEquals(List.of(3, 60, 1), List.of(ctx.mover.lastX, ctx.mover.lastY, ctx.mover.lastZ),
+                "the legs lower a goal one cell at most (Luiz, 2026-10-02)");
+    }
 }
