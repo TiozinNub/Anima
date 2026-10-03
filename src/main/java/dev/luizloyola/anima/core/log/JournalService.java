@@ -112,7 +112,7 @@ public final class JournalService {
      * Installs the muted set — the mod layer calls this at boot and on every config change.
      *
      * <p><b>A whole-category mute is a blunt instrument.</b> {@code ThoughtBroadcast} forwards
-     * every entry whose event is {@code "think"} to chat, on no other condition; muting a category
+     * every {@code Arbiter.EVENT_THINK} entry (BRAIN) to chat, on no other condition; muting a category
      * that {@code think} rides on would silence that narration too, with nothing in this class to
      * say why — the drop happens before every sink, including that one.
      */

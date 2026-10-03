@@ -7,6 +7,8 @@ import dev.luizloyola.anima.core.brain.board.WorkSource;
 import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.history.History;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
+import dev.luizloyola.anima.core.brain.task.CompoundTask;
+import dev.luizloyola.anima.core.brain.task.PrimitiveTask;
 import dev.luizloyola.anima.core.brain.task.TaskExecutor;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.TaskStatus;
@@ -52,6 +54,13 @@ import org.jspecify.annotations.Nullable;
  */
 public final class Arbiter {
 
+    /**
+     * The narration a Person thinks out loud ({@code /anima think}): one line per change of what
+     * the body is doing and why, written here because only the arbiter sees every switch. A drive
+     * re-granting itself says nothing, so an idle wanderer stays quiet.
+     */
+    public static final String EVENT_THINK = "think";
+
     /** Incumbency bonus on the active instinct's bid — the hysteresis that stops 51/49 dithering. */
     public static double stickiness(AgentProfile profile) {
         return profile.d(ProfileAspect.MIND_STICKINESS);
@@ -93,6 +102,11 @@ public final class Arbiter {
      */
     private Instinct lastFailed;
     private String lastFailureReason = "";
+    /**
+     * The drive or errand last narrated. Apart from {@link #lastGranted} because work counts: wander
+     * after an errand is news to a reader, though the BRAIN log saw wander last.
+     */
+    private Object lastThought;
 
     /** What this body did lately — written here, the one place a grant is known to have succeeded. */
     private final History history = new History();
@@ -308,6 +322,7 @@ public final class Arbiter {
         if (claimedItem != null && !executor.isBusy() && !work.stillMine(claimedItem, ctx)) {
             ctx.journal().record(Category.PROJECT, claimedItem.describe(),
                     "dropped — the claim lapsed while they were away");
+            think(ctx, "lost " + claimedItem.describe() + " — the claim lapsed", null);
             claimedItem = null;
             // The belief goes with the claim: the terminal report below trusts this flag ALONE, so
             // leaving it set reports against a null errand and kills the tick (live-caught).
@@ -341,6 +356,7 @@ public final class Arbiter {
             String reason = active.reconsider(ctx, executor.root());
             if (reason != null) {
                 ctx.journal().record(Category.BRAIN, active.describe(), "changed its mind — " + reason);
+                think(ctx, active.describe() + " changed its mind — " + reason, null);
                 executor.cancel(ctx);
                 active = null;
                 grantedDeed = null;
@@ -361,6 +377,7 @@ public final class Arbiter {
                 ctx.journal().record(Category.PROJECT, claimedItem.describe(), String.format(Locale.ROOT,
                         "suspended (by %s %.2f)",
                         instincts.get(topIndex).describe(), lastPressures[topIndex]));
+                think(ctx, "set aside " + claimedItem.describe(), claimedItem);
                 workRunning = false;
                 grant(topIndex, runnerUp, ctx); // run() cancels the errand's tree; the claim is KEPT
             }
@@ -407,6 +424,8 @@ public final class Arbiter {
                 if (executor.lastStatus().orElse(null) == TaskStatus.FAILED) {
                     ctx.journal().record(Category.PROJECT, claimedItem.describe(), "failed"
                             + executor.failureReason().map(r -> " — " + r).orElse(""));
+                    think(ctx, "gave up on " + claimedItem.describe()
+                            + executor.failureReason().map(r -> " — " + r).orElse(""), null);
                     if (claimedItem.tolerance().isEmpty()) {
                         WorkItem lost = claimedItem;
                         executor.unobtainable().ifPresent(wanted -> work.noWayTo(lost, wanted, ctx));
@@ -423,6 +442,7 @@ public final class Arbiter {
                 } else {
                     ctx.journal().record(Category.PROJECT, claimedItem.describe(),
                             "completed (" + claimedItem.progress(ctx) + ")");
+                    think(ctx, "done with " + claimedItem.describe(), null);
                     // Read before the board hears of it: completing may retire what the item reads.
                     history.record(claimedItem.doing(), ctx.percepts().time());
                     work.completed(claimedItem, ctx);
@@ -439,6 +459,10 @@ public final class Arbiter {
                 if (active != lastFailed || !reason.equals(lastFailureReason)) {
                     ctx.journal().record(Category.BRAIN, active.describe(), "failed"
                             + (reason.isEmpty() ? "" : " — " + reason));
+                    // Still the drive in hand: one that fails as its pacing would otherwise
+                    // re-announce itself after every cooldown.
+                    think(ctx, "couldn't " + active.describe()
+                            + (reason.isEmpty() ? "" : " — " + reason), active);
                     lastFailed = active;
                     lastFailureReason = reason;
                 }
@@ -624,9 +648,13 @@ public final class Arbiter {
             work.claimed(item, ctx);
             ctx.journal().record(Category.PROJECT, item.describe(), String.format(Locale.ROOT,
                     "claimed (priority %.2f)", item.priority()));
+            think(ctx, String.format(Locale.ROOT, "took on %s (priority %.2f)",
+                    item.describe(), item.priority()), item);
         } else {
             ctx.journal().record(Category.PROJECT, item.describe(),
                     "resumed (" + item.progress(ctx) + ")");
+            String progress = item.progress(ctx);
+            think(ctx, "back to " + item.describe() + (progress.isEmpty() ? "" : " (" + progress + ")"), item);
         }
         active = null;
         grantedDeed = null;
@@ -670,7 +698,22 @@ public final class Arbiter {
         }
         active = instinct;
         grantedDeed = instinct.doing(ctx);
-        executor.run(instinct.root(ctx), ctx); // run() cancels any incumbent first
+        Task root = instinct.root(ctx);
+        if (instinct != lastThought) {
+            think(ctx, String.format(Locale.ROOT, "%s: %s (%.2f%s)", instinct.describe(),
+                    root instanceof PrimitiveTask p ? p.describe() : ((CompoundTask) root).describe(),
+                    lastPressures[i], beaten(runnerUp, lastPressures[i])), instinct);
+        }
+        executor.run(root, ctx); // run() cancels any incumbent first
+    }
+
+    /**
+     * One {@link #EVENT_THINK} line. {@code about} is what the body now has in hand, so the next
+     * grant of the same drive stays quiet; null for an ending, after which any grant is news.
+     */
+    private void think(BrainContext ctx, String thought, @Nullable Object about) {
+        ctx.journal().record(Category.BRAIN, EVENT_THINK, thought);
+        lastThought = about;
     }
 
     private int indexOf(Instinct instinct) {

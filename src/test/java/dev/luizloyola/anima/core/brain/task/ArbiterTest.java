@@ -593,6 +593,25 @@ class ArbiterTest {
                 "three failures, one line: " + lines);
     }
 
+    /** A drive failing as its pacing would otherwise re-announce its grant after every cooldown. */
+    @Test
+    void aDriveThatKeepsFailingIsNarratedOnce() {
+        List<Entry> lines = new ArrayList<>();
+        ctx.journalService.subscribe((who, entry) -> lines.add(entry));
+        FakeInstinct a = new FakeInstinct("a", 1.0, failsImmediately("aRoot"));
+        Arbiter arbiter = new Arbiter(List.of(a));
+
+        for (int t = 0; t < 3 * (Instinct.DEFAULT_FAIL_COOLDOWN + 1); t++) {
+            arbiter.tick(ctx);
+        }
+
+        List<String> thoughts = lines.stream().filter(e -> e.event().equals(Arbiter.EVENT_THINK))
+                .map(Entry::detail).toList();
+        assertEquals(2, thoughts.size(), "the grant and the failure, once each: " + thoughts);
+        assertEquals("a: aRoot (1.00)", thoughts.get(0));
+        assertTrue(thoughts.get(1).startsWith("couldn't a"), thoughts.toString());
+    }
+
     /** A DIFFERENT reason is news, so it is not swallowed with the repeats. */
     @Test
     void aFailureThatChangesItsReasonSpeaksAgain() {

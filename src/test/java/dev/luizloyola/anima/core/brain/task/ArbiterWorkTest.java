@@ -430,6 +430,35 @@ class ArbiterWorkTest {
         assertEquals(0, board.claims, "the offer was never in the running, let alone taken");
     }
 
+    /**
+     * {@code /anima think} narrates every change of what the body is doing, errand and drive alike,
+     * and nothing else: it had no writer from 2026-08-02 to 2026-10-03, so the toggle printed
+     * nothing at all.
+     */
+    @Test
+    void thinkingOutLoudNarratesEachChangeAndNotTheRepeats() {
+        List<Entry> lines = new ArrayList<>();
+        ctx.journalService.subscribe((who, entry) -> lines.add(entry));
+        StubItem item = new StubItem(0.35, 200);
+        board.offered = item;
+        ticks(2);
+        eat.pressure = 0.65;
+        ticks(1); // suspended for a meal
+        eat.pressure = 0.05;
+        item.rootTicks = 2; // the resumed errand finishes quickly
+        ticks(8);
+        ticks(30); // wander re-grants itself after every success, and says so once
+
+        assertEquals("took on acquire logs x16 (priority 0.35); set aside acquire logs x16; "
+                + "eat: steps (0.65, beat work 0.35); back to acquire logs x16; "
+                + "done with acquire logs x16; wander: steps (0.15, beat eat 0.05)", thoughts(lines));
+    }
+
+    private static String thoughts(List<Entry> lines) {
+        return lines.stream().filter(e -> e.event().equals(Arbiter.EVENT_THINK)).map(Entry::detail)
+                .collect(Collectors.joining("; "));
+    }
+
     /** Every BRAIN grant line of a run, joined — a wrong one then fails readably. */
     private static String grants(List<Entry> lines) {
         return lines.stream().map(Entry::detail)

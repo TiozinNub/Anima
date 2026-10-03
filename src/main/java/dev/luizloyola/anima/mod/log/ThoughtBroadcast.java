@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.mod.log;
 
+import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.log.JournalService;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.mod.identity.AgentDirectory;
@@ -10,9 +11,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 
 /**
- * The thinking-out-loud debug channel (asked for by Luiz, 2026-07-27): tasks narrate their intent
- * through {@code think} journal lines, and this sink forwards an ENABLED person's think-lines to
- * every player's chat as a gray-italic aside.
+ * The thinking-out-loud debug channel (asked for by Luiz, 2026-07-27): the arbiter narrates each
+ * change of what a body is doing through {@link Arbiter#EVENT_THINK} journal lines, and this sink
+ * forwards an ENABLED person's to every player's chat as a gray-italic aside.
  *
  * <p>Off by default and per-person ({@code /anima think} toggles the resolved person), so a
  * fifty-person settlement doesn't shout fifty monologues into chat. The toggle set is transient
@@ -32,7 +33,7 @@ public final class ThoughtBroadcast {
      */
     public static void attach(MinecraftServer server, JournalService service) {
         service.subscribe((who, entry) -> {
-            if (!"think".equals(entry.event()) || !ENABLED.contains(who)) {
+            if (!Arbiter.EVENT_THINK.equals(entry.event()) || !ENABLED.contains(who)) {
                 return;
             }
             String name = AgentDirectory.of(server).nameOf(who).orElse("?");
