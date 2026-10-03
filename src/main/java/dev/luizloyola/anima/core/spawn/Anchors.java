@@ -64,9 +64,25 @@ public final class Anchors {
      * A body's local cap for a category vanilla caps at {@code max}: its share for the chunks it
      * spawns in, the density a player gets. A player's full cap round 25 chunks let a lone body
      * meet twice the global cap (flown 2026-10-02), since vanilla checks that only once a tick.
+     *
+     * <p>Animals round up, everything else down: a lone settler's hunting grounds otherwise never
+     * refill, as nothing breeds yet (Luiz, 2026-10-03).
      */
-    public static int localCap(int max) {
-        return max * SPAWN_CHUNKS / VANILLA_CAP_CHUNKS;
+    public static int localCap(int max, boolean animals) {
+        return share(max, SPAWN_CHUNKS, animals);
+    }
+
+    /**
+     * The global animal cap over {@code chunks} spawnable chunks while any body anchors, rounded
+     * up as {@link #localCap} is: vanilla's rounding down leaves a lone body's 25 chunks none.
+     */
+    public static int animalGlobalCap(int max, int chunks) {
+        return share(max, chunks, true);
+    }
+
+    private static int share(int max, int chunks, boolean up) {
+        int scaled = max * chunks;
+        return up ? (scaled + VANILLA_CAP_CHUNKS - 1) / VANILLA_CAP_CHUNKS : scaled / VANILLA_CAP_CHUNKS;
     }
 
     /**

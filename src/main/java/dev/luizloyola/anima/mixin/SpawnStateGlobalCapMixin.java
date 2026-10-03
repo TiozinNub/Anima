@@ -2,6 +2,7 @@ package dev.luizloyola.anima.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.sugar.Local;
+import dev.luizloyola.anima.core.spawn.Anchors;
 import dev.luizloyola.anima.mod.body.BodyGrant;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.level.LocalMobCapCalculator;
@@ -27,5 +28,20 @@ abstract class SpawnStateGlobalCapMixin {
     private boolean anima$bodyKeepsGlobalCap(boolean local, @Local(argsOnly = true) MobCategory category) {
         return local && (!((BodyGrant) localMobCapCalculator).anima$byBody()
                 || ((SpawnStateInvoker) (Object) this).anima$canSpawnGlobal(category));
+    }
+
+    /**
+     * Animals round up while a body anchors: vanilla's {@code 10 x 25 / 289} gives a lone body's
+     * chunks none, and this check gates the category before any local cap is asked.
+     */
+    @ModifyReturnValue(method = "canSpawnForCategoryGlobal", at = @At("RETURN"))
+    private boolean anima$animalsRoundUp(boolean global, @Local(argsOnly = true) MobCategory category) {
+        if (global || category != MobCategory.CREATURE
+                || !((BodyGrant) localMobCapCalculator).anima$anyBody()) {
+            return global;
+        }
+        NaturalSpawner.SpawnState self = (NaturalSpawner.SpawnState) (Object) this;
+        return self.getMobCategoryCounts().getInt(category)
+                < Anchors.animalGlobalCap(category.getMaxInstancesPerChunk(), self.getSpawnableChunkCount());
     }
 }

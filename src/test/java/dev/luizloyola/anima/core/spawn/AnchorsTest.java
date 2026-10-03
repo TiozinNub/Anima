@@ -67,11 +67,22 @@ class AnchorsTest {
     }
 
     @Test
-    @DisplayName("a body's local cap is its 25 chunks' share of vanilla's 289")
+    @DisplayName("a body's local cap is its 25 chunks' share of vanilla's 289, down but for animals")
     void localCap() {
-        assertEquals(6, Anchors.localCap(70));
-        assertEquals(0, Anchors.localCap(10));
-        assertEquals(1, Anchors.localCap(15));
+        assertEquals(6, Anchors.localCap(70, false));
+        assertEquals(1, Anchors.localCap(15, false));
+        assertEquals(1, Anchors.localCap(20, false));
+        assertEquals(0, Anchors.localCap(5, false));
+        assertEquals(1, Anchors.localCap(10, true));
+    }
+
+    @Test
+    @DisplayName("the global animal cap rounds up: one for a lone body, one each for two apart")
+    void animalGlobalCap() {
+        assertEquals(1, Anchors.animalGlobalCap(10, 25));
+        assertEquals(2, Anchors.animalGlobalCap(10, 50));
+        assertEquals(10, Anchors.animalGlobalCap(10, 289));
+        assertEquals(0, Anchors.animalGlobalCap(10, 0));
     }
 
     @Test

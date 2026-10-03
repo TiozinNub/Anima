@@ -42,6 +42,11 @@ abstract class LocalMobCapCalculatorMixin implements BodyGrant {
         return anima$byBody;
     }
 
+    @Override
+    public boolean anima$anyBody() {
+        return !anima$anchors().isEmpty();
+    }
+
     @Unique
     private Anchors anima$anchors() {
         if (anima$anchors == null) {
@@ -66,7 +71,8 @@ abstract class LocalMobCapCalculatorMixin implements BodyGrant {
         }
         boolean[] under = {false};
         anima$anchors().forEachNear(SpawnAnchors.chunkX(pos), SpawnAnchors.chunkZ(pos), i -> {
-            if (anima$counts[i][category.ordinal()] < Anchors.localCap(category.getMaxInstancesPerChunk())) {
+            if (anima$counts[i][category.ordinal()] < Anchors.localCap(category.getMaxInstancesPerChunk(),
+                    category == MobCategory.CREATURE)) {
                 under[0] = true;
             }
         });

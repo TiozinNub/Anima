@@ -7,4 +7,7 @@ package dev.luizloyola.anima.mod.body;
 public interface BodyGrant {
 
     boolean anima$byBody();
+
+    /** Whether any body anchors in this level, which rounds the global animal cap up. */
+    boolean anima$anyBody();
 }
