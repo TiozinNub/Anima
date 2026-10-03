@@ -1,11 +1,13 @@
 package dev.luizloyola.anima.mod.log;
 
 import dev.luizloyola.anima.core.brain.Arbiter;
+import dev.luizloyola.anima.core.log.Entry;
 import dev.luizloyola.anima.core.log.JournalService;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.mod.identity.AgentDirectory;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -32,7 +34,7 @@ public final class ThoughtBroadcast {
      * file sink — a chat broadcast is a plain game-thread call, no I/O.
      */
     public static void attach(MinecraftServer server, JournalService service) {
-        service.subscribe((who, entry) -> {
+        BiConsumer<AgentId, Entry> sink = (who, entry) -> {
             if (!Arbiter.EVENT_THINK.equals(entry.event()) || !ENABLED.contains(who)) {
                 return;
             }
@@ -40,7 +42,9 @@ public final class ThoughtBroadcast {
             server.getPlayerList().broadcastSystemMessage(
                     Component.literal(name + " · " + entry.detail())
                             .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC), false);
-        });
+        };
+        service.subscribe(sink);
+        service.subscribeAsides(sink); // a repeated failure, kept out of the ring and the file
     }
 
     /** Whether this person is narrating — the read behind bare {@code think}. */

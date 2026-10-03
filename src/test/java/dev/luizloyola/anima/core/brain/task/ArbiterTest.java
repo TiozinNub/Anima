@@ -595,7 +595,7 @@ class ArbiterTest {
 
     /** A drive failing as its pacing would otherwise re-announce its grant after every cooldown. */
     @Test
-    void aDriveThatKeepsFailingIsNarratedOnce() {
+    void aDriveThatKeepsFailingIsJournalledAsAThoughtOnce() {
         List<Entry> lines = new ArrayList<>();
         ctx.journalService.subscribe((who, entry) -> lines.add(entry));
         FakeInstinct a = new FakeInstinct("a", 1.0, failsImmediately("aRoot"));
@@ -605,11 +605,40 @@ class ArbiterTest {
             arbiter.tick(ctx);
         }
 
-        List<String> thoughts = lines.stream().filter(e -> e.event().equals(Arbiter.EVENT_THINK))
-                .map(Entry::detail).toList();
+        List<String> thoughts = thoughts(lines);
+        assertTrue(a.grantedRoots.size() >= 3, "it really did fail repeatedly: " + a.grantedRoots.size());
         assertEquals(2, thoughts.size(), "the grant and the failure, once each: " + thoughts);
         assertEquals("a: aRoot (1.00)", thoughts.get(0));
         assertTrue(thoughts.get(1).startsWith("couldn't a"), thoughts.toString());
+    }
+
+    /**
+     * Someone narrating hears every failure (Luiz, 2026-10-03: chat folds the repeats), but the
+     * re-grant between them stays quiet.
+     */
+    @Test
+    void aNarratorHearsEveryFailureButNoReGrant() {
+        List<Entry> lines = new ArrayList<>();
+        ctx.journalService.subscribe((who, entry) -> lines.add(entry));
+        ctx.journalService.subscribeAsides((who, entry) -> lines.add(entry));
+        FakeInstinct a = new FakeInstinct("a", 1.0, failsImmediately("aRoot"));
+        Arbiter arbiter = new Arbiter(List.of(a));
+
+        for (int t = 0; t < 3 * (Instinct.DEFAULT_FAIL_COOLDOWN + 1); t++) {
+            arbiter.tick(ctx);
+        }
+
+        List<String> thoughts = thoughts(lines);
+        assertTrue(a.grantedRoots.size() >= 3, "it really did fail repeatedly: " + a.grantedRoots.size());
+        assertEquals(1 + a.grantedRoots.size(), thoughts.size(),
+                "the first grant, then one line per failure: " + thoughts);
+        assertEquals("a: aRoot (1.00)", thoughts.get(0));
+        assertTrue(thoughts.subList(1, thoughts.size()).stream().allMatch(t -> t.startsWith("couldn't a")),
+                thoughts.toString());
+    }
+
+    private static List<String> thoughts(List<Entry> lines) {
+        return lines.stream().filter(e -> e.event().equals(Arbiter.EVENT_THINK)).map(Entry::detail).toList();
     }
 
     /** A DIFFERENT reason is news, so it is not swallowed with the repeats. */

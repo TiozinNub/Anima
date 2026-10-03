@@ -24,6 +24,11 @@ public record AgentJournal(JournalService service, AgentId id) {
         service.record(id, category, event, detail);
     }
 
+    /** A live-only line for this person — see {@link JournalService#aside}. */
+    public void aside(Category category, String event, String detail) {
+        service.aside(id, category, event, detail);
+    }
+
     /** This person's last {@code max} lines, oldest-first — see {@link JournalService#recent}. */
     public List<Entry> recent(int max) {
         return service.recent(id, max);

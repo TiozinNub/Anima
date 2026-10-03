@@ -62,6 +62,8 @@ public final class JournalService {
     private final Map<AgentId, Ring> byPerson = new HashMap<>();
     /** Sinks notified as each entry lands — the file writer hangs here (see the class doc). */
     private final List<BiConsumer<AgentId, Entry>> sinks = new ArrayList<>();
+    /** Sinks that also hear {@link #aside}s — live listeners, never the archive. */
+    private final List<BiConsumer<AgentId, Entry>> asideSinks = new ArrayList<>();
     /** Channels currently silenced. Replaced wholesale, so a config reload cannot leave a stale one. */
     private volatile Set<Muted> muted = Set.of();
 
@@ -137,6 +139,21 @@ public final class JournalService {
         }
     }
 
+    /**
+     * A line for whoever is listening live, kept out of the ring and the file: a repeat the
+     * journal already holds once, which a debugging reader still wants each time it happens.
+     */
+    public void aside(AgentId who, Category category, String event, String detail) {
+        Objects.requireNonNull(who, "who");
+        if (isMuted(category, event)) {
+            return;
+        }
+        Entry entry = new Entry(clock.getAsLong(), category, event, detail);
+        for (BiConsumer<AgentId, Entry> sink : asideSinks) {
+            sink.accept(who, entry);
+        }
+    }
+
     private boolean isMuted(Category category, String event) {
         Set<Muted> current = muted;
         return current.contains(new Muted(category, null))
@@ -167,6 +184,11 @@ public final class JournalService {
      */
     public void subscribe(BiConsumer<AgentId, Entry> sink) {
         sinks.add(Objects.requireNonNull(sink, "sink"));
+    }
+
+    /** Register a sink for {@link #aside}s only; same enqueue-only contract as {@link #subscribe}. */
+    public void subscribeAsides(BiConsumer<AgentId, Entry> sink) {
+        asideSinks.add(Objects.requireNonNull(sink, "sink"));
     }
 
     /**

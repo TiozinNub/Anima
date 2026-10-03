@@ -196,6 +196,24 @@ class JournalServiceTest {
         assertTrue(seen.isEmpty(), "muting must drop before the sink, or the file still grows");
     }
 
+    /** An aside is for live listeners: no ring line, no file line, but muting still drops it. */
+    @Test
+    void anAsideReachesOnlyAsideSinks() {
+        JournalService journal = new JournalService(() -> 7L);
+        List<String> filed = new ArrayList<>();
+        List<String> live = new ArrayList<>();
+        journal.subscribe((who, entry) -> filed.add(entry.detail()));
+        journal.subscribeAsides((who, entry) -> live.add(entry.detail()));
+
+        journal.aside(WHO, Category.BRAIN, "think", "again");
+        journal.mute(Set.of(new JournalService.Muted(Category.BRAIN, null)));
+        journal.aside(WHO, Category.BRAIN, "think", "muted");
+
+        assertEquals(List.of("again"), live);
+        assertTrue(filed.isEmpty(), "the file sink hears no aside: " + filed);
+        assertTrue(journal.recent(WHO, 10).isEmpty(), "nor does the ring");
+    }
+
     private static List<String> details(List<Entry> entries) {
         return entries.stream().map(Entry::detail).toList();
     }

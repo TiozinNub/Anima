@@ -57,7 +57,8 @@ public final class Arbiter {
     /**
      * The narration a Person thinks out loud ({@code /anima think}): one line per change of what
      * the body is doing and why, written here because only the arbiter sees every switch. A drive
-     * re-granting itself says nothing, so an idle wanderer stays quiet.
+     * re-granting itself says nothing, so an idle wanderer stays quiet. A repeated failure is an
+     * {@link dev.luizloyola.anima.core.log.AgentJournal#aside aside}: narrated, not journalled.
      */
     public static final String EVENT_THINK = "think";
 
@@ -456,15 +457,20 @@ public final class Arbiter {
                 // Only the first of a run, the way the grant path dedupes through lastGranted.
                 // A CHANGED reason still speaks: the same drive failing a new way is news, and
                 // collapsing that would hide the one failure somebody needs to see.
+                String thought = "couldn't " + active.describe()
+                        + (reason.isEmpty() ? "" : " — " + reason);
                 if (active != lastFailed || !reason.equals(lastFailureReason)) {
                     ctx.journal().record(Category.BRAIN, active.describe(), "failed"
                             + (reason.isEmpty() ? "" : " — " + reason));
                     // Still the drive in hand: one that fails as its pacing would otherwise
                     // re-announce itself after every cooldown.
-                    think(ctx, "couldn't " + active.describe()
-                            + (reason.isEmpty() ? "" : " — " + reason), active);
+                    think(ctx, thought, active);
                     lastFailed = active;
                     lastFailureReason = reason;
+                } else {
+                    // The repeat reaches narration only (Luiz, 2026-10-03): whoever turned think
+                    // on is debugging and chat folds it into (xN); the ring and file stay at one.
+                    ctx.journal().aside(Category.BRAIN, EVENT_THINK, thought);
                 }
                 int at = indexOf(active);
                 java.util.OptionalLong stock = executor.failedOnPrice()
