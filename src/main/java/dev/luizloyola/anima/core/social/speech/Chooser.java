@@ -28,8 +28,8 @@ public interface Chooser {
     /**
      * Everything self-relative, pre-computed by the engine — a chooser has no self-id
      * (BrainContext deliberately lacks one): what may be said, the ask pending on me,
-     * whether a non-system GREETING of mine is already in the transcript, and who the
-     * other party is.
+     * whether my greeting is behind me — said, or overtaken by anything past the greetings, after
+     * which a hello comes too late — and who the other party is.
      *
      * <p>{@code awaiting} is the mirror of {@code pending}: the obligation SELF has placed on the
      * counterpart that no line of theirs has discharged yet. A chooser that initiates (greets,

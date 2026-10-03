@@ -355,4 +355,39 @@ class SpeechEngineTest {
         assertTrue(engine.turn(e).awaiting().isEmpty(),
                 "any line of bob's discharges what alice was owed an answer to, same as pending's own rule");
     }
+
+    @Test
+    @DisplayName("a request before self greeted overtakes the hello: answered, and no greeting after it")
+    void aRequestOvertakesTheGreeting() {
+        Encounters roster = new Encounters();
+        long[] clock = {0L};
+        SpeechEngine alicesEngine = engineFor(alice, roster, clock, CAPS, new Recorder());
+        SpeechEngine bobsEngine = engineFor(bob, roster, clock, CAPS, new Recorder());
+        Encounter e = bobsEngine.join(BeingId.of(alice), Speech.Opening.I_HAILED).orElseThrow();
+        FakeContext ctx = new FakeContext();
+
+        assertFalse(alicesEngine.turn(e).greeted(), "a hail is the opening, not the first message");
+        bobsEngine.say(e, Chooser.Line.of(SpeechActs.ASK_FOOD));
+
+        assertTrue(alicesEngine.turn(e).greeted(), "past the greetings, a hello comes too late");
+        Chooser.Line answer = Choosers.BASIC.choose(ctx, alicesEngine.turn(e));
+        assertEquals(Chooser.Line.of(SpeechActs.CANNOT_SPARE), answer, "the request is answered");
+        alicesEngine.say(e, answer);
+        assertNull(Choosers.BASIC.choose(ctx, alicesEngine.turn(e)), "and no \"Hello\" follows it");
+    }
+
+    @Test
+    @DisplayName("a hail and a greeting with nothing between still get a greeting back")
+    void aPlainGreetingIsGreetedBack() {
+        Encounters roster = new Encounters();
+        long[] clock = {0L};
+        SpeechEngine alicesEngine = engineFor(alice, roster, clock, CAPS, new Recorder());
+        SpeechEngine bobsEngine = engineFor(bob, roster, clock, CAPS, new Recorder());
+        Encounter e = bobsEngine.join(BeingId.of(alice), Speech.Opening.I_HAILED).orElseThrow();
+        bobsEngine.say(e, Chooser.Line.of(SpeechActs.GREETING));
+
+        assertFalse(alicesEngine.turn(e).greeted(), "their greeting does not stand for ours");
+        assertEquals(Chooser.Line.of(SpeechActs.GREETING),
+                Choosers.BASIC.choose(new FakeContext(), alicesEngine.turn(e)));
+    }
 }

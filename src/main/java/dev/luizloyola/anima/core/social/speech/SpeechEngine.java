@@ -202,9 +202,22 @@ public final class SpeechEngine implements Speech {
         return chooser.get();
     }
 
+    /**
+     * Whether self's greeting is behind it: said, or overtaken. Once either side has said anything
+     * past the hail and the greetings, a hello comes too late — answering a request and then saying
+     * "Hello" read backwards (decision: Luiz, 2026-10-03, "after the first message, no hello is
+     * needed anymore").
+     */
     private boolean greeted(Encounter e) {
         for (Utterance u : e.transcript()) {
-            if (!u.system() && self.equals(u.author()) && u.act().equals(SpeechActs.GREETING.key())) {
+            if (u.system()) {
+                continue;
+            }
+            if (u.act().equals(SpeechActs.GREETING.key())) {
+                if (self.equals(u.author())) {
+                    return true;
+                }
+            } else if (!u.act().equals(SpeechActs.HAIL.key())) {
                 return true;
             }
         }
