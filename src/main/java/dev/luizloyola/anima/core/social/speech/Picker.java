@@ -127,11 +127,17 @@ public final class Picker {
                 continue;
             }
             Optional<Utterance> pending = pendingOn(e, other).filter(u -> !isEnding(u));
-            if (pending.isPresent() && now - pending.get().tick() > patienceTicks) {
+            if (pending.isPresent()
+                    && now - pending.get().tick() > patienceFor(pending.get(), patienceTicks)) {
                 return Optional.of(other);
             }
         }
         return Optional.empty();
+    }
+
+    /** How long {@code owed} is waited on, by a body whose patience is {@code patienceTicks}. */
+    public static long patienceFor(Utterance owed, int patienceTicks) {
+        return (long) patienceTicks * SpeechActs.byKey(owed.act()).map(SpeechAct::patience).orElse(1);
     }
 
     /**

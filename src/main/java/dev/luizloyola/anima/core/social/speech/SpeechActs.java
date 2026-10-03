@@ -31,11 +31,12 @@ public final class SpeechActs {
 	/**
 	 * Asking for food — what a wolf begs and a settler asks (2026-10-02-food-and-replies-design.md).
 	 * Obliges; turning it down comes first, so a chooser with no rule of its own ({@link
-	 * Choosers#BASIC}) refuses rather than offering nothing.
+	 * Choosers#BASIC}) refuses rather than offering nothing. Waited on twice a question's patience,
+	 * thirty seconds by default: a player may be filling the give screen (Luiz, 2026-10-03).
 	 */
 	public static final SpeechAct ASK_FOOD = register(new SpeechAct(
 			"ask_food", "anima.speech.ask_food", 2, true, true, false, false,
-			List.of("cannot_spare", "offer", "give")));
+			List.of("cannot_spare", "offer", "give"), List.of(), 2));
 	/** Nothing to spare: the answer to {@link #ASK_FOOD} that gives nothing. */
 	public static final SpeechAct CANNOT_SPARE = register(new SpeechAct(
 			"cannot_spare", "anima.speech.cannot_spare", 2, true, false, false, false, List.of()));

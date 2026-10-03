@@ -3416,7 +3416,8 @@ public final class AgentCommands {
                 + Picker.MAX_CONSECUTIVE).withStyle(ChatFormatting.GRAY)));
         Picker.pendingOn(e, who).ifPresent(owed -> {
             String patience = body == null ? "unloaded — no species to ask for patience"
-                    : "of " + body.profile().i(ProfileAspect.SOCIAL_PATIENCE_TICKS) + " patience";
+                    : "of " + Picker.patienceFor(owed,
+                            body.profile().i(ProfileAspect.SOCIAL_PATIENCE_TICKS)) + " patience";
             Replies.send(source, () -> indent(Component.literal("owes: " + owed.act() + " from "
                     + label(server, owed.author()) + ", " + (now - owed.tick()) + " ticks " + patience)
                     .withStyle(ChatFormatting.YELLOW)));
@@ -3426,7 +3427,8 @@ public final class AgentCommands {
         Optional<AgentId> counterpart = e.other(who);
         counterpart.flatMap(other -> Picker.pendingOn(e, other)).ifPresent(asked -> {
             String patience = body == null ? "unloaded — no species to ask for patience"
-                    : "of " + body.profile().i(ProfileAspect.SOCIAL_PATIENCE_TICKS) + " patience";
+                    : "of " + Picker.patienceFor(asked,
+                            body.profile().i(ProfileAspect.SOCIAL_PATIENCE_TICKS)) + " patience";
             Replies.send(source, () -> indent(Component.literal("awaits: " + asked.act() + " from "
                     + label(server, counterpart.orElseThrow()) + ", " + (now - asked.tick())
                     + " ticks " + patience).withStyle(ChatFormatting.YELLOW)));

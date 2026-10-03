@@ -16,10 +16,13 @@ import java.util.Objects;
  * reply does.
  * {@code topics} is what a topic-bearing act may be ABOUT — the payload keys a speaker with no
  * gauges to read picks from; empty for every act that carries no topic.
+ * {@code patience} is how many of the waiter's {@code social.patience_ticks} an obliging act is
+ * waited on before it is a snub: 1 for a word, more where the answer is a deed — a request for food
+ * may be answered from a give screen the player is still filling (decision: Luiz, 2026-10-03).
  */
 public record SpeechAct(String key, String langKey, int variants, boolean negotiable,
 		boolean obliges, boolean introduces, boolean ends, List<String> responses,
-		List<String> topics) {
+		List<String> topics, int patience) {
 
 	public SpeechAct {
 		Objects.requireNonNull(key, "key");
@@ -29,6 +32,16 @@ public record SpeechAct(String key, String langKey, int variants, boolean negoti
 		if (variants < 1) {
 			throw new IllegalArgumentException(key + " needs at least one line to say");
 		}
+		if (patience < 1) {
+			throw new IllegalArgumentException(key + " must be waited on at least one patience");
+		}
+	}
+
+	/** An act waited on for one patience — every word declared before requests existed. */
+	public SpeechAct(String key, String langKey, int variants, boolean negotiable,
+			boolean obliges, boolean introduces, boolean ends, List<String> responses,
+			List<String> topics) {
+		this(key, langKey, variants, negotiable, obliges, introduces, ends, responses, topics, 1);
 	}
 
 	/** An act about nothing in particular — every word declared before topics existed. */

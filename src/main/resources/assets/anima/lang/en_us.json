@@ -269,7 +269,7 @@
   "anima.config.aspect.social.chat_radius": "Chat range",
   "anima.config.aspect.social.chat_radius.desc": "How far away, in blocks, this body's ordinary conversational voice carries — the range at which a bystander overhears it, and so learns from it. Well inside hail range: chat is for someone already close.",
   "anima.config.aspect.social.patience_ticks": "Patience with a question",
-  "anima.config.aspect.social.patience_ticks.desc": "How long this body waits on an unanswered question before calling it ignored — the snub clock, per exchange, in ticks. 300 ticks is fifteen seconds.",
+  "anima.config.aspect.social.patience_ticks.desc": "How long this body waits on an unanswered question before calling it ignored — the snub clock, per exchange, in ticks. 300 ticks is fifteen seconds. A request for food is waited on twice as long.",
   "anima.config.aspect.social.share_fraction": "Share with a stranger",
   "anima.config.aspect.social.share_fraction.desc": "The most of the food it carries this body gives a stranger who asks — and only from what it carries beyond a full bar of its own. 0.25 is a quarter.",
   "anima.config.aspect.body.height": "Body height",

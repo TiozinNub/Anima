@@ -269,7 +269,7 @@
   "anima.config.aspect.social.chat_radius": "Alcance da conversa",
   "anima.config.aspect.social.chat_radius.desc": "A que distância, em blocos, a voz de conversa comum deste corpo alcança — o raio em que alguém por perto escuta e aprende com ela. Bem dentro do alcance do chamado: conversar é para alguém que já está perto.",
   "anima.config.aspect.social.patience_ticks": "Paciência com uma pergunta",
-  "anima.config.aspect.social.patience_ticks.desc": "Por quanto tempo este corpo espera por uma pergunta sem resposta antes de considerá-la ignorada — o relógio do desprezo, por troca de falas, em tiques. 300 tiques são quinze segundos.",
+  "anima.config.aspect.social.patience_ticks.desc": "Por quanto tempo este corpo espera por uma pergunta sem resposta antes de considerá-la ignorada — o relógio do desprezo, por troca de falas, em tiques. 300 tiques são quinze segundos. Um pedido de comida espera o dobro.",
   "anima.config.aspect.social.share_fraction": "Partilha com um estranho",
   "anima.config.aspect.social.share_fraction.desc": "O máximo da comida que carrega que este corpo dá a um estranho que pede — e só do que carrega além de uma barra cheia para si. 0,25 é um quarto.",
   "anima.config.aspect.body.height": "Altura do corpo",

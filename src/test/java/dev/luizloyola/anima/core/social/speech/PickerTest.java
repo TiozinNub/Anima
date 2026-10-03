@@ -129,6 +129,24 @@ class PickerTest {
     }
 
     @Test
+    @DisplayName("a request for food is waited on twice a question's patience — thirty seconds at 300")
+    void aRequestForFoodIsWaitedOnTwiceAsLong() {
+        Encounter e = fresh();
+        Utterance ask = line(alice, SpeechActs.ASK_FOOD, 1000);
+        e.append(ask);
+
+        assertEquals(Optional.empty(), Picker.expiredObligation(e, alice, ask.tick() + 580, 300),
+                "29 seconds is still within a request's patience");
+        assertEquals(Optional.empty(), Picker.expiredObligation(e, alice, ask.tick() + 600, 300),
+                "patience is inclusive");
+        assertEquals(Optional.of(bob), Picker.expiredObligation(e, alice, ask.tick() + 601, 300),
+                "past 30 seconds the request lapses as a snub");
+        assertEquals(600L, Picker.patienceFor(ask, 300));
+        assertEquals(300L, Picker.patienceFor(line(alice, Q_CONSTRAINED, 0), 300),
+                "a question keeps its own patience");
+    }
+
+    @Test
     @DisplayName("at the turn cap, applicable narrows to only ending the conversation")
     void turnCapNarrowsToEndingActsOnly() {
         Encounter e = fresh();
