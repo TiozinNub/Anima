@@ -264,6 +264,14 @@ public enum Knob implements KnobSpec {
                     + "of the world. Off, an agent away from every player stops until one comes "
                     + "back."),
 
+    // --- spawning: mobs round agents as round players -----------------------------------
+
+    /** @see dev.luizloyola.anima.mod.body.SpawnAnchors */
+    SPAWNING_ANCHOR_BODIES("spawning.anchor_bodies", Kind.BOOL, 1, 0, 1,
+            "Mobs spawn round an agent whose species says so (body.anchors_spawns) as they do round "
+                    + "a player, in the 5x5 chunks it keeps ticking. Off, they spawn only near "
+                    + "players, and an agent away from every player is never attacked."),
+
     // --- webdebug: the browser debug UI, off unless asked for -----------------------------
 
     /** @see dev.luizloyola.anima.mod.webdebug.WebDebugger */

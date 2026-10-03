@@ -100,6 +100,9 @@ class ProfileAspectTest {
             // What the server holds in memory and writes to disk. A species that answered would be
             // answering for the operator's RAM and save size.
             Knob.TICKETS_ENABLED,
+            // Whether the world spawns round agents at all: the operator's difficulty. Which
+            // agents is the species' answer, body.anchors_spawns.
+            Knob.SPAWNING_ANCHOR_BODIES,
             // A socket, a port and a URL. Nothing about a mind at all: the dashboard watches every
             // species at once and there is one of it per server, so a species answering for any of
             // these would be answering for what everybody else's debugging looks like.
