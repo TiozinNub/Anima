@@ -10,6 +10,7 @@ import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.nav.NavGrids;
 import dev.luizloyola.anima.core.nav.Surface;
+import dev.luizloyola.anima.core.store.Depot;
 import java.util.List;
 import java.util.Optional;
 import java.util.random.RandomGenerator;
@@ -99,14 +100,15 @@ public final class WanderStep implements CompoundTask {
             // is one continuous sequence per body and its draw order is part of this class's
             // contract. Crowding overrides the ANSWER, never the roll.
             boolean rolled = random.nextDouble() < WALK_CHANCE;
-            boolean walks = rolled || Comfort.crowded(here, beings);
+            Pos home = awayFromHome(ctx, here);
+            boolean walks = rolled || Comfort.crowded(here, beings) || home != null;
             int pause = IDLE_MIN + random.nextInt(IDLE_RANGE);
             if (!walks) {
                 return List.of(new Idle(pause));
             }
             DangerField field = DangerField.of(ctx.danger(), beings,
                     ctx.knowledge(), ctx.percepts().time(), DangerField.FADE_TICKS);
-            Pos target = roll(here, beings, field, ctx, random);
+            Pos target = roll(here, home, beings, field, ctx, random);
             if (target == null) {
                 // The pause was drawn before the target, so nothing is wasted and the stream stays
                 // aligned with a beat that did walk. Standing about IS the answer here: being
@@ -138,7 +140,7 @@ public final class WanderStep implements CompoundTask {
          * <p>The leg it picks is never re-aimed — a beat is five to fifteen seconds, and biasing
          * the next roll converges just as fast and cannot thrash.
          */
-        private @Nullable Pos roll(Pos here, List<Being> beings, DangerField field,
+        private @Nullable Pos roll(Pos here, @Nullable Pos home, List<Being> beings, DangerField field,
                 BrainContext ctx, RandomGenerator random) {
             NavGrid terrain = ctx.percepts().terrain();
             MoveCapabilities body = MoveCapabilities.of(ctx.profile());
@@ -168,6 +170,15 @@ public final class WanderStep implements CompoundTask {
                     dx = random.nextInt(2 * radius + 1) - radius;
                     dz = random.nextInt(2 * radius + 1) - radius;
                 } while (dx == 0 && dz == 0);
+                if (home != null) {
+                    // The same draw, turned homeward on each axis that is not level with home yet:
+                    // the stream keeps its order, and a level axis still steps either way, round
+                    // whatever stands on the straight line in (forest flight, 2026-10-03).
+                    int sx = Integer.signum(home.x() - here.x());
+                    int sz = Integer.signum(home.z() - here.z());
+                    dx = sx == 0 ? dx : Math.abs(dx) * sx;
+                    dz = sz == 0 ? dz : Math.abs(dz) * sz;
+                }
                 Optional<Pos> footing = Standing.spot(terrain, body,
                         here.x() + dx, here.z() + dz, here.y(), reach);
                 if (footing.isEmpty()) {
@@ -206,6 +217,16 @@ public final class WanderStep implements CompoundTask {
         public String describe() {
             return "roam";
         }
+    }
+
+    /**
+     * Where an idle body outside its site's area heads back to, or null inside it or with no site.
+     * Rolled round its own feet alone, a wander is a random walk with no bound: a settler with
+     * nothing to do drifted 330 blocks from home in eleven minutes and could not reach its food
+     * (forest, 2026-10-03). Inside the area it roams as before.
+     */
+    private static @Nullable Pos awayFromHome(BrainContext ctx, Pos here) {
+        return ctx.depot().filter(site -> !site.holds(here)).map(Depot.Site::hint).orElse(null);
     }
 
     /** The roam radius this step was built with — the whole of what it is. */

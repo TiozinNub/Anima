@@ -15,9 +15,13 @@ import dev.luizloyola.anima.core.nav.MoveCapabilities;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import dev.luizloyola.anima.core.nav.NavGrids;
 import dev.luizloyola.anima.core.nav.Surface;
+import dev.luizloyola.anima.core.store.Depot;
+import dev.luizloyola.anima.core.territory.ChunkKey;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.Test;
 
@@ -471,6 +475,61 @@ class WanderStepTest {
                 "it kept " + beat.target() + ", which is not one of the four it drew: " + drawn);
         assertEquals(mirror.nextLong(), stream.nextLong(),
                 "a wary beat on good ground draws four candidates and stops");
+    }
+
+    /** A site of one chunk round (0, 0) with its hint at (8, 64, 8). */
+    private static Optional<Depot.Site> homeAtOrigin() {
+        return Optional.of(new Depot.Site(new Pos(8, 64, 8), Set.of(ChunkKey.at(ChunkKey.OVERWORLD, 8, 8))));
+    }
+
+    /**
+     * Clara, idle with nothing to do, drifted 330 blocks from home a random step at a time and could
+     * not reach her food (forest, 2026-10-03). Outside the site every beat walks, and never away.
+     */
+    @Test
+    void anIdleBodyOutsideItsSiteAlwaysWalksHomeward() {
+        RandomGenerator random = new Random(1234);
+        for (int i = 0; i < 100; i++) {
+            FakeContext ctx = new FakeContext();
+            ctx.percepts.position = new Pos(200, 64, -150);
+            ctx.depot = homeAtOrigin();
+            Beat beat = runBeat(random, ctx);
+            assertTrue(beat.walked(), "beat " + i + " stood about far from home");
+            assertTrue(beat.target().x() <= 200 && beat.target().z() >= -150,
+                    "beat " + i + " went to " + beat.target() + ", away from home");
+            assertFalse(beat.target().x() == 200 && beat.target().z() == -150);
+        }
+    }
+
+    /** Level with home on one axis, a beat still steps either way along it, round what is in the way. */
+    @Test
+    void anAxisLevelWithHomeStillStepsEitherWay() {
+        RandomGenerator random = new Random(1234);
+        boolean north = false;
+        boolean south = false;
+        for (int i = 0; i < 100; i++) {
+            FakeContext ctx = new FakeContext();
+            ctx.percepts.position = new Pos(200, 64, 8);
+            ctx.depot = homeAtOrigin();
+            Beat beat = runBeat(random, ctx);
+            assertTrue(beat.target().x() <= 200, "beat " + i + " went away from home");
+            north |= beat.target().z() < 8;
+            south |= beat.target().z() > 8;
+        }
+        assertTrue(north && south, "a level axis kept to one line");
+    }
+
+    @Test
+    void insideItsSiteAWanderIsTheSameStream() {
+        RandomGenerator plain = new Random(4096);
+        RandomGenerator homed = new Random(4096);
+        for (int i = 0; i < 50; i++) {
+            Beat expected = runBeat(plain, new Pos(8, 64, 8));
+            FakeContext ctx = new FakeContext();
+            ctx.percepts.position = new Pos(8, 64, 8);
+            ctx.depot = homeAtOrigin();
+            assertEquals(expected, runBeat(homed, ctx), "beat " + i);
+        }
     }
 
     @Test
