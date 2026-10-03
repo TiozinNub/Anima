@@ -26,6 +26,11 @@ on:
   schedule:
     - cron: '7 4 * * *'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Minecraft version for the snapshot job; empty is what snapshot.version names'
+        required: false
+        default: ''
 
 # Step names carry no `${{ matrix.version }}`: Gitea's runner does not evaluate expressions in a
 # step's `name:` (GitHub does), so it renders the template at the reader. The matrix job header
@@ -178,3 +183,133 @@ jobs:
         run: ./gradlew ":${{ matrix.version }}:publishMods" --no-daemon
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+
+  # The snapshot node: the library against a Minecraft version that is not a target yet, so "does
+  # this run on the next Minecraft" is answered while the answer is still cheap. It runs when this
+  # commit carries `snapshot.version`, which the workspace's hourly watch commits to main when
+  # Mojang ships a build and removes once that line is a target; without the file it does nothing.
+  #
+  # Lagging is allowed as for any non-primary node, strict on the nightly. Never on a tag: nothing
+  # here reaches Modrinth, and a release must not wait on Mojang's week.
+  snapshot:
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: ${{ github.event_name != 'schedule' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 25 alone: every 26.x runs on it, and scripts/snapshot.sh refuses a build that does not,
+      # naming the places to teach when Mojang moves.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: Point Gradle at the installed JDK
+        run: |
+          mkdir -p ~/.gradle
+          echo 'org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64' > ~/.gradle/gradle.properties
+
+      # A dispatch's `version` wins over the file, which is how a version is tried by hand. The
+      # verdict is snapshot.sh's exit code: 0 a node to try, 3 nothing newer than the targets, 4 a
+      # build the ecosystem has not caught up with. Only another code is this step failing.
+      - name: Resolve the build to try
+        id: pick
+        run: |
+          want="${{ github.event.inputs.version }}"
+          if [[ -z "$want" && -f snapshot.version ]]; then want=$(tr -d '[:space:]' < snapshot.version); fi
+          if [[ -z "$want" ]]; then
+            echo "no snapshot.version on this commit: nothing to try"
+            echo "state=none" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          set +e
+          scripts/snapshot.sh "$want"
+          rc=$?
+          set -e
+          case $rc in
+            0) echo "state=ready" >> "$GITHUB_OUTPUT" ;;
+            3) echo "state=nothing" >> "$GITHUB_OUTPUT" ;;
+            4) echo "state=waiting" >> "$GITHUB_OUTPUT" ;;
+            *) exit $rc ;;
+          esac
+
+      - name: Cache the Gradle and Loom caches
+        if: steps.pick.outputs.state == 'ready'
+        uses: actions/cache@v3
+        continue-on-error: true
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/fabric-loom
+            ~/.gradle/wrapper
+            ~/.gradle/jdks
+          key: gradle-snapshot-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties', 'versions/snapshot/stonecutter.properties.toml') }}
+          restore-keys: gradle-snapshot-
+
+      - name: Unit-test
+        if: steps.pick.outputs.state == 'ready'
+        run: ./gradlew :snapshot:test --no-daemon
+
+      - name: Build
+        if: steps.pick.outputs.state == 'ready'
+        run: ./gradlew :snapshot:build --no-daemon
+
+      - name: Stage the jar for the smoke test
+        if: steps.pick.outputs.state == 'ready'
+        run: ./gradlew :snapshot:smokeMods --no-daemon
+
+      - name: Boot it and read the library back
+        if: steps.pick.outputs.state == 'ready'
+        run: scripts/smoke.sh snapshot
+        env:
+          SMOKE_EULA: 'true'
+          READY_TIMEOUT: '900'
+
+      - name: Upload the test reports
+        if: failure() && steps.pick.outputs.state == 'ready'
+        uses: actions/upload-artifact@v3
+        with:
+          name: anima-test-reports-snapshot-${{ steps.pick.outputs.minecraft }}
+          path: versions/snapshot/build/reports/tests/
+          retention-days: 14
+
+      # `dev.luizloyola:anima-<mc>`, so Autarkia's snapshot job has a library to build against. A
+      # dispatch publishes too: it is how a red build is retried, and Autarkia waits on it.
+      - name: Publish to the Gitea maven
+        if: >-
+          steps.pick.outputs.state == 'ready'
+          && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        run: ./gradlew :snapshot:publishModPublicationToGiteaRepository --no-daemon
+        env:
+          GITEA_USER: ${{ github.repository_owner }}
+          GITEA_TOKEN: ${{ secrets.CI_TOKEN }}
+
+      # The registry is a working surface, not an archive: a prerelease Anima is wanted only while
+      # it is the newest, so every OTHER prerelease package goes. Releases are never touched, and
+      # a prune that fails is a package that lingers, not a red run. Autarkia's main still names
+      # the previous build until the watch's next run, so its snapshot job is red for that hour.
+      - name: Prune older prerelease packages
+        if: >-
+          steps.pick.outputs.state == 'ready'
+          && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          CI_TOKEN: ${{ secrets.CI_TOKEN }}
+          PKG_API: ${{ github.server_url }}/api/v1/packages/${{ github.repository_owner }}
+        run: |
+          mine="dev.luizloyola:anima-${{ steps.pick.outputs.minecraft }}"
+          curl -fsS -H "Authorization: token $CI_TOKEN" "$PKG_API?type=maven&limit=100" \
+          | python3 -c '
+          import json, re, sys, urllib.parse
+          mine = sys.argv[1]
+          for p in json.load(sys.stdin):
+              if re.search(r"-(snapshot|pre|rc)-\d+$", p["name"]) and p["name"] != mine:
+                  print(urllib.parse.quote(p["name"], safe=""), p["version"])' "$mine" \
+          | while read -r name ver; do
+              curl -sS -o /dev/null -w "pruned $name $ver -> %{http_code}\n" -X DELETE \
+                -H "Authorization: token $CI_TOKEN" "$PKG_API/maven/$name/$ver" || true
+            done
