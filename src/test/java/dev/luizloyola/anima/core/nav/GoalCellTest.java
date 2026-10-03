@@ -38,28 +38,35 @@ class GoalCellTest {
         assertEquals(5, groundY(AsciiWorld.of("5"), 4));
     }
 
+    /** The head cell of a body standing on the floor: that body is there. */
     @Test
-    void aGoalInTheAirFallsToTheFloorAWillingDropUnder() {
-        assertEquals(3, groundY(AsciiWorld.of("3"), 3 + BODY.maxDrop()));
+    void aGoalOneUpFallsToTheFloor() {
+        assertEquals(3, groundY(AsciiWorld.of("3"), 4));
     }
 
     /**
-     * run/normal, 2026-10-02: a chest's stand named eight above a pit floor. Walked to the floor, the
-     * legs called it arriving, and every walk after that "arrived" without a step, 2,129 times a
-     * minute, the chest out of reach overhead.
+     * Two up is over the head of a body on the floor: not where it stands (Luiz, 2026-10-02). On
+     * run/normal a chest's stand named eight above a pit floor was walked to the floor, the legs
+     * called it arriving, and every walk after that "arrived" without a step, 2,129 times a minute.
      */
     @Test
-    void aGoalHigherInTheAirThanAWillingDropIsLeftWhereItWasNamed() {
-        assertEquals(4 + BODY.maxDrop(), groundY(AsciiWorld.of("3"), 4 + BODY.maxDrop()));
+    void aGoalTwoUpOrMoreIsLeftWhereItWasNamed() {
+        assertEquals(5, groundY(AsciiWorld.of("3"), 5));
         assertEquals(9, groundY(AsciiWorld.of("1"), 9));
     }
 
-    /** The body's own head cell, whatever its willing drop: a body standing under it is there. */
     @Test
-    void aGoalOneUpFallsEvenForABodyThatWillNotDrop() {
-        MoveCapabilities timid = new MoveCapabilities(1.8, 1, 0, 0, false, 0, false, false);
-        assertEquals(3, GoalCell.groundY(AsciiWorld.of("3"), 0, 4, 0, timid));
-        assertEquals(5, GoalCell.groundY(AsciiWorld.of("3"), 0, 5, 0, timid));
+    void aSwimmerFloatsUnderAGoalOneAboveTheWaterButNotTwo() {
+        assertEquals(0, groundY(AsciiWorld.of("W"), 1));
+        assertEquals(2, groundY(AsciiWorld.of("W"), 2));
+    }
+
+    /** The loose reading, for a caller that names a point rather than a stand: the floor under it. */
+    @Test
+    void theFloorUnderAGoalHighInTheAir() {
+        assertEquals(1, GoalCell.floorY(AsciiWorld.of("1"), 0, 9, 0, BODY));
+        assertEquals(0, GoalCell.floorY(AsciiWorld.of("W"), 0, 6, 0, BODY));
+        assertEquals(5, GoalCell.floorY(AsciiWorld.of("5"), 0, 4, 0, BODY), "climbs out as groundY does");
     }
 
     /**
@@ -94,7 +101,7 @@ class GoalCellTest {
 
     @Test
     void aSwimmerFloatsAtTheSurfaceOfOpenWater() {
-        assertEquals(0, groundY(AsciiWorld.of("W"), 3));
+        assertEquals(0, groundY(AsciiWorld.of("W"), 0));
     }
 
     /** Nobody can stand on a rung: a goal named on a ladder ends on the floor it stands on. */

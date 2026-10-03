@@ -5,11 +5,10 @@ package dev.luizloyola.anima.core.nav;
  * reached without passing through anything solid.
  *
  * <p>A goal named inside a block — a click lands on a face, a height read names the top block —
- * climbs out to the cell above; an open goal falls through air to the first floor, but no further
- * than the body would willingly drop. Neither crosses solid ground. The scan this replaced went
- * down through anything that was not an obstacle, and a walk to the foot of a tree whose head cell
- * was leaves ended in a cave seven blocks under it, which the legs called arriving (2026-09-10,
- * reproduced 2026-09-25).
+ * climbs out to the cell above; an open goal falls through air to the floor under it, one cell at
+ * most. Neither crosses solid ground. The scan this replaced went down through anything that was
+ * not an obstacle, and a walk to the foot of a tree whose head cell was leaves ended in a cave seven
+ * blocks under it, which the legs called arriving (2026-09-10, reproduced 2026-09-25).
  */
 public final class GoalCell {
 
@@ -30,14 +29,13 @@ public final class GoalCell {
      * nothing standable is in reach — the search then gets as near as it can, which is the honest
      * answer for a goal a body cannot stand in.
      *
-     * <p>Through open air the goal falls at most the body's willing drop (never less than one: the
-     * head cell of a body standing under it). Further up it is a cell in the air, not a place: a
-     * stand eight above a pit floor "arrived" on the floor, out of the placer's reach, and was
-     * walked to again every 13 ticks (run/normal, 2026-10-02). A caller that means "the floor under
-     * there" asks {@link #floorY}.
+     * <p>Through open air the goal falls at most one cell: the head cell of a body standing under it
+     * (Luiz, 2026-10-02). Further up it is a cell in the air, not a place: a stand eight above a pit
+     * floor "arrived" on the floor, out of the placer's reach, and was walked to again every 13 ticks
+     * (run/normal, 2026-10-02). A caller that means "the floor under there" asks {@link #floorY}.
      */
     public static int groundY(NavGrid grid, int x, int y, int z, MoveCapabilities body) {
-        return lower(grid, x, y, z, body, Math.max(1, body.maxDrop()));
+        return lower(grid, x, y, z, body, 1);
     }
 
     /**
@@ -66,7 +64,7 @@ public final class GoalCell {
             CellType here = grid.cell(x, down, z);
             if (body.canSwim() && here == CellType.WATER
                     && grid.cell(x, down + 1, z) == CellType.PASSABLE) {
-                return down; // the water surface — a swimmer floats here
+                return fallen <= fall ? down : y; // the water surface — a swimmer floats here
             }
             // A climbable is air to this scan: a goal named on a ladder or in vines ends on the
             // floor under it, since nobody can stand on the rung itself.
