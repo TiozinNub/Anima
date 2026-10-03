@@ -25,7 +25,9 @@
     "RangedBowAttackGoalAccessor",
     "SavedDataStorageAccessor",
     "ServerChunkCacheSpawnCountMixin",
-    "ServerLevelGameEventMixin"
+    "ServerLevelGameEventMixin",
+    "SpawnStateGlobalCapMixin",
+    "SpawnStateInvoker"
   ],
   "injectors": {
     "defaultRequire": 1

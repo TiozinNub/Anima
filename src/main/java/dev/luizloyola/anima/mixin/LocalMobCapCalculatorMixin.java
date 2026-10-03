@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.mixin;
 
 import dev.luizloyola.anima.core.spawn.Anchors;
+import dev.luizloyola.anima.mod.body.BodyGrant;
 import dev.luizloyola.anima.mod.body.SpawnAnchors;
 import net.minecraft.server.level.ChunkMap;
 import net.minecraft.world.entity.MobCategory;
@@ -21,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * under its cap. Vanilla builds a calculator per tick, so the counts here last a tick too.
  */
 @Mixin(LocalMobCapCalculator.class)
-abstract class LocalMobCapCalculatorMixin {
+abstract class LocalMobCapCalculatorMixin implements BodyGrant {
 
     @Shadow
     @Final
@@ -32,6 +33,14 @@ abstract class LocalMobCapCalculatorMixin {
 
     @Unique
     private int[][] anima$counts;
+
+    @Unique
+    private boolean anima$byBody;
+
+    @Override
+    public boolean anima$byBody() {
+        return anima$byBody;
+    }
 
     @Unique
     private Anchors anima$anchors() {
@@ -51,6 +60,7 @@ abstract class LocalMobCapCalculatorMixin {
     @Inject(method = "canSpawn", at = @At("RETURN"), cancellable = true)
     private void anima$bodyUnderCap(MobCategory category, ChunkPos pos,
             CallbackInfoReturnable<Boolean> cir) {
+        anima$byBody = false;
         if (cir.getReturnValueZ()) {
             return;
         }
@@ -61,6 +71,7 @@ abstract class LocalMobCapCalculatorMixin {
             }
         });
         if (under[0]) {
+            anima$byBody = true;
             cir.setReturnValue(true);
         }
     }
