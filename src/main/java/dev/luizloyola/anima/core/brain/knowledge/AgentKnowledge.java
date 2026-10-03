@@ -255,7 +255,7 @@ public final class AgentKnowledge {
 
     /**
      * An avoid-mark: avoided until {@code until}, for the {@code strikes}-th give-up in a row, which
-     * earned it {@code length} ticks.
+     * earned it {@code length} ticks. No strikes is a {@linkplain #rest rest}.
      */
     public record Avoid(long until, int strikes, long length) {
     }
@@ -263,6 +263,14 @@ public final class AgentKnowledge {
     /** Marks an anchor as not-worth-retrying until the given game time. */
     public void avoid(PoiKind kind, Pos anchor, long untilTick) {
         marks(kind).put(anchor, new Avoid(untilTick, 1, 0));
+    }
+
+    /**
+     * Leaves an anchor alone until the given game time without having given up on it — a mark of
+     * no strikes, which a consumer may look past when it can see the place is still worth it.
+     */
+    public void rest(PoiKind kind, Pos anchor, long untilTick) {
+        marks(kind).put(anchor, new Avoid(untilTick, 0, 0));
     }
 
     /**

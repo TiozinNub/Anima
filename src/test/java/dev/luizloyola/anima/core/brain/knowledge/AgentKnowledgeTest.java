@@ -57,6 +57,19 @@ class AgentKnowledgeTest {
     }
 
     @Test
+    void aRestIsAvoidedWithoutAGiveUpAndAGiveUpOverridesIt() {
+        AgentKnowledge knowledge = new AgentKnowledge();
+        Pos at = new Pos(220, 64, 0);
+
+        knowledge.rest(TestPois.TREE, at, 1_200);
+        assertTrue(knowledge.isAvoided(TestPois.TREE, at, 1_199));
+        assertEquals(0, knowledge.avoids(TestPois.TREE).get(at).strikes(), "rested, not given up on");
+
+        knowledge.avoid(TestPois.TREE, at, 24_000);
+        assertEquals(1, knowledge.avoids(TestPois.TREE).get(at).strikes());
+    }
+
+    @Test
     void aStrikeLongLapsedStartsOverAtTheFirst() {
         AgentKnowledge knowledge = new AgentKnowledge();
         Pos at = new Pos(563, 69, -536);
