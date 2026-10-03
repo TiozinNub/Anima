@@ -63,6 +63,45 @@ class ExecutorContinuityTest {
         return ctx;
     }
 
+    /** What a priced-out failure could not afford is still there to report after a restart. */
+    @Test
+    void theUnaffordableObtainSurvivesTheFile() {
+        dev.luizloyola.anima.core.inv.ItemSpec stone = dev.luizloyola.anima.core.inv.ItemSpec.register(
+                new dev.luizloyola.anima.core.inv.ItemSpec("continuity-test-far-stone", id -> id.equals("test:stone")));
+        dev.luizloyola.anima.core.brain.task.Producers.register(stone, id -> true, wanted -> new dev.luizloyola.anima
+                .core.brain.task.Method() {
+            @Override
+            public boolean applicable(dev.luizloyola.anima.core.brain.BrainContext c) {
+                return true;
+            }
+
+            @Override
+            public double estimateCost(dev.luizloyola.anima.core.brain.BrainContext c) {
+                return 1000;
+            }
+
+            @Override
+            public List<Task> decompose(dev.luizloyola.anima.core.brain.BrainContext c) {
+                return List.of();
+            }
+
+            @Override
+            public String describe() {
+                return "far off";
+            }
+        });
+        try {
+            FakeContext ctx = new FakeContext();
+            ctx.costTolerance = 150;
+            TaskExecutor live = running(new dev.luizloyola.anima.core.brain.task.ObtainItem(
+                    stone, 3, java.util.Set.of("minecraft:stone_axe")), ctx, 3);
+            assertTrue(live.unaffordable().isPresent(), "the obtain was priced out");
+            assertEquals(List.of(), lost(live));
+        } finally {
+            dev.luizloyola.anima.core.brain.task.Producers.reset();
+        }
+    }
+
     @Test
     void twoFramesDeepComesBackAsOneTree() {
         FakeContext ctx = carryingABench();

@@ -28,6 +28,15 @@ public interface WorkItem {
         return 0.0;
     }
 
+    /**
+     * How many walk-blocks this item may spend, in place of the budget its priority and price-outs
+     * earn ({@link dev.luizloyola.anima.core.brain.WorkToleranceCurve}) — for work that exists to
+     * go further than that. Empty by default.
+     */
+    default java.util.OptionalDouble tolerance() {
+        return java.util.OptionalDouble.empty();
+    }
+
     /** A FRESH task tree that pursues this item — called anew on every grant and resume. */
     Task root();
 

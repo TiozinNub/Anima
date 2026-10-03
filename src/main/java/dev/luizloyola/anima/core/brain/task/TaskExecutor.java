@@ -105,6 +105,13 @@ public final class TaskExecutor {
     private String failureReason;
 
     /**
+     * The obtain every way of which was priced out, when {@link #failureReason} says so of one: the
+     * item, not the errand, is what a board can send somebody further for, and what it is
+     * {@linkplain ObtainItem#pursued() for} is what lets them seek it.
+     */
+    private ObtainItem unaffordable;
+
+    /**
      * Install a tree as the one being executed, preempting (cancelling) any incumbent first.
      * Does not tick the newcomer — the next {@link #tick} does, so a tree's first expansion and
      * first primitive decision always happen at the normal point in the tick order.
@@ -113,6 +120,7 @@ public final class TaskExecutor {
         releaseAndClear(ctx);
         root = task;
         failureReason = null;
+        unaffordable = null;
     }
 
     /**
@@ -206,6 +214,11 @@ public final class TaskExecutor {
     }
 
     private static final String PRICED_OUT = " priced out at tolerance ";
+
+    /** The obtain the last failure could not afford, when that is what it failed on. */
+    public Optional<ObtainItem> unaffordable() {
+        return failedOnPrice() ? Optional.ofNullable(unaffordable) : Optional.empty();
+    }
 
     /**
      * The debug readout: while busy, the expansion path — each frame's compound and chosen method,
@@ -399,7 +412,7 @@ public final class TaskExecutor {
             }
             Frame frame = new Frame(compound);
             if (!chooseRound(frame, ctx)) {
-                noteExhausted(noWay(frame, ctx));
+                noteExhausted(frame, ctx);
                 failCurrent(ctx); // no applicable method at all
                 continue;
             }
@@ -500,10 +513,11 @@ public final class TaskExecutor {
                 // live-caught reporting "obtain logs x10000 -> FAILED — gather logs failed" after
                 // 1554 logs, naming a hiccup from its first round.
                 failureReason = null;
+                unaffordable = null;
                 if (chooseRound(top, ctx)) {
                     return;
                 }
-                noteExhausted(noWay(top, ctx));
+                noteExhausted(top, ctx);
                 stack.remove(stack.size() - 1);
                 failCurrent(ctx); // nothing applicable or affordable is left -> the goal is out of reach
                 return;
@@ -600,6 +614,7 @@ public final class TaskExecutor {
      */
     private void absorbed(BrainContext ctx) {
         failureReason = null;
+        unaffordable = null;
         succeedCurrent(ctx);
     }
 
@@ -609,6 +624,7 @@ public final class TaskExecutor {
         lastStatus = status;
         if (status == TaskStatus.SUCCESS) {
             failureReason = null;
+            unaffordable = null;
         }
         root = null;
         stack.clear();
@@ -628,8 +644,9 @@ public final class TaskExecutor {
      * applicability or price never surfaces — {@code obtain logs x10000} died at 1554 and again at
      * 1920 logs, both times naming a failed pickup.
      */
-    private void noteExhausted(String reason) {
-        failureReason = reason;
+    private void noteExhausted(Frame frame, BrainContext ctx) {
+        failureReason = noWay(frame, ctx);
+        unaffordable = frame.pricedOut > 0 && frame.compound instanceof ObtainItem obtain ? obtain : null;
     }
 
     /** The no-method message, split by cause: nothing applicable vs everything unaffordable. */
@@ -678,7 +695,13 @@ public final class TaskExecutor {
 
     /** Everything the executor is in the middle of. Empty root means idle. */
     public record State(@Nullable Task root, List<FrameState> frames, @Nullable String lastDescription,
-                        @Nullable TaskStatus lastStatus, @Nullable String failureReason) {
+                        @Nullable TaskStatus lastStatus, @Nullable String failureReason,
+                        @Nullable ObtainItem unaffordable) {
+        /** A state saved before the unaffordable obtain was. */
+        public State(@Nullable Task root, List<FrameState> frames, @Nullable String lastDescription,
+                     @Nullable TaskStatus lastStatus, @Nullable String failureReason) {
+            this(root, frames, lastDescription, lastStatus, failureReason, null);
+        }
     }
 
     /** What this executor would need to be built again exactly as it stands. */
@@ -693,7 +716,7 @@ public final class TaskExecutor {
                     List.copyOf(frame.subtasks == null ? List.of() : frame.subtasks),
                     frame.index, frame.rounds, frame.lastProgress, frame.pricedOut, frame.acted));
         }
-        return new State(root, saved, lastDescription, lastStatus, failureReason);
+        return new State(root, saved, lastDescription, lastStatus, failureReason, unaffordable);
     }
 
     /**
@@ -715,6 +738,7 @@ public final class TaskExecutor {
         this.lastDescription = state.lastDescription();
         this.lastStatus = state.lastStatus();
         this.failureReason = state.failureReason();
+        this.unaffordable = state.unaffordable();
         Task node = this.root;
         for (FrameState saved : state.frames()) {
             CompoundTask compound = node instanceof CompoundTask onPath ? onPath : saved.compound();

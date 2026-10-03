@@ -14,6 +14,7 @@ import dev.luizloyola.anima.core.brain.history.Doings;
 import dev.luizloyola.anima.core.brain.history.History;
 import dev.luizloyola.anima.core.brain.history.Slot;
 import dev.luizloyola.anima.core.brain.task.CompoundTask;
+import dev.luizloyola.anima.core.brain.task.ObtainItem;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.TaskExecutor;
 import dev.luizloyola.anima.core.brain.task.TaskStatus;
@@ -257,10 +258,13 @@ public final class BrainState {
                 STATUS.optionalFieldOf("status").forGetter(
                         state -> Optional.ofNullable(state.lastStatus())),
                 Codec.STRING.optionalFieldOf("why").forGetter(
-                        state -> Optional.ofNullable(state.failureReason()))
-        ).apply(s, (root, frames, describe, status, why) -> new TaskExecutor.State(
+                        state -> Optional.ofNullable(state.failureReason())),
+                task.optionalFieldOf("unaffordable").forGetter(
+                        state -> Optional.<Task>ofNullable(state.unaffordable()))
+        ).apply(s, (root, frames, describe, status, why, unaffordable) -> new TaskExecutor.State(
                 root.orElse(null), frames, describe.orElse(null), status.orElse(null),
-                why.orElse(null))));
+                why.orElse(null), unaffordable.filter(ObtainItem.class::isInstance)
+                        .map(ObtainItem.class::cast).orElse(null))));
     }
 
     private static final Codec<Arbiter.Grant> GRANT = RecordCodecBuilder.create(g -> g.group(

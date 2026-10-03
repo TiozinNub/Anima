@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.brain.board;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
+import dev.luizloyola.anima.core.brain.task.ObtainItem;
 import dev.luizloyola.anima.core.inv.ItemCall;
 import java.util.List;
 import java.util.Optional;
@@ -62,6 +63,15 @@ public interface WorkSource {
      * {@link #failed}. A board that remembers it grows the item's budget ({@link #budgetSteps}).
      */
     default void pricedOut(WorkItem item, BrainContext ctx) {
+    }
+
+    /**
+     * The item failed priced out of {@code wanted} at {@code tolerance} walk-blocks; at
+     * {@link dev.luizloyola.anima.core.brain.WorkToleranceCurve#CAP} no wait will make it
+     * affordable. Called before {@link #pricedOut}, and never for an item that carries its own
+     * {@link WorkItem#tolerance()}. A board that can send somebody further answers here.
+     */
+    default void pricedOutOf(WorkItem item, ObtainItem wanted, double tolerance, BrainContext ctx) {
     }
 
     /** How many {@link dev.luizloyola.anima.core.brain.WorkToleranceCurve#STEP}s of budget the item has earned. */

@@ -7,6 +7,7 @@ import dev.luizloyola.anima.core.inv.Kit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import org.jspecify.annotations.Nullable;
@@ -84,6 +85,25 @@ public final class Producers {
             }
         }
         return false;
+    }
+
+    /**
+     * The registered spec whose ways would make {@code wanted}: itself when registered, else the
+     * first by name that makes one of its literal ids. Two asks for the same stone by different
+     * recipes name one source, so a board can tell they would be met by one trip.
+     */
+    public static Optional<ItemSpec> sourceOf(ItemSpec wanted) {
+        if (REGISTERED.containsKey(wanted)) {
+            return Optional.of(wanted);
+        }
+        java.util.Set<String> ids = ItemSpec.literalIds(wanted).orElse(java.util.Set.of());
+        java.util.TreeMap<String, ItemSpec> making = new java.util.TreeMap<>();
+        for (Map.Entry<ItemSpec, List<Registration>> entry : REGISTERED.entrySet()) {
+            if (entry.getValue().stream().anyMatch(way -> ids.stream().anyMatch(way.yields()))) {
+                making.put(entry.getKey().name(), entry.getKey());
+            }
+        }
+        return making.isEmpty() ? Optional.empty() : Optional.of(making.firstEntry().getValue());
     }
 
     /** Fresh producer methods for {@code spec}, in registration order; empty when nobody knows. */
