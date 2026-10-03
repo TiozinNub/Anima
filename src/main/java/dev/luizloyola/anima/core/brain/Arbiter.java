@@ -407,6 +407,10 @@ public final class Arbiter {
                 if (executor.lastStatus().orElse(null) == TaskStatus.FAILED) {
                     ctx.journal().record(Category.PROJECT, claimedItem.describe(), "failed"
                             + executor.failureReason().map(r -> " — " + r).orElse(""));
+                    if (claimedItem.tolerance().isEmpty()) {
+                        WorkItem lost = claimedItem;
+                        executor.unobtainable().ifPresent(wanted -> work.noWayTo(lost, wanted, ctx));
+                    }
                     if (executor.failedOnPrice()) {
                         if (claimedItem.tolerance().isEmpty()) {
                             WorkItem item = claimedItem;

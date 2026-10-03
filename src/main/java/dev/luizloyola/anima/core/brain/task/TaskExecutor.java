@@ -105,11 +105,11 @@ public final class TaskExecutor {
     private String failureReason;
 
     /**
-     * The obtain every way of which was priced out, when {@link #failureReason} says so of one: the
-     * item, not the errand, is what a board can send somebody further for, and what it is
+     * The obtain whose ways ran out, when {@link #failureReason} is its: the item, not the errand,
+     * is what a board can send somebody further for — or out to look for — and what it is
      * {@linkplain ObtainItem#pursued() for} is what lets them seek it.
      */
-    private ObtainItem unaffordable;
+    private ObtainItem exhausted;
 
     /**
      * Install a tree as the one being executed, preempting (cancelling) any incumbent first.
@@ -120,7 +120,7 @@ public final class TaskExecutor {
         releaseAndClear(ctx);
         root = task;
         failureReason = null;
-        unaffordable = null;
+        exhausted = null;
     }
 
     /**
@@ -217,7 +217,12 @@ public final class TaskExecutor {
 
     /** The obtain the last failure could not afford, when that is what it failed on. */
     public Optional<ObtainItem> unaffordable() {
-        return failedOnPrice() ? Optional.ofNullable(unaffordable) : Optional.empty();
+        return failedOnPrice() ? Optional.ofNullable(exhausted) : Optional.empty();
+    }
+
+    /** The obtain the last failure had no way at all to, priced or not, when that is what it failed on. */
+    public Optional<ObtainItem> unobtainable() {
+        return failedOnPrice() || lastStatus != TaskStatus.FAILED ? Optional.empty() : Optional.ofNullable(exhausted);
     }
 
     /**
@@ -513,7 +518,7 @@ public final class TaskExecutor {
                 // live-caught reporting "obtain logs x10000 -> FAILED — gather logs failed" after
                 // 1554 logs, naming a hiccup from its first round.
                 failureReason = null;
-                unaffordable = null;
+                exhausted = null;
                 if (chooseRound(top, ctx)) {
                     return;
                 }
@@ -614,7 +619,7 @@ public final class TaskExecutor {
      */
     private void absorbed(BrainContext ctx) {
         failureReason = null;
-        unaffordable = null;
+        exhausted = null;
         succeedCurrent(ctx);
     }
 
@@ -624,7 +629,7 @@ public final class TaskExecutor {
         lastStatus = status;
         if (status == TaskStatus.SUCCESS) {
             failureReason = null;
-            unaffordable = null;
+            exhausted = null;
         }
         root = null;
         stack.clear();
@@ -646,7 +651,7 @@ public final class TaskExecutor {
      */
     private void noteExhausted(Frame frame, BrainContext ctx) {
         failureReason = noWay(frame, ctx);
-        unaffordable = frame.pricedOut > 0 && frame.compound instanceof ObtainItem obtain ? obtain : null;
+        exhausted = frame.compound instanceof ObtainItem obtain ? obtain : null;
     }
 
     /** The no-method message, split by cause: nothing applicable vs everything unaffordable. */
@@ -696,8 +701,8 @@ public final class TaskExecutor {
     /** Everything the executor is in the middle of. Empty root means idle. */
     public record State(@Nullable Task root, List<FrameState> frames, @Nullable String lastDescription,
                         @Nullable TaskStatus lastStatus, @Nullable String failureReason,
-                        @Nullable ObtainItem unaffordable) {
-        /** A state saved before the unaffordable obtain was. */
+                        @Nullable ObtainItem exhausted) {
+        /** A state saved before the exhausted obtain was. */
         public State(@Nullable Task root, List<FrameState> frames, @Nullable String lastDescription,
                      @Nullable TaskStatus lastStatus, @Nullable String failureReason) {
             this(root, frames, lastDescription, lastStatus, failureReason, null);
@@ -716,7 +721,7 @@ public final class TaskExecutor {
                     List.copyOf(frame.subtasks == null ? List.of() : frame.subtasks),
                     frame.index, frame.rounds, frame.lastProgress, frame.pricedOut, frame.acted));
         }
-        return new State(root, saved, lastDescription, lastStatus, failureReason, unaffordable);
+        return new State(root, saved, lastDescription, lastStatus, failureReason, exhausted);
     }
 
     /**
@@ -738,7 +743,7 @@ public final class TaskExecutor {
         this.lastDescription = state.lastDescription();
         this.lastStatus = state.lastStatus();
         this.failureReason = state.failureReason();
-        this.unaffordable = state.unaffordable();
+        this.exhausted = state.exhausted();
         Task node = this.root;
         for (FrameState saved : state.frames()) {
             CompoundTask compound = node instanceof CompoundTask onPath ? onPath : saved.compound();

@@ -259,11 +259,11 @@ public final class BrainState {
                         state -> Optional.ofNullable(state.lastStatus())),
                 Codec.STRING.optionalFieldOf("why").forGetter(
                         state -> Optional.ofNullable(state.failureReason())),
-                task.optionalFieldOf("unaffordable").forGetter(
-                        state -> Optional.<Task>ofNullable(state.unaffordable()))
-        ).apply(s, (root, frames, describe, status, why, unaffordable) -> new TaskExecutor.State(
+                task.optionalFieldOf("exhausted").forGetter(
+                        state -> Optional.<Task>ofNullable(state.exhausted()))
+        ).apply(s, (root, frames, describe, status, why, exhausted) -> new TaskExecutor.State(
                 root.orElse(null), frames, describe.orElse(null), status.orElse(null),
-                why.orElse(null), unaffordable.filter(ObtainItem.class::isInstance)
+                why.orElse(null), exhausted.filter(ObtainItem.class::isInstance)
                         .map(ObtainItem.class::cast).orElse(null))));
     }
 

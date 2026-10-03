@@ -74,6 +74,14 @@ public interface WorkSource {
     default void pricedOutOf(WorkItem item, ObtainItem wanted, double tolerance, BrainContext ctx) {
     }
 
+    /**
+     * The item failed with no way at all to {@code wanted} — nothing known to get it from, at any
+     * price. Never for an item that carries its own {@link WorkItem#tolerance()}. A board that can
+     * send somebody out to look answers here.
+     */
+    default void noWayTo(WorkItem item, ObtainItem wanted, BrainContext ctx) {
+    }
+
     /** How many {@link dev.luizloyola.anima.core.brain.WorkToleranceCurve#STEP}s of budget the item has earned. */
     default int budgetSteps(WorkItem item) {
         return 0;

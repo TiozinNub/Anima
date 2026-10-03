@@ -157,6 +157,7 @@ class OutOfReachTest {
         int steps;
         final List<ItemCall> pricedOutOf = new ArrayList<>();
         final List<Double> at = new ArrayList<>();
+        final List<ItemCall> noWayTo = new ArrayList<>();
 
         @Override
         public Optional<WorkItem> bestAvailable(BrainContext c) {
@@ -181,6 +182,11 @@ class OutOfReachTest {
         public void pricedOutOf(WorkItem item, ObtainItem wanted, double tolerance, BrainContext c) {
             pricedOutOf.add(call(wanted));
             at.add(tolerance);
+        }
+
+        @Override
+        public void noWayTo(WorkItem item, ObtainItem wanted, BrainContext c) {
+            noWayTo.add(call(wanted));
         }
 
         @Override
@@ -231,6 +237,17 @@ class OutOfReachTest {
         Board early = flown(new Item(0.46, OptionalDouble.empty()), 2);
         assertEquals(List.of(WorkToleranceCurve.tolerance(0.46, 2)), early.at,
                 "before the steps are grown, so the board reads the budget it failed at");
+    }
+
+    @Test
+    void anErrandWithNoWayAtAllSaysOfWhat() {
+        ItemSpec iron = ItemSpec.anyOf(Set.of("test:iron"));
+        Board board = flown(new Item(0.46, OptionalDouble.empty(), () -> new ObtainItem(iron, 3)), 0);
+        assertEquals(List.of(ItemCall.need(iron, 3)), board.noWayTo, "nothing known to get it from");
+        assertTrue(board.pricedOutOf.isEmpty());
+
+        Board far = flown(new Item(0.46, OptionalDouble.empty()), 2);
+        assertTrue(far.noWayTo.isEmpty(), "a way it could not afford is not no way");
     }
 
     @Test
