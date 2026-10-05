@@ -366,14 +366,36 @@ class TaskCodecsTest {
     void aTaskFromAMissingModIsRefusedRatherThanSkipped() {
         // A saved plan naming a task type this build no longer has must error, not vanish — a plan
         // missing a limb still looks like a plan.
-        //
-        // (No test for an unregistered LIVE task: Task is sealed and every permitted
-        // implementation is registered, so the compiler will not let this test fake one.)
         var unknown = com.google.gson.JsonParser.parseString("{\"task\":\"gone:chop\"}");
         var parsed = TaskCodecs.codec().parse(JsonOps.INSTANCE, unknown);
         assertTrue(parsed.isError());
         assertTrue(parsed.error().orElseThrow().message().contains("gone:chop"),
                 "the complaint has to name the type, or nobody can act on it");
+    }
+
+    @Test
+    void anUnregisteredLiveTaskIsRefusedByName() {
+        // A consumer's PrimitiveTask with no codec once threw a bare NPE out of an entity save.
+        final class Unregistered implements dev.luizloyola.anima.core.brain.task.PrimitiveTask {
+            @Override
+            public dev.luizloyola.anima.core.brain.task.TaskStatus tick(
+                    dev.luizloyola.anima.core.brain.BrainContext ctx) {
+                return dev.luizloyola.anima.core.brain.task.TaskStatus.SUCCESS;
+            }
+
+            @Override
+            public void cancel(dev.luizloyola.anima.core.brain.BrainContext ctx) {
+            }
+
+            @Override
+            public String describe() {
+                return "unregistered";
+            }
+        }
+        var encoded = TaskCodecs.codec().encodeStart(JsonOps.INSTANCE, new Unregistered());
+        assertTrue(encoded.isError());
+        assertTrue(encoded.error().orElseThrow().message().contains(Unregistered.class.getName()),
+                "the complaint has to name the class");
     }
 
     @Test

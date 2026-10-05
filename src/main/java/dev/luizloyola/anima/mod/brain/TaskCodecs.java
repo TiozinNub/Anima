@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.mod.brain;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 import com.mojang.serialization.MapCodec;
 import dev.luizloyola.anima.core.brain.task.Task;
 import java.util.LinkedHashMap;
@@ -17,11 +18,8 @@ import java.util.Map;
  * round-trip everything the instance carries: what it was constructed with, plus any mid-flight
  * counter, because a countdown that restarts is one an agent would feel.
  *
- * <p><b>An unregistered task fails loudly on load:</b> refuse the read and name the type with no
- * codec, rather than let a plan come back missing a limb. Encode has no such net today — a class
- * with no codec throws a raw {@code NullPointerException} out of {@code KeyDispatchCodec} instead
- * of naming itself, tracked 2026-08-19 in {@code docs/BUGS.md}. Register before anything can
- * construct one, and this never bites.
+ * <p><b>An unregistered task fails loudly:</b> a read refuses the key and a write refuses the
+ * class, each naming it, rather than let a plan come back missing a limb.
  */
 public final class TaskCodecs {
 
@@ -75,21 +73,20 @@ public final class TaskCodecs {
      * would freeze an empty registry — surfacing later as "every plan is empty".
      */
     public static Codec<Task> codec() {
-        return Codec.STRING.dispatch("task", TaskCodecs::keyOf, TaskCodecs::codecFor);
+        // Partial, not plain dispatch: a plain one writes a null key through Codec.STRING before
+        // asking for the codec, and JsonOps throws a bare NPE that never names the class.
+        return Codec.STRING.partialDispatch("task", TaskCodecs::keyFor, TaskCodecs::codecFor);
     }
 
-    @SuppressWarnings("unchecked")
-    private static MapCodec<? extends Task> codecFor(String key) {
+    private static DataResult<String> keyFor(Task task) {
+        String key = keyOf(task);
+        return key != null ? DataResult.success(key) : DataResult.error(
+                () -> "no task codec is registered for " + task.getClass().getName());
+    }
+
+    private static DataResult<MapCodec<? extends Task>> codecFor(String key) {
         Entry<? extends Task> entry = BY_KEY.get(key);
-        if (entry == null) {
-            // A MapCodec that only ever errors, so the failure names the key and the file it was
-            // in rather than throwing out of a codec lookup.
-            return MapCodec.unit((Task) null).flatXmap(
-                    ignored -> com.mojang.serialization.DataResult.error(
-                            () -> "no task type is registered as \"" + key + "\" — was a mod removed?"),
-                    ignored -> com.mojang.serialization.DataResult.error(
-                            () -> "no task type is registered as \"" + key + "\""));
-        }
-        return (MapCodec<? extends Task>) entry.codec();
+        return entry != null ? DataResult.success(entry.codec()) : DataResult.error(
+                () -> "no task type is registered as \"" + key + "\" — was a mod removed?");
     }
 }
