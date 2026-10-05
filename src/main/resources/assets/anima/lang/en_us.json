@@ -58,7 +58,7 @@
   "anima.config.option.journal.sense_overlooked": "Log overlooked places",
   "anima.config.option.journal.sense_overlooked.desc": "Log each place passed over as not worth remembering. Off by default: it repeats the same cells for as long as a body stands near them.",
   "anima.config.option.journal.mind": "Log need level crossings",
-  "anima.config.option.journal.mind.desc": "Log a need crossing one of its declared levels — company going lonely, food going peckish. On by default: about a dozen lines per settler per day.",
+  "anima.config.option.journal.mind.desc": "Log a need crossing one of its declared levels — company going lonely, food going peckish. On by default. A new level must hold five seconds before it is logged, so a need hovering on a boundary stays quiet.",
   "anima.config.option.journal.op": "Log operator commands",
   "anima.config.option.journal.op.desc": "Log commands you run that change something, in the journal of every agent they touch — a party-wide order lands in every member's. On by default: read-only commands are never logged, so this stays rare.",
   "anima.config.option.journal.project_offer": "Log empty work offers",

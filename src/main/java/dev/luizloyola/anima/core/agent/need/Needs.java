@@ -35,26 +35,43 @@ public final class Needs {
     private final Map<NeedKind, Gauge> gauges = new LinkedHashMap<>();
 
     /**
-     * The level each gauge was at as of the last tick — how {@link #tick()} tells a crossing from a
-     * jitter inside one band. Absent for a kind never yet ticked, which is what makes the first
-     * sighting a seed rather than a crossing out of nothing.
+     * Ticks a new level must hold before it counts as a crossing. A gauge hovering on a boundary
+     * otherwise narrated every flip, and company, fed by proximity, lines and faces, hovers.
+     * Only the crossing waits: {@link Gauge#level()} and everything that reads it do not.
      */
-    private final Map<NeedKind, NeedLevel> lastLevel = new HashMap<>();
+    static final int HOLD_TICKS = 100; // five seconds
+
+    /**
+     * Per kind, the level last announced and the one waiting out {@link #HOLD_TICKS}. Absent for a
+     * kind never yet ticked, which is what makes the first sighting a seed rather than a crossing
+     * out of nothing. Not saved: a load re-seeds it, so a crossing pending at the save goes unsaid.
+     */
+    private final Map<NeedKind, Watch> watches = new HashMap<>();
+
+    private static final class Watch {
+        NeedLevel settled;
+        NeedLevel pending;
+        int held;
+
+        Watch(NeedLevel settled) {
+            this.settled = settled;
+        }
+    }
 
     /** @see #onCrossing */
     private final List<Consumer<Crossing>> crossingListeners = new ArrayList<>();
 
     /**
-     * A gauge has moved from one declared level to another. The boundaries are {@link NeedKind}'s
-     * own, so this needs no threshold: a gauge wandering inside a band says nothing.
+     * A gauge has moved from one declared level to another and stayed there {@link #HOLD_TICKS}.
+     * The boundaries are {@link NeedKind}'s own, so a gauge wandering inside a band says nothing.
      */
     public record Crossing(NeedKind kind, NeedLevel from, NeedLevel to, double pressure) {
     }
 
     /**
-     * Notified on every level crossing, never on a jitter inside one band. {@code core} cannot
-     * reach a journal, so the mod layer installs the listener here — the same shape as
-     * {@code JournalService.subscribe}.
+     * Notified on every level crossing, never on a jitter inside one band or across a boundary
+     * and back within {@link #HOLD_TICKS}. {@code core} cannot reach a journal, so the mod layer
+     * installs the listener here — the same shape as {@code JournalService.subscribe}.
      */
     public void onCrossing(Consumer<Crossing> listener) {
         crossingListeners.add(Objects.requireNonNull(listener, "listener"));
@@ -126,10 +143,10 @@ public final class Needs {
      * Advance every gauge one tick. Called once per body tick; a gauge that is a view over
      * something the body ticks elsewhere does nothing here.
      *
-     * <p>Also where a level crossing is noticed: each gauge's level after this tick is compared
-     * against its level after the last one, and {@link #onCrossing} fires on a change. The very
-     * first tick a kind is seen only seeds {@link #lastLevel} — otherwise a body would announce a
-     * crossing into the level it was born at, the moment it spawns.
+     * <p>Also where a level crossing is noticed: {@link #onCrossing} fires once a level other than
+     * the last announced one has held for {@link #HOLD_TICKS}. The very first tick a kind is seen
+     * only seeds its {@link Watch} — otherwise a body would announce a crossing into the level it
+     * was born at, the moment it spawns.
      */
     public void tick() {
         for (Gauge gauge : gauges.values()) {
@@ -138,9 +155,23 @@ public final class Needs {
             if (level == null) {
                 continue; // a need with no declared levels has nothing to cross
             }
-            NeedLevel before = lastLevel.put(gauge.kind(), level);
-            if (before != null && before != level) {
-                Crossing crossing = new Crossing(gauge.kind(), before, level, gauge.pressure());
+            Watch watch = watches.get(gauge.kind());
+            if (watch == null) {
+                watches.put(gauge.kind(), new Watch(level));
+                continue;
+            }
+            if (level == watch.settled) {
+                watch.pending = null;
+                continue;
+            }
+            if (level != watch.pending) {
+                watch.pending = level;
+                watch.held = 0;
+            }
+            if (++watch.held >= HOLD_TICKS) {
+                Crossing crossing = new Crossing(gauge.kind(), watch.settled, level, gauge.pressure());
+                watch.settled = level;
+                watch.pending = null;
                 for (Consumer<Crossing> listener : crossingListeners) {
                     listener.accept(crossing);
                 }

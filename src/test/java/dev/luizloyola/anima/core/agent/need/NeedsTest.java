@@ -152,18 +152,40 @@ class NeedsTest {
     }
 
     @Test
-    @DisplayName("a gauge crossing a declared level boundary fires once")
+    @DisplayName("a gauge crossing a declared level boundary fires once, when the new level has held")
     void crossingALevelBoundaryFiresOnce() {
         List<Needs.Crossing> seen = new ArrayList<>();
         Needs needs = needsWithCompany(0.60);   // "content"
         needs.onCrossing(seen::add);
 
-        setCompany(needs, 0.30);                 // into "alone"
-        needs.tick();
+        for (int i = 0; i < Needs.HOLD_TICKS; i++) {
+            assertTrue(seen.isEmpty(), "announced after " + i + " ticks, before the level held");
+            setCompany(needs, 0.30);             // into "alone"
+            needs.tick();
+        }
+        for (int i = 0; i < Needs.HOLD_TICKS; i++) {
+            setCompany(needs, 0.30);
+            needs.tick();
+        }
 
         assertEquals(1, seen.size());
         assertEquals("content", seen.get(0).from().key());
         assertEquals("alone", seen.get(0).to().key());
+    }
+
+    @Test
+    @DisplayName("a value hovering on a boundary is silent, however long it hovers")
+    void hoveringOnABoundaryIsSilent() {
+        List<Needs.Crossing> seen = new ArrayList<>();
+        Needs needs = needsWithCompany(0.36);   // "content", just above the 0.35 "alone" line
+        needs.onCrossing(seen::add);
+
+        for (int i = 0; i < 10 * Needs.HOLD_TICKS; i++) {
+            setCompany(needs, i % 2 == 0 ? 0.34 : 0.36);
+            needs.tick();
+        }
+
+        assertTrue(seen.isEmpty(), "every flip across the line was a MIND line: " + seen.size());
     }
 
     @Test

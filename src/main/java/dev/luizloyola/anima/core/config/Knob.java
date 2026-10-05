@@ -184,7 +184,8 @@ public enum Knob implements KnobSpec {
     /** Read by the mod-side journal wiring at boot and on every config change. */
     JOURNAL_MIND("journal.mind", Kind.BOOL, 1, 0, 1,
             "Log a need crossing one of its declared levels — company going lonely, food going "
-                    + "peckish. On by default: about a dozen lines per settler per day."),
+                    + "peckish. On by default. A new level must hold five seconds before it is "
+                    + "logged, so a need hovering on a boundary stays quiet."),
     /** Read by the mod-side journal wiring at boot and on every config change. */
     JOURNAL_OP("journal.op", Kind.BOOL, 1, 0, 1,
             "Log operator commands that change something, in the journal of every agent they "
