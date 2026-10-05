@@ -78,6 +78,9 @@ public final class GroundReader {
                     for (int z = z0; z <= z1; z++) {
                         int top = chunk.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z);
                         int surface = chunk.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+                        if (surface < level.getMinY()) {
+                            continue; // nothing in the column: no ground, not ground at the floor
+                        }
                         BlockState ground = chunk.getBlockState(at.set(x, surface, z));
                         int flags = 0;
                         if (top > surface) {
