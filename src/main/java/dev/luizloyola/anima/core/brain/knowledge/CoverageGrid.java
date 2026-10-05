@@ -43,7 +43,9 @@ public final class CoverageGrid {
      * centre banks 8 of 16 in each of its four orthogonal NEIGHBOURS, whose far square centres sit
      * 9 and 11 blocks out, past anything it can individuate. At half, a chopper's corridor claimed a
      * 24-block band while walking 16, and the slice was never minted as a survey errand. Twelve
-     * separates entering a cell (16 at its centre, 13 at its corner) from passing beside one (8).
+     * separates entering a cell (16 at its centre, 13 at its corner) from passing beside one at a
+     * neighbour's centre (8), but not from a stance on the shared edge: that banks up to 13, and
+     * up to 16 across a cell's high-x or high-z edge, since {@code here} is a block's min corner.
      */
     public static final int WALKED_SQUARES = 12;
 
