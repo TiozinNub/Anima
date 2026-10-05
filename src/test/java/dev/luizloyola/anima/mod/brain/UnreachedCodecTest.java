@@ -15,7 +15,8 @@ class UnreachedCodecTest {
 
     private static final List<Unreached.Strike> STRUCK = List.of(
             new Unreached.Strike(new Pos(61, 69, -732), 787_548L),
-            new Unreached.Strike(new Pos(62, 69, -732), 787_550L));
+            new Unreached.Strike(new Pos(62, 69, -732), 787_550L),
+            new Unreached.Strike(new Pos(63, 69, -732), 787_551L, 2));
 
     @Test
     void theStrikesComeBackInOrder() {

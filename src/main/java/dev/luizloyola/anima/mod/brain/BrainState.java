@@ -150,15 +150,19 @@ public final class BrainState {
                             new Pos(x, y, z), tick)))
             .listOf();
 
-    /** Cells a body's walks found no way to: a restart does not walk them again. */
+    /**
+     * Cells a body's walks found no way to, and the stalls counted toward a strike: a restart does
+     * not walk them again, nor start the count over.
+     */
     public static final Codec<List<dev.luizloyola.anima.core.brain.history.Unreached.Strike>> UNREACHED =
             RecordCodecBuilder.<dev.luizloyola.anima.core.brain.history.Unreached.Strike>create(i -> i.group(
                     Codec.INT.fieldOf("x").forGetter(s -> s.cell().x()),
                     Codec.INT.fieldOf("y").forGetter(s -> s.cell().y()),
                     Codec.INT.fieldOf("z").forGetter(s -> s.cell().z()),
-                    Codec.LONG.fieldOf("tick").forGetter(dev.luizloyola.anima.core.brain.history.Unreached.Strike::tick))
-                    .apply(i, (x, y, z, tick) -> new dev.luizloyola.anima.core.brain.history.Unreached.Strike(
-                            new Pos(x, y, z), tick)))
+                    Codec.LONG.fieldOf("tick").forGetter(dev.luizloyola.anima.core.brain.history.Unreached.Strike::tick),
+                    Codec.INT.optionalFieldOf("stalls", 0).forGetter(dev.luizloyola.anima.core.brain.history.Unreached.Strike::stalls))
+                    .apply(i, (x, y, z, tick, stalls) -> new dev.luizloyola.anima.core.brain.history.Unreached.Strike(
+                            new Pos(x, y, z), tick, stalls)))
             .listOf();
 
     /** Tables a body put down to craft on: a restart between the craft and the pickup still knows. */

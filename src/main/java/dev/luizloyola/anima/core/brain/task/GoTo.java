@@ -27,7 +27,8 @@ import org.jspecify.annotations.Nullable;
  * <p>Later ticks map MOVING → RUNNING, ARRIVED → SUCCESS, FAILED → FAILED, IDLE → FAILED — and
  * any state at all → FAILED once the mover's goal is not this walk's cell. A failure stranded or
  * unreachable strikes the cell for a while
- * ({@link dev.luizloyola.anima.core.brain.history.Unreached}), and arriving there clears it.
+ * ({@link dev.luizloyola.anima.core.brain.history.Unreached}), stalled or wedged counts toward a
+ * shorter strike, and arriving there clears either.
  *
  * <p><b>Gait.</b> The {@link #GoTo(int, int, int, Gait) four-arg constructor} threads the pace to
  * {@link dev.luizloyola.anima.core.brain.act.Mover#moveTo(int, int, int, Gait)} — {@code FleeStep}
@@ -135,6 +136,8 @@ public final class GoTo implements PrimitiveTask {
                 this.blocksNeeded = ctx.actuators().mover().blocksNeeded();
                 if (failure == MoveFailure.STRANDED || failure == MoveFailure.UNREACHABLE) {
                     ctx.unreached().strike(new Pos(x, y, z), ctx.percepts().time());
+                } else if (failure == MoveFailure.STALLED || failure == MoveFailure.WEDGED) {
+                    ctx.unreached().stalled(new Pos(x, y, z), ctx.percepts().time());
                 }
                 return TaskStatus.FAILED;
             case IDLE:

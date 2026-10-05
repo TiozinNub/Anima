@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.luizloyola.anima.core.brain.act.MoveFailure;
 import dev.luizloyola.anima.core.brain.act.MoveState;
+import dev.luizloyola.anima.core.brain.history.Unreached;
+import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.WalkLevel;
 import org.junit.jupiter.api.Test;
@@ -109,6 +111,54 @@ class GoToTest {
         mover.setFailure(MoveFailure.STRANDED);
         assertEquals(TaskStatus.FAILED, task.tick(ctx));
         assertEquals("goto (3, 70, -4) failed — stranded", task.failureDetail());
+    }
+
+    private void failAt(Pos cell, MoveFailure why) {
+        GoTo task = new GoTo(cell.x(), cell.y(), cell.z());
+        task.tick(ctx);
+        mover.setState(MoveState.FAILED);
+        mover.setFailure(why);
+        assertEquals(TaskStatus.FAILED, task.tick(ctx));
+    }
+
+    /** Unstruck, a goal whose walk stalled was ordered again for good (2026-10-02). */
+    @Test
+    void aCellWalksKeepStallingAtIsStruckForAWhile() {
+        Pos cell = new Pos(3, 70, -4);
+        for (int i = 1; i < Unreached.STALLS_TO_STRIKE; i++) {
+            failAt(cell, i % 2 == 0 ? MoveFailure.WEDGED : MoveFailure.STALLED);
+            assertFalse(ctx.unreached.struck(cell, ctx.percepts.time), "a stall may be passing: " + i);
+        }
+        failAt(cell, MoveFailure.STALLED);
+        assertTrue(ctx.unreached.struck(cell, ctx.percepts.time));
+
+        ctx.percepts.time += Unreached.STALL_LIFETIME_TICKS;
+        assertFalse(ctx.unreached.struck(cell, ctx.percepts.time), "a short strike");
+    }
+
+    @Test
+    void anArrivalStartsTheStallsOver() {
+        Pos cell = new Pos(3, 70, -4);
+        for (int i = 1; i < Unreached.STALLS_TO_STRIKE; i++) {
+            failAt(cell, MoveFailure.STALLED);
+        }
+        GoTo task = new GoTo(cell.x(), cell.y(), cell.z());
+        task.tick(ctx);
+        mover.setState(MoveState.ARRIVED);
+        assertEquals(TaskStatus.SUCCESS, task.tick(ctx));
+
+        failAt(cell, MoveFailure.STALLED);
+        assertFalse(ctx.unreached.struck(cell, ctx.percepts.time));
+    }
+
+    @Test
+    void stallsAtOtherCellsDoNotCount() {
+        for (int i = 0; i < Unreached.STALLS_TO_STRIKE; i++) {
+            failAt(new Pos(i, 70, 0), MoveFailure.STALLED);
+        }
+        for (int i = 0; i < Unreached.STALLS_TO_STRIKE; i++) {
+            assertFalse(ctx.unreached.struck(new Pos(i, 70, 0), ctx.percepts.time));
+        }
     }
 
     /** Every verdict reads as itself, so no two failures print the same line. */
