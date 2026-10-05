@@ -65,9 +65,27 @@ public final class Encounters {
         return !e.closed() && now - e.lastActivityTick() > staleGapTicks;
     }
 
-    public void prune(long now, long retentionTicks) {
+    /**
+     * Drops closed records past retention, after closing any open one silent for more than
+     * {@link #ABANDONED_GAPS} stale gaps.
+     *
+     * <p>A stale record is otherwise closed only by a participant re-reading it, so one whose
+     * participants all died or never load again stayed open for the life of the world. A
+     * stopgap: the proper reap is a death line that closes the record like any other ending.
+     */
+    public void prune(long now, long retentionTicks, long staleGapTicks) {
+        for (Encounter e : new ArrayList<>(open)) {
+            if (now - e.lastActivityTick() > ABANDONED_GAPS * staleGapTicks) {
+                // The subject is nominal: nobody came back to notice.
+                e.append(Utterance.system(SpeechActs.STALE.key(), e.participants().get(0), now));
+                close(e, now);
+            }
+        }
         closed.removeIf(e -> now - e.closedAt() > retentionTicks);
     }
+
+    /** Far past the gap a returning participant would close at, so this never pre-empts one. */
+    static final int ABANDONED_GAPS = 10;
 
     /** The load path — seats a rebuilt record without a word being said. */
     public void restore(Encounter e) {

@@ -120,9 +120,10 @@ public final class EncounterData extends SavedData implements StoreGuard.Checked
         setDirty();
     }
 
-    /** @see Encounters#prune — drops closed encounters past the retention window. */
+    /** @see Encounters#prune — drops closed encounters past retention, closes abandoned open ones. */
     public void prune(long now) {
-        roster.prune(now, Config.get().i(Knob.SOCIAL_ENCOUNTER_RETENTION_TICKS));
+        roster.prune(now, Config.get().i(Knob.SOCIAL_ENCOUNTER_RETENTION_TICKS),
+                Config.get().i(Knob.SOCIAL_ENCOUNTER_STALE_TICKS));
     }
 
     /** Package-private so the round-trip test can reach it without a codec. */

@@ -129,10 +129,28 @@ class EncountersTest {
         Encounter fresh = roster.join(carol, dave, 0L).orElseThrow();
         roster.close(fresh, 190L);
 
-        roster.prune(200L, 50L);
+        roster.prune(200L, 50L, 1_000L);
 
         assertFalse(roster.closed().contains(old), "100 ticks past closing exceeds a 50-tick retention");
         assertTrue(roster.closed().contains(fresh), "10 ticks past closing is well within a 50-tick retention");
+    }
+
+    @Test
+    @DisplayName("prune closes an open record nobody came back to, long past the stale gap")
+    void pruneClosesAnAbandonedRecord() {
+        Encounters roster = new Encounters();
+        Encounter abandoned = roster.join(alice, bob, 0L).orElseThrow();
+        Encounter quiet = roster.join(carol, dave, 0L).orElseThrow();
+        quiet.append(new Utterance(carol, SpeechActs.HAIL.key(), java.util.Map.of(), 400L));
+
+        // Ten gaps of 50: 501 ticks of silence is past it, 101 is not — that one is left for a
+        // returning participant to close as stale in its own name.
+        roster.prune(501L, 100_000L, 50L);
+
+        assertTrue(abandoned.closed(), "nobody will ever re-read it, so prune has to");
+        assertTrue(roster.closed().contains(abandoned));
+        assertTrue(abandoned.hasSystem(SpeechActs.STALE.key(), alice), "it ends the way a stale record ends");
+        assertFalse(quiet.closed(), "one stale gap of silence is a participant's to judge, not prune's");
     }
 
     @Test

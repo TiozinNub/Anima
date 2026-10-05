@@ -163,7 +163,7 @@ public final class Speeches {
             public void closed(Encounter e) {
                 EncounterData data = EncounterData.get(server);
                 data.dirty();
-                // Pruning rides the close: cheap, and retention only ever trims closed records.
+                // Pruning rides the close: cheap, and the only place an abandoned record is reaped.
                 data.prune(server.overworld().getGameTime());
             }
         };
