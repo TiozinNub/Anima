@@ -435,8 +435,12 @@ class WebDebuggerTest {
         // A browser's fetch decodes before JavaScript sees a byte, so this count is the only
         // honest one there is — and it has to be the small number, not the JSON's length.
         WebFeed feed = new WebFeed();
-        String frame = "{\"tick\":1,\"agents\":[" + "\"aaaaaaaaaaaaaaaaaaaa\",".repeat(200) + "\"z\"]}";
-        feed.publish(WebModel.EMPTY, frame);
+        // The repetition is in the model, not the frame: the greeting is the one write this pass
+        // makes, and an empty model greets with nothing, which passed both checks below vacuously.
+        WebModel model = WebModel.EMPTY.against(1,
+                java.util.Map.of("agents", "[" + "\"aaaaaaaaaaaaaaaaaaaa\",".repeat(200) + "\"z\"]")).model();
+        String frame = model.full();
+        feed.publish(model, "{\"tick\":1}");
         ByteArrayOutputStream socket = new ByteArrayOutputStream();
         WebDebugger.Counted wire = new WebDebugger.Counted(socket);
 
@@ -447,6 +451,7 @@ class WebDebuggerTest {
             WebDebugger.pump(zipped, wire::written, feed, () -> once.getAndSet(false));
         }
 
+        assertTrue(wire.written() > 0, "a pass that wrote nothing proves nothing");
         assertEquals(socket.size(), wire.written(), "the counter must be the socket, not the input");
         assertTrue(wire.written() < frame.length() / 4,
                 "a repetitive frame should compress hard: " + wire.written() + " of " + frame.length());
