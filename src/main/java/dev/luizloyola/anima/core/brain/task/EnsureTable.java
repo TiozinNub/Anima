@@ -143,7 +143,7 @@ public final class EnsureTable implements AchieveTask {
          */
         public static Optional<Pos> standBeside(Pos anchor, BrainContext ctx) {
             long now = ctx.percepts().time();
-            return standBeside(anchor, ctx.percepts().blocks(), ctx.percepts().position(),
+            return standBeside(anchor, ctx.percepts().blocks()::at, ctx.percepts().position(),
                     cell -> ctx.unreached().struck(cell, now));
         }
 
@@ -153,10 +153,26 @@ public final class EnsureTable implements AchieveTask {
          * party counting what its stores hold that anybody could take out.
          */
         public static boolean hasOpenSide(Pos anchor, BlockProbe probe) {
-            return standBeside(anchor, probe, anchor, cell -> false).isPresent();
+            return standBeside(anchor, probe::at, anchor, cell -> false).isPresent();
         }
 
-        private static Optional<Pos> standBeside(Pos anchor, BlockProbe probe, Pos here,
+        /**
+         * {@link #hasOpenSide} as if something solid already stood in {@code filled}: what a
+         * station set down there would leave its neighbour ({@link Ground#canHold}).
+         */
+        static boolean hasOpenSide(Pos anchor, BlockProbe probe, Pos filled) {
+            Cells after = (x, y, z) -> x == filled.x() && y == filled.y() && z == filled.z()
+                    ? BlockKind.OTHER : probe.at(x, y, z);
+            return standBeside(anchor, after, anchor, cell -> false).isPresent();
+        }
+
+        /** {@link BlockProbe#at} alone, the one read the shape needs, so a what-if can stand in. */
+        @FunctionalInterface
+        private interface Cells {
+            BlockKind at(int x, int y, int z);
+        }
+
+        private static Optional<Pos> standBeside(Pos anchor, Cells probe, Pos here,
                                                  Predicate<Pos> struck) {
             Pos best = null;
             double bestDistance = Double.MAX_VALUE;
@@ -184,7 +200,7 @@ public final class EnsureTable implements AchieveTask {
          * it. A side open over a pit is no stand: one eight above the pit floor was walked to the
          * floor, out of reach, for good (run/normal, 2026-10-02).
          */
-        private static @Nullable Pos footed(BlockProbe probe, int x, int y, int z) {
+        private static @Nullable Pos footed(Cells probe, int x, int y, int z) {
             for (int at = y; at >= y - STAND_DROP; at--) {
                 if (probe.at(x, at, z) != BlockKind.AIR) {
                     return null;

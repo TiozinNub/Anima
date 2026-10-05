@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.craft.Campfire;
 import dev.luizloyola.anima.core.craft.Furnace;
 import dev.luizloyola.anima.core.craft.Workbench;
 import dev.luizloyola.anima.core.store.Store;
@@ -81,7 +82,10 @@ final class Ground {
      * settler found the cell taken, looked one higher, and found a floor. Only the bottom chest was
      * ever reachable. A workbench is the same trap one block over: a base's chest aimed at its centre
      * climbed onto the table standing there, and a furnace the next: a second chest went on top of
-     * the base's (run/normal, 2026-10-02).
+     * the base's (run/normal, 2026-10-02). A campfire burns whoever stands on what sits on it.
+     *
+     * <p>Nor in the last open side of a station beside it: a base's second chest set there left the
+     * first one unreachable (2026-10-02).
      */
     static boolean canHold(BrainContext ctx, Pos cell) {
         BlockProbe probe = ctx.percepts().blocks();
@@ -89,8 +93,25 @@ final class Ground {
             return false;
         }
         BlockKind floor = probe.at(cell.x(), cell.y() - 1, cell.z());
-        return floor != BlockKind.AIR && !Store.isStore(floor) && floor != Workbench.BLOCK
-                && floor != Furnace.BLOCK && !PlaceBlock.occupied(ctx, cell);
+        return floor != BlockKind.AIR && !station(floor) && !PlaceBlock.occupied(ctx, cell)
+                && !wallsIn(probe, cell);
+    }
+
+    /** A block a body works from beside: never a floor, never walled in. */
+    private static boolean station(BlockKind kind) {
+        return Store.isStore(kind) || kind == Workbench.BLOCK || kind == Furnace.BLOCK
+                || kind == Campfire.BLOCK;
+    }
+
+    private static boolean wallsIn(BlockProbe probe, Pos cell) {
+        for (int[] side : SIDES) {
+            Pos next = new Pos(cell.x() + side[0], cell.y(), cell.z() + side[1]);
+            if (station(probe.at(next.x(), next.y(), next.z()))
+                    && !EnsureTable.WalkToKnown.hasOpenSide(next, probe, cell)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

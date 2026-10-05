@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import dev.luizloyola.anima.core.craft.Campfire;
 import dev.luizloyola.anima.core.craft.Furnace;
 import dev.luizloyola.anima.core.craft.Workbench;
 import dev.luizloyola.anima.core.store.Depot;
@@ -144,6 +145,40 @@ class StoreStandTest {
 
         assertNotEquals(new Pos(10, 65, 10), site, "a station's top is no floor for another");
         assertTrue(ctx.percepts.blocks.at(site.x(), site.y() - 1, site.z()).ground());
+    }
+
+    @Test
+    void aStoreNeverGoesOnTopOfACampfire() {
+        FakeContext ctx = new FakeContext();
+        Pos fire = new Pos(10, 64, 10);
+        ctx.percepts.blocks.set(fire.x(), fire.y(), fire.z(), Campfire.BLOCK);
+        ctx.percepts.position = new Pos(14, 64, 14);
+
+        Pos site = Ground.near(ctx, new Pos(10, 65, 10), 1, cell -> true).orElseThrow();
+
+        assertNotEquals(new Pos(10, 65, 10), site, "whoever stands on it stands in the fire");
+    }
+
+    /** 2026-10-02: a base's second chest went on the first one's only open side. */
+    @Test
+    void aStationNeverTakesTheLastOpenSideOfAStore() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.blocks.set(CHEST.x(), CHEST.y(), CHEST.z(), Store.BLOCK);
+        Pos west = new Pos(CHEST.x() - 1, CHEST.y(), CHEST.z());
+        for (int[] side : Ground.SIDES) {
+            if (CHEST.x() + side[0] != west.x() || CHEST.z() + side[1] != west.z()) {
+                ctx.percepts.blocks.set(CHEST.x() + side[0], CHEST.y(), CHEST.z() + side[1],
+                        BlockKind.OTHER);
+            }
+        }
+        ctx.percepts.position = new Pos(4, 64, 10);
+
+        Pos site = Ground.near(ctx, west, 2, cell -> true).orElseThrow();
+
+        assertNotEquals(west, site);
+        ctx.percepts.blocks.set(site.x(), site.y(), site.z(), Store.BLOCK);
+        assertTrue(EnsureTable.WalkToKnown.hasOpenSide(CHEST, ctx.percepts.blocks),
+                "the first chest is still reachable with the second down at " + site);
     }
 
     /**
