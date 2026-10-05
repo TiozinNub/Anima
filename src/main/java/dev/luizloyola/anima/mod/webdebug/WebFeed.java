@@ -1,5 +1,7 @@
 package dev.luizloyola.anima.mod.webdebug;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * The hand-off between the server tick and the HTTP threads: one rendered frame, replaced whole,
  * plus the version that lets a reader block until there is something new.
@@ -60,12 +62,13 @@ final class WebFeed {
     }
 
     /**
-     * The whole retained world, for a reader that has just connected — or null when nothing has
-     * been published yet, which is a server whose first tick has not run.
+     * The whole retained world, for a reader that has just connected. Its JSON is null when the
+     * model is empty — a server whose first tick has not run — but its version never is.
      *
      * <p>The version travels with it so the reader knows what it has already been told. The pair is
      * read under the lock for the same reason {@link Snapshot} exists: read apart, the two can
-     * disagree.
+     * disagree. A reader greeted with nothing still starts counting from it, or a delta coalesced
+     * before its first wait goes unnoticed; {@link #version()} read afterwards would overshoot.
      *
      * <p><b>The string is assembled outside the lock.</b> {@link #publish} needs this monitor and
      * runs on the server tick thread, and rendering the whole retained world is precisely the work
@@ -79,7 +82,7 @@ final class WebFeed {
             at = version;
             held = model;
         }
-        return held.isEmpty() ? null : new Snapshot(at, held.full());
+        return new Snapshot(at, held.isEmpty() ? null : held.full());
     }
 
     /**
@@ -141,13 +144,11 @@ final class WebFeed {
      * <p>The timeout is not a poll — it is what lets an idle stream emit a keepalive and notice a
      * client that has gone away, since a socket write is the only thing that finds that out.
      *
-     * <p><b>{@code frame == null} is in the wait condition, not just the return guard.</b> A fresh
-     * reader has {@code seen = -1} and a never-published feed has {@code version = 0}, so
-     * {@code version <= seen} is false before the first publish ever happens — the {@code -1}/{@code
-     * 0} pairing that made the old condition look sufficient. Without this half a feed that has
-     * published nothing fell straight through the wait and returned null immediately, over and
-     * over, at whatever rate the loop could spin — the same zero-delay shape {@link #isClosed}
-     * exists to name, but for "never started" instead of "stopped".
+     * <p><b>{@code frame == null} is in the wait condition, not just the return guard.</b> With
+     * {@code seen = -1} against a never-published feed ({@code version = 0}),
+     * {@code version <= seen} is false, and without this half the call returned null with no wait
+     * at all, as fast as a loop could spin — {@link #isClosed}'s zero-delay shape, for "never
+     * started" instead of "stopped".
      */
     Snapshot awaitAfter(long seen, long timeoutMillis) throws InterruptedException {
         synchronized (this) {
@@ -161,7 +162,10 @@ final class WebFeed {
         }
     }
 
-    /** A frame and the version it was published at, read together so they cannot disagree. */
-    record Snapshot(long version, String json) {
+    /**
+     * A frame and the version it was published at, read together so they cannot disagree. Only
+     * {@link #hello} hands out a null {@code json}.
+     */
+    record Snapshot(long version, @Nullable String json) {
     }
 }

@@ -715,8 +715,8 @@ public final class WebDebugger {
             // The whole retained world first. Every frame after this one is a DELTA, and a delta
             // merged onto nothing is a dashboard with holes in it that nothing later fills.
             WebFeed.Snapshot hello = live.hello();
-            if (hello != null) {
-                seen = hello.version();
+            seen = hello.version();
+            if (hello.json() != null) {
                 write(out, hello.json(), wire);
             }
         }
@@ -733,12 +733,9 @@ public final class WebDebugger {
                 // retained world IS the resync, so a reader that finds itself more than one
                 // version behind takes the whole thing again rather than a delta that assumes
                 // a predecessor it never saw.
-                //
-                // seen >= 0 is the never-greeted reader — nothing had been published when it
-                // arrived — whose first frame at version 1 is not a gap.
-                if (seen >= 0 && snapshot.version() > seen + 1) {
+                if (snapshot.version() > seen + 1) {
                     WebFeed.Snapshot resync = live.hello();
-                    if (resync != null) {
+                    if (resync.json() != null) {
                         seen = resync.version();
                         write(out, resync.json(), wire);
                         continue;

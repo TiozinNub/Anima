@@ -258,6 +258,32 @@ class WebDebuggerTest {
     }
 
     @Test
+    @DisplayName("a reader greeted with nothing still notices two publishes coalesced into one")
+    void aReaderGreetedWithNothingStillCountsVersions() throws Exception {
+        // The race: two publishes between hello() and the first wait. A reader that started from
+        // no version could not tell version 2's delta from version 1's.
+        WebFeed feed = new WebFeed();
+        var asked = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.function.BooleanSupplier welcome = () -> {
+            int call = asked.incrementAndGet();
+            if (call == 2) { // the loop's first check: hello() has run, awaitAfter has not
+                WebModel.Update first = WebModel.EMPTY.against(1, java.util.Map.of("agents", "[]"));
+                feed.publish(first.model(), WebModel.frame(1, first.delta()));
+                WebModel.Update second =
+                        first.model().against(2, java.util.Map.of("health", "{\"tps\":20}"));
+                feed.publish(second.model(), WebModel.frame(2, second.delta()));
+            }
+            return call <= 2;
+        };
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        WebDebugger.pump(out, () -> 0L, feed, welcome);
+        String sent = out.toString(StandardCharsets.UTF_8);
+        assertTrue(sent.startsWith("data: {\"tick\":2,\"full\":true,"),
+                "version 1 was coalesced away, so version 2's delta is unmergeable: " + sent);
+    }
+
+    @Test
     @DisplayName("a reader arriving before the first frame is greeted with nothing at all")
     void nothingToSayHelloWith() throws Exception {
         WebFeed feed = new WebFeed();
@@ -296,7 +322,7 @@ class WebDebuggerTest {
     @DisplayName("a stream whose feed closes signs off with a stop event")
     void aClosedFeedEndsTheStreamWithStop() throws Exception {
         WebFeed feed = new WebFeed();
-        feed.publish(WebModel.EMPTY, "{\"tick\":1}");
+        feed.publish(greetable(), "{\"tick\":1}");
         ByteArrayOutputStream wire = new ByteArrayOutputStream();
 
         CountDownLatch done = new CountDownLatch(1);
@@ -316,7 +342,7 @@ class WebDebuggerTest {
         feed.close(true);
         assertTrue(done.await(5, TimeUnit.SECONDS), "the stream never ended");
         String sent = wire.toString(StandardCharsets.UTF_8);
-        assertTrue(sent.startsWith("data: {\"tick\":1}\nwire: 0\n\n"), sent);
+        assertTrue(sent.startsWith("data: " + greetable().full() + "\nwire: 0\n\n"), sent);
         assertTrue(sent.endsWith("event: stop\ndata: {}\n\n"),
                 "a browser cannot tell a stopped server from a dropped socket without this: " + sent);
     }
@@ -325,7 +351,7 @@ class WebDebuggerTest {
     @DisplayName("a stream the browser lost standing on hangs up silently — 401 says the rest")
     void anUnwelcomeStreamDoesNotSayStop() throws Exception {
         // The two endings must not look alike: a revoke is worth reconnecting into, a stop is not.
-        // The model has to be non-empty, or hello() answers null and nothing is written whether or
+        // The model has to be non-empty, or hello() has no world and nothing is written whether or
         // not the greeting is guarded — silence for the wrong reason, proving nothing.
         WebFeed feed = new WebFeed();
         feed.publish(greetable(), "{\"tick\":1}");
@@ -364,7 +390,7 @@ class WebDebuggerTest {
         // flushed frame back until later ones fill a block, so the dashboard connects, shows
         // nothing, and looks like a dead server.
         WebFeed feed = new WebFeed();
-        feed.publish(WebModel.EMPTY, "{\"tick\":1}");
+        feed.publish(greetable(), "{\"tick\":1}");
         ByteArrayOutputStream socket = new ByteArrayOutputStream();
         WebDebugger.Counted wire = new WebDebugger.Counted(socket);
         GZIPOutputStream zipped = new GZIPOutputStream(wire, true);
@@ -398,7 +424,8 @@ class WebDebuggerTest {
         // frame names a count. Harmless — a reader takes differences — but it is why nothing here
         // asserts an absolute.
         String decoded = inflate(socket.toByteArray());
-        assertTrue(decoded.matches("(?s)data: \\{\"tick\":1}\nwire: \\d+\n\n.*"),
+        String greeting = java.util.regex.Pattern.quote("data: " + greetable().full());
+        assertTrue(decoded.matches("(?s)" + greeting + "\nwire: \\d+\n\n.*"),
                 "a mid-stream reader must be able to decode what has arrived so far: " + decoded);
     }
 
