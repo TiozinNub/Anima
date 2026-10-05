@@ -296,6 +296,15 @@ class TerrainTest {
         assertEquals(Kind.CLEARING, terrain.kind(30, 20));
     }
 
+    /** What the reader hands back under a ceiling: nothing read, and nothing chosen from it. */
+    @Test
+    void aSampleWithNothingReadHasNoSites() {
+        Terrain terrain = analyse(new GroundSample(0, 0, SIZE, SIZE));
+
+        assertEquals(Kind.UNKNOWN, terrain.kind(MID, MID));
+        assertTrue(terrain.sites().isEmpty());
+    }
+
     @Test
     void unknownGroundIsNeverUsable() {
         GroundSample sample = new GroundSample(0, 0, SIZE, SIZE);

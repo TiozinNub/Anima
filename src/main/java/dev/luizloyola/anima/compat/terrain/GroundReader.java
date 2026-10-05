@@ -58,9 +58,16 @@ public final class GroundReader {
     private GroundReader() {
     }
 
-    /** The ground over {@code [minX, maxX] × [minZ, maxZ]}, inclusive. */
+    /**
+     * The ground over {@code [minX, maxX] × [minZ, maxZ]}, inclusive. Every column unknown in a
+     * dimension with a ceiling: the heightmaps stop at the Nether's bedrock roof, which read as a
+     * flat plain.
+     */
     public static GroundSample read(Level level, int minX, int minZ, int maxX, int maxZ) {
         GroundSample sample = new GroundSample(minX, minZ, maxX - minX + 1, maxZ - minZ + 1);
+        if (level.dimensionType().hasCeiling()) {
+            return sample;
+        }
         BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
         for (int chunkX = minX >> 4; chunkX <= maxX >> 4; chunkX++) {
             for (int chunkZ = minZ >> 4; chunkZ <= maxZ >> 4; chunkZ++) {
