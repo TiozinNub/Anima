@@ -2,7 +2,9 @@ package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.board.WorkItem;
+import dev.luizloyola.anima.core.inv.Inventory;
 import dev.luizloyola.anima.core.inv.ItemCall;
+import dev.luizloyola.anima.core.log.Category;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,6 +19,11 @@ import java.util.List;
  *
  * <p>Nothing here is fetch state — every obtain is satisfied-check-first, so a resume pays nothing
  * for calls the pack already covers. Persisted whole (calls + work), like the executor's chain.
+ *
+ * <p><b>The needs are got twice and then checked</b>: getting one can spend another — crafting 12
+ * fences turned the 9 planks got before them into fences (2026-10-20). The second pass costs
+ * nothing for what still holds; what it cannot get back fails the errand loudly ({@link KitHeld})
+ * rather than starting work that cannot finish.
  */
 public final class KittedErrand implements CompoundTask {
 
@@ -92,7 +99,7 @@ public final class KittedErrand implements CompoundTask {
         return ((CompoundTask) work).describe();
     }
 
-    /** The one way: needs, then tries at the wants, then the errand itself. */
+    /** The one way: needs, then tries at the wants, the needs again and checked, then the errand itself. */
     private final class KitUpThenWork implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
@@ -117,6 +124,13 @@ public final class KittedErrand implements CompoundTask {
                     plan.add(new Try(new ObtainItem(call.spec(), call.count())));
                 }
             }
+            List<ItemCall> needs = calls.stream().filter(c -> c.strength() == ItemCall.Strength.NEED).toList();
+            if (!needs.isEmpty()) {
+                for (ItemCall need : needs) {
+                    plan.add(new ObtainItem(need.spec(), need.count()));
+                }
+                plan.add(new KitHeld(needs));
+            }
             plan.add(work);
             return plan;
         }
@@ -124,6 +138,52 @@ public final class KittedErrand implements CompoundTask {
         @Override
         public String describe() {
             return "kit up";
+        }
+    }
+
+    /** Fails, in the journal, unless the pack covers every need. */
+    public static final class KitHeld implements PrimitiveTask {
+        private final List<ItemCall> needs;
+        private String shortOf = "";
+
+        public KitHeld(List<ItemCall> needs) {
+            this.needs = List.copyOf(needs);
+        }
+
+        public List<ItemCall> needs() {
+            return needs;
+        }
+
+        @Override
+        public TaskStatus tick(BrainContext ctx) {
+            Inventory pack = ctx.percepts().inventory();
+            List<String> shortItems = new ArrayList<>();
+            for (ItemCall need : needs) {
+                int held = pack.count(need.spec().matcher());
+                if (held < need.count()) {
+                    shortItems.add((need.count() - held) + " " + need.spec().name());
+                }
+            }
+            if (shortItems.isEmpty()) {
+                return TaskStatus.SUCCESS;
+            }
+            shortOf = String.join(", ", shortItems);
+            ctx.journal().record(Category.BRAIN, "kit up", failureDetail());
+            return TaskStatus.FAILED;
+        }
+
+        @Override
+        public void cancel(BrainContext ctx) {
+        }
+
+        @Override
+        public String describe() {
+            return "check the kit";
+        }
+
+        @Override
+        public String failureDetail() {
+            return shortOf.isEmpty() ? "the kit fell short" : "the kit fell short of " + shortOf;
         }
     }
 }

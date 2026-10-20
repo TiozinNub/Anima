@@ -328,6 +328,18 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aKitCheckComesBackWithTheNeedsItHolds() {
+        dev.luizloyola.anima.core.inv.ItemSpec planks = dev.luizloyola.anima.core.inv.ItemSpec.anyOf(
+                java.util.Set.of("minecraft:oak_planks"));
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.KittedErrand.KitHeld.class, roundTrip(
+                new dev.luizloyola.anima.core.brain.task.KittedErrand.KitHeld(java.util.List.of(
+                        dev.luizloyola.anima.core.inv.ItemCall.need(planks, 9)))));
+        assertEquals(1, after.needs().size());
+        assertEquals(planks.name(), after.needs().get(0).spec().name());
+        assertEquals(9, after.needs().get(0).count());
+    }
+
+    @Test
     void aRiseComesBackWithWhatItLaysAndWhetherItIsRecorded() {
         var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.Rise.class, roundTrip(
                 new dev.luizloyola.anima.core.brain.task.Rise(dev.luizloyola.anima.core.inv.ItemSpec.anyOf(

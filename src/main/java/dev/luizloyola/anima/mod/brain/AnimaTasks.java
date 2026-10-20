@@ -865,6 +865,10 @@ public final class AnimaTasks {
                         com.mojang.serialization.Codec.BOOL.optionalFieldOf("builds", false)
                                 .forGetter(dev.luizloyola.anima.core.brain.task.KittedErrand::builds)
                 ).apply(t, dev.luizloyola.anima.core.brain.task.KittedErrand::new)));
+        TaskCodecs.register("anima:kit_held", dev.luizloyola.anima.core.brain.task.KittedErrand.KitHeld.class,
+                ITEM_CALL.listOf().fieldOf("needs").xmap(
+                        dev.luizloyola.anima.core.brain.task.KittedErrand.KitHeld::new,
+                        dev.luizloyola.anima.core.brain.task.KittedErrand.KitHeld::needs));
 
         // Restored with Coverage.NONE: the project that owns the errand re-attaches its live
         // Coverage on the next grant. Every step walked in between IS lost — a SweepingErrand banks
