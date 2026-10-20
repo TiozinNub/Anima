@@ -1,10 +1,6 @@
 package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.compat.nav.WorldSnapshot;
-import dev.luizloyola.anima.core.agent.AgentId;
-import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
-import dev.luizloyola.anima.core.brain.knowledge.SenseEvent;
-import dev.luizloyola.anima.core.brain.knowledge.ShelterNoter;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.Enclosure;
 import dev.luizloyola.anima.core.brain.sense.Pos;
@@ -18,7 +14,6 @@ import dev.luizloyola.anima.mod.nav.PathfinderService;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import org.jspecify.annotations.Nullable;
 
@@ -32,7 +27,7 @@ import org.jspecify.annotations.Nullable;
  * the answer is old. Never while walking, since the answer would be about somewhere already left.
  * One question is out at a time, and a reason to ask again while it is out asks once it is back.
  *
- * <p>Every answer is also what the body remembers of shelters ({@link ShelterNoter}).
+ * <p>Every answer is also what the body remembers of shelters ({@link Shelters#remember}).
  */
 final class EnclosureWatch {
 
@@ -147,7 +142,7 @@ final class EnclosureWatch {
             }
             this.verdict = answer;
             this.checkedOn = this.pendingOn;
-            remember(answer);
+            Shelters.remember(this.body, answer);
         }
         this.pendingOn = null;
         if (this.askAgain) {
@@ -155,29 +150,6 @@ final class EnclosureWatch {
             if (this.body.level() instanceof ServerLevel level && !moving(this.lastState)) {
                 ask(level, null);
             }
-        }
-    }
-
-    /** Writes down the ways into a shelter this answer found, and forgets the ones it disproved. */
-    private void remember(Enclosure answer) {
-        AgentId self = this.body.agentId();
-        MinecraftServer server = this.body.level().getServer();
-        if (self == null || server == null) {
-            return;
-        }
-        KnowledgeData data = KnowledgeData.get(server);
-        List<SenseEvent> events = ShelterNoter.note(answer, data.registry().forPerson(self),
-                AgentKnowledge.maxPerKind(this.body.profile()));
-        if (events.isEmpty()) {
-            return;
-        }
-        data.setDirty();
-        String name = this.body.entity().getName().getString();
-        for (SenseEvent event : events) {
-            this.body.journal().record(Category.SENSE,
-                    event.type() == SenseEvent.Type.NOTED ? "noticed" : "forgot",
-                    PoiSensor.describe(event));
-            KnowledgeViewer.onEvent(server, self, name, event);
         }
     }
 

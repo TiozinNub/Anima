@@ -105,6 +105,18 @@ class ShelterNoterTest {
         assertFalse(ShelterNoter.knownDoor(knowledge, new Pos(4, 64, -1)));
     }
 
+    @Test
+    void aHutTwoCellsInsideIsRememberedByTheCellBesideItsDoor() {
+        Pos door = new Pos(10, 64, 9);
+        Set<Pos> space = Set.of(new Pos(10, 64, 10), new Pos(11, 64, 10), door);
+        ShelterNoter.note(new Enclosure(Openness.OPENABLE, Holes.NONE, true, new Pos(11, 64, 10),
+                space, List.of(), List.of(door), 1L), knowledge, CAP);
+        PoiMemory way = only();
+        assertEquals(new Pos(10, 64, 10), way.anchor(), "inside, not in the doorway");
+        assertEquals(door, ShelterNoter.door(way));
+        assertEquals(3, way.units());
+    }
+
     private PoiMemory only() {
         List<PoiMemory> all = new ArrayList<>(knowledge.sighted(PoiKind.SHELTER));
         assertEquals(1, all.size());

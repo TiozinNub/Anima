@@ -210,6 +210,50 @@ class EnclosureCheckTest {
         assertEquals(Holes.NONE, e.holes());
     }
 
+    // ── a first-night hut ────────────────────────────────────────────────────────────────────
+
+    @Test
+    void aHutTwoCellsInsideIsAShelterWithItsDoorShut() {
+        Enclosure e = EnclosureCheck.run(hut(SHUT_NS), 13, 1, 12, HANDS, BUDGET, 0L);
+        assertEquals(Openness.OPENABLE, e.openness());
+        assertTrue(e.roofed());
+        assertTrue(e.shelter());
+        assertTrue(e.contains(new Pos(12, 1, 12)) && e.contains(new Pos(13, 1, 12)));
+        assertEquals(List.of(new Pos(12, 1, 11)), e.doors());
+    }
+
+    @Test
+    void theHutWithItsDoorOpenIsCloseableByThatDoor() {
+        Enclosure e = EnclosureCheck.run(hut(OPEN_NS), 13, 1, 12, HANDS, BUDGET, 0L);
+        assertEquals(Openness.CLOSEABLE, e.openness());
+        assertTrue(e.roofed(), "roofed once the door is shut");
+        assertEquals(List.of(new Pos(12, 1, 11)), e.doorsToShut());
+        assertEquals(2, e.space().size(), "the two cells inside, the door shut");
+    }
+
+    /**
+     * A hut on the field: two cells inside at (12..13, 1, 12), two high under a roof at y = 3, one
+     * door in the north wall at x = 12.
+     */
+    private static NavGrid hut(int door) {
+        String[] rows = new String[SIZE];
+        StringBuilder row = new StringBuilder();
+        for (int z = 0; z < SIZE; z++) {
+            row.setLength(0);
+            for (int x = 0; x < SIZE; x++) {
+                boolean wall = x >= 11 && x <= 14 && z >= 11 && z <= 13
+                        && !(z == 12 && (x == 12 || x == 13)) && !(z == 11 && x == 12);
+                row.append(wall ? '#' : '1');
+            }
+            rows[z] = row.toString();
+        }
+        AsciiWorld world = AsciiWorld.of(rows)
+                .fill(11, 3, 11, 14, 3, 13, CellType.GROUND)
+                .fill(12, 3, 11, 12, 9, 11, CellType.GROUND)
+                .door(12, 1, 11, 12, 2, 11, door);
+        return window(world);
+    }
+
     // ── the world ────────────────────────────────────────────────────────────────────────────
 
     private static Enclosure check(House h) {
