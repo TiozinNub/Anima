@@ -83,6 +83,8 @@ public final class FakePercepts implements Percepts {
     public long time;
     /** The sky, hour and light — null, the default, is a rig with no world to read. */
     public Surroundings surroundings;
+    /** Ticks into the day, 0 at sunrise — null, the default, keeps no hours. */
+    public Long timeOfDay;
     /** What the legs last found out about being shut in — settable; defaults to nothing known. */
     public Confinement confinement = Confinement.NONE;
     /** The space this body stands in; unknown unless a test builds one. */
@@ -339,6 +341,12 @@ public final class FakePercepts implements Percepts {
     @Override
     public java.util.Optional<Surroundings> surroundings() {
         return java.util.Optional.ofNullable(surroundings);
+    }
+
+    @Override
+    public java.util.OptionalLong timeOfDay() {
+        return timeOfDay == null ? java.util.OptionalLong.empty()
+                : java.util.OptionalLong.of(timeOfDay);
     }
 
     /** What smelts into what and how long — {@link #smelting}. */

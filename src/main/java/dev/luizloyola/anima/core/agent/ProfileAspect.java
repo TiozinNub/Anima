@@ -91,6 +91,10 @@ public final class ProfileAspect {
             "How much fright this body takes on, per block nearer home a flight ends, to run "
                     + "toward home rather than straight away. A zombie 22 blocks off frightens "
                     + "about 0.002. 0 runs only from what it fears.");
+    public static final ProfileAspect NIGHT_SHELTER_PRESSURE = register("instincts.night_shelter_pressure", Kind.DOUBLE, 0.0, 1.0,
+            "How hard this body wants to be under cover at night: nothing by day, rising from "
+                    + "sunset to this at nightfall, held until sunrise. Above mind.preempt it stops "
+                    + "work to get there. 0 never minds the dark.");
     public static final ProfileAspect FIGHT_START_RATIO = register("instincts.fight_start_ratio", Kind.DOUBLE, 0.0, 100.0,
             "How lopsided a fight must be before this body takes it on, as how long the threats "
                     + "would take to kill it over how long it would take to kill its target. 2 "

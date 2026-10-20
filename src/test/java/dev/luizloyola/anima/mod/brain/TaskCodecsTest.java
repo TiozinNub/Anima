@@ -81,6 +81,11 @@ class TaskCodecsTest {
         assertEquals(new dev.luizloyola.anima.core.brain.sense.Pos(4, -59, 1), after.in());
         assertTrue(after.issued());
         assertTrue(after.judged());
+        assertEquals(Gait.SPRINT, after.gait());
+        assertEquals(Gait.WALK, assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.RunToShelter.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.RunToShelter(4, -59, 1,
+                        Gait.WALK))).gait(), "a walk in for the night comes back a walk");
     }
 
     @Test

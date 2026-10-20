@@ -302,9 +302,11 @@ public final class AnimaTasks {
                         Codec.BOOL.fieldOf("issued").forGetter(
                                 dev.luizloyola.anima.core.brain.task.RunToShelter::issued),
                         Codec.BOOL.fieldOf("judged").forGetter(
-                                dev.luizloyola.anima.core.brain.task.RunToShelter::judged)
-                ).apply(t, (x, y, z, issued, judged) ->
-                        new dev.luizloyola.anima.core.brain.task.RunToShelter(x, y, z)
+                                dev.luizloyola.anima.core.brain.task.RunToShelter::judged),
+                        GAIT.optionalFieldOf("gait", Gait.SPRINT).forGetter(
+                                dev.luizloyola.anima.core.brain.task.RunToShelter::gait)
+                ).apply(t, (x, y, z, issued, judged, gait) ->
+                        new dev.luizloyola.anima.core.brain.task.RunToShelter(x, y, z, gait)
                                 .resume(issued, judged))));
 
         // The targets and which one is being run for: a leg restored mid-way does not go back to a
@@ -423,6 +425,10 @@ public final class AnimaTasks {
                         dev.luizloyola.anima.core.brain.task.TidyPack::new,
                         dev.luizloyola.anima.core.brain.task.TidyPack::moves));
         TaskCodecs.register("anima:flee", FleeStep.class, MapCodec.unit(FleeStep::new));
+        // Re-decided from the clock, the body's memory and where it stands, as a flight step is.
+        TaskCodecs.register("anima:night_shelter",
+                dev.luizloyola.anima.core.brain.task.NightShelterStep.class,
+                MapCodec.unit(dev.luizloyola.anima.core.brain.task.NightShelterStep::new));
         TaskCodecs.register("anima:eat", SatisfyHunger.class, MapCodec.unit(SatisfyHunger::new));
         TaskCodecs.register("anima:eat_carried", dev.luizloyola.anima.core.brain.task.EatCarried.class,
                 MapCodec.unit(dev.luizloyola.anima.core.brain.task.EatCarried::new));

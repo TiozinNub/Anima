@@ -373,6 +373,14 @@ public final class AgentPercepts implements Percepts {
         return java.util.Optional.of(SurroundingsReader.of(this.person.entity()));
     }
 
+    @Override
+    public java.util.OptionalLong timeOfDay() {
+        net.minecraft.world.level.Level level = this.person.level();
+        return dev.luizloyola.anima.compat.WorldClocks.keepsHours(level)
+                ? java.util.OptionalLong.of(dev.luizloyola.anima.compat.WorldClocks.timeOfDay(level))
+                : java.util.OptionalLong.empty();
+    }
+
     /**
      * Whether this body can get out of where it is — asked, not overheard.
      *

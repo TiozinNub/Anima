@@ -19,6 +19,7 @@ public final class TestSpecies {
             .set(ProfileAspect.FLEE_APPROACH_BONUS, 1.3)
             .set(ProfileAspect.FLEE_LOOK_TICKS, 8)
             .set(ProfileAspect.FLEE_HOME_PULL, 0.0)
+            .set(ProfileAspect.NIGHT_SHELTER_PRESSURE, 0.0)
             .set(ProfileAspect.FIGHT_START_RATIO, 1.5)
             .set(ProfileAspect.FIGHT_QUIT_RATIO, 1.0)
             .set(ProfileAspect.FIGHT_CORNERED_RATIO, 0.5)

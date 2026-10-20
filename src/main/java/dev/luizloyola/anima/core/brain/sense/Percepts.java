@@ -191,6 +191,15 @@ public interface Percepts {
     }
 
     /**
+     * Ticks into the day where the body is, 0 at sunrise; empty where the sun keeps no hours (the
+     * nether, the end) or for a rig with no world. Cheap, unlike {@link #surroundings}: a drive
+     * reads it every tick.
+     */
+    default java.util.OptionalLong timeOfDay() {
+        return java.util.OptionalLong.empty();
+    }
+
+    /**
      * Whether this body can get out of where it is — see {@link Confinement}.
      *
      * <p>A percept rather than something a drive works out: the answer comes from a route search's

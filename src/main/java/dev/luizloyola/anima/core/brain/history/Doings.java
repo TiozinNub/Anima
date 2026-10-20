@@ -32,6 +32,9 @@ public final class Doings {
             "talking", "anima.doing.talking", List.of(), false));
     public static final Doing LOOKING_FOR_COMPANY = register(new Doing(
             "looking_for_company", "anima.doing.looking_for_company", List.of(), false));
+    /** Not remembered: a night indoors is every night. */
+    public static final Doing SHELTERING = register(new Doing(
+            "sheltering", "anima.doing.sheltering", List.of(), false));
     /** Not remembered: idling is not news. */
     public static final Doing WANDERING = register(new Doing(
             "wandering", "anima.doing.wandering", List.of(), false));

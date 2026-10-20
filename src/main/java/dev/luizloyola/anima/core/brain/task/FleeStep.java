@@ -180,21 +180,8 @@ public final class FleeStep implements CompoundTask {
             if (plan == null) {
                 return List.of(); // the contract says applicable was just true; nothing moved
             }
-            List<Task> steps = new ArrayList<>();
-            Pos at = ctx.percepts().position();
-            for (Stop stop : plan.stops()) {
-                if (!stop.stand().equals(at)) {
-                    steps.add(new GoTo(stop.stand().x(), stop.stand().y(), stop.stand().z(),
-                            Gait.SPRINT));
-                }
-                steps.add(new ShutDoor(stop.door().x(), stop.door().y(), stop.door().z()));
-                at = stop.stand();
-            }
-            // Hold while the space is read again: until then it still reads as open, and a fresh
-            // leg would only shut the shut door again.
-            steps.add(new Idle(HOLD_TICKS));
             ctx.journal().record(Category.BRAIN, describe(), plan.describe());
-            return steps;
+            return shutSteps(plan.stops(), ctx.percepts().position(), Gait.SPRINT);
         }
 
         @Override
@@ -325,11 +312,31 @@ public final class FleeStep implements CompoundTask {
         if (runners == null || runners.isEmpty()) {
             return null;
         }
+        @Nullable List<Stop> stops = shutOrder(space, here, me.pace());
+        if (stops == null) {
+            return null;
+        }
+        double closest = Double.POSITIVE_INFINITY;
+        for (Stop stop : stops) {
+            double lead = ShelterRace.lead(runners, stop.door(), stop.ticks());
+            if (lead < ShelterRace.DOOR_MARGIN_TICKS) {
+                return null;
+            }
+            closest = Math.min(closest, lead);
+        }
+        return new Plan(stops, closest);
+    }
+
+    /**
+     * The doors of a closeable space to shut, nearest first, each with the cell inside to shut it
+     * from and the ticks to get there at {@code pace} blocks a tick; null when a door has no cell
+     * beside it to shut it from.
+     */
+    static @Nullable List<Stop> shutOrder(Enclosure space, Pos here, double pace) {
         List<Pos> doors = new ArrayList<>(space.doorsToShut());
         List<Stop> stops = new ArrayList<>();
         Pos at = standFloor(space, here);
         double ticks = 0.0;
-        double closest = Double.POSITIVE_INFINITY;
         while (!doors.isEmpty()) {
             Map<Pos, Integer> steps = steps(space, at);
             @Nullable Pos door = null;
@@ -346,19 +353,32 @@ public final class FleeStep implements CompoundTask {
                 }
             }
             if (door == null) {
-                return null; // a door to shut with no cell beside it to shut it from
-            }
-            ticks += best / me.pace();
-            double lead = ShelterRace.lead(runners, door, ticks);
-            if (lead < ShelterRace.DOOR_MARGIN_TICKS) {
                 return null;
             }
-            closest = Math.min(closest, lead);
+            ticks += best / pace;
             stops.add(new Stop(door, stand, ticks));
             doors.remove(door);
             at = stand;
         }
-        return new Plan(stops, closest);
+        return stops;
+    }
+
+    /**
+     * Walks to each stop and shuts its door, then holds while the space is read again: until then
+     * it still reads as open, and a fresh leg would only shut the shut door again.
+     */
+    static List<Task> shutSteps(List<Stop> stops, Pos from, Gait gait) {
+        List<Task> steps = new ArrayList<>();
+        Pos at = from;
+        for (Stop stop : stops) {
+            if (!stop.stand().equals(at)) {
+                steps.add(new GoTo(stop.stand().x(), stop.stand().y(), stop.stand().z(), gait));
+            }
+            steps.add(new ShutDoor(stop.door().x(), stop.door().y(), stop.door().z()));
+            at = stop.stand();
+        }
+        steps.add(new Idle(HOLD_TICKS));
+        return steps;
     }
 
     /** The space's cell the body stands in: its feet, or the floor or head cell by it. */

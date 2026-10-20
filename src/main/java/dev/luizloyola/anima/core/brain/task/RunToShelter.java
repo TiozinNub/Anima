@@ -41,13 +41,20 @@ public final class RunToShelter implements PrimitiveTask {
     static final int BLOCKED_TICKS = 40;
 
     private final Pos in;
+    private final Gait gait;
     private final GoTo walk;
     private boolean judged;
     private String failure = "";
 
     public RunToShelter(int x, int y, int z) {
+        this(x, y, z, Gait.SPRINT);
+    }
+
+    /** The same judged walk at another pace: a body going in for the night walks. */
+    public RunToShelter(int x, int y, int z, Gait gait) {
         this.in = new Pos(x, y, z);
-        this.walk = new GoTo(x, y, z, Gait.SPRINT);
+        this.gait = gait;
+        this.walk = new GoTo(x, y, z, gait);
     }
 
     @Override
@@ -135,6 +142,10 @@ public final class RunToShelter implements PrimitiveTask {
 
     public Pos in() {
         return in;
+    }
+
+    public Gait gait() {
+        return gait;
     }
 
     public boolean issued() {

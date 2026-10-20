@@ -14,4 +14,9 @@ public final class WorldClocks {
         /*return Math.floorMod(level.getDayTime(), 24_000L);
         *///?}
     }
+
+    /** Whether the sun rises and sets here: not in the nether or the end, whose hour is fixed. */
+    public static boolean keepsHours(Level level) {
+        return level.dimensionType().hasSkyLight() && !level.dimensionType().hasFixedTime();
+    }
 }

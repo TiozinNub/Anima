@@ -21,6 +21,7 @@ import dev.luizloyola.anima.core.brain.instinct.ConverseInstinct;
 import dev.luizloyola.anima.core.brain.instinct.Drives;
 import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.instinct.EscapeInstinct;
+import dev.luizloyola.anima.core.brain.instinct.NightShelterInstinct;
 import dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct;
 import dev.luizloyola.anima.core.brain.instinct.UnburdenInstinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
@@ -449,9 +450,9 @@ public final class BrainDriver {
         };
         // Flee is first on purpose: the arbiter breaks pressure ties in list order, so an exact
         // flee/eat tie must resolve to fleeing. Escape sits straight behind it — everything below
-        // is a want about somewhere the body cannot currently get to.
+        // is a want about somewhere the body cannot currently get to. The night comes next.
         this.arbiter = new Arbiter(List.of(
-                this.fightOrFlight, new EscapeInstinct(), Drives.EAT,
+                this.fightOrFlight, new EscapeInstinct(), new NightShelterInstinct(), Drives.EAT,
                 // After eating, before talking: a body that cannot carry anything sorts its hands
                 // out before it stops to chat. Position decides exact ties only.
                 new UnburdenInstinct(),
