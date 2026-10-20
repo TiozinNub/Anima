@@ -127,4 +127,79 @@ class FleeStepTest {
         assertTrue(ctx.mover.lastX > 3, "east, away from the western threat");
         assertEquals(60, ctx.mover.lastY, "the legs lower a goal one cell at most (Luiz, 2026-10-02)");
     }
+
+    // ── a flight leans toward home ───────────────────────────────────────────────────────────
+
+    private static final double PULL = 0.003;
+    private static final Pos HOME = new Pos(0, 64, -60);
+
+    private void livesAt(Pos home) {
+        ctx.depot = java.util.Optional.of(new dev.luizloyola.anima.core.store.Depot.Site(home,
+                java.util.Set.of(dev.luizloyola.anima.core.territory.ChunkKey.at(
+                        "minecraft:overworld", home.x(), home.z()))));
+    }
+
+    /** Where one leg from the origin runs, a zombie due east, the stream pinned. */
+    private Pos legFrom(long seed) {
+        ctx.percepts.position = new Pos(0, 64, 0);
+        ctx.percepts.beings = List.of(threatAt(10, 0, 10.0, false));
+        executor.run(new FleeStep(), ctx.seed(new Random(seed)));
+        executor.tick(ctx);
+        return new Pos(ctx.mover.lastX, ctx.mover.lastY, ctx.mover.lastZ);
+    }
+
+    @Test
+    void aFlightLeansTowardHomeWhenNothingElseTellsTheWaysApart() {
+        ctx.profile = dev.luizloyola.anima.core.agent.TestSpecies.with(
+                dev.luizloyola.anima.core.agent.ProfileAspect.FLEE_HOME_PULL, PULL);
+        livesAt(HOME);
+        Pos leg = legFrom(1);
+        assertTrue(leg.x() < 0, "still away from the zombie: " + leg);
+        assertTrue(leg.z() <= -6, "home is north, and the leg leans that way: " + leg);
+    }
+
+    @Test
+    void aRealDangerStillOutweighsTheWayHome() {
+        ctx.profile = dev.luizloyola.anima.core.agent.TestSpecies.with(
+                dev.luizloyola.anima.core.agent.ProfileAspect.FLEE_HOME_PULL, PULL);
+        livesAt(HOME);
+        long now = 10_000L;
+        ctx.percepts.time = now;
+        Pos creeper = new Pos(-8, 64, -8);
+        ctx.knowledge.note(new dev.luizloyola.anima.core.brain.knowledge.PoiMemory(
+                        dev.luizloyola.anima.core.brain.knowledge.PoiKind.DANGER, "creeper",
+                        java.util.UUID.randomUUID(), creeper,
+                        dev.luizloyola.anima.core.brain.knowledge.Region.of(creeper), 1, false, now),
+                dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge.maxPerKind(
+                        dev.luizloyola.anima.core.agent.TestSpecies.PROFILE));
+        Pos leg = legFrom(1);
+        double fromCreeper = Math.hypot(leg.x() - creeper.x(), leg.z() - creeper.z());
+        assertTrue(fromCreeper > 6.0, "ran home past the creeper, ending " + fromCreeper
+                + " blocks from it: " + leg);
+    }
+
+    @Test
+    void withNoHomeTheFlightIsAsItWas() {
+        Pos plain = legFrom(7);
+        ctx.mover.lastX = 0;
+        ctx.mover.lastZ = 0;
+        ctx.profile = dev.luizloyola.anima.core.agent.TestSpecies.with(
+                dev.luizloyola.anima.core.agent.ProfileAspect.FLEE_HOME_PULL, PULL);
+        assertEquals(plain, legFrom(7), "a pull with nowhere to pull to changes nothing");
+    }
+
+    @Test
+    void theShelterNearestHomeIsTheRefugeAndAFarOneIsNot() {
+        livesAt(HOME);
+        assertEquals(HOME, Refuge.of(ctx).orElseThrow(), "nothing remembered: home itself");
+        Pos far = new Pos(0, 64, 40);
+        Pos near = new Pos(20, 64, -60);
+        for (Pos in : List.of(far, near)) {
+            ctx.knowledge.note(new dev.luizloyola.anima.core.brain.knowledge.PoiMemory(
+                    dev.luizloyola.anima.core.brain.knowledge.PoiKind.SHELTER,
+                    in.x() + " " + in.y() + " " + (in.z() - 1), in,
+                    dev.luizloyola.anima.core.brain.knowledge.Region.of(in), 1, false, 0L), 16);
+        }
+        assertEquals(near, Refuge.of(ctx).orElseThrow());
+    }
 }

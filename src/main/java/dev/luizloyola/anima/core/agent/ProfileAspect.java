@@ -87,6 +87,10 @@ public final class ProfileAspect {
             "How long (ticks) this body stops to look back after each stretch of running from "
                     + "something it can no longer see, and then each look around if it is not "
                     + "where it was. 0 never looks back.");
+    public static final ProfileAspect FLEE_HOME_PULL = register("instincts.flee_home_pull", Kind.DOUBLE, 0.0, 0.1,
+            "How much fright this body takes on, per block nearer home a flight ends, to run "
+                    + "toward home rather than straight away. A zombie 22 blocks off frightens "
+                    + "about 0.002. 0 runs only from what it fears.");
     public static final ProfileAspect FIGHT_START_RATIO = register("instincts.fight_start_ratio", Kind.DOUBLE, 0.0, 100.0,
             "How lopsided a fight must be before this body takes it on, as how long the threats "
                     + "would take to kill it over how long it would take to kill its target. 2 "

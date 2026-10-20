@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
@@ -21,6 +22,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.ToDoubleFunction;
 import java.util.random.RandomGenerator;
 import org.jspecify.annotations.Nullable;
 
@@ -402,6 +404,11 @@ public final class FleeStep implements CompoundTask {
      * everything the body knows to fear, seen now or remembered, and the cheapest leads.
      *
      * <p>The straight-away cell keeps a small edge, so a body with nothing to weigh runs straight.
+     *
+     * <p>With a {@link Refuge}, every block a cell adds to the way there costs
+     * {@link ProfileAspect#FLEE_HOME_PULL} of fright, so of cells about as frightening the one
+     * nearer home wins. Run only away, a settler ended each round of flight further from home, over
+     * 100 blocks off by the night it died (2026-10-20).
      */
     private List<Pos> safest(BrainContext ctx, Pos here, List<Being> threats, double[] direction,
             int jitterX, int jitterZ, DangerField field) {
@@ -411,17 +418,22 @@ public final class FleeStep implements CompoundTask {
         List<Pos> ranked = new ArrayList<>();
         ranked.add(away);
         ranked.addAll(fan(here, direction));
-        if (!field.isEmpty()) {
+        double pull = ctx.profile().d(ProfileAspect.FLEE_HOME_PULL);
+        @Nullable Pos refuge = pull > 0.0 ? Refuge.of(ctx).orElse(null) : null;
+        boolean weighed = !field.isEmpty() || refuge != null;
+        ToDoubleFunction<Pos> fright = cell -> field.at(cell) + (refuge == null ? 0.0
+                : pull * (Refuge.flat(cell, refuge) - Refuge.flat(here, refuge)));
+        if (weighed) {
             ranked.sort(Comparator.comparingDouble(
-                    cell -> field.at(cell) - (cell == away ? STRAIGHT_AWAY_BONUS : 0.0)));
+                    cell -> fright.applyAsDouble(cell) - (cell == away ? STRAIGHT_AWAY_BONUS : 0.0)));
         }
         // Cover only among places already worth going: hiding behind a wall next to a creeper is
         // not an improvement on being shot at.
-        double ceiling = field.isEmpty() ? Double.POSITIVE_INFINITY
-                : field.at(ranked.get(0)) - (ranked.get(0) == away ? STRAIGHT_AWAY_BONUS : 0.0)
-                        + COVER_TOLERANCE;
+        double ceiling = !weighed ? Double.POSITIVE_INFINITY
+                : fright.applyAsDouble(ranked.get(0))
+                        - (ranked.get(0) == away ? STRAIGHT_AWAY_BONUS : 0.0) + COVER_TOLERANCE;
         takeCoverFrom(ctx, here, threats)
-                .filter(cover -> field.isEmpty() || field.at(cover) <= ceiling)
+                .filter(cover -> !weighed || fright.applyAsDouble(cover) <= ceiling)
                 .ifPresent(cover -> ranked.add(0, cover));
         // The fan is at this body's height, and the ground falls away down a hill: run to the floor.
         // The first of the fan is straight away too, and a pit found once is not searched twice.
