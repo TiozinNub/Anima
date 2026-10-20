@@ -33,6 +33,19 @@ public final class FakeRiser implements Riser {
         return true;
     }
 
+    /** How many times a body asked to step to the middle of its cell. */
+    public int centres;
+
+    @Override
+    public boolean centre() {
+        if (refuse || state == RiseState.RISING) {
+            return false;
+        }
+        centres++;
+        state = RiseState.RISING;
+        return true;
+    }
+
     @Override
     public RiseState state() {
         return state;

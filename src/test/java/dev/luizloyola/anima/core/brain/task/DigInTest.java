@@ -43,6 +43,11 @@ class DigInTest {
     /** Cells that are not the plain's: water, lava, a cave, a dug cell. */
     private final Map<Pos, CellType> world = new HashMap<>();
 
+    @org.junit.jupiter.api.AfterEach
+    void nothingKeptOff() {
+        DigIn.keepOffBy((x, z) -> false);
+    }
+
     @BeforeEach
     void aBodyOnAPlainAtNight() {
         BlocksToCross.layableBy(DIRT::equals);
@@ -126,12 +131,13 @@ class DigInTest {
     @Test
     void itDigsThreeDownPutsTheLidBackAndRemembersThePocketFirst() {
         List<Task> plan = dig();
+        assertInstanceOf(Centre.class, plan.get(0), "off-centre it stands on the rim and never drops in");
         assertEquals(List.of("break (0, 63, 0)", "break (0, 62, 0)", "break (0, 61, 0)"),
-                plan.subList(0, 3).stream().map(t -> ((PrimitiveTask) t).describe()).toList());
-        PlaceBlock lid = assertInstanceOf(PlaceBlock.class, plan.get(3));
+                plan.subList(1, 4).stream().map(t -> ((PrimitiveTask) t).describe()).toList());
+        PlaceBlock lid = assertInstanceOf(PlaceBlock.class, plan.get(4));
         assertEquals(LID, lid.target());
         assertEquals(DIRT, lid.itemId());
-        assertEquals(FEET, assertInstanceOf(SealIn.class, plan.get(4)).feet());
+        assertEquals(FEET, assertInstanceOf(SealIn.class, plan.get(5)).feet());
         PoiMemory pocket = DigIn.begun(ctx);
         assertNotNull(pocket, "written before the first block comes out");
         assertEquals(FEET, pocket.anchor());
@@ -146,15 +152,90 @@ class DigInTest {
         world.put(new Pos(0, 62, 0), CellType.PASSABLE);
         ctx.percepts.position = new Pos(0, 62, 0);
         List<Task> plan = dig();
-        assertEquals("break (0, 61, 0)", ((PrimitiveTask) plan.get(0)).describe());
-        assertInstanceOf(PlaceBlock.class, plan.get(1));
+        assertInstanceOf(Centre.class, plan.get(0));
+        assertEquals("break (0, 61, 0)", ((PrimitiveTask) plan.get(1)).describe());
+        assertInstanceOf(PlaceBlock.class, plan.get(2));
         assertEquals(1, ctx.knowledge.sighted(PoiKind.SHELTER).size(), "the same pocket");
     }
 
     @Test
-    void theLidOnTheSealIsAskedForAndTheSpaceReadAgain() {
-        new SealIn(0, 61, 0).tick(ctx);
-        assertEquals(1, ctx.percepts.rechecks);
+    void aBodyOutOfItsPocketGoesBackToItBeforeDiggingAnother() {
+        dig();
+        world.put(new Pos(0, 62, 0), CellType.PASSABLE);
+        world.put(FEET, CellType.PASSABLE);
+        ctx.percepts.position = new Pos(3, 64, 1);
+        assertEquals(new DigIn.Pocket(FEET, LID), DigIn.where(ctx), "a settler dug a second one beside it");
+        List<Task> plan = dig();
+        assertTrue(((PrimitiveTask) plan.get(0)).describe().startsWith("goto (0, 64, 0)"), "to its top");
+        assertInstanceOf(Centre.class, plan.get(1));
+        assertEquals("break (0, 63, 0)", ((PrimitiveTask) plan.get(2)).describe(), "the lid, to drop in");
+        assertEquals(LID, assertInstanceOf(PlaceBlock.class, plan.get(3)).target(), "and back on");
+        assertEquals(1, ctx.knowledge.sighted(PoiKind.SHELTER).size(), "one night, one pocket");
+    }
+
+    @Test
+    void inThePocketWithTheLidOnItHolds() {
+        dig();
+        world.put(new Pos(0, 62, 0), CellType.PASSABLE);
+        world.put(FEET, CellType.PASSABLE);
+        ctx.percepts.position = FEET;
+        List<Task> plan = dig();
+        assertEquals(1, plan.size());
+        assertInstanceOf(Idle.class, plan.get(0), "no second seal, no second line in the journal");
+    }
+
+    @Test
+    void theSealHoldsOnlyWithTheFeetInThePocketAndTheLidIn() {
+        ctx.percepts.position = new Pos(0, 64, 0);
+        assertEquals(TaskStatus.FAILED, new SealIn(0, 61, 0).tick(ctx), "standing on the lid");
+        assertEquals(0, ctx.percepts.rechecks);
+        ctx.percepts.position = FEET;
+        world.put(LID, CellType.PASSABLE);
+        assertEquals(TaskStatus.FAILED, new SealIn(0, 61, 0).tick(ctx), "no lid");
+        world.remove(LID);
+        assertEquals(TaskStatus.SUCCESS, new SealIn(0, 61, 0).tick(ctx));
+        assertEquals(1, ctx.percepts.rechecks, "the space is read again with the lid on");
+    }
+
+    @Test
+    void aPocketGivenUpIsLeftAloneAndAnotherFound() {
+        dig();
+        Method giveUp = new DigIn().methods().get(1);
+        assertTrue(giveUp.applicable(ctx));
+        for (Task task : giveUp.decompose(ctx)) {
+            assertEquals(TaskStatus.SUCCESS, ((PrimitiveTask) task).tick(ctx));
+        }
+        assertNull(DigIn.begun(ctx), "forgotten, so escape is no longer held off");
+        DigIn.Pocket next = DigIn.where(ctx);
+        assertNotNull(next);
+        assertTrue(!next.feet().equals(FEET), "another column: " + next);
+    }
+
+    @Test
+    void theCentringStepWaitsForTheBodyToReachTheMiddle() {
+        Centre centre = new Centre();
+        assertEquals(TaskStatus.RUNNING, centre.tick(ctx));
+        assertEquals(1, ctx.riser.centres);
+        assertEquals(TaskStatus.RUNNING, centre.tick(ctx));
+        ctx.riser.state = dev.luizloyola.anima.core.brain.act.RiseState.RISEN;
+        assertEquals(TaskStatus.SUCCESS, centre.tick(ctx));
+    }
+
+    // ── ground somebody keeps ────────────────────────────────────────────────────────────────
+
+    @Test
+    void inOrBesideABuildingGoingUpItStaysRatherThanDig() {
+        DigIn.keepOffBy((x, z) -> x == 1 && z == 0);
+        assertNull(DigIn.where(ctx), "the house's planks are beside its feet");
+    }
+
+    @Test
+    void itNeverDigsBesideGroundKeptOff() {
+        DigIn.keepOffBy((x, z) -> x <= -2);
+        world.put(new Pos(1, 62, 0), CellType.WATER);
+        DigIn.Pocket pocket = DigIn.where(ctx);
+        assertNotNull(pocket);
+        assertTrue(pocket.feet().x() >= 0, "a column beside kept ground is refused: " + pocket);
     }
 
     // ── a pocket shut on purpose ─────────────────────────────────────────────────────────────
@@ -185,15 +266,15 @@ class DigInTest {
     }
 
     @Test
-    void thePocketIsForgottenOnceTheBodyIsSeenOutOfIt() {
+    void aPocketLastsTheNightItWasDugWhateverIsAnsweredBesideIt() {
         ctx.knowledge.note(ShelterNoter.dugIn(FEET, LID, 0L), 16);
-        ShelterNoter.note(Enclosure.open(new Pos(0, 61, 0), 5L), ctx.knowledge, 16);
-        assertEquals(1, ctx.knowledge.sighted(PoiKind.SHELTER).size(),
-                "asked from inside it, the lid off: still digging out");
-        ShelterNoter.note(Enclosure.open(new Pos(9, 64, 9), 5L), ctx.knowledge, 16);
-        assertEquals(1, ctx.knowledge.sighted(PoiKind.SHELTER).size(), "somewhere else entirely");
         ShelterNoter.note(Enclosure.open(new Pos(1, 63, 0), 5L), ctx.knowledge, 16);
-        assertTrue(ctx.knowledge.sighted(PoiKind.SHELTER).isEmpty(), "climbed out beside it");
+        assertEquals(1, ctx.knowledge.sighted(PoiKind.SHELTER).size(),
+                "a body stepped out of it beside it forgot it, and dug a second (2026-10-20)");
+        ctx.percepts.position = FEET;
+        assertNotNull(DigIn.begun(ctx));
+        ctx.percepts.time = DigIn.NIGHT_TICKS;
+        assertNull(DigIn.begun(ctx), "tomorrow night's is another");
     }
 
     private boolean safeUnderFeet() {

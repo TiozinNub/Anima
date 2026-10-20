@@ -22,16 +22,14 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>A pocket a body dug itself into for the night is a shelter with no door,
  * {@code "dug x y z"} naming the block over its head ({@link #dugIn}). It cannot be walked into, so
- * nothing runs for it; it says the body is shut in on purpose, and it is forgotten once the body
- * is seen out of it.
+ * nothing runs for it; it says the body is shut in on purpose, for the night it was dug. No answer
+ * disproves it: one asked from beside it forgot a pocket its body had only stepped out of, and it
+ * dug a second one next to it (2026-10-20).
  */
 public final class ShelterNoter {
 
     private static final String SMALL = "small";
     private static final String DUG = "dug ";
-
-    /** How near a dug pocket an answer from outside it must be to say the body left it. */
-    private static final int LEFT_POCKET = 3;
 
     private ShelterNoter() {
     }
@@ -48,10 +46,6 @@ public final class ShelterNoter {
         Map<Pos, PoiMemory> ways = shelter ? ways(answer) : Map.of();
         for (PoiMemory known : List.copyOf(knowledge.sighted(PoiKind.SHELTER))) {
             if (dug(known)) {
-                if (!known.bounds().contains(from) && within(known.anchor(), from, LEFT_POCKET)) {
-                    knowledge.forget(PoiKind.SHELTER, known.anchor());
-                    events.add(SenseEvent.forgot(PoiKind.SHELTER, known.anchor()));
-                }
                 continue;
             }
             Pos door = door(known);
@@ -163,11 +157,7 @@ public final class ShelterNoter {
     }
 
     private static boolean near(Pos a, Pos b) {
-        return within(a, b, 1);
-    }
-
-    private static boolean within(Pos a, Pos b, int cells) {
-        return Math.abs(a.x() - b.x()) <= cells && Math.abs(a.y() - b.y()) <= cells
-                && Math.abs(a.z() - b.z()) <= cells;
+        return Math.abs(a.x() - b.x()) <= 1 && Math.abs(a.y() - b.y()) <= 1
+                && Math.abs(a.z() - b.z()) <= 1;
     }
 }

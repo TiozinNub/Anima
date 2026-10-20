@@ -17,6 +17,9 @@ import org.jspecify.annotations.Nullable;
  * stands in, shut the doors of one it is in that stand open, walk in to one it remembers within
  * {@link RunToShelter#REACH}, or else {@link DigIn dig in} where it stands. A flight's moves without
  * the race: nothing is coming, so every door is shut and the walk does not hurry.
+ *
+ * <p>With none of those, or every one fallen through, it waits the night out where it stands: a
+ * settler whose dig failed went off exploring at night (2026-10-20).
  */
 public final class NightShelterStep implements CompoundTask {
 
@@ -26,21 +29,11 @@ public final class NightShelterStep implements CompoundTask {
      */
     static final int HOLD_TICKS = 40;
 
-    private final List<Method> methods =
-            List.of(new StayIn(), new ShutIn(), new WalkIn(), new DigInHere());
+    private final List<Method> methods = List.of(new StayIn(), new ShutIn(), new WalkIn(), new NoWayIn(),
+            new DigInHere(), new WaitOut());
 
     /** The shelter this root set out for, left alone a while if the way there fails. Not saved. */
     private @Nullable Pos headedFor;
-
-    /**
-     * Whether any way to be under cover tonight is open to this body. Digging in counts on its
-     * cheap half only; ground with nowhere safe to dig fails the root, which then sits out its
-     * cooldown.
-     */
-    public static boolean somewhere(BrainContext ctx) {
-        return inShelter(ctx) || shutOrder(ctx) != null || shelterToWalkTo(ctx) != null
-                || DigIn.possible(ctx);
-    }
 
     @Override
     public List<Method> methods() {
@@ -50,14 +43,6 @@ public final class NightShelterStep implements CompoundTask {
     @Override
     public String describe() {
         return "shelter for the night";
-    }
-
-    /** The way to the shelter it set out for failed: leave that one alone, as a flight would. */
-    public void failed(BrainContext ctx) {
-        if (this.headedFor != null) {
-            ctx.knowledge().avoid(PoiKind.SHELTER, this.headedFor,
-                    ctx.percepts().time() + RunToShelter.NO_WAY_TICKS);
-        }
     }
 
     static boolean inShelter(BrainContext ctx) {
@@ -192,6 +177,52 @@ public final class NightShelterStep implements CompoundTask {
         @Override
         public String describe() {
             return "dig in";
+        }
+    }
+
+    /** The walk in fell through: that shelter is left alone a while, as a flight would. */
+    private final class NoWayIn implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return headedFor != null;
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            return 0.0;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            Pos at = headedFor;
+            return at == null ? List.of() : List.of(new GiveUpShelter(at.x(), at.y(), at.z()));
+        }
+
+        @Override
+        public String describe() {
+            return "no way in";
+        }
+    }
+
+    private static final class WaitOut implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return true;
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            return 0.0;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            return List.of(new Idle(HOLD_TICKS));
+        }
+
+        @Override
+        public String describe() {
+            return "wait the night out";
         }
     }
 }

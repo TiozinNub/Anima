@@ -7,7 +7,6 @@ import dev.luizloyola.anima.core.brain.history.Doings;
 import dev.luizloyola.anima.core.brain.task.DigIn;
 import dev.luizloyola.anima.core.brain.task.NightShelterStep;
 import dev.luizloyola.anima.core.brain.task.Task;
-import dev.luizloyola.anima.core.brain.task.TaskStatus;
 import java.util.OptionalLong;
 
 /**
@@ -16,9 +15,9 @@ import java.util.OptionalLong;
  * {@link ProfileAspect#NIGHT_SHELTER_PRESSURE} at nightfall and holds there until sunrise, when
  * the sun starts burning what spawned in the dark.
  *
- * <p>It bids only while there is somewhere to go ({@link NightShelterStep#somewhere}). Nothing it
- * acts on is its own to keep: the hour is the clock's, the shelter the body's memory and its own
- * check, so a body restarted mid-night carries on.
+ * <p>It bids all night whatever the body can do about it ({@link NightShelterStep}), waiting where
+ * it stands at worst. Nothing it acts on is its own to keep: the hour is the clock's, the shelter
+ * the body's memory and its own check, so a body restarted mid-night carries on.
  */
 public final class NightShelterInstinct implements Instinct {
 
@@ -28,8 +27,11 @@ public final class NightShelterInstinct implements Instinct {
     /** Nightfall, where dusk ends and the pull is at full. */
     public static final long NIGHTFALL = 13_500L;
 
-    /** Longer than the default: a body with nowhere to go at night tries again every 10 s, not 5. */
-    static final int FAIL_COOLDOWN = 200;
+    /**
+     * Short: the root waits the night out rather than fail, so this is mostly a fight cutting in,
+     * after which the body goes back to cover at once rather than to work.
+     */
+    static final int FAIL_COOLDOWN = 20;
 
     /** The pull at {@code timeOfDay} for a body whose night pull is {@code full}. */
     public static double pull(long timeOfDay, double full) {
@@ -63,20 +65,12 @@ public final class NightShelterInstinct implements Instinct {
 
     @Override
     public double pressure(BrainContext ctx) {
-        double pull = pull(ctx);
-        return pull > 0.0 && NightShelterStep.somewhere(ctx) ? pull : 0.0;
+        return pull(ctx);
     }
 
     @Override
     public Task root(BrainContext ctx) {
         return new NightShelterStep();
-    }
-
-    @Override
-    public void ended(BrainContext ctx, Task root, TaskStatus status) {
-        if (status == TaskStatus.FAILED && root instanceof NightShelterStep step) {
-            step.failed(ctx);
-        }
     }
 
     @Override

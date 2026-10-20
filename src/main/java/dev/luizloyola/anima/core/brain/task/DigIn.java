@@ -26,13 +26,19 @@ import org.jspecify.annotations.Nullable;
  * <p>Three rather than two because a block goes in only against a face: on a plain the cell the
  * body stood in has none, and the cell one down has the ground on all four sides.
  *
- * <p>The pocket is remembered before the first block comes out ({@link ShelterNoter#dugIn}), so a
- * dig cut short, by a fight or a restart, carries on where it stopped, and the escape drive leaves a
- * body in its own pocket alone until sunrise, then climbs it out.
+ * <p>The body steps to the middle of its cell first: off-centre its box rests on the rim, and a
+ * settler dug her pocket out from under her, put the lid on it and stood on top all night
+ * (2026-10-20). The pocket counts as dug only with her feet in it and the lid in ({@link SealIn});
+ * a dig that falls short leaves that pocket alone a while ({@link GiveUpShelter}).
  *
- * <p>Refused ground ({@link #safe}): anything but solid natural ground in the column and its walls,
- * a block that falls (sand, gravel) there, anything hollow under the floor, water or lava within a
- * block of it.
+ * <p>The pocket is remembered before the first block comes out ({@link ShelterNoter#dugIn}), for
+ * the night it is dug ({@link #NIGHT_TICKS}): a dig cut short, by a fight or a restart, carries on
+ * where it stopped, a body that left it goes back to it before digging another, and the escape
+ * drive leaves a body in its own pocket alone until sunrise, then climbs it out.
+ *
+ * <p>Refused ground ({@link #safe}): anything but solid ground in the column and its walls, a block
+ * that falls (sand, gravel) there, anything hollow under the floor, water or lava within a block of
+ * it, and anywhere within a column of ground the consuming mod keeps a body off ({@link Fence}).
  */
 public final class DigIn implements CompoundTask {
 
@@ -42,9 +48,28 @@ public final class DigIn implements CompoundTask {
     /** Cells dug below the feet: the pocket's two, and the one the cover goes back into. */
     static final int DEPTH = 3;
 
+    /** How long a dug pocket is this night's: a night is 10,500 ticks, sunset to sunrise. */
+    public static final long NIGHT_TICKS = 12_000L;
+
     private static final int[][] SIDES = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
 
-    private final List<Method> methods = List.of(new Dig());
+    /**
+     * Ground a body may not dig into, nor beside, since climbing out at sunrise cuts the column next
+     * door: the consuming mod's buildings, standing or planned. Anima knows none.
+     */
+    @FunctionalInterface
+    public interface Fence {
+        boolean keepsOff(int x, int z);
+    }
+
+    private static volatile Fence fence = (x, z) -> false;
+
+    /** Installed once by the consuming mod. */
+    public static void keepOffBy(Fence rule) {
+        fence = rule;
+    }
+
+    private final List<Method> methods = List.of(new Dig(), new GiveUp());
 
     /** Where the pocket is: its floor cell, and the cell over the head the cover goes into. */
     public record Pocket(Pos feet, Pos cover) {
@@ -82,24 +107,38 @@ public final class DigIn implements CompoundTask {
                 && coverItem(ctx.percepts().inventory()) != null;
     }
 
-    /** The pocket this body set out to dig and stands in the column of, or null. */
+    /** The pocket this body set out to dig tonight and stands in the column of, or null. */
     public static @Nullable PoiMemory begun(BrainContext ctx) {
-        Pos here = ctx.percepts().position();
+        @Nullable PoiMemory tonight = tonight(ctx);
+        return tonight != null && tonight.bounds().contains(ctx.percepts().position()) ? tonight : null;
+    }
+
+    /** The pocket this body set out to dig tonight, wherever it stands, or null. */
+    static @Nullable PoiMemory tonight(BrainContext ctx) {
+        long now = ctx.percepts().time();
         for (PoiMemory memory : ctx.knowledge().sighted(PoiKind.SHELTER)) {
-            if (ShelterNoter.dug(memory) && memory.bounds().contains(here)) {
+            if (ShelterNoter.dug(memory) && now - memory.lastSeenTick() < NIGHT_TICKS
+                    && !ctx.knowledge().isAvoided(PoiKind.SHELTER, memory.anchor(), now)) {
                 return memory;
             }
         }
         return null;
     }
 
-    /** Where to dig: the pocket under way, else the nearest safe column round the body. */
+    /**
+     * Where to dig: tonight's pocket, under way or to go back to within {@link RunToShelter#REACH};
+     * else the nearest safe column round the body. None near ground kept off: a body inside or
+     * beside a building going up stays there rather than dig.
+     */
     static @Nullable Pocket where(BrainContext ctx) {
-        @Nullable PoiMemory begun = begun(ctx);
-        if (begun != null) {
-            return new Pocket(begun.anchor(), ShelterNoter.cover(begun));
-        }
         Pos here = ctx.percepts().position();
+        @Nullable PoiMemory tonight = tonight(ctx);
+        if (tonight != null && ShelterRace.distance(here, tonight.anchor()) <= RunToShelter.REACH) {
+            return new Pocket(tonight.anchor(), ShelterNoter.cover(tonight));
+        }
+        if (keptOffNear(here.x(), here.z())) {
+            return null;
+        }
         NavGrid grid = ctx.percepts().terrain();
         BlockProbe probe = ctx.percepts().blocks();
         List<int[]> offsets = new ArrayList<>();
@@ -112,8 +151,10 @@ public final class DigIn implements CompoundTask {
         for (int[] o : offsets) {
             int x = here.x() + o[0];
             int z = here.z() + o[1];
-            if (safe(grid, probe, x, here.y(), z)) {
-                return Pocket.under(x, here.y(), z);
+            Pocket pocket = Pocket.under(x, here.y(), z);
+            if (!ctx.knowledge().isAvoided(PoiKind.SHELTER, pocket.feet(), ctx.percepts().time())
+                    && !keptOffNear(x, z) && safe(grid, probe, x, here.y(), z)) {
+                return pocket;
             }
         }
         return null;
@@ -157,6 +198,19 @@ public final class DigIn implements CompoundTask {
         return true;
     }
 
+    /** Whether the column or one beside it is ground the consuming mod keeps a body off. */
+    static boolean keptOffNear(int x, int z) {
+        Fence rule = fence;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (rule.keepsOff(x + dx, z + dz)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static boolean firm(NavGrid grid, BlockProbe probe, int x, int y, int z) {
         return grid.cell(x, y, z) == CellType.GROUND && !probe.loose(x, y, z);
     }
@@ -192,23 +246,29 @@ public final class DigIn implements CompoundTask {
             }
             Pos here = ctx.percepts().position();
             NavGrid grid = ctx.percepts().terrain();
-            boolean there = here.x() == pocket.feet().x() && here.z() == pocket.feet().z();
-            List<Task> steps = new ArrayList<>();
-            if (!there) {
-                begin(ctx, pocket);
-                Pos top = pocket.top();
-                steps.add(new GoTo(top.x(), top.y(), top.z()));
-            } else if (begun(ctx) == null) {
+            Pos lid = pocket.cover();
+            boolean lidIn = grid.cell(lid.x(), lid.y(), lid.z()) == CellType.GROUND;
+            if (here.equals(pocket.feet()) && lidIn) {
+                return List.of(new Idle(NightShelterStep.HOLD_TICKS)); // in already
+            }
+            boolean there = here.x() == pocket.feet().x() && here.z() == pocket.feet().z()
+                    && here.y() >= pocket.feet().y() && here.y() <= pocket.top().y();
+            if (tonight(ctx) == null) {
                 begin(ctx, pocket);
             }
+            List<Task> steps = new ArrayList<>();
+            if (!there) {
+                Pos top = pocket.top();
+                steps.add(new GoTo(top.x(), top.y(), top.z()));
+            }
+            steps.add(new Centre());
             int from = there ? here.y() - 1 : pocket.cover().y();
             for (int y = from; y >= pocket.feet().y(); y--) {
                 if (grid.cell(pocket.feet().x(), y, pocket.feet().z()) != CellType.PASSABLE) {
                     steps.add(new BreakBlock(pocket.feet().x(), y, pocket.feet().z()));
                 }
             }
-            Pos lid = pocket.cover();
-            if (!steps.isEmpty() || grid.cell(lid.x(), lid.y(), lid.z()) != CellType.GROUND) {
+            if (!lidIn || from >= lid.y()) {
                 steps.add(new PlaceBlock(cover, lid.x(), lid.y(), lid.z()));
             }
             steps.add(new SealIn(pocket.feet().x(), pocket.feet().y(), pocket.feet().z()));
@@ -235,6 +295,34 @@ public final class DigIn implements CompoundTask {
         @Override
         public String describe() {
             return "dig";
+        }
+    }
+
+    /** The dig fell short: that pocket is left alone a while, and the next root looks again. */
+    private static final class GiveUp implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return tonight(ctx) != null;
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            return 0.0;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            @Nullable PoiMemory pocket = tonight(ctx);
+            if (pocket == null) {
+                return List.of();
+            }
+            Pos at = pocket.anchor();
+            return List.of(new GiveUpShelter(at.x(), at.y(), at.z()));
+        }
+
+        @Override
+        public String describe() {
+            return "give the pocket up";
         }
     }
 }

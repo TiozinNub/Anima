@@ -35,6 +35,16 @@ public interface Riser {
         return up(itemId);
     }
 
+    /**
+     * Shuffle to the middle of the feet cell without jumping — the shuffle {@link #up} starts with:
+     * RISING until centred (RISEN) or given up (FAILED). False when a step is in flight. A body
+     * digging straight down under itself asks it first: off-centre, its box rests on the rim
+     * beside the hole and it never drops in.
+     */
+    default boolean centre() {
+        return false;
+    }
+
     /** Progress of the most recent step; IDLE when none. */
     RiseState state();
 

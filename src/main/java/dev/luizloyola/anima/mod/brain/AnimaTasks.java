@@ -428,6 +428,13 @@ public final class AnimaTasks {
         // The pocket is in the body's memory and the cells left to dig are in the world.
         TaskCodecs.register("anima:dig_in", dev.luizloyola.anima.core.brain.task.DigIn.class,
                 MapCodec.unit(dev.luizloyola.anima.core.brain.task.DigIn::new));
+        // A restored shuffle starts again from wherever the body stands.
+        TaskCodecs.register("anima:centre", dev.luizloyola.anima.core.brain.task.Centre.class,
+                MapCodec.unit(dev.luizloyola.anima.core.brain.task.Centre::new));
+        TaskCodecs.register("anima:give_up_shelter", dev.luizloyola.anima.core.brain.task.GiveUpShelter.class,
+                POS.fieldOf("at").xmap(
+                        at -> new dev.luizloyola.anima.core.brain.task.GiveUpShelter(at.x(), at.y(), at.z()),
+                        dev.luizloyola.anima.core.brain.task.GiveUpShelter::at));
         TaskCodecs.register("anima:seal_in", dev.luizloyola.anima.core.brain.task.SealIn.class,
                 POS.fieldOf("feet").xmap(
                         feet -> new dev.luizloyola.anima.core.brain.task.SealIn(feet.x(), feet.y(),

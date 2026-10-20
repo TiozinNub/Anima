@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -21,7 +22,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The pull to be under cover at night (Luiz, 2026-10-20): nothing by day, rising through dusk,
- * full from nightfall to sunrise, and only while the body has somewhere to go.
+ * full from nightfall to sunrise, waiting where it stands when it has nowhere to go.
  *
  * <p>The body stands at (0, 64, 0); the shelter it may remember has its door at (10, 64, -1) and
  * the cell inside it at (10, 64, 0).
@@ -54,8 +55,13 @@ class NightShelterInstinctTest {
     }
 
     @Test
-    void withNoShelterInMindItDoesNotPull() {
-        assertEquals(0.0, night.pressure(ctx));
+    void withNoShelterInMindItWaitsTheNightOutRatherThanWork() {
+        assertEquals(FULL, night.pressure(ctx), "a settler whose dig failed went exploring at night");
+        TaskExecutor executor = new TaskExecutor();
+        executor.run(night.root(ctx), ctx);
+        executor.tick(ctx);
+        assertEquals(0, ctx.mover.moveToCalls, "it stays where it is");
+        assertTrue(executor.isBusy(), "holding");
     }
 
     @Test
@@ -83,10 +89,10 @@ class NightShelterInstinctTest {
     }
 
     @Test
-    void aShelterOutOfReachDoesNotPull() {
+    void aShelterOutOfReachIsNotWalkedTo() {
         ctx.knowledge.note(new PoiMemory(PoiKind.SHELTER, "100 64 -1", new Pos(100, 64, 0),
                 Region.of(new Pos(100, 64, 0)), 2, false, 0L), 16);
-        assertEquals(0.0, night.pressure(ctx));
+        assertFalse(method("walk in").applicable(ctx));
     }
 
     @Test
@@ -116,11 +122,17 @@ class NightShelterInstinctTest {
     void aWayInThatFailsLeavesThatShelterAloneAWhile() {
         remember();
         NightShelterStep root = (NightShelterStep) night.root(ctx);
+        Method giveUp = root.methods().stream().filter(m -> m.describe().equals("no way in")).findFirst()
+                .orElseThrow();
+        assertFalse(giveUp.applicable(ctx), "nothing tried yet");
         root.methods().stream().filter(m -> m.describe().equals("walk in")).findFirst()
                 .orElseThrow().decompose(ctx);
-        night.ended(ctx, root, TaskStatus.FAILED);
+        assertTrue(giveUp.applicable(ctx), "the walk in was set out on, and fell through");
+        for (Task task : giveUp.decompose(ctx)) {
+            ((PrimitiveTask) task).tick(ctx);
+        }
         assertTrue(ctx.knowledge.isAvoided(PoiKind.SHELTER, IN, ctx.percepts.time));
-        assertEquals(0.0, night.pressure(ctx), "nowhere else to go");
+        assertFalse(method("walk in").applicable(ctx), "the next root does not ask it again");
     }
 
     private void remember() {

@@ -93,6 +93,23 @@ public final class AgentRiser implements Riser {
     /** Whether the step in flight is recorded in the ledger of laid blocks. */
     private boolean recorded;
 
+    /** The step in flight is {@link #centre}: no jump once centred. */
+    private boolean centreOnly;
+
+    @Override
+    public boolean centre() {
+        if (state == RiseState.RISING) {
+            return false;
+        }
+        person.driveSprint(false);
+        this.base = person.blockPosition();
+        this.centringTicks = 0;
+        this.centring = true;
+        this.centreOnly = true;
+        this.state = RiseState.RISING;
+        return true;
+    }
+
     @Override
     public boolean up(String itemId) {
         return up(itemId, false);
@@ -144,6 +161,14 @@ public final class AgentRiser implements Riser {
     /** One tick of rise work, from the body's server AI step; a no-op unless rising. */
     public void tick() {
         if (state != RiseState.RISING) {
+            return;
+        }
+        if (centreOnly) {
+            if (stepToMiddle()) {
+                brake();
+                centreOnly = false;
+                state = RiseState.RISEN;
+            }
             return;
         }
         if (centring && !stepToMiddle()) {
@@ -250,6 +275,7 @@ public final class AgentRiser implements Riser {
     private void fail(String detail) {
         person.entity().setJumping(false);
         centring = false;
+        centreOnly = false;
         state = RiseState.FAILED;
         if (base.equals(failedCell)) {
             failedStreak++;
@@ -281,6 +307,7 @@ public final class AgentRiser implements Riser {
             person.entity().setJumping(false);
         }
         centring = false;
+        centreOnly = false;
         state = RiseState.IDLE;
     }
 

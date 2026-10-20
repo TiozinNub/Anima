@@ -97,6 +97,11 @@ class TaskCodecsTest {
         var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.SealIn.class,
                 roundTrip(new dev.luizloyola.anima.core.brain.task.SealIn(4, 61, -2)));
         assertEquals(new dev.luizloyola.anima.core.brain.sense.Pos(4, 61, -2), after.feet());
+        assertInstanceOf(dev.luizloyola.anima.core.brain.task.Centre.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.Centre()));
+        assertEquals(new dev.luizloyola.anima.core.brain.sense.Pos(4, 61, -2), assertInstanceOf(
+                dev.luizloyola.anima.core.brain.task.GiveUpShelter.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.GiveUpShelter(4, 61, -2))).at());
     }
 
     @Test
