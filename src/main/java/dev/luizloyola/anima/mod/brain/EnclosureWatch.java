@@ -45,6 +45,8 @@ final class EnclosureWatch {
     private @Nullable NavGrid pendingOn;
     /** Something asked for a fresh look while one was out. */
     private boolean askAgain;
+    /** The body changed its space by hand and wants it read again — see {@link #recheck}. */
+    private boolean recheck;
     private boolean loaded;
     private Navigator.State lastState = Navigator.State.IDLE;
     private long doorsLookedAt;
@@ -70,6 +72,11 @@ final class EnclosureWatch {
         return this.verdict.contains(feet) ? this.verdict : Enclosure.UNKNOWN;
     }
 
+    /** Has the next tick the body stands still ask again, as a door changing would. */
+    void recheck() {
+        this.recheck = true;
+    }
+
     /** One look, from the brain's tick. */
     void tick(List<Being> beings) {
         if (!(this.body.level() instanceof ServerLevel level)) {
@@ -91,6 +98,9 @@ final class EnclosureWatch {
             // is not saved — it is a reading of the world, so it is read again.
             askNow(level);
         } else if (!current().known() && this.pending == null && !feet().equals(this.askedFrom)) {
+            ask(level, null);
+        } else if (this.recheck) {
+            this.recheck = false;
             ask(level, null);
         } else if (doorsChanged(level, now)) {
             ask(level, null);

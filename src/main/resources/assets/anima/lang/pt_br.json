@@ -190,6 +190,8 @@
   "anima.config.aspect.instincts.flee_home_pull.desc": "Quanto medo este corpo aceita, por bloco mais perto de casa onde a fuga termina, para correr em direção a casa em vez de direto para longe. Um zumbi a 22 blocos assusta cerca de 0,002. 0 só foge do que teme.",
   "anima.config.aspect.instincts.night_shelter_pressure": "Abrigo à noite",
   "anima.config.aspect.instincts.night_shelter_pressure.desc": "Quanto este corpo quer estar coberto à noite: nada de dia, subindo do pôr do sol até isto ao anoitecer, mantido até o nascer do sol. Acima do limiar de interrupção ele para o trabalho para chegar lá. 0 nunca se importa com o escuro.",
+  "anima.config.aspect.instincts.night_dig_in": "Cavar-se à noite",
+  "anima.config.aspect.instincts.night_dig_in.desc": "Se uma noite que pega este corpo sem abrigo ao alcance o faz cavar um buraco no chão e fechá-lo sobre a cabeça com um bloco que carrega, saindo ao nascer do sol. Precisa de braço e de mão.",
   "anima.config.aspect.instincts.fight_start_ratio": "Vantagem para começar uma luta",
   "anima.config.aspect.instincts.fight_start_ratio.desc": "Quão desigual a luta precisa ser para ser aceita: quanto tempo as ameaças levariam para matar este corpo, dividido por quanto tempo ele levaria para matar o alvo.",
   "anima.config.aspect.instincts.fight_quit_ratio": "Vantagem para abandonar uma luta",

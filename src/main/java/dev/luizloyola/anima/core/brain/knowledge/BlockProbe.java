@@ -64,6 +64,14 @@ public interface BlockProbe {
     }
 
     /**
+     * Whether the block here falls once nothing holds it up — sand, gravel, concrete powder. False
+     * when the cell is out of reach or the probe cannot say. Asked by a body about to dig under it.
+     */
+    default boolean loose(int x, int y, int z) {
+        return false;
+    }
+
+    /**
      * The cell's block-state properties by name — {@code type=double} on a slab, {@code candles=3}.
      * Empty when the cell is out of reach, has none, or the probe cannot say. Asked as rarely as
      * {@link #idAt}: by a builder checking that a step stands whole.

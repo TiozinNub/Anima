@@ -14,6 +14,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.Fallable;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.Property;
@@ -212,6 +213,16 @@ public final class LevelProbe implements BlockProbe {
         this.scratch.set(x, y, z);
         BlockState state = loaded.getBlockState(this.scratch);
         return BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
+    }
+
+    @Override
+    public boolean loose(int x, int y, int z) {
+        ChunkAccess loaded = chunkFor(x, z);
+        if (loaded == null) {
+            return false;
+        }
+        this.scratch.set(x, y, z);
+        return loaded.getBlockState(this.scratch).getBlock() instanceof Fallable;
     }
 
     @Override

@@ -425,6 +425,14 @@ public final class AnimaTasks {
                         dev.luizloyola.anima.core.brain.task.TidyPack::new,
                         dev.luizloyola.anima.core.brain.task.TidyPack::moves));
         TaskCodecs.register("anima:flee", FleeStep.class, MapCodec.unit(FleeStep::new));
+        // The pocket is in the body's memory and the cells left to dig are in the world.
+        TaskCodecs.register("anima:dig_in", dev.luizloyola.anima.core.brain.task.DigIn.class,
+                MapCodec.unit(dev.luizloyola.anima.core.brain.task.DigIn::new));
+        TaskCodecs.register("anima:seal_in", dev.luizloyola.anima.core.brain.task.SealIn.class,
+                POS.fieldOf("feet").xmap(
+                        feet -> new dev.luizloyola.anima.core.brain.task.SealIn(feet.x(), feet.y(),
+                                feet.z()),
+                        dev.luizloyola.anima.core.brain.task.SealIn::feet));
         // Re-decided from the clock, the body's memory and where it stands, as a flight step is.
         TaskCodecs.register("anima:night_shelter",
                 dev.luizloyola.anima.core.brain.task.NightShelterStep.class,

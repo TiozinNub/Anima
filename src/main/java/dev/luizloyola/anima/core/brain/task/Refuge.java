@@ -3,6 +3,7 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
+import dev.luizloyola.anima.core.brain.knowledge.ShelterNoter;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.store.Depot;
 import java.util.Optional;
@@ -29,7 +30,7 @@ public final class Refuge {
         double bestDistance = NEAR_HOME;
         for (PoiMemory way : ctx.knowledge().sighted(PoiKind.SHELTER)) {
             double distance = flat(way.anchor(), home);
-            if (distance <= bestDistance) {
+            if (!ShelterNoter.dug(way) && distance <= bestDistance) {
                 best = way.anchor();
                 bestDistance = distance;
             }

@@ -419,6 +419,11 @@ public final class AgentPercepts implements Percepts {
         return this.enclosure.current();
     }
 
+    @Override
+    public void recheckEnclosure() {
+        this.enclosure.recheck();
+    }
+
     /** Asks about the space this body stands in when there is reason to — the brain's tick. */
     void tickEnclosure() {
         this.enclosure.tick(beings());

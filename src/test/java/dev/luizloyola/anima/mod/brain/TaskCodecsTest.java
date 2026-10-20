@@ -89,6 +89,17 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aDigInComesBackAndItsSealWithThePocket() {
+        assertInstanceOf(dev.luizloyola.anima.core.brain.task.DigIn.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.DigIn()));
+        assertInstanceOf(dev.luizloyola.anima.core.brain.task.NightShelterStep.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.NightShelterStep()));
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.SealIn.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.SealIn(4, 61, -2)));
+        assertEquals(new dev.luizloyola.anima.core.brain.sense.Pos(4, 61, -2), after.feet());
+    }
+
+    @Test
     void aFlightLegComesBackWithItsTargetsAndWhichItIsRunningFor() {
         var targets = java.util.List.of(new dev.luizloyola.anima.core.brain.sense.Pos(1, 64, 2),
                 new dev.luizloyola.anima.core.brain.sense.Pos(-3, 64, 9));

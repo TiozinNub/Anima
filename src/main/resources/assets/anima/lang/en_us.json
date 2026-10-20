@@ -190,6 +190,8 @@
   "anima.config.aspect.instincts.flee_home_pull.desc": "How much fright this body takes on, per block nearer home a flight ends, to run toward home rather than straight away. A zombie 22 blocks off frightens about 0.002. 0 runs only from what it fears.",
   "anima.config.aspect.instincts.night_shelter_pressure": "Shelter at night",
   "anima.config.aspect.instincts.night_shelter_pressure.desc": "How hard this body wants to be under cover at night: nothing by day, rising from sunset to this at nightfall, held until sunrise. Above the interrupt threshold it stops work to get there. 0 never minds the dark.",
+  "anima.config.aspect.instincts.night_dig_in": "Dig in at night",
+  "anima.config.aspect.instincts.night_dig_in.desc": "Whether a night that finds this body with no shelter in reach has it dig a pocket into the ground and close it over its head with a block it carries, then climb out at sunrise. Needs an arm and a hand.",
   "anima.config.aspect.instincts.fight_start_ratio": "Odds to start a fight",
   "anima.config.aspect.instincts.fight_start_ratio.desc": "How lopsided a fight must be before it is taken on: how long the threats would take to kill this body, over how long it would take to kill its target.",
   "anima.config.aspect.instincts.fight_quit_ratio": "Odds to break off a fight",

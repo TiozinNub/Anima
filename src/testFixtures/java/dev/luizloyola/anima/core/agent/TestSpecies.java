@@ -20,6 +20,7 @@ public final class TestSpecies {
             .set(ProfileAspect.FLEE_LOOK_TICKS, 8)
             .set(ProfileAspect.FLEE_HOME_PULL, 0.0)
             .set(ProfileAspect.NIGHT_SHELTER_PRESSURE, 0.0)
+            .set(ProfileAspect.NIGHT_DIG_IN, false)
             .set(ProfileAspect.FIGHT_START_RATIO, 1.5)
             .set(ProfileAspect.FIGHT_QUIT_RATIO, 1.0)
             .set(ProfileAspect.FIGHT_CORNERED_RATIO, 0.5)
@@ -119,6 +120,16 @@ public final class TestSpecies {
         SpeciesProfile.Builder builder = SpeciesProfile.of("test_variant");
         for (ProfileAspect each : ProfileAspect.all()) {
             builder.set(each, each == aspect ? value : BIPED.get(each));
+        }
+        return builder.build().fixed();
+    }
+
+    /** {@link #BIPED} with two aspects moved. */
+    public static AgentProfile with(ProfileAspect aspect, double value, ProfileAspect other,
+            double otherValue) {
+        SpeciesProfile.Builder builder = SpeciesProfile.of("test_variant");
+        for (ProfileAspect each : ProfileAspect.all()) {
+            builder.set(each, each == aspect ? value : each == other ? otherValue : BIPED.get(each));
         }
         return builder.build().fixed();
     }

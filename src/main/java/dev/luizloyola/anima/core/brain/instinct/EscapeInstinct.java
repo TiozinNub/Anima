@@ -61,6 +61,10 @@ public final class EscapeInstinct implements Instinct {
         if (EscapeStep.shortOfAir(ctx)) {
             return pressure(ctx.profile());
         }
+        // Shut in on purpose: a pocket dug for the night is climbed out of at sunrise.
+        if (NightShelterInstinct.dugInHere(ctx)) {
+            return 0.0;
+        }
         // Exempt unless its own walks keep failing from here: a settler in a crevice retried an
         // unreachable tree for good and was never asked (2026-09-26).
         if (ctx.reshapingGround() && !ctx.percepts().strandedHere()) {

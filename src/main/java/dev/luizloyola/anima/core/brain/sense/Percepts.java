@@ -220,6 +220,14 @@ public interface Percepts {
     }
 
     /**
+     * Asks for {@link #enclosure} to be read again from where the body stands, as a door swinging
+     * does: a body that just changed the space it is in by hand — a lid put over its head — is
+     * otherwise answered as before until it walks. Nothing to ask by default.
+     */
+    default void recheckEnclosure() {
+    }
+
+    /**
      * Whether this being has lately been heard battering a door down — a zombie breaking in, which
      * no wall or shut door keeps out for long. Nothing heard by default.
      */

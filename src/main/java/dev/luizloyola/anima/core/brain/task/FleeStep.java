@@ -249,7 +249,7 @@ public final class FleeStep implements CompoundTask {
         for (PoiMemory way : ctx.knowledge().sighted(PoiKind.SHELTER)) {
             Pos in = way.anchor();
             double distance = ShelterRace.distance(here, in);
-            if (distance > RunToShelter.REACH || distance >= bestDistance
+            if (ShelterNoter.dug(way) || distance > RunToShelter.REACH || distance >= bestDistance
                     || way.bounds().contains(here) || space.covers(in)
                     || ctx.knowledge().isAvoided(PoiKind.SHELTER, in, now)) {
                 continue;

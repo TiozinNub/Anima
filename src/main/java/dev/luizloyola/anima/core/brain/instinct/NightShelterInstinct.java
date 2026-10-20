@@ -4,6 +4,7 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.history.Doings;
+import dev.luizloyola.anima.core.brain.task.DigIn;
 import dev.luizloyola.anima.core.brain.task.NightShelterStep;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.brain.task.TaskStatus;
@@ -50,6 +51,14 @@ public final class NightShelterInstinct implements Instinct {
         }
         OptionalLong time = ctx.percepts().timeOfDay();
         return time.isPresent() ? pull(time.getAsLong(), full) : 0.0;
+    }
+
+    /**
+     * Whether this body is in a pocket it dug for tonight, shut in on purpose: the escape drive
+     * leaves it there until sunrise.
+     */
+    public static boolean dugInHere(BrainContext ctx) {
+        return pull(ctx) > 0.0 && DigIn.begun(ctx) != null;
     }
 
     @Override

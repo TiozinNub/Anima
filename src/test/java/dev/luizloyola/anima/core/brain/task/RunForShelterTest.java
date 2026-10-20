@@ -196,6 +196,16 @@ class RunForShelterTest {
     // ── the world ────────────────────────────────────────────────────────────────────────────
 
     /** The body out north of the room, which it remembers from having stood in it. */
+    @Test
+    void aPocketDugForTheNightIsNotRunFor() {
+        ctx.percepts.self = SPRINTER;
+        ctx.percepts.position = OUT_HERE;
+        ctx.percepts.enclosure = Enclosure.open(OUT_HERE, 0L);
+        ctx.knowledge.note(ShelterNoter.dugIn(new Pos(3, 62, -2), new Pos(3, 64, -2), 0L), cap());
+        add(BEHIND, 14, ZOMBIE);
+        assertNull(FleeStep.shelterToRunFor(ctx), "it cannot be walked into");
+    }
+
     private void outside() {
         ctx.percepts.self = SPRINTER;
         ShelterNoter.note(room(Openness.OPENABLE, new Pos(3, 64, 3), List.of(DOOR)), ctx.knowledge,

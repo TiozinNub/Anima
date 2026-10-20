@@ -44,6 +44,14 @@ public final class FakeProbe implements BlockProbe {
         return states.getOrDefault(new Pos(x, y, z), Map.of());
     }
 
+    /** Cells whose block falls once nothing holds it up — see {@link #loose(int, int, int)}. */
+    public final Set<Pos> loose = new HashSet<>();
+
+    @Override
+    public boolean loose(int x, int y, int z) {
+        return !unloaded.contains(new Column(x, z)) && loose.contains(new Pos(x, y, z));
+    }
+
     public void clear(int x, int y, int z) {
         blocks.remove(new Pos(x, y, z));
     }

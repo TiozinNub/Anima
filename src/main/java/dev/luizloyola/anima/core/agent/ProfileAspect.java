@@ -95,6 +95,10 @@ public final class ProfileAspect {
             "How hard this body wants to be under cover at night: nothing by day, rising from "
                     + "sunset to this at nightfall, held until sunrise. Above mind.preempt it stops "
                     + "work to get there. 0 never minds the dark.");
+    public static final ProfileAspect NIGHT_DIG_IN = register("instincts.night_dig_in", Kind.BOOL, 0, 1,
+            "Whether a night that finds this body with no shelter in reach has it dig a pocket "
+                    + "into the ground and close it over its head with a block it carries, then "
+                    + "climb out at sunrise. Needs an arm and a hand.");
     public static final ProfileAspect FIGHT_START_RATIO = register("instincts.fight_start_ratio", Kind.DOUBLE, 0.0, 100.0,
             "How lopsided a fight must be before this body takes it on, as how long the threats "
                     + "would take to kill it over how long it would take to kill its target. 2 "

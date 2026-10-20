@@ -3,6 +3,7 @@ package dev.luizloyola.anima.core.brain.task;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
+import dev.luizloyola.anima.core.brain.knowledge.ShelterNoter;
 import dev.luizloyola.anima.core.brain.sense.Enclosure;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
@@ -13,9 +14,9 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Getting under cover for the night, the night shelter instinct's root: stay in a shelter the body
- * stands in, shut the doors of one it is in that stand open, or walk in to one it remembers within
- * {@link RunToShelter#REACH}. A flight's moves without the race: nothing is coming, so every door
- * is shut and the walk does not hurry.
+ * stands in, shut the doors of one it is in that stand open, walk in to one it remembers within
+ * {@link RunToShelter#REACH}, or else {@link DigIn dig in} where it stands. A flight's moves without
+ * the race: nothing is coming, so every door is shut and the walk does not hurry.
  */
 public final class NightShelterStep implements CompoundTask {
 
@@ -25,14 +26,20 @@ public final class NightShelterStep implements CompoundTask {
      */
     static final int HOLD_TICKS = 40;
 
-    private final List<Method> methods = List.of(new StayIn(), new ShutIn(), new WalkIn());
+    private final List<Method> methods =
+            List.of(new StayIn(), new ShutIn(), new WalkIn(), new DigInHere());
 
     /** The shelter this root set out for, left alone a while if the way there fails. Not saved. */
     private @Nullable Pos headedFor;
 
-    /** Whether any way to be under cover tonight is open to this body. */
+    /**
+     * Whether any way to be under cover tonight is open to this body. Digging in counts on its
+     * cheap half only; ground with nowhere safe to dig fails the root, which then sits out its
+     * cooldown.
+     */
     public static boolean somewhere(BrainContext ctx) {
-        return inShelter(ctx) || shutOrder(ctx) != null || shelterToWalkTo(ctx) != null;
+        return inShelter(ctx) || shutOrder(ctx) != null || shelterToWalkTo(ctx) != null
+                || DigIn.possible(ctx);
     }
 
     @Override
@@ -76,7 +83,7 @@ public final class NightShelterStep implements CompoundTask {
         double bestDistance = RunToShelter.REACH;
         for (PoiMemory way : ctx.knowledge().sighted(PoiKind.SHELTER)) {
             double distance = ShelterRace.distance(here, way.anchor());
-            if (distance <= bestDistance
+            if (!ShelterNoter.dug(way) && distance <= bestDistance
                     && !ctx.knowledge().isAvoided(PoiKind.SHELTER, way.anchor(), now)) {
                 best = way;
                 bestDistance = distance;
@@ -163,6 +170,28 @@ public final class NightShelterStep implements CompoundTask {
         @Override
         public String describe() {
             return "walk in";
+        }
+    }
+
+    private static final class DigInHere implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return DigIn.possible(ctx) && DigIn.where(ctx) != null;
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            return 0.0;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            return List.of(new DigIn());
+        }
+
+        @Override
+        public String describe() {
+            return "dig in";
         }
     }
 }

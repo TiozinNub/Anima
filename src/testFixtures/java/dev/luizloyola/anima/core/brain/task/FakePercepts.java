@@ -343,6 +343,14 @@ public final class FakePercepts implements Percepts {
         return java.util.Optional.ofNullable(surroundings);
     }
 
+    /** How many times the space was asked to be read again. */
+    public int rechecks;
+
+    @Override
+    public void recheckEnclosure() {
+        rechecks++;
+    }
+
     @Override
     public java.util.OptionalLong timeOfDay() {
         return timeOfDay == null ? java.util.OptionalLong.empty()
