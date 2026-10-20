@@ -26,6 +26,9 @@ import org.jspecify.annotations.Nullable;
  *   <li><b>Make one and put it down</b>, a flat {@link #PLACE_COST}: obtain the item (log → planks →
  *       table, or one already in the pack) and place it beside. It is this body's own, not the
  *       party's: {@link PackUpTable} picks it back up once the craft is made.</li>
+ *   <li><b>Walk to room and put it down there</b>, when nothing beside the body has a floor and
+ *       room for it — wedged among a store's chests, a settler with a table in its pack knew no
+ *       way at all for 25,800 ticks (2026-10-20).</li>
  * </ul>
  *
  * <p>A table carried but refused where it was to go says why in the journal, once per refusal.
@@ -45,7 +48,12 @@ public final class EnsureTable implements AchieveTask {
      */
     private final Set<String> pursued;
 
-    private final List<Method> methods = List.of(new WalkToKnown(), new MakeAndPlace(), new SayWhyNot());
+    /** How far, each way, a stand with room for the table beside it is looked for. */
+    static final int ROOM_RADIUS = 8;
+
+    // Appended, never inserted: a saved plan resumes its method by index.
+    private final List<Method> methods = List.of(new WalkToKnown(), new MakeAndPlace(), new SayWhyNot(),
+            new WalkToRoom());
 
     /** Where the last make-and-place put the table, and where the body stood; null once said. */
     private @Nullable Pos spot;
@@ -262,6 +270,82 @@ public final class EnsureTable implements AchieveTask {
                 }
             }
             return null;
+        }
+    }
+
+    /** A stand to put the table down from, and the cell beside it the table goes in. */
+    private record Room(Pos stand, Pos spot) {
+    }
+
+    /** Make-and-place from the nearest stand with room beside it, for a body with none of its own. */
+    private final class WalkToRoom implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return MakeAndPlace.spotBeside(ctx) == null && room(ctx) != null;
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            Room room = room(ctx);
+            return room == null ? Double.MAX_VALUE
+                    : PLACE_COST + Workbench.distance(room.stand(), ctx.percepts().position());
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            Room room = room(ctx);
+            spot = room.spot();
+            stood = room.stand();
+            List<Task> steps = new ArrayList<>(5);
+            steps.add(new GoTo(room.stand().x(), room.stand().y(), room.stand().z()));
+            steps.add(new ObtainItem(ItemSpec.anyOf(Set.of(Workbench.ITEM_ID)), 1, pursued));
+            steps.addAll(Ground.clearAndPlace(ctx, Workbench.ITEM_ID, spot));
+            steps.add(new NoteFieldTable(spot.x(), spot.y(), spot.z()));
+            return steps;
+        }
+
+        @Override
+        public String describe() {
+            return "walk to room for a workbench and put it down";
+        }
+
+        /** The nearest open, floored stand a walk has not lately failed, with a floored empty side. */
+        private static @Nullable Room room(BrainContext ctx) {
+            BlockProbe probe = ctx.percepts().blocks();
+            Pos feet = ctx.percepts().position();
+            long now = ctx.percepts().time();
+            Room best = null;
+            double bestDistance = Double.MAX_VALUE;
+            for (int dy = -3; dy <= 3; dy++) {
+                for (int dz = -ROOM_RADIUS; dz <= ROOM_RADIUS; dz++) {
+                    for (int dx = -ROOM_RADIUS; dx <= ROOM_RADIUS; dx++) {
+                        Pos stand = new Pos(feet.x() + dx, feet.y() + dy, feet.z() + dz);
+                        double distance = Workbench.distance(stand, feet);
+                        if (distance >= bestDistance || !floored(probe, stand)
+                                || probe.at(stand.x(), stand.y() + 1, stand.z()) != BlockKind.AIR
+                                || ctx.unreached().struck(stand, now)) {
+                            continue;
+                        }
+                        for (int[] side : SIDES) {
+                            if (side[0] != 0 && side[1] != 0) {
+                                continue;
+                            }
+                            Pos spot = new Pos(stand.x() + side[0], stand.y(), stand.z() + side[1]);
+                            if (floored(probe, spot) && !PlaceBlock.occupied(ctx, spot)) {
+                                best = new Room(stand, spot);
+                                bestDistance = distance;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            return best;
+        }
+
+        private static boolean floored(BlockProbe probe, Pos cell) {
+            return probe.at(cell.x(), cell.y(), cell.z()) == BlockKind.AIR
+                    && probe.at(cell.x(), cell.y() - 1, cell.z()) != BlockKind.AIR;
         }
     }
 

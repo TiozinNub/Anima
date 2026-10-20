@@ -124,4 +124,34 @@ class EnsureTableTest {
         assertEquals("the placer refused it from (10, 64, 10)", why.failureDetail());
         assertFalse(say.applicable(ctx), "said once; the next round places before it says anything");
     }
+
+    @Test
+    void aBodyWithNoRoomBesideItWalksToSomeAndPutsTheTableDownThere() {
+        standAt(10, 10);
+        int y = FakeProbe.GROUND_Y + 1;
+        for (int ring = 1; ring <= 2; ring++) {
+            for (int dx = -ring; dx <= ring; dx += ring) {
+                for (int dz = -ring; dz <= ring; dz += ring) {
+                    ctx.percepts.blocks.set(10 + dx, y, 10 + dz, dev.luizloyola.anima.core.brain.knowledge.BlockKind.OTHER);
+                }
+            }
+        }
+        ctx.percepts.blocks.set(10, y, 10, dev.luizloyola.anima.core.brain.knowledge.BlockKind.AIR);
+        ctx.percepts.inventory.add(ItemStack.of(Workbench.ITEM_ID, 1, 64));
+        EnsureTable goal = new EnsureTable();
+        assertFalse(goal.methods().get(1).applicable(ctx), "wedged in: no floored cell beside it");
+        Method room = goal.methods().get(3);
+        assertTrue(room.applicable(ctx), "a table in the pack and room a step away is a way");
+
+        List<Task> plan = room.decompose(ctx);
+        GoTo walk = assertInstanceOf(GoTo.class, plan.get(0));
+        Pos stand = new Pos(walk.x(), walk.y(), walk.z());
+        assertInstanceOf(ObtainItem.class, plan.get(1));
+        Pos spot = assertInstanceOf(PlaceBlock.class, plan.get(2)).target();
+        assertInstanceOf(NoteFieldTable.class, plan.get(3));
+        assertEquals(1, Math.abs(spot.x() - stand.x()) + Math.abs(spot.z() - stand.z()), "beside the stand");
+        assertEquals(stand.y(), spot.y());
+        assertTrue(ctx.percepts.blocks.empty(spot.x(), spot.y(), spot.z())
+                && !ctx.percepts.blocks.empty(spot.x(), spot.y() - 1, spot.z()), "an empty cell with a floor");
+    }
 }
