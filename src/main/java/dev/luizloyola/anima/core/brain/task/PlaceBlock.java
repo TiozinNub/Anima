@@ -2,21 +2,25 @@ package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.act.BlockPlacer.Refusal;
 import dev.luizloyola.anima.core.brain.act.Placing;
 import dev.luizloyola.anima.core.brain.sense.Pos;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Place one carried block — the thinnest wrapper over the
  * {@link dev.luizloyola.anima.core.brain.act.BlockPlacer} port. The block goes in after the body's
  * {@code handling.place_cooldown_ticks}, so a builder lays a block every half second rather than every
- * tick (Luiz, 2026-10-01); then placed → SUCCESS, refused (nothing carried, cell occupied, out of
- * reach) → FAILED. The ticks waited are saved, so a restart neither skips the wait nor repeats it.
+ * tick (Luiz, 2026-10-01); then placed → SUCCESS, refused → FAILED, keeping the placer's
+ * {@link Refusal}. The ticks waited are saved, so a restart neither skips the wait nor repeats it.
  * The parent method owns the approach.
  */
 public final class PlaceBlock implements PrimitiveTask {
 
     private final Placing placing;
     private int waited;
+    /** Not saved: it is read the tick it fails, by the parent choosing what to do next. */
+    private @Nullable Refusal refusal;
 
     public PlaceBlock(String itemId, int x, int y, int z) {
         this(Placing.of(itemId, new Pos(x, y, z)));
@@ -37,7 +41,13 @@ public final class PlaceBlock implements PrimitiveTask {
             waited++;
             return TaskStatus.RUNNING;
         }
-        return ctx.actuators().placer().place(placing) ? TaskStatus.SUCCESS : TaskStatus.FAILED;
+        refusal = ctx.actuators().placer().attempt(placing).orElse(null);
+        return refusal == null ? TaskStatus.SUCCESS : TaskStatus.FAILED;
+    }
+
+    /** Why the placer said no, once it has; null before, or when it placed. */
+    public @Nullable Refusal refusal() {
+        return refusal;
     }
 
     @Override
@@ -52,7 +62,7 @@ public final class PlaceBlock implements PrimitiveTask {
 
     @Override
     public String failureDetail() {
-        return "could not place " + placing;
+        return "could not place " + placing + (refusal == null ? "" : ": " + refusal.why());
     }
 
     public Placing placing() {

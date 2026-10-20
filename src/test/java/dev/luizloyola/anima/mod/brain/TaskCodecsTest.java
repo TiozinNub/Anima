@@ -287,6 +287,13 @@ class TaskCodecsTest {
         assertTrue(midway.scaffold().orElseThrow().matches("minecraft:dirt"));
         assertEquals(java.util.Optional.of(new Pos(2, 65, -4)), midway.chosen());
         assertEquals(java.util.List.of(new Pos(3, 65, -5)), midway.walkedOff());
+        assertTrue(midway.pillar().isEmpty());
+
+        var pillared = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PlaceFrom.class, roundTrip(
+                new dev.luizloyola.anima.core.brain.task.PlaceFrom(before.placing(), before.also(), null, false,
+                        null, new Pos(2, 67, -4), java.util.List.of(), new Pos(2, 65, -4))));
+        assertEquals(java.util.Optional.of(new Pos(2, 65, -4)), pillared.pillar(),
+                "a restart still knows which pillar to take down");
 
         var bare = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PlaceFrom.class, roundTrip(
                 new dev.luizloyola.anima.core.brain.task.PlaceFrom(
@@ -325,6 +332,13 @@ class TaskCodecsTest {
         assertEquals(before.placing(), after.placing());
         assertEquals(before.planned(), after.planned());
         assertTrue(after.chosen().isEmpty());
+        assertTrue(after.refused().isEmpty());
+
+        var refused = assertInstanceOf(dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot.class, roundTrip(
+                new dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot(before.placing(), null, new Pos(1, 66, 3),
+                        dev.luizloyola.anima.core.brain.act.BlockPlacer.Refusal.NOT_CARRIED)));
+        assertEquals(java.util.Optional.of(dev.luizloyola.anima.core.brain.act.BlockPlacer.Refusal.NOT_CARRIED),
+                refused.refused());
     }
 
     @Test

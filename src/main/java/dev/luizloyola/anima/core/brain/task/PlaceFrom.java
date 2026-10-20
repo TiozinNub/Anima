@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.act.BlockPlacer.Refusal;
 import dev.luizloyola.anima.core.brain.act.Placing;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.sense.Being;
@@ -30,10 +31,12 @@ import org.jspecify.annotations.Nullable;
  * <p>When no stand on the ground reaches, or the walks to them fail, a body given a {@code scaffold}
  * rises on a pillar of it beside the work, places, and breaks its way back down; every pillar block
  * is recorded as laid, so one left standing can be found and taken down (builder spec, *The body*,
- * 3).
+ * 3). Never after the placer refused at a stand that reached: no pillar cures nothing carried or
+ * nothing to place against, and one went up and down for every such step (2026-10-20).
  *
- * <p>When the walk or the placing fails, or no stand reaches the cell, the last way says why in the
- * journal before the task fails: a builder's handed-back step names its cause.
+ * <p>When the walk or the placing fails, or no stand reaches the cell, the last way comes down off
+ * any pillar, says why in the journal — the placer's own refusal where it gave one — and fails: a
+ * builder's handed-back step names its cause.
  */
 public final class PlaceFrom implements CompoundTask {
 
@@ -61,6 +64,13 @@ public final class PlaceFrom implements CompoundTask {
     private @Nullable Pos chosen;
     /** Stands a walk did not get to: never chosen again for this block. */
     private final Set<Pos> walkedOff = new LinkedHashSet<>();
+    /** Where the pillar last raised for this block stands on the ground; null for none. */
+    private @Nullable Pos pillar;
+    /**
+     * The place the last decomposition tries, read for its refusal the tick it fails. Not saved: a
+     * restore hands it back through {@link #rejoin}.
+     */
+    private @Nullable PlaceBlock placeBlock;
 
     /**
      * @param also     the other cells the block fills — a door's upper half, a bed's head
@@ -76,9 +86,14 @@ public final class PlaceFrom implements CompoundTask {
         this(placing, also, stand, clearing, scaffold, null, List.of());
     }
 
-    /** One restored mid-way: the stand last walked to, and those a walk did not get to. */
     public PlaceFrom(Placing placing, List<Pos> also, @Nullable Pos stand, boolean clearing,
             @Nullable ItemSpec scaffold, @Nullable Pos chosen, List<Pos> walkedOff) {
+        this(placing, also, stand, clearing, scaffold, chosen, walkedOff, null);
+    }
+
+    /** One restored mid-way: the stand last walked to, those a walk did not get to, and the pillar's base. */
+    public PlaceFrom(Placing placing, List<Pos> also, @Nullable Pos stand, boolean clearing,
+            @Nullable ItemSpec scaffold, @Nullable Pos chosen, List<Pos> walkedOff, @Nullable Pos pillar) {
         this.placing = placing;
         this.scaffold = scaffold;
         this.also = List.copyOf(also);
@@ -86,6 +101,11 @@ public final class PlaceFrom implements CompoundTask {
         this.clearing = clearing;
         this.chosen = chosen;
         this.walkedOff.addAll(walkedOff);
+        this.pillar = pillar;
+    }
+
+    public Optional<Pos> pillar() {
+        return Optional.ofNullable(pillar);
     }
 
     public Optional<ItemSpec> scaffold() {
@@ -121,9 +141,28 @@ public final class PlaceFrom implements CompoundTask {
         return methods;
     }
 
+    /** The restored place is the one whose refusal is read. */
+    @Override
+    public void rejoin(List<Task> subtasks) {
+        for (Task task : subtasks) {
+            if (task instanceof PlaceBlock place) {
+                placeBlock = place;
+            }
+        }
+    }
+
     @Override
     public String describe() {
         return "place " + placing + " from where it reaches";
+    }
+
+    private @Nullable Refusal refusal() {
+        return placeBlock == null ? null : placeBlock.refusal();
+    }
+
+    /** The body is at the stand it walked to and was refused there for something no other stand cures. */
+    private boolean refusedWhereItReached(BrainContext ctx) {
+        return chosen != null && chosen.equals(ctx.percepts().position()) && refusal() != Refusal.OUT_OF_REACH;
     }
 
     /** The block the cell should end up holding. */
@@ -286,7 +325,8 @@ public final class PlaceFrom implements CompoundTask {
                     }
                 }
             }
-            steps.add(new PlaceBlock(placing));
+            placeBlock = new PlaceBlock(placing);
+            steps.add(placeBlock);
             return steps;
         }
 
@@ -300,7 +340,7 @@ public final class PlaceFrom implements CompoundTask {
     private final class FromAPillar implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
-            return pillarFor(ctx).isPresent();
+            return !refusedWhereItReached(ctx) && pillarFor(ctx).isPresent();
         }
 
         @Override
@@ -313,6 +353,7 @@ public final class PlaceFrom implements CompoundTask {
             Pillar pillar = pillarFor(ctx).orElseThrow();
             Pos base = pillar.base();
             chosen = new Pos(base.x(), base.y() + pillar.height(), base.z());
+            PlaceFrom.this.pillar = base;
             List<Task> steps = new ArrayList<>();
             if (!base.equals(ctx.percepts().position())) {
                 steps.add(new GoTo(base.x(), base.y(), base.z()));
@@ -332,8 +373,9 @@ public final class PlaceFrom implements CompoundTask {
                     }
                 }
             }
-            // Down again whatever the placing did: a pillar is not left for a refused block.
-            steps.add(new Try(new PlaceBlock(placing)));
+            // A refused place fails this way; the last way takes the pillar down.
+            placeBlock = new PlaceBlock(placing);
+            steps.add(placeBlock);
             for (int i = pillar.height() - 1; i >= 0; i--) {
                 steps.add(new BreakBlock(base.x(), base.y() + i, base.z()));
             }
@@ -361,12 +403,23 @@ public final class PlaceFrom implements CompoundTask {
         @Override
         public List<Task> decompose(BrainContext ctx) {
             noteWalk(ctx);
-            return List.of(new WhyNot(placing, stand, chosen));
+            List<Task> steps = new ArrayList<>();
+            Pos here = ctx.percepts().position();
+            if (pillar != null && here.x() == pillar.x() && here.z() == pillar.z()) {
+                BlockProbe probe = ctx.percepts().blocks();
+                for (int y = here.y() - 1; y >= pillar.y(); y--) {
+                    if (!probe.empty(pillar.x(), y, pillar.z())) {
+                        steps.add(new Try(new BreakBlock(pillar.x(), y, pillar.z())));
+                    }
+                }
+            }
+            steps.add(new WhyNot(placing, stand, chosen, refusal()));
+            return steps;
         }
 
         @Override
         public String describe() {
-            return "say why it would not go in";
+            return "come down, and say why it would not go in";
         }
     }
 
@@ -379,12 +432,23 @@ public final class PlaceFrom implements CompoundTask {
         private final Placing placing;
         private final @Nullable Pos planned;
         private final @Nullable Pos chosen;
+        private final @Nullable Refusal refused;
         private String reason = "";
 
         public WhyNot(Placing placing, @Nullable Pos planned, @Nullable Pos chosen) {
+            this(placing, planned, chosen, null);
+        }
+
+        /** @param refused what the placer said at {@code chosen}; null when it was not asked */
+        public WhyNot(Placing placing, @Nullable Pos planned, @Nullable Pos chosen, @Nullable Refusal refused) {
             this.placing = placing;
             this.planned = planned;
             this.chosen = chosen;
+            this.refused = refused;
+        }
+
+        public Optional<Refusal> refused() {
+            return Optional.ofNullable(refused);
         }
 
         public Placing placing() {
@@ -417,6 +481,9 @@ public final class PlaceFrom implements CompoundTask {
                 String planNot = Standing.whyNot(ctx.percepts().terrain(), body, planned.x(), planned.y(), planned.z());
                 return "no stand reaches it; the planned one at " + at(planned) + " — "
                         + (planNot.isEmpty() ? "stands, but not in reach or in the work" : planNot);
+            }
+            if (refused != null) {
+                return "the placer refused it from " + at(chosen) + ": " + refused.why();
             }
             if (!chosen.equals(here)) {
                 String standNot = Standing.whyNot(ctx.percepts().terrain(), body, chosen.x(), chosen.y(), chosen.z());

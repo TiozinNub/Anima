@@ -5,6 +5,7 @@ import dev.luizloyola.anima.core.brain.act.Placing;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Scripted {@link BlockPlacer}, refusing on demand. Does not touch the inventory —
@@ -17,14 +18,16 @@ public final class FakePlacer implements BlockPlacer {
     public final List<Placement> placed = new ArrayList<>();
     public final List<Placing> placings = new ArrayList<>();
     public boolean refuse;
+    /** What a refusal says. */
+    public Refusal refusal = Refusal.NOTHING_AGAINST;
 
     @Override
-    public boolean place(Placing placing) {
+    public Optional<Refusal> attempt(Placing placing) {
         if (refuse) {
-            return false;
+            return Optional.of(refusal);
         }
         placed.add(new Placement(placing.itemId(), placing.cell()));
         placings.add(placing);
-        return true;
+        return Optional.empty();
     }
 }

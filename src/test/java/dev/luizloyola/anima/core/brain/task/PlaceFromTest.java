@@ -6,14 +6,21 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.brain.act.BlockPlacer.Refusal;
+import dev.luizloyola.anima.core.brain.act.BreakState;
+import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.act.Placing;
+import dev.luizloyola.anima.core.brain.act.RiseState;
+import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.Region;
 import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.inv.ItemStack;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -175,5 +182,90 @@ class PlaceFromTest {
         assertTrue(ctx.riser.lastRecorded);
         ctx.riser.state = dev.luizloyola.anima.core.brain.act.RiseState.RISEN;
         assertEquals(TaskStatus.SUCCESS, rise.tick(ctx));
+    }
+
+    /**
+     * Runs a placing through the executor, playing the body: a walk arrives, a rise lays the block
+     * underfoot and lifts it, a break empties the cell and drops it onto what is left.
+     */
+    private static Optional<TaskStatus> fly(PlaceFrom place, FakeContext ctx) {
+        TaskExecutor executor = new TaskExecutor();
+        executor.run(place, ctx);
+        int walks = 0;
+        for (int tick = 0; tick < 400 && executor.isBusy(); tick++) {
+            ctx.percepts.time++;
+            if (ctx.mover.moveToCalls > walks) {
+                walks = ctx.mover.moveToCalls;
+                ctx.percepts.position = new Pos(ctx.mover.lastX, ctx.mover.lastY, ctx.mover.lastZ);
+                ctx.mover.setState(MoveState.ARRIVED);
+            }
+            Pos at = ctx.percepts.position;
+            if (ctx.riser.state == RiseState.RISING) {
+                ctx.percepts.blocks.set(at.x(), at.y(), at.z(), BlockKind.OTHER);
+                ctx.percepts.position = new Pos(at.x(), at.y() + 1, at.z());
+                ctx.riser.state = RiseState.RISEN;
+            }
+            if (ctx.breaker.state == BreakState.BREAKING) {
+                Pos cell = ctx.breaker.target;
+                ctx.percepts.blocks.set(cell.x(), cell.y(), cell.z(), BlockKind.AIR);
+                if (cell.equals(new Pos(at.x(), at.y() - 1, at.z()))) {
+                    ctx.percepts.position = cell;
+                }
+                ctx.breaker.state = BreakState.FINISHED;
+            }
+            executor.tick(ctx);
+        }
+        return executor.lastStatus();
+    }
+
+    private static List<String> journal(FakeContext ctx) {
+        List<String> lines = new ArrayList<>();
+        ctx.journalService.recent(ctx.journal().id(), Integer.MAX_VALUE).forEach(e -> lines.add(e.detail()));
+        return lines;
+    }
+
+    @Test
+    void aRefusalAtAStandThatReachesIsNoPillarAndNamesWhy() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.inventory.set(0, ItemStack.of("minecraft:dirt", 5, 64));
+        ctx.placer.refuse = true;
+        ctx.placer.refusal = Refusal.NOT_CARRIED;
+        PlaceFrom place = new PlaceFrom(PLANKS, List.of(), PLANNED, false, DIRT);
+
+        assertEquals(Optional.of(TaskStatus.FAILED), fly(place, ctx));
+        assertEquals(0, ctx.riser.ups, "no pillar gives the body planks it has not got");
+        assertTrue(journal(ctx).stream().anyMatch(line ->
+                        line.endsWith(": the placer refused it from (5, 64, 0): none carried")), journal(ctx).toString());
+    }
+
+    @Test
+    void aRefusalFromAPillarTakesThePillarDownThenFails() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.inventory.set(0, ItemStack.of("minecraft:dirt", 5, 64));
+        ctx.placer.refuse = true;
+        PlaceFrom place = new PlaceFrom(HIGH, List.of(), PLANNED, false, DIRT);
+
+        assertEquals(Optional.of(TaskStatus.FAILED), fly(place, ctx), "a refused place is not a success");
+        assertTrue(ctx.riser.ups >= 1);
+        assertEquals(ctx.riser.ups, ctx.breaker.targets.size(), "every block laid is broken again");
+        Pos base = place.pillar().orElseThrow();
+        assertEquals(base, ctx.percepts.position, "back on the ground");
+        assertTrue(ctx.percepts.blocks.empty(base.x(), base.y(), base.z()));
+        Pos top = new Pos(base.x(), base.y() + ctx.riser.ups, base.z());
+        assertTrue(journal(ctx).stream().anyMatch(line -> line.endsWith(": the placer refused it from ("
+                        + top.x() + ", " + top.y() + ", " + top.z() + "): nothing beside it to place against")),
+                journal(ctx).toString());
+    }
+
+    @Test
+    void aPlaceFromAPillarStillComesDownAndSucceeds() {
+        FakeContext ctx = new FakeContext();
+        ctx.percepts.inventory.set(0, ItemStack.of("minecraft:dirt", 5, 64));
+        PlaceFrom place = new PlaceFrom(HIGH, List.of(), PLANNED, false, DIRT);
+
+        assertEquals(Optional.of(TaskStatus.SUCCESS), fly(place, ctx));
+        assertEquals(1, ctx.placer.placed.size());
+        assertEquals(ctx.riser.ups, ctx.breaker.targets.size());
+        assertEquals(place.pillar().orElseThrow(), ctx.percepts.position);
     }
 }

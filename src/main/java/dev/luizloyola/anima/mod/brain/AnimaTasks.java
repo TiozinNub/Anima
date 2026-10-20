@@ -71,6 +71,17 @@ public final class AnimaTasks {
                     },
                     HandlingPhase::name);
 
+    private static final Codec<dev.luizloyola.anima.core.brain.act.BlockPlacer.Refusal> PLACE_REFUSAL =
+            Codec.STRING.comapFlatMap(
+                    name -> {
+                        try {
+                            return DataResult.success(dev.luizloyola.anima.core.brain.act.BlockPlacer.Refusal.valueOf(name));
+                        } catch (IllegalArgumentException e) {
+                            return DataResult.error(() -> "no place refusal called \"" + name + "\"");
+                        }
+                    },
+                    dev.luizloyola.anima.core.brain.act.BlockPlacer.Refusal::name);
+
     /** Enums round-trip by name; an unknown one is an error rather than a silent default. */
     private static final Codec<Speech.Opening> OPENING = Codec.STRING.comapFlatMap(
             name -> {
@@ -450,12 +461,13 @@ public final class AnimaTasks {
                                 .forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::scaffold),
                         POS.optionalFieldOf("chosen").forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::chosen),
                         POS.listOf().optionalFieldOf("walked_off", List.of())
-                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::walkedOff)
-                ).apply(t, (item, at, block, state, also, stand, clearing, scaffold, chosen, walkedOff) ->
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::walkedOff),
+                        POS.optionalFieldOf("pillar").forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom::pillar)
+                ).apply(t, (item, at, block, state, also, stand, clearing, scaffold, chosen, walkedOff, pillar) ->
                         new dev.luizloyola.anima.core.brain.task.PlaceFrom(
                                 new dev.luizloyola.anima.core.brain.act.Placing(item, at, block, state), also,
                                 stand.orElse(null), clearing, scaffold.orElse(null), chosen.orElse(null),
-                                walkedOff))));
+                                walkedOff, pillar.orElse(null)))));
 
         TaskCodecs.register("anima:rise", dev.luizloyola.anima.core.brain.task.Rise.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
@@ -472,11 +484,13 @@ public final class AnimaTasks {
                         Codec.unboundedMap(Codec.STRING, Codec.STRING).optionalFieldOf("state", Map.of())
                                 .forGetter(w -> w.placing().state()),
                         POS.optionalFieldOf("planned").forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot::planned),
-                        POS.optionalFieldOf("chosen").forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot::chosen)
-                ).apply(t, (item, at, block, state, planned, chosen) ->
+                        POS.optionalFieldOf("chosen").forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot::chosen),
+                        PLACE_REFUSAL.optionalFieldOf("refused")
+                                .forGetter(dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot::refused)
+                ).apply(t, (item, at, block, state, planned, chosen, refused) ->
                         new dev.luizloyola.anima.core.brain.task.PlaceFrom.WhyNot(
                                 new dev.luizloyola.anima.core.brain.act.Placing(item, at, block, state),
-                                planned.orElse(null), chosen.orElse(null)))));
+                                planned.orElse(null), chosen.orElse(null), refused.orElse(null)))));
 
         TaskCodecs.register("anima:note_place", dev.luizloyola.anima.core.brain.task.NotePlace.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
