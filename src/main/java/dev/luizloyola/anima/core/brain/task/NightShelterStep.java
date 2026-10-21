@@ -165,7 +165,11 @@ public final class NightShelterStep implements CompoundTask {
     private static final class DigInHere implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
-            return DigIn.possible(ctx) && DigIn.where(ctx) != null;
+            if (!DigIn.possible(ctx)) {
+                return false;
+            }
+            DigIn.Pocket pocket = DigIn.where(ctx);
+            return pocket != null && DigIn.closable(ctx, pocket);
         }
 
         @Override
@@ -245,11 +249,11 @@ public final class NightShelterStep implements CompoundTask {
             if (!ctx.profile().b(ProfileAspect.NIGHT_DIG_IN)) {
                 return none;
             }
-            if (!ctx.profile().b(ProfileAspect.BODY_CAN_DIG) || !ctx.profile().b(ProfileAspect.BODY_CAN_BUILD)) {
+            if (!DigIn.possible(ctx)) {
                 return none + ", and no way to dig";
             }
-            if (!DigIn.possible(ctx)) {
-                return none + ", and no block to close a pocket with";
+            if (DigIn.coverItem(ctx.percepts().inventory()) == null) {
+                return none + ", and no safe ground nearby whose own blocks would close a pocket";
             }
             return none + ", and no safe ground to dig in nearby";
         }

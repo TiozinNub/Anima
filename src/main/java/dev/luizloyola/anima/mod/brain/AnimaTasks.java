@@ -268,8 +268,9 @@ public final class AnimaTasks {
                         Codec.INT.fieldOf("x").forGetter(task -> task.target().x()),
                         Codec.INT.fieldOf("y").forGetter(task -> task.target().y()),
                         Codec.INT.fieldOf("z").forGetter(task -> task.target().z()),
-                        Codec.BOOL.fieldOf("begun").forGetter(BreakBlock::begun)
-                ).apply(t, (x, y, z, begun) -> new BreakBlock(x, y, z).resume(begun))));
+                        Codec.BOOL.fieldOf("begun").forGetter(BreakBlock::begun),
+                        Codec.BOOL.optionalFieldOf("intoHand", false).forGetter(BreakBlock::intoHand)
+                ).apply(t, (x, y, z, begun, intoHand) -> new BreakBlock(x, y, z, intoHand).resume(begun))));
 
         TaskCodecs.register("anima:use_block", dev.luizloyola.anima.core.brain.task.UseBlock.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

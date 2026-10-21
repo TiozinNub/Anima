@@ -14,10 +14,17 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
  */
 public final class BreakBlock implements PrimitiveTask {
     private final Pos target;
+    private final boolean intoHand;
     private boolean begun;
 
     public BreakBlock(int x, int y, int z) {
+        this(x, y, z, false);
+    }
+
+    /** @param intoHand the block taken into the pack as it comes loose ({@link BlockBreaker#pry}) */
+    public BreakBlock(int x, int y, int z, boolean intoHand) {
         this.target = new Pos(x, y, z);
+        this.intoHand = intoHand;
     }
 
     @Override
@@ -27,7 +34,8 @@ public final class BreakBlock implements PrimitiveTask {
             begun = true;
             // A refused begin (air, unbreakable, out of reach) fails immediately — the parent
             // method re-resolves; walking closer first is GoTo's job, not a retry loop's.
-            return breaker.begin(target) ? TaskStatus.RUNNING : TaskStatus.FAILED;
+            return (intoHand ? breaker.pry(target) : breaker.begin(target)) ? TaskStatus.RUNNING
+                    : TaskStatus.FAILED;
         }
         return switch (breaker.state()) {
             case BREAKING -> TaskStatus.RUNNING;
@@ -52,6 +60,10 @@ public final class BreakBlock implements PrimitiveTask {
 
     public Pos target() {
         return target;
+    }
+
+    public boolean intoHand() {
+        return intoHand;
     }
 
     /** Whether the swing has started. Breaking is a progress bar the world keeps; beginning it

@@ -103,6 +103,7 @@ public final class AgentBlockBreaker implements BlockBreaker {
      * later, and a climber with nothing in its pocket runs dry halfway up. Not saved: a restart
      * mid-pick finishes as an ordinary break.
      */
+    @Override
     public boolean pry(Pos cell) {
         if (!begin(cell)) {
             return false;

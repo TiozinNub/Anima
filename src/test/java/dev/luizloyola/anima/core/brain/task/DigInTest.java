@@ -120,7 +120,7 @@ class DigInTest {
         assertFalse(method("dig in").applicable(ctx));
         world.clear();
         ctx.percepts.inventory.set(0, ItemStack.EMPTY);
-        assertFalse(DigIn.possible(ctx), "no block to put over its head");
+        assertNull(DigIn.where(ctx), "nothing carried, and stone dug by hand gives nothing to close it with");
         ctx.percepts.inventory.set(0, ItemStack.of(DIRT, 4, 64));
         ctx.profile = TestSpecies.with(ProfileAspect.NIGHT_SHELTER_PRESSURE, 0.7);
         assertFalse(DigIn.possible(ctx), "off unless the species says so");
@@ -143,6 +143,28 @@ class DigInTest {
         assertEquals(FEET, pocket.anchor());
         assertEquals(LID, ShelterNoter.cover(pocket));
         assertTrue(new DigIn().reshapesGround(), "the escape drive does not judge a body mid-dig");
+    }
+
+    @Test
+    void anEmptyPackClosesThePocketWithTheDirtItDigs() {
+        ctx.percepts.inventory.set(0, ItemStack.EMPTY);
+        ctx.percepts.blocks.drops.put(new Pos(0, 62, 0), DIRT);
+        assertEquals(new DigIn.Pocket(FEET, LID), DigIn.where(ctx), "a settler with nothing waited her first night out");
+        List<Task> plan = dig();
+        assertTrue(plan.stream().filter(BreakBlock.class::isInstance).map(BreakBlock.class::cast)
+                .allMatch(BreakBlock::intoHand), "taken into the pack, so the lid is at hand");
+        assertEquals(DIRT, plan.stream().filter(PlaceBlock.class::isInstance).map(PlaceBlock.class::cast)
+                .findFirst().orElseThrow().itemId());
+    }
+
+    @Test
+    void aColumnWhoseBlocksGiveNothingIsPassedForOneThatGivesALid() {
+        ctx.percepts.inventory.set(0, ItemStack.EMPTY);
+        ctx.percepts.blocks.drops.put(new Pos(0, 63, 0), "minecraft:stone_button"); // not a block to lay
+        ctx.percepts.blocks.drops.put(new Pos(1, 63, 0), DIRT);
+        DigIn.Pocket pocket = DigIn.where(ctx);
+        assertNotNull(pocket);
+        assertEquals(1, pocket.feet().x(), "under the feet gives nothing a walk lays: " + pocket);
     }
 
     @Test

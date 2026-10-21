@@ -108,12 +108,39 @@ public final class DigIn implements CompoundTask {
         return "dig in for the night";
     }
 
-    /** Whether this body could dig in at all — the cheap half, asked every tick at night. */
+    /** Whether this body could dig in at all: the species does, with an arm and a hand. */
     public static boolean possible(BrainContext ctx) {
         return ctx.profile().b(ProfileAspect.NIGHT_DIG_IN)
                 && ctx.profile().b(ProfileAspect.BODY_CAN_DIG)
-                && ctx.profile().b(ProfileAspect.BODY_CAN_BUILD)
-                && coverItem(ctx.percepts().inventory()) != null;
+                && ctx.profile().b(ProfileAspect.BODY_CAN_BUILD);
+    }
+
+    /**
+     * What closes this pocket: a block the body carries, else the first the dig itself takes into
+     * the pack that a walk may lay — the grass and dirt it digs through, never stone broken by hand,
+     * which gives nothing. A settler with an empty pack waited her first night out in the open
+     * (2026-10-21). Null when neither would.
+     *
+     * @param from the highest cell of the column the dig still breaks
+     */
+    static @Nullable String lid(BrainContext ctx, Pocket pocket, int from) {
+        @Nullable String carried = coverItem(ctx.percepts().inventory());
+        if (carried != null) {
+            return carried;
+        }
+        NavGrid grid = ctx.percepts().terrain();
+        BlockProbe probe = ctx.percepts().blocks();
+        int x = pocket.feet().x();
+        int z = pocket.feet().z();
+        for (int y = from; y >= pocket.feet().y(); y--) {
+            if (grid.cell(x, y, z) != CellType.PASSABLE) {
+                String drop = probe.dropAt(x, y, z);
+                if (!drop.isEmpty() && BlocksToCross.SPEC.matches(drop)) {
+                    return drop;
+                }
+            }
+        }
+        return null;
     }
 
     /** The pocket this body set out to dig tonight and stands in the column of, or null. */
@@ -169,7 +196,7 @@ public final class DigIn implements CompoundTask {
             }
             Pocket pocket = Pocket.under(x, standing, z);
             if (!ctx.knowledge().isAvoided(PoiKind.SHELTER, pocket.feet(), ctx.percepts().time())
-                    && safe(grid, probe, x, standing, z)) {
+                    && safe(grid, probe, x, standing, z) && lid(ctx, pocket, pocket.cover().y()) != null) {
                 return pocket;
             }
         }
@@ -242,10 +269,30 @@ public final class DigIn implements CompoundTask {
         return null;
     }
 
+    private static boolean inColumn(Pos here, Pocket pocket) {
+        return here.x() == pocket.feet().x() && here.z() == pocket.feet().z()
+                && here.y() >= pocket.feet().y() && here.y() <= pocket.top().y();
+    }
+
+    /** Whether this pocket can be dug and closed from where the body stands now. */
+    static boolean closable(BrainContext ctx, Pocket pocket) {
+        Pos here = ctx.percepts().position();
+        Pos lid = pocket.cover();
+        if (here.equals(pocket.feet())
+                && ctx.percepts().terrain().cell(lid.x(), lid.y(), lid.z()) == CellType.GROUND) {
+            return true; // in it already
+        }
+        return lid(ctx, pocket, inColumn(here, pocket) ? here.y() - 1 : pocket.cover().y()) != null;
+    }
+
     private final class Dig implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
-            return possible(ctx) && where(ctx) != null;
+            if (!possible(ctx)) {
+                return false;
+            }
+            @Nullable Pocket pocket = where(ctx);
+            return pocket != null && closable(ctx, pocket);
         }
 
         @Override
@@ -256,8 +303,7 @@ public final class DigIn implements CompoundTask {
         @Override
         public List<Task> decompose(BrainContext ctx) {
             @Nullable Pocket pocket = where(ctx);
-            @Nullable String cover = coverItem(ctx.percepts().inventory());
-            if (pocket == null || cover == null) {
+            if (pocket == null) {
                 return List.of();
             }
             Pos here = ctx.percepts().position();
@@ -267,8 +313,12 @@ public final class DigIn implements CompoundTask {
             if (here.equals(pocket.feet()) && lidIn) {
                 return List.of(new Idle(NightShelterStep.HOLD_TICKS)); // in already
             }
-            boolean there = here.x() == pocket.feet().x() && here.z() == pocket.feet().z()
-                    && here.y() >= pocket.feet().y() && here.y() <= pocket.top().y();
+            boolean there = inColumn(here, pocket);
+            int from = there ? here.y() - 1 : pocket.cover().y();
+            @Nullable String cover = lid(ctx, pocket, from);
+            if (cover == null) {
+                return List.of(); // applicable said otherwise a moment ago; nothing moved
+            }
             if (tonight(ctx) == null) {
                 begin(ctx, pocket);
             }
@@ -278,10 +328,10 @@ public final class DigIn implements CompoundTask {
                 steps.add(new GoTo(top.x(), top.y(), top.z()));
             }
             steps.add(new Centre());
-            int from = there ? here.y() - 1 : pocket.cover().y();
             for (int y = from; y >= pocket.feet().y(); y--) {
                 if (grid.cell(pocket.feet().x(), y, pocket.feet().z()) != CellType.PASSABLE) {
-                    steps.add(new BreakBlock(pocket.feet().x(), y, pocket.feet().z()));
+                    // Into the pack, not dropped: the lid may be what comes out.
+                    steps.add(new BreakBlock(pocket.feet().x(), y, pocket.feet().z(), true));
                 }
             }
             if (!lidIn || from >= lid.y()) {

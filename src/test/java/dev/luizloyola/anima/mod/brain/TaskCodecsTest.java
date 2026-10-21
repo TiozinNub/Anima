@@ -97,6 +97,9 @@ class TaskCodecsTest {
         var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.SealIn.class,
                 roundTrip(new dev.luizloyola.anima.core.brain.task.SealIn(4, 61, -2)));
         assertEquals(new dev.luizloyola.anima.core.brain.sense.Pos(4, 61, -2), after.feet());
+        assertTrue(assertInstanceOf(dev.luizloyola.anima.core.brain.task.BreakBlock.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.BreakBlock(4, 62, -2, true))).intoHand(),
+                "a pocket's block comes back still going into the pack");
         assertInstanceOf(dev.luizloyola.anima.core.brain.task.Centre.class,
                 roundTrip(new dev.luizloyola.anima.core.brain.task.Centre()));
         assertEquals(new dev.luizloyola.anima.core.brain.sense.Pos(4, 61, -2), assertInstanceOf(

@@ -216,6 +216,25 @@ public final class LevelProbe implements BlockProbe {
     }
 
     @Override
+    public String dropAt(int x, int y, int z) {
+        ChunkAccess loaded = chunkFor(x, z);
+        if (loaded == null || !(level instanceof net.minecraft.server.level.ServerLevel server)) {
+            return "";
+        }
+        BlockPos at = new BlockPos(x, y, z);
+        BlockState state = loaded.getBlockState(at);
+        if (state.requiresCorrectToolForDrops()) {
+            return "";
+        }
+        for (net.minecraft.world.item.ItemStack drop : Block.getDrops(state, server, at, server.getBlockEntity(at))) {
+            if (!drop.isEmpty()) {
+                return BuiltInRegistries.ITEM.getKey(drop.getItem()).toString();
+            }
+        }
+        return "";
+    }
+
+    @Override
     public boolean loose(int x, int y, int z) {
         ChunkAccess loaded = chunkFor(x, z);
         if (loaded == null) {

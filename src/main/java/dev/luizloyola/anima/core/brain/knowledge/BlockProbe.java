@@ -64,6 +64,15 @@ public interface BlockProbe {
     }
 
     /**
+     * The item the block here gives broken by hand — dirt for grass, nothing for stone, which
+     * wants a pickaxe. Empty when it gives nothing, the cell is out of reach or the probe cannot
+     * say.
+     */
+    default String dropAt(int x, int y, int z) {
+        return "";
+    }
+
+    /**
      * Whether the block here falls once nothing holds it up — sand, gravel, concrete powder. False
      * when the cell is out of reach or the probe cannot say. Asked by a body about to dig under it.
      */

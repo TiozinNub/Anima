@@ -44,6 +44,14 @@ public final class FakeProbe implements BlockProbe {
         return states.getOrDefault(new Pos(x, y, z), Map.of());
     }
 
+    /** What a cell gives broken by hand — see {@link #dropAt}. Nothing unless a test says. */
+    public final Map<Pos, String> drops = new HashMap<>();
+
+    @Override
+    public String dropAt(int x, int y, int z) {
+        return unloaded.contains(new Column(x, z)) ? "" : drops.getOrDefault(new Pos(x, y, z), "");
+    }
+
     /** Cells whose block falls once nothing holds it up — see {@link #loose(int, int, int)}. */
     public final Set<Pos> loose = new HashSet<>();
 

@@ -30,6 +30,15 @@ public interface BlockBreaker {
     Pos obstruction(Pos target);
 
     /**
+     * {@link #begin}, the block taken into the pack as it comes loose rather than dropped — what a
+     * body digging under itself keeps to close the hole with. Just {@link #begin} for an arm with
+     * no pack.
+     */
+    default boolean pry(Pos target) {
+        return begin(target);
+    }
+
+    /**
      * Progress of the most recent {@link #begin}; {@link BreakState#IDLE} when there is none.
      * {@link BreakState#FINISHED} means the block broke and its drops are real in-world items —
      * the port owns the whole transaction, the task only observes it.
