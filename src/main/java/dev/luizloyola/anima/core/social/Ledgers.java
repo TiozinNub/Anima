@@ -93,6 +93,16 @@ public final class Ledgers {
         list.add(new Mark(ledger, key, now));
     }
 
+    /**
+     * As {@link #mark}, but the party keeps one such mark at most, restarted now: a second merge does
+     * not make a party twice as unwilling, only unwilling for longer (decision: Luiz, 2026-10-21).
+     */
+    public void refresh(PartyId party, Ledger ledger, String key, long now) {
+        marks.getOrDefault(party, new ArrayList<>())
+                .removeIf(mark -> mark.ledger() == ledger && mark.key().equals(key));
+        mark(party, ledger, key, now);
+    }
+
     /** A party that ceased to exist. Whether it had marks. */
     public boolean forget(PartyId party) {
         return marks.remove(party) != null;

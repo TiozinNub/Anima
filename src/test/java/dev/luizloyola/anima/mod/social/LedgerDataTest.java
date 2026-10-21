@@ -43,4 +43,18 @@ class LedgerDataTest {
                 back.ledgers().read(Ledger.OPENNESS, party, TestSpecies.PROFILE, 24_000L).total(), 1e-9,
                 "and the fading rules come with the store, not with the save");
     }
+
+    @Test
+    void aSecondMergeRestartsTheMarkRatherThanAddingOne() {
+        LedgerData data = new LedgerData();
+        PartyId party = PartyId.random();
+        data.arrived(party, 1, 0L);
+        data.arrived(party, 1, Ledgers.DAY_TICKS);
+
+        Ledgers.Reading joining = data.ledgers().read(Ledger.JOINING, party, TestSpecies.PROFILE, Ledgers.DAY_TICKS);
+        assertEquals(1, joining.lines().get(0).count());
+        assertEquals(-15.0, joining.total(), 1e-9, "fresh from the second merge, not the sum of both");
+        assertEquals(2, data.ledgers().read(Ledger.OPENNESS, party, TestSpecies.PROFILE, Ledgers.DAY_TICKS)
+                .lines().get(0).count(), "while each newcomer still counts");
+    }
 }

@@ -148,12 +148,12 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
         return server.overworld().getGameTime();
     }
 
-    /** Each newcomer counts against taking in more; the party as a whole has just merged. */
+    /** Each newcomer counts against taking in more; the party has merged once more, not once per newcomer. */
     void arrived(PartyId into, int newcomers, long now) {
         for (int i = 0; i < newcomers; i++) {
             ledgers.mark(into, Ledger.OPENNESS, NEWCOMER, now);
         }
-        ledgers.mark(into, Ledger.JOINING, MERGED, now);
+        ledgers.refresh(into, Ledger.JOINING, MERGED, now);
         setDirty();
     }
 
