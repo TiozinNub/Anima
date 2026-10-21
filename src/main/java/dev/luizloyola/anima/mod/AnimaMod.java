@@ -9,6 +9,7 @@ import dev.luizloyola.anima.mod.brain.PlaceIndexes;
 import dev.luizloyola.anima.mod.brain.RegionCaches;
 import dev.luizloyola.anima.mod.config.ConfigFile;
 import dev.luizloyola.anima.mod.identity.AnimaRecords;
+import dev.luizloyola.anima.mod.social.LedgerData;
 import dev.luizloyola.anima.mod.social.PartyData;
 import dev.luizloyola.anima.mod.social.PlacesData;
 import dev.luizloyola.anima.mod.store.StoreGuard;
@@ -108,6 +109,7 @@ public final class AnimaMod implements ModInitializer {
             PartyData.get(server).follows(store.places());
             // Online only: a player joins a party in a conversation, so they are on the server.
             PartyData.get(server).knowsPlayers(who -> server.getPlayerList().getPlayer(who.value()) != null);
+            LedgerData.get(server).install(server);
             dev.luizloyola.anima.mod.brain.KnowledgeData.get(server).registry()
                     .sees(store.places(), server.overworld()::getGameTime);
         });

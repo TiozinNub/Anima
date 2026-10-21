@@ -4,6 +4,7 @@ import dev.luizloyola.anima.mod.brain.KnowledgeData;
 import dev.luizloyola.anima.mod.log.Journals;
 import dev.luizloyola.anima.mod.social.ContactData;
 import dev.luizloyola.anima.mod.social.EncounterData;
+import dev.luizloyola.anima.mod.social.LedgerData;
 import dev.luizloyola.anima.mod.social.PartyData;
 import dev.luizloyola.anima.mod.social.PlacesData;
 import dev.luizloyola.anima.mod.store.StoreGuard;
@@ -54,6 +55,7 @@ public final class AnimaRecords {
         // boot for a load that vanilla swallowed. The journal ring has no file to guard.
         StoreGuard.guard("knowledge", KnowledgeData.ID, KnowledgeData::get);
         StoreGuard.guard("parties", PartyData.ID, PartyData::get);
+        StoreGuard.guard("ledgers", LedgerData.ID, LedgerData::get);
         StoreGuard.guard("contacts", ContactData.ID, ContactData::get);
         StoreGuard.guard("graves", Graves.ID, Graves::get);
         StoreGuard.guard("places", PlacesData.ID, PlacesData::get);

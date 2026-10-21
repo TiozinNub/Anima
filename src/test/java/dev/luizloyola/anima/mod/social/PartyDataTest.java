@@ -182,4 +182,23 @@ class PartyDataTest {
         assertEquals(List.of(hazel), decoded.members(party));
         assertTrue(decoded.leader(party).isEmpty());
     }
+
+    @Test
+    void arrivalIsHeardOnlyIntoCompany() {
+        List<String> heard = new ArrayList<>();
+        parties.onArrival((into, who) -> heard.add(who.size() + " into " + parties.members(into).size()));
+        AgentId hazel = AgentId.random();
+        AgentId rowan = AgentId.random();
+        AgentId ivy = AgentId.random();
+        AgentId oak = AgentId.random();
+
+        parties.partyOf(hazel);
+        parties.join(rowan, PartyId.random());
+        assertEquals(List.of(), heard, "minting a party of one, or moving into an empty one, is no arrival");
+
+        parties.join(ivy, parties.partyOf(hazel));
+        parties.join(oak, parties.partyOf(rowan));
+        parties.merge(parties.partyOf(rowan), parties.partyOf(hazel));
+        assertEquals(List.of("1 into 2", "1 into 2", "2 into 4"), heard);
+    }
 }

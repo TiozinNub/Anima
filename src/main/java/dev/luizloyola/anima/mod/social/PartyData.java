@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import net.minecraft.core.UUIDUtil;
@@ -70,6 +71,7 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
     /** Installed at server start; null until then, since rows load before there is a world. */
     private @Nullable Places places;
     private final List<Consumer<PartyId>> disbanded = new ArrayList<>();
+    private final List<BiConsumer<PartyId, List<AgentId>>> arrived = new ArrayList<>();
     private Predicate<AgentId> players = who -> false;
 
     /** Constructs an empty store (the {@link SavedDataType} supplier for a fresh save). */
@@ -133,6 +135,17 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
         disbanded.add(listener);
     }
 
+    /** Hears every arrival into company: the party joined, and who came, after their claims moved. */
+    public void onArrival(BiConsumer<PartyId, List<AgentId>> listener) {
+        arrived.add(listener);
+    }
+
+    private void arrive(PartyId into, List<AgentId> who) {
+        for (BiConsumer<PartyId, List<AgentId>> listener : arrived) {
+            listener.accept(into, who);
+        }
+    }
+
     private void disband(PartyId gone) {
         for (Consumer<PartyId> listener : disbanded) {
             listener.accept(gone);
@@ -154,6 +167,9 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
         }
         before.filter(gone -> roster.members(gone).isEmpty()).ifPresent(this::disband);
         playerLeads(into);
+        if (roster.members(into).size() > 1) {
+            arrive(into, List.of(who));
+        }
         return true;
     }
 
@@ -172,6 +188,7 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
         }
         disband(from);
         playerLeads(into);
+        arrive(into, moving);
         return true;
     }
 

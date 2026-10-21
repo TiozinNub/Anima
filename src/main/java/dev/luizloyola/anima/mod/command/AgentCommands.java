@@ -87,6 +87,9 @@ import dev.luizloyola.anima.mod.log.Journals;
 import dev.luizloyola.anima.mod.log.ThoughtBroadcast;
 import dev.luizloyola.anima.mod.net.ContactsSync;
 import dev.luizloyola.anima.core.social.PartyId;
+import dev.luizloyola.anima.mod.social.LedgerData;
+import dev.luizloyola.anima.core.social.Ledgers;
+import dev.luizloyola.anima.core.social.Ledger;
 import dev.luizloyola.anima.core.social.PlaceRow;
 import dev.luizloyola.anima.core.social.Places;
 import dev.luizloyola.anima.core.social.speech.Chooser;
@@ -243,6 +246,8 @@ public final class AgentCommands {
                                                         StringArgumentType.getString(ctx, "whom")))))
                                 .then(Commands.literal("lead")
                                         .executes(ctx -> partyLead(ctx)))
+                                .then(Commands.literal("meters")
+                                        .executes(ctx -> partyMeters(ctx)))
                                 .then(Commands.literal("leave")
                                         .executes(ctx -> partyLeave(ctx)));
     }
@@ -3079,6 +3084,49 @@ public final class AgentCommands {
         Replies.send(source, () -> Component.translatable("anima.command.party.now_leads",
                 label(server, self)).withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted
         return 1;
+    }
+
+    /**
+     * The subject's party's three ledgers as the subject weighs them, line by line — the answer to
+     * "why did they say no?". Read through a loaded body's own profile, so a player cannot be asked.
+     */
+    private static int partyMeters(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentId self = actingIdentity(ctx);
+        if (self == null) return 0;
+        MinecraftServer server = source.getServer();
+        AgentBody body = AgentBodies.findLoaded(server, self);
+        if (body == null) {
+            Replies.fail(source, Component.translatable("anima.command.party.meters.unloaded", label(server, self)));
+            return 0;
+        }
+        PartyId party = PartyData.get(server).partyOf(self);
+        Replies.send(source, () -> Component.translatable("anima.command.party.meters.heading",
+                label(server, self), shortId(party), label(server, self)).withStyle(ChatFormatting.AQUA));
+        long now = LedgerData.now(server);
+        for (Ledger ledger : Ledger.values()) {
+            Ledgers.Reading reading = LedgerData.get(server).ledgers().read(ledger, party, body.profile(), now);
+            Replies.send(source, () -> indent(Component.translatable("anima.command.party.meters.total",
+                    Component.translatable("anima.ledger." + ledger.key()), points(reading.total()))
+                    .withStyle(ChatFormatting.GRAY)));
+            if (reading.lines().isEmpty()) {
+                Replies.send(source, () -> indent(indent(Component.translatable("anima.command.party.meters.nothing")
+                        .withStyle(ChatFormatting.DARK_GRAY))));
+            }
+            for (Ledgers.Line line : reading.lines()) {
+                Component name = line.fading()
+                        ? Component.translatable("anima.command.party.meters.fading", Component.translatable(line.key()),
+                                line.count())
+                        : Component.translatable(line.key());
+                Replies.send(source, () -> indent(indent(Component.translatable("anima.command.party.meters.line",
+                        name, points(line.points())).withStyle(ChatFormatting.DARK_GRAY))));
+            }
+        }
+        return 1;
+    }
+
+    private static String points(double points) {
+        return String.format(java.util.Locale.ROOT, "%+.1f", points);
     }
 
     /**

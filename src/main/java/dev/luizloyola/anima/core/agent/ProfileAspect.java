@@ -277,6 +277,25 @@ public final class ProfileAspect {
     public static final ProfileAspect SOCIAL_SHARE_FRACTION = register("social.share_fraction", Kind.DOUBLE, 0.0, 1.0,
             "The most of the food it carries this body gives a stranger who asks, as a fraction — "
                     + "and only from what it carries beyond a full bar of its own.");
+    public static final ProfileAspect SOCIAL_OPENNESS_NEWCOMER = register("social.openness_newcomer", Kind.DOUBLE, -100.0, 0.0,
+            "What each person a party took in lately counts against its openness to one more, as "
+                    + "this body weighs it, at first; it fades over social.openness_newcomer_days.");
+    public static final ProfileAspect SOCIAL_OPENNESS_NEWCOMER_DAYS = register("social.openness_newcomer_days", Kind.INT, 1, 30,
+            "Over how many in-game days a newcomer stops counting against a party's openness.");
+    public static final ProfileAspect SOCIAL_OPENNESS_MEMBER = register("social.openness_member", Kind.DOUBLE, -50.0, 0.0,
+            "What each member beyond the first counts against a party's openness: the larger it is, "
+                    + "the more it needs to have spare before it takes one more.");
+    public static final ProfileAspect SOCIAL_OPENNESS_COMPANY = register("social.openness_company", Kind.DOUBLE, 0.0, 100.0,
+            "How far its members' company moves a party's openness: all lonely adds this much, all "
+                    + "crowded takes it away.");
+    public static final ProfileAspect SOCIAL_JOIN_MERGED = register("social.join_merged", Kind.DOUBLE, -100.0, 0.0,
+            "What having just merged counts against a party's willingness to join another, at "
+                    + "first; it fades over social.join_merged_days.");
+    public static final ProfileAspect SOCIAL_JOIN_MERGED_DAYS = register("social.join_merged_days", Kind.INT, 1, 30,
+            "Over how many in-game days a merge stops counting against joining again.");
+    public static final ProfileAspect SOCIAL_JOIN_COMPANY = register("social.join_company", Kind.DOUBLE, 0.0, 100.0,
+            "How far its members' company moves a party's willingness to join another: all lonely "
+                    + "adds this much, all crowded takes it away.");
 
     // --- body: what this one can physically do -------------------------------------------------
 
