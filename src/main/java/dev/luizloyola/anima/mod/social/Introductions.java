@@ -67,7 +67,7 @@ public final class Introductions {
         Set<AgentId> learned = new LinkedHashSet<>();
         for (Circle.Step step : Circle.round(newcomers, there, contacts::knows, (a, b) -> sees(server, a, b))) {
             boolean gained = step.face()
-                    ? face(server, contacts, step.learner(), step.whom())
+                    ? face(server, contacts, step.learner(), step.whom(), "learned their name — %s")
                     : contacts.hear(step.learner(), step.whom());
             if (gained) {
                 learned.add(step.learner());
@@ -104,15 +104,16 @@ public final class Introductions {
     }
 
     /** The name gets its face: the nameplate, the percept and the journal all learn it. */
-    private static boolean face(MinecraftServer server, ContactData contacts, AgentId learner, AgentId whom) {
+    private static boolean face(MinecraftServer server, ContactData contacts, AgentId learner, AgentId whom,
+            String line) {
         if (!contacts.learnQuietly(learner, whom)) {
             return false;
         }
         ContactsSync.learned(server, learner, whom);
+        String name = AgentCommands.label(server, whom);
+        Journals.of(server).record(learner, Category.BRAIN, "converse", line.formatted(name));
         AgentBody body = AgentBodies.findLoaded(server, learner);
         if (body != null) {
-            String name = AgentCommands.label(server, whom);
-            body.journal().record(Category.BRAIN, "converse", "learned their name — " + name);
             body.beingSense().renamed(whom, name);
         }
         return true;
@@ -124,10 +125,8 @@ public final class Introductions {
      */
     public static void sighted(MinecraftServer server, AgentId learner, AgentId whom) {
         ContactData contacts = ContactData.get(server);
-        if (contacts.heardOf(learner, whom) && face(server, contacts, learner, whom)) {
+        if (contacts.heardOf(learner, whom) && face(server, contacts, learner, whom, "met %s, whose name they knew")) {
             ContactData.met(server, learner);
-            Journals.of(server).record(learner, Category.BRAIN, "converse",
-                    "met " + AgentCommands.label(server, whom) + ", whose name they knew");
         }
     }
 
