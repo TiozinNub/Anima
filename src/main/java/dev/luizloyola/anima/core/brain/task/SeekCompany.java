@@ -46,6 +46,8 @@ public final class SeekCompany implements PrimitiveTask {
 
     /** Looking for a party to join: only somebody of another party the rule would have us ask. */
     private final boolean joining;
+    /** Going to one chosen body — a leader with something to be told — rather than the nearest. */
+    private final boolean fixed;
     private BeingId target;
     private boolean hailed;
     private GoTo walk;
@@ -63,6 +65,14 @@ public final class SeekCompany implements PrimitiveTask {
 
     public SeekCompany(boolean joining) {
         this.joining = joining;
+        this.fixed = false;
+    }
+
+    /** Go to {@code whom} and talk; fails while they are not perceived. */
+    public SeekCompany(BeingId whom) {
+        this.joining = false;
+        this.fixed = true;
+        this.target = whom;
     }
 
     @Override
@@ -87,7 +97,7 @@ public final class SeekCompany implements PrimitiveTask {
             return status;
         }
         if (walk == null) {
-            Being being = nearest(ctx, joining);
+            Being being = fixed ? ctx.percepts().being(target).orElse(null) : nearest(ctx, joining);
             if (being == null) {
                 return TaskStatus.FAILED;
             }
@@ -160,6 +170,11 @@ public final class SeekCompany implements PrimitiveTask {
     public SeekCompany waiting(long since) {
         this.waitingSince = since;
         return this;
+    }
+
+    /** Whether this seek goes to one chosen body rather than the nearest. */
+    public boolean fixed() {
+        return fixed;
     }
 
     /** Whether this is a homeless body looking for a party rather than a lonely one for company. */

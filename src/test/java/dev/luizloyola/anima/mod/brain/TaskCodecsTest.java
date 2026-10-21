@@ -866,4 +866,12 @@ class TaskCodecsTest {
                 roundTrip(new SeekCompany(true).resumeConverse(target, false).waiting(1_234L)));
         assertEquals(1_234L, after.waitingSince(), "or a restart would wait the whole patience again");
     }
+
+    @Test
+    void anAimedSeekStaysAimedAcrossARestart() {
+        BeingId leader = BeingId.of(UUID.randomUUID());
+        SeekCompany after = assertInstanceOf(SeekCompany.class, roundTrip(new SeekCompany(leader)));
+        assertTrue(after.fixed());
+        assertEquals(leader, after.target());
+    }
 }

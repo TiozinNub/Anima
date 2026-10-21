@@ -159,6 +159,7 @@ public final class Speeches {
                 } else if (u.act().equals(SpeechActs.ACCEPT_JOIN.key())) {
                     Joins.accepted(server, e, e.transcript().size() - 1);
                 }
+                SpeechEffects.fire(server, e, e.transcript().size() - 1);
             }
 
             @Override

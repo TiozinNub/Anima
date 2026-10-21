@@ -875,10 +875,12 @@ public final class AnimaTasks {
                         TaskCodecs.codec().optionalFieldOf("walk").forGetter(task ->
                                 java.util.Optional.ofNullable((Task) task.walk())),
                         Codec.BOOL.optionalFieldOf("joining", false).forGetter(task -> task.joining()),
-                        Codec.LONG.optionalFieldOf("waiting", -1L).forGetter(task -> task.waitingSince())
-                ).apply(t, (target, hailed, walk, joining, waiting) -> {
-                    dev.luizloyola.anima.core.brain.task.SeekCompany seek =
-                            new dev.luizloyola.anima.core.brain.task.SeekCompany(joining);
+                        Codec.LONG.optionalFieldOf("waiting", -1L).forGetter(task -> task.waitingSince()),
+                        Codec.BOOL.optionalFieldOf("fixed", false).forGetter(task -> task.fixed())
+                ).apply(t, (target, hailed, walk, joining, waiting, fixed) -> {
+                    dev.luizloyola.anima.core.brain.task.SeekCompany seek = fixed && target.isPresent()
+                            ? new dev.luizloyola.anima.core.brain.task.SeekCompany(target.get())
+                            : new dev.luizloyola.anima.core.brain.task.SeekCompany(joining);
                     if (target.isEmpty()) {
                         // No target chosen yet — a hand-edited "hailed"/"walk" with no "target" is
                         // read the same way: re-choosing is what this task does whenever its

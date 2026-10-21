@@ -591,8 +591,8 @@ public final class Talkers {
             return Picker.pendingOn(e, self).flatMap(ask -> Joins.askOf(ask)
                     .flatMap(kind -> GroupUps.get().move(ask.author(), self, kind))).isPresent();
         }
-        if (act == SpeechActs.INFORM_HOME) {
-            return false; // the settled side says where it lives
+        if (act == SpeechActs.INFORM_HOME || act == SpeechActs.SUGGEST_HOME) {
+            return false; // the settled side says where it lives; whoever found a place, where that is
         }
         if (act == SpeechActs.ASK_FOOD) {
             AgentId self = ContactsSync.idOf(player);

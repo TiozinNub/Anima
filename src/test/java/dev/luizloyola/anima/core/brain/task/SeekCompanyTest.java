@@ -386,4 +386,19 @@ class SeekCompanyTest {
         ctx.percepts.time = ctx.profile.i(ProfileAspect.SOCIAL_HAIL_PATIENCE_TICKS);
         assertEquals(TaskStatus.FAILED, seek.tick(ctx));
     }
+
+    /** A seek aimed at one body goes to it past anybody nearer, and only while it is perceived. */
+    @Test
+    void anAimedSeekGoesToItsOneBody() {
+        BeingId leader = BeingId.of(AgentId.random());
+        ctx.percepts.beings = List.of(FakePercepts.personAt(new Pos(2, 64, 0), 2.0, "Ada"),
+                FakePercepts.personAt(leader, new Pos(20, 64, 0), 20.0, "Luiz"));
+        SeekCompany seek = new SeekCompany(leader);
+        seek.tick(ctx);
+        assertEquals(leader, seek.target());
+        assertEquals(20, seek.walk().x());
+
+        ctx.percepts.beings = List.of(FakePercepts.personAt(new Pos(2, 64, 0), 2.0, "Ada"));
+        assertEquals(TaskStatus.FAILED, new SeekCompany(leader).tick(ctx), "nowhere to be seen");
+    }
 }

@@ -97,6 +97,18 @@ public final class SpeechActs {
 	/** Where the party lives, said to whoever just joined it: a compass point and a distance. */
 	public static final SpeechAct INFORM_HOME = register(new SpeechAct(
 			"inform_home", "anima.speech.inform_home", 2, true, false, false, false, List.of()));
+	/**
+	 * A place to live, put to the party's leader by whoever found it: a compass point and a distance
+	 * from them (group-up spec, decision 14). The leader decides; keeping on looking comes first, so a
+	 * chooser with no rule of its own never settles a party.
+	 */
+	public static final SpeechAct SUGGEST_HOME = register(new SpeechAct(
+			"suggest_home", "anima.speech.suggest_home", 2, true, true, false, false,
+			List.of("keep_looking", "settle_here")));
+	public static final SpeechAct SETTLE_HERE = register(new SpeechAct(
+			"settle_here", "anima.speech.settle_here", 2, true, false, false, false, List.of()));
+	public static final SpeechAct KEEP_LOOKING = register(new SpeechAct(
+			"keep_looking", "anima.speech.keep_looking", 2, true, false, false, false, List.of()));
 	/** SYSTEM vocabulary — written by whoever notices, never chosen by a chooser. */
 	public static final SpeechAct IGNORED = register(new SpeechAct(
 			"ignored", "anima.speech.system.ignored", 1, false, false, false, true, List.of()));
