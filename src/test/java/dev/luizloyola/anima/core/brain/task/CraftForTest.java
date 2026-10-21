@@ -503,6 +503,55 @@ class CraftForTest {
                 "four logs cover the bark bill, and leave three of the five wanted, not more");
     }
 
+    private static final ItemSpec BAMBOO = ItemSpec.register(
+            new ItemSpec("craft-test-bamboo", id -> id.equals("minecraft:bamboo")));
+
+    /** Vanilla's two plank woods that a chest's eight planks merge: a log, or a block of bamboo. */
+    private static void logOrBambooPlanks() {
+        book(planks("oak"),
+                new CraftRecipe("minecraft:bamboo_planks", ItemStack.of("minecraft:bamboo_planks", 2, 64),
+                        List.of(new CraftRecipe.Ingredient(Set.of("minecraft:bamboo_block"), 1)), false),
+                new CraftRecipe("minecraft:bamboo_block", ItemStack.of("minecraft:bamboo_block", 1, 64),
+                        List.of(new CraftRecipe.Ingredient(Set.of("minecraft:bamboo"), 9)), false));
+    }
+
+    @Test
+    void withNoTreeInMindThePlanksFailOnLogsNotBamboo() {
+        // A chest's planks with one in the pack, no tree known and no bamboo seen: the failure
+        // named "obtain bamboo x18" and the party searched for bamboo (2026-10-21).
+        logOrBambooPlanks();
+        Producers.register(LOGS, LOGS::matches, wanted -> new Way(false));
+        Producers.register(BAMBOO, BAMBOO::matches, wanted -> new Way(false));
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:oak_planks", 1, 64));
+        TaskExecutor executor = new TaskExecutor();
+
+        executor.run(new ObtainItem(ItemSpec.anyOf(Set.of("minecraft:oak_planks", "minecraft:bamboo_planks")), 8,
+                Set.of("minecraft:chest")), ctx);
+        executor.tick(ctx);
+
+        ObtainItem short_ = executor.unobtainable().orElseThrow();
+        assertTrue(short_.spec().matches("minecraft:oak_log"), executor.failureReason().orElseThrow());
+        assertFalse(short_.spec().matches("minecraft:bamboo"));
+        assertEquals(Optional.of(LOGS), Producers.sourceOf(short_.spec()), "the search goes for trees");
+    }
+
+    @Test
+    void bambooHeldOrInSightStillMakesPlanks() {
+        logOrBambooPlanks();
+        Producers.register(LOGS, LOGS::matches, wanted -> new Way(false));
+        Producers.register(BAMBOO, BAMBOO::matches, wanted -> new Way(false));
+        ItemSpec line = ItemSpec.anyOf(Set.of("minecraft:oak_log", "minecraft:bamboo_block"));
+        Set<String> pursued = Set.of("minecraft:oak_planks", "minecraft:bamboo_planks");
+        assertFalse(new CraftFor(line, 2, pursued).applicable(ctx), "no bamboo had: the chop is the way");
+
+        ctx.percepts.inventory.add(ItemStack.of("minecraft:bamboo", 18, 64));
+        assertTrue(new CraftFor(line, 2, pursued).applicable(ctx), "eighteen bamboo in the pack");
+
+        ctx.percepts.inventory.clear();
+        Producers.register(BAMBOO, BAMBOO::matches, wanted -> new Way(true)); // a patch in mind
+        assertTrue(new CraftFor(line, 2, pursued).applicable(ctx), "a patch it can cut now");
+    }
+
     @Test
     void aRecipeThatMakesMoreThanItEatsStillCounts() {
         book(nuggetsFromIngot());

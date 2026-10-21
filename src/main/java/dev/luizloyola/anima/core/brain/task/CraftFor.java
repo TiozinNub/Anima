@@ -138,6 +138,8 @@ public final class CraftFor implements Method {
      */
     private List<CraftRecipe> usable(BrainContext ctx) {
         List<CraftRecipe> fit = new ArrayList<>();
+        boolean produced = producedDirectly(spec);
+        Inventory pack = ctx.percepts().inventory();
         for (CraftRecipe recipe : Recipes.producing(spec)) {
             if (pursued.contains(recipe.outputId()) || !ctx.gate().mayMake(recipe.outputId())
                     || eatsWhatItMakes(recipe, spec)) {
@@ -145,11 +147,22 @@ public final class CraftFor implements Method {
             }
             Set<String> guard = new HashSet<>(pursued);
             guard.add(recipe.outputId());
-            if (reachable(recipe, guard, ctx, REACH_DEPTH)) {
+            if (reachable(recipe, guard, ctx, REACH_DEPTH)
+                    && (!produced || shortfallHadNow(recipe, craftsNeeded(recipe, pack), ctx, NOW_DEPTH))) {
                 fit.add(recipe);
             }
         }
         return fit;
+    }
+
+    /**
+     * Whether a registered producer makes the spec itself, as a chop makes the logs of a planks
+     * line. A craft to it is then a way only while its own bill can be had now: with no tree in
+     * mind the merged planks line went on to a bamboo block from nine bamboo nobody had seen, and
+     * the failure named bamboo, so the party searched for bamboo instead of trees (2026-10-03).
+     */
+    private static boolean producedDirectly(ItemSpec spec) {
+        return Producers.knows(spec) || ItemSpec.literalIds(spec).map(Producers::knowsAnyOf).orElse(false);
     }
 
     /**
