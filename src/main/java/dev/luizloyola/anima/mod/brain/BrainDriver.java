@@ -352,6 +352,11 @@ public final class BrainDriver {
             }
 
             @Override
+            public boolean awayOnPurpose() {
+                return arbiter.awayOnPurpose();
+            }
+
+            @Override
             public boolean colleague(AgentId other) {
                 MinecraftServer server = ((ServerLevel) person.level()).getServer();
                 PartyData parties = PartyData.get(server);

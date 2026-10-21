@@ -158,6 +158,7 @@ class ArbiterWorkTest {
         int rootsBuilt;
         Deed deed = Deed.of(FakeDoings.DID_IT);
         Task root;
+        boolean away;
 
         StubItem(double priority, int rootTicks) {
             this.priority = priority;
@@ -178,6 +179,11 @@ class ArbiterWorkTest {
         @Override
         public Kit kit() {
             return kit;
+        }
+
+        @Override
+        public boolean awayOnPurpose() {
+            return away;
         }
 
         @Override
@@ -247,6 +253,20 @@ class ArbiterWorkTest {
         assertTrue(arbiter.describe().contains("(suspended)"), "the errand yielded mid-swing");
         assertEquals(1, board.claims, "suspension is not unclaiming");
         assertEquals(0, board.failures, "and not failure either");
+    }
+
+    @Test
+    void anErrandAwayOnPurposeIsStillSoWhileSetAside() {
+        StubItem item = new StubItem(0.35, 200);
+        board.offered = item;
+        ticks(2);
+        assertFalse(arbiter.awayOnPurpose(), "an errand near home");
+        item.away = true;
+        assertTrue(arbiter.awayOnPurpose());
+        eat.pressure = 0.65;
+        ticks(1);
+        assertTrue(arbiter.describe().contains("(suspended)"));
+        assertTrue(arbiter.awayOnPurpose(), "night asks while the far trip waits");
     }
 
     @Test

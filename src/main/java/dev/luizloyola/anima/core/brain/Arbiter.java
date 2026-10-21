@@ -550,6 +550,11 @@ public final class Arbiter {
                 && (pressure >= preempt || instincts.get(activeIndex).yields(ctx));
     }
 
+    /** Whether the errand this body holds, running or set aside, is away from home on purpose. */
+    public boolean awayOnPurpose() {
+        return claimedItem != null && claimedItem.awayOnPurpose();
+    }
+
     /**
      * The cost ceiling for method selection — the active drive's own
      * ({@link Instinct#costTolerance}), {@link Double#POSITIVE_INFINITY} when nothing is active.

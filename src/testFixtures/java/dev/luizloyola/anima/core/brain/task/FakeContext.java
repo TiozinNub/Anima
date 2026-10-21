@@ -89,6 +89,8 @@ public final class FakeContext implements BrainContext {
      * point it at {@link TaskExecutor#tablesPackedUpAbove()}.
      */
     public java.util.function.BooleanSupplier tablesPackedUpAbove = () -> false;
+    /** See {@link BrainContext#awayOnPurpose()}: what the held errand would say. */
+    public boolean awayOnPurpose = false;
     /** This body's party's claims, made on first {@link #claim}; a test wiring its own leaves it null. */
     private dev.luizloyola.anima.core.social.Places places;
 
@@ -269,6 +271,11 @@ public final class FakeContext implements BrainContext {
     @Override
     public boolean reshapingGround() {
         return reshapingGround;
+    }
+
+    @Override
+    public boolean awayOnPurpose() {
+        return awayOnPurpose;
     }
 
     @Override

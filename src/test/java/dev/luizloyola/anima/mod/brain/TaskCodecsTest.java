@@ -89,6 +89,20 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aWalkHomeComesBackHomewardAndRemembersPressingOn() {
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.RunToShelter.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.RunToShelter(4, -59, 1, Gait.WALK, true)
+                        .resume(true, true, true)));
+        assertTrue(after.homeward(), "still weighed against the dark");
+        assertTrue(after.pressedOn(), "says it once a walk, not once a boot");
+        assertTrue(after.judged());
+        var flight = assertInstanceOf(dev.luizloyola.anima.core.brain.task.RunToShelter.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.RunToShelter(4, -59, 1)));
+        assertFalse(flight.homeward());
+        assertFalse(flight.pressedOn());
+    }
+
+    @Test
     void aDigInComesBackAndItsSealWithThePocket() {
         assertInstanceOf(dev.luizloyola.anima.core.brain.task.DigIn.class,
                 roundTrip(new dev.luizloyola.anima.core.brain.task.DigIn()));

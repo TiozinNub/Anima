@@ -284,6 +284,18 @@ class DigInTest {
                 + "dig in nearby"), said, "one line a night, never a silent night");
     }
 
+    @Test
+    void diggingInWithAShelterTooFarSaysWhy() {
+        ctx.knowledge.note(new PoiMemory(PoiKind.SHELTER, "0 64 201", new Pos(0, 64, 200),
+                dev.luizloyola.anima.core.brain.knowledge.Region.of(new Pos(0, 64, 200)), 2, false, 0L), 16);
+        assertEquals("dig in", firstApplicable());
+        method("dig in").decompose(ctx);
+        assertTrue(said("too far to make it home, digging in: 200 blocks"));
+        ctx.awayOnPurpose = true;
+        method("dig in").decompose(ctx);
+        assertTrue(said("away on purpose, digging in where it stands, 200 blocks from shelter"));
+    }
+
     private String firstApplicable() {
         return new NightShelterStep().methods().stream().filter(m -> m.applicable(ctx)).findFirst()
                 .orElseThrow().describe();

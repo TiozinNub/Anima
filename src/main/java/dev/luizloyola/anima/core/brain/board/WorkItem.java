@@ -58,6 +58,15 @@ public interface WorkItem {
         return false;
     }
 
+    /**
+     * Whether this work takes the body away from home on purpose — a far trip, exploring: night
+     * catches it where it is, and it digs in there rather than walking home (Luiz, 2026-10-21). Off
+     * unless the consumer says so.
+     */
+    default boolean awayOnPurpose() {
+        return false;
+    }
+
     /** One-line name for journal and board readouts, e.g. {@code "acquire logs x16"}. */
     String describe();
     /**

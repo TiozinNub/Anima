@@ -174,6 +174,15 @@ public interface BrainContext {
     }
 
     /**
+     * Whether the work this body holds took it away from home on purpose — see
+     * {@link dev.luizloyola.anima.core.brain.board.WorkItem#awayOnPurpose()}. Held through a
+     * suspension, so night asks it while the errand waits.
+     */
+    default boolean awayOnPurpose() {
+        return false;
+    }
+
+    /**
      * Whether {@code other} is in this body's party — a colleague, who is shared with on different
      * terms than a stranger (decision: Luiz, 2026-10-02). False by default: a rig with no roster
      * knows nobody.

@@ -293,7 +293,8 @@ public final class AnimaTasks {
                 ).apply(t, dev.luizloyola.anima.core.brain.task.ShutDoor::new)));
 
         // Whether the route was judged rides along: a run restored mid-way does not judge the route
-        // a second time from wherever the reload left it.
+        // a second time from wherever the reload left it. A walk home keeps being one, and says
+        // once that it presses on in the dark.
         TaskCodecs.register("anima:run_to_shelter",
                 dev.luizloyola.anima.core.brain.task.RunToShelter.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
@@ -305,10 +306,14 @@ public final class AnimaTasks {
                         Codec.BOOL.fieldOf("judged").forGetter(
                                 dev.luizloyola.anima.core.brain.task.RunToShelter::judged),
                         GAIT.optionalFieldOf("gait", Gait.SPRINT).forGetter(
-                                dev.luizloyola.anima.core.brain.task.RunToShelter::gait)
-                ).apply(t, (x, y, z, issued, judged, gait) ->
-                        new dev.luizloyola.anima.core.brain.task.RunToShelter(x, y, z, gait)
-                                .resume(issued, judged))));
+                                dev.luizloyola.anima.core.brain.task.RunToShelter::gait),
+                        Codec.BOOL.optionalFieldOf("homeward", false).forGetter(
+                                dev.luizloyola.anima.core.brain.task.RunToShelter::homeward),
+                        Codec.BOOL.optionalFieldOf("pressedOn", false).forGetter(
+                                dev.luizloyola.anima.core.brain.task.RunToShelter::pressedOn)
+                ).apply(t, (x, y, z, issued, judged, gait, homeward, pressedOn) ->
+                        new dev.luizloyola.anima.core.brain.task.RunToShelter(x, y, z, gait, homeward)
+                                .resume(issued, judged, pressedOn))));
 
         // The targets and which one is being run for: a leg restored mid-way does not go back to a
         // target it had already found to be a pit.
