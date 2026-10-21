@@ -467,6 +467,11 @@ public final class PlaceFrom implements CompoundTask {
         public TaskStatus tick(BrainContext ctx) {
             reason = reason(ctx);
             ctx.journal().record(Category.BODY, "place", "gave up on " + placing + ": " + reason);
+            if (chosen != null && refused == null && !chosen.equals(ctx.percepts().position())) {
+                // A stand never got to is struck, so the next plan picks another rather than this
+                // one again: a swimmer was sent to one over water every 14 ticks (2026-10-21).
+                ctx.unreached().strike(chosen, ctx.percepts().time());
+            }
             return TaskStatus.FAILED;
         }
 

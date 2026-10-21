@@ -272,8 +272,7 @@ public final class EnsureTable implements AchieveTask {
                     int x = feet.x() + side[0] * ring;
                     int z = feet.z() + side[1] * ring;
                     Pos cell = new Pos(x, feet.y(), z);
-                    if (probe.at(x, feet.y(), z) == BlockKind.AIR
-                            && probe.at(x, feet.y() - 1, z) != BlockKind.AIR
+                    if (probe.at(x, feet.y(), z) == BlockKind.AIR && floor(probe.at(x, feet.y() - 1, z))
                             && !PlaceBlock.occupied(ctx, cell)) {
                         return cell;
                     }
@@ -281,6 +280,11 @@ public final class EnsureTable implements AchieveTask {
             }
             return null;
         }
+    }
+
+    /** What a table can be put down on: anything but air, water and the unknown. */
+    private static boolean floor(BlockKind below) {
+        return below != BlockKind.AIR && below != BlockKind.WATER && below != BlockKind.UNKNOWN;
     }
 
     /** A stand to put the table down from, and the cell beside it the table goes in. */
@@ -319,9 +323,16 @@ public final class EnsureTable implements AchieveTask {
             return "walk to room for a workbench and put it down";
         }
 
-        /** The nearest open, floored stand a walk has not lately failed, with a floored empty side. */
+        /**
+         * The nearest stand the body could stand on and a walk has not lately failed, with a floored
+         * empty side. Open water is no floor: a swimmer's stand and spot over it were walked to and
+         * refused every 14 ticks for 76,000 ticks (2026-10-21).
+         */
         private static @Nullable Room room(BrainContext ctx) {
             BlockProbe probe = ctx.percepts().blocks();
+            dev.luizloyola.anima.core.nav.NavGrid grid = ctx.percepts().terrain();
+            dev.luizloyola.anima.core.nav.MoveCapabilities body =
+                    dev.luizloyola.anima.core.nav.MoveCapabilities.of(ctx.profile());
             Pos feet = ctx.percepts().position();
             long now = ctx.percepts().time();
             Room best = null;
@@ -333,6 +344,7 @@ public final class EnsureTable implements AchieveTask {
                         double distance = Workbench.distance(stand, feet);
                         if (distance >= bestDistance || !floored(probe, stand)
                                 || probe.at(stand.x(), stand.y() + 1, stand.z()) != BlockKind.AIR
+                                || !Standing.standable(grid, body, stand.x(), stand.y(), stand.z())
                                 || ctx.unreached().struck(stand, now)) {
                             continue;
                         }
@@ -354,8 +366,7 @@ public final class EnsureTable implements AchieveTask {
         }
 
         private static boolean floored(BlockProbe probe, Pos cell) {
-            return probe.at(cell.x(), cell.y(), cell.z()) == BlockKind.AIR
-                    && probe.at(cell.x(), cell.y() - 1, cell.z()) != BlockKind.AIR;
+            return probe.at(cell.x(), cell.y(), cell.z()) == BlockKind.AIR && floor(probe.at(cell.x(), cell.y() - 1, cell.z()));
         }
     }
 

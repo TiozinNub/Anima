@@ -142,6 +142,72 @@ class EnsureTableTest {
     }
 
     @Test
+    void openWaterIsNoRoomForATable() {
+        // A swimmer with a table in its pack was sent to a stand over water and refused there every
+        // 14 ticks for 76,000 ticks (2026-10-21).
+        standAt(10, 10);
+        int y = FakeProbe.GROUND_Y + 1;
+        for (int dx = -12; dx <= 12; dx++) {
+            for (int dz = -12; dz <= 12; dz++) {
+                ctx.percepts.blocks.set(10 + dx, y - 1, 10 + dz, dev.luizloyola.anima.core.brain.knowledge.BlockKind.WATER);
+                ctx.percepts.blocks.set(10 + dx, y, 10 + dz, dev.luizloyola.anima.core.brain.knowledge.BlockKind.AIR);
+            }
+        }
+        ctx.percepts.terrain = (cx, cy, cz) -> cy < y ? dev.luizloyola.anima.core.nav.CellType.WATER
+                : dev.luizloyola.anima.core.nav.CellType.PASSABLE;
+        ctx.percepts.inventory.add(ItemStack.of(Workbench.ITEM_ID, 1, 64));
+        EnsureTable goal = new EnsureTable();
+        assertFalse(goal.methods().get(1).applicable(ctx), "nothing beside it to put a table on");
+        assertFalse(goal.methods().get(3).applicable(ctx), "and no stand within reach that is not water");
+    }
+
+    @Test
+    void aStandTheLegsWouldNotTakeIsNoRoomEither() {
+        standAt(10, 10);
+        int y = FakeProbe.GROUND_Y + 1;
+        for (int ring = 1; ring <= 2; ring++) {
+            for (int dx = -ring; dx <= ring; dx += ring) {
+                for (int dz = -ring; dz <= ring; dz += ring) {
+                    ctx.percepts.blocks.set(10 + dx, y, 10 + dz, dev.luizloyola.anima.core.brain.knowledge.BlockKind.OTHER);
+                }
+            }
+        }
+        ctx.percepts.blocks.set(10, y, 10, dev.luizloyola.anima.core.brain.knowledge.BlockKind.AIR);
+        ctx.percepts.inventory.add(ItemStack.of(Workbench.ITEM_ID, 1, 64));
+        Method room = new EnsureTable().methods().get(3);
+        assertTrue(room.applicable(ctx));
+        // Magma under every stand: a solid block to the eyes, no floor to the legs.
+        ctx.percepts.terrain = (cx, cy, cz) -> cy < y ? dev.luizloyola.anima.core.nav.CellType.DANGER
+                : dev.luizloyola.anima.core.nav.CellType.PASSABLE;
+        assertFalse(room.applicable(ctx));
+    }
+
+    @Test
+    void aStandNeverGotToIsStruckAndNotChosenAgain() {
+        standAt(10, 10);
+        int y = FakeProbe.GROUND_Y + 1;
+        for (int ring = 1; ring <= 2; ring++) {
+            for (int dx = -ring; dx <= ring; dx += ring) {
+                for (int dz = -ring; dz <= ring; dz += ring) {
+                    ctx.percepts.blocks.set(10 + dx, y, 10 + dz, dev.luizloyola.anima.core.brain.knowledge.BlockKind.OTHER);
+                }
+            }
+        }
+        ctx.percepts.blocks.set(10, y, 10, dev.luizloyola.anima.core.brain.knowledge.BlockKind.AIR);
+        ctx.percepts.inventory.add(ItemStack.of(Workbench.ITEM_ID, 1, 64));
+        Method room = new EnsureTable().methods().get(3);
+        GoTo first = assertInstanceOf(GoTo.class, room.decompose(ctx).get(0));
+        Pos stand = new Pos(first.x(), first.y(), first.z());
+
+        PlaceFrom.WhyNot why = new PlaceFrom.WhyNot(
+                dev.luizloyola.anima.core.brain.act.Placing.of(Workbench.ITEM_ID, new Pos(stand.x() + 1, y, stand.z())),
+                null, stand);
+        assertEquals(TaskStatus.FAILED, why.tick(ctx), "the body is still where it was, not at the stand");
+        GoTo next = assertInstanceOf(GoTo.class, room.decompose(ctx).get(0));
+        assertNotEquals(stand, new Pos(next.x(), next.y(), next.z()), "another stand this time");
+    }
+
+    @Test
     void aBodyWithNoRoomBesideItWalksToSomeAndPutsTheTableDownThere() {
         standAt(10, 10);
         int y = FakeProbe.GROUND_Y + 1;
