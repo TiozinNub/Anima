@@ -285,20 +285,34 @@ class ArbiterWorkTest {
     }
 
     /**
-     * The heartbeat keeps a hold alive, so it lands on every tick the errand is genuinely worked
-     * and on none where it is not: a suspended commitment that kept heartbeating would never
-     * lapse.
+     * The heartbeat keeps a hold alive: on every tick the errand is worked, and for
+     * {@link Arbiter#SET_ASIDE_HOLD} after a drive sets it aside — a search cut short by the night
+     * lapsed in 615 ticks and was dropped (2026-10-21). Past that it goes quiet: a suspended
+     * commitment that kept heartbeating would never lapse.
      */
     @Test
-    void theRunningErrandHeartbeatsAndTheSuspendedOneGoesQuiet() {
-        board.offered = new StubItem(0.35, 200);
+    void aSetAsideErrandIsHeldForANightThenGoesQuiet() {
+        StubItem item = new StubItem(0.35, 200);
+        board.offered = item;
         ticks(5); // the granting tick runs the fresh root too, so it is worked like any other
         assertEquals(5, board.heartbeats, "one per tick it was actually being worked");
 
-        eat.pressure = 0.65; // preempt: the errand is cut, the claim survives, the saying stops
+        eat.pressure = 0.65; // preempt: the errand is cut, the claim survives
+        ctx.percepts.time = 1000;
+        ticks(1);
+        assertTrue(arbiter.describe().contains("(suspended)"), arbiter.describe());
+        assertEquals(1000, arbiter.grant().setAsideAt(), "saved with the plan: a restart holds it no longer");
         int atSuspension = board.heartbeats;
-        ticks(5);
-        assertEquals(atSuspension, board.heartbeats, "nobody speaks for a suspended errand");
+        ctx.percepts.time = 1000 + Arbiter.SET_ASIDE_HOLD - 1;
+        ticks(3);
+        assertEquals(atSuspension + 3, board.heartbeats, "still spoken for through the night");
+        Arbiter restarted = new Arbiter(List.of(eat, wander), board);
+        restarted.restoreGrant(arbiter.grant(), item);
+        restarted.tick(ctx);
+        assertEquals(atSuspension + 4, board.heartbeats, "and after a restart");
+        ctx.percepts.time = 1000 + Arbiter.SET_ASIDE_HOLD;
+        ticks(3);
+        assertEquals(atSuspension + 4, board.heartbeats, "and then let go");
     }
 
     /**

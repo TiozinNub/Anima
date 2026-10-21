@@ -89,6 +89,17 @@ public final class Arbiter {
     private WorkItem claimedItem;
     /** Whether the executor's current root belongs to {@link #claimedItem} (vs a drive's). */
     private boolean workRunning;
+
+    /** When {@link #claimedItem} was last set aside by a drive, -1 while it runs or none is. */
+    private long setAsideAt = -1;
+
+    /**
+     * How long a claim set aside by a drive is still spoken for: a night and its dusk. Let go at
+     * once, a search cut short by the night pull lapsed 615 ticks in and was dropped, twice in one
+     * flight (2026-10-21); spoken for without end, a body stuck under some drive for days would
+     * hold the errand from the whole party *(call)*.
+     */
+    public static final long SET_ASIDE_HOLD = 14_000;
     /** The last drive journalled, so a re-grant of the same drive does not spam the BRAIN log. */
     private Instinct lastGranted;
     /**
@@ -193,12 +204,16 @@ public final class Arbiter {
      * saved and restored alongside the executor's plan</b> — a grant with no running root is the
      * half-a-commitment bug, paid for three times over.
      */
-    public record Grant(String active, boolean workRunning, String lastGranted) {
+    public record Grant(String active, boolean workRunning, String lastGranted, long setAsideAt) {
+        /** A grant saved before a set-aside claim was held. */
+        public Grant(String active, boolean workRunning, String lastGranted) {
+            this(active, workRunning, lastGranted, -1);
+        }
     }
 
     public Grant grant() {
         return new Grant(active == null ? "" : active.key(), workRunning,
-                lastGranted == null ? "" : lastGranted.key());
+                lastGranted == null ? "" : lastGranted.key(), setAsideAt);
     }
 
     /**
@@ -228,6 +243,7 @@ public final class Arbiter {
         // Errand and flag together or neither: the flag alone took the server down on a null claim.
         this.claimedItem = held;
         this.workRunning = grant.workRunning() && held != null;
+        this.setAsideAt = held == null ? -1 : grant.setAsideAt();
     }
 
     private Instinct byKey(String key) {
@@ -380,6 +396,7 @@ public final class Arbiter {
                         instincts.get(topIndex).describe(), lastPressures[topIndex]));
                 think(ctx, "set aside " + claimedItem.describe(), claimedItem);
                 workRunning = false;
+                setAsideAt = ctx.percepts().time();
                 grant(topIndex, runnerUp, ctx); // run() cancels the errand's tree; the claim is KEPT
             }
         } else if (topIndex >= 0 && topIndex != activeIndex) {
@@ -406,8 +423,9 @@ public final class Arbiter {
         }
 
         // 4b. The heartbeat is the only thing keeping the hold alive — stop long enough (a
-        //     suspension, a death) and the board takes the errand back.
-        if (workRunning && claimedItem != null) {
+        //     suspension past SET_ASIDE_HOLD, a death) and the board takes the errand back.
+        if (claimedItem != null && (workRunning
+                || setAsideAt >= 0 && ctx.percepts().time() - setAsideAt < SET_ASIDE_HOLD)) {
             work.heartbeat(claimedItem, ctx);
         }
 
