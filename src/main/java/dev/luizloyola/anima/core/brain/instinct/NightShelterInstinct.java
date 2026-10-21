@@ -19,6 +19,10 @@ import java.util.OptionalLong;
  * {@link ProfileAspect#NIGHT_SHELTER_PRESSURE} at nightfall and holds there until sunrise, when
  * the sun starts burning what spawned in the dark.
  *
+ * <p>At dusk it is at full as soon as it is time to set out for a shelter in reach to be in by
+ * dark ({@link NightShelterStep#timeToLeave}): a settler 61 blocks out lost to work at 0.60 until
+ * nightfall had already come (2026-10-21).
+ *
  * <p>It bids all night whatever the body can do about it ({@link NightShelterStep}), waiting where
  * it stands at worst. Nothing it acts on is its own to keep: the hour is the clock's, the shelter
  * the body's memory and its own check, so a body restarted mid-night carries on.
@@ -75,7 +79,11 @@ public final class NightShelterInstinct implements Instinct {
     @Override
     public double pressure(BrainContext ctx) {
         double pull = pull(ctx);
-        return pull > 0.0 && threatened(ctx) ? 0.0 : pull;
+        if (pull <= 0.0 || threatened(ctx)) {
+            return 0.0;
+        }
+        // Time to set out for home to be in by dark: at full, it cuts into work as night would.
+        return NightShelterStep.timeToLeave(ctx) ? ctx.profile().d(ProfileAspect.NIGHT_SHELTER_PRESSURE) : pull;
     }
 
     /** Whether something aggressive presses on this body from its side of any wall. */

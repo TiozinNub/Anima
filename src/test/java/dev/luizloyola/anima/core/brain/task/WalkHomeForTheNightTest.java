@@ -86,7 +86,40 @@ class WalkHomeForTheNightTest {
         remember(60);
         RunToShelter walk = walkIn();
         assertFalse(walk.homeward(), "judged by the reach it always had");
-        assertTrue(said("going in for the night at (0, 64, 60), 60 blocks off"));
+        assertTrue(said("away on purpose, going in for the night at (0, 64, 60), 60 blocks off"));
+    }
+
+    @Test
+    void whenTheWalkMustStartToBeInByDarkThePullIsFullAtOnce() {
+        dev.luizloyola.anima.core.brain.instinct.NightShelterInstinct night =
+                new dev.luizloyola.anima.core.brain.instinct.NightShelterInstinct();
+        remember(100); // 100 × 1.3 at a walk, and the slack: 702 ticks
+        ctx.percepts.timeOfDay = 12_100L; // 1,400 left: work can wait
+        assertEquals(0.7 * 100 / 1_500, night.pressure(ctx), 1e-9);
+        ctx.percepts.timeOfDay = 12_850L; // 650 left: time to go
+        assertEquals(0.7, night.pressure(ctx), 1e-9,
+                "full, over the preempt bar: she lost to work at 0.60 until it was already dark");
+        ctx.awayOnPurpose = true;
+        assertEquals(0.7 * 850 / 1_500, night.pressure(ctx), 1e-9, "a body away on purpose is not called home");
+        remember(50);
+        ctx.percepts.timeOfDay = 13_200L; // 300 left, a 401-tick walk to a shelter within its old reach
+        assertEquals(0.7 * 1_200 / 1_500, night.pressure(ctx), 1e-9, "nor to one near enough to walk into");
+        ctx.percepts.timeOfDay = 12_850L;
+        ctx.awayOnPurpose = false;
+        ctx.percepts.enclosure = new dev.luizloyola.anima.core.brain.sense.Enclosure(
+                dev.luizloyola.anima.core.brain.sense.Enclosure.Openness.OPENABLE,
+                dev.luizloyola.anima.core.brain.sense.Enclosure.Holes.NONE, true, ctx.percepts.position,
+                java.util.Set.of(ctx.percepts.position), List.of(), List.of(), 1L);
+        assertEquals(0.7 * 850 / 1_500, night.pressure(ctx), 1e-9, "in already");
+    }
+
+    @Test
+    void aShelterOutOfReachDoesNotCallItHome() {
+        dev.luizloyola.anima.core.brain.instinct.NightShelterInstinct night =
+                new dev.luizloyola.anima.core.brain.instinct.NightShelterInstinct();
+        remember(300);
+        ctx.percepts.timeOfDay = 13_000L; // 500 left: 108 + 64.8 is all it would walk
+        assertEquals(0.7 * 1_000 / 1_500, night.pressure(ctx), 1e-9, "it digs in when night wins, not now");
     }
 
     // ── the way there ────────────────────────────────────────────────────────────────────────

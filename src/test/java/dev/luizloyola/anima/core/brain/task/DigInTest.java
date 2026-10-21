@@ -282,6 +282,11 @@ class DigInTest {
                 .map(e -> e.detail()).filter(d -> d.startsWith("waiting the night out")).toList();
         assertEquals(List.of("waiting the night out at (0, 64, 0): no shelter in reach, and no safe ground to "
                 + "dig in nearby"), said, "one line a night, never a silent night");
+        ctx.awayOnPurpose = true;
+        ctx.percepts.time += DigIn.NIGHT_TICKS;
+        wait.decompose(ctx);
+        assertTrue(said("waiting the night out at (0, 64, 0): away on purpose, no shelter in reach"),
+                "at sea on a far trip: said why it is not home");
     }
 
     @Test
@@ -292,8 +297,10 @@ class DigInTest {
         method("dig in").decompose(ctx);
         assertTrue(said("too far to make it home, digging in: 200 blocks"));
         ctx.awayOnPurpose = true;
+        ctx.knowledge.avoid(PoiKind.SHELTER, new Pos(0, 64, 200), ctx.percepts.time + 1_000);
         method("dig in").decompose(ctx);
-        assertTrue(said("away on purpose, digging in where it stands, 200 blocks from shelter"));
+        assertTrue(said("away on purpose, digging in where it stands, 200 blocks from shelter"),
+                "named even just refused: a walk turned down, then a dig with nothing said (2026-10-21)");
     }
 
     private String firstApplicable() {

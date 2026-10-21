@@ -83,6 +83,34 @@ public final class NightShelterStep implements CompoundTask {
         return FleeStep.shutOrder(space, here, 1.0);
     }
 
+    /**
+     * How much longer a walk home is taken to be than the straight line: the routes flown ran 1.3
+     * times it (63 blocks off, 81 by the way there, 2026-10-21).
+     */
+    static final double DETOUR = 1.3;
+
+    /** Slack on top: a door to open, a leg searched again. */
+    static final int LEAVE_MARGIN_TICKS = 100;
+
+    /**
+     * Whether it is time to set out for a shelter to be in by dark (Luiz, 2026-10-21): dusk, one in
+     * {@link #reach}, and no more of dusk left than the walk there takes. The pull rises to full on
+     * it, so the walk wins over work when it must start, not when night falls. Never for a body away
+     * on purpose, nor one already in.
+     */
+    public static boolean timeToLeave(BrainContext ctx) {
+        long left = untilDark(ctx);
+        if (left <= 0L || ctx.awayOnPurpose() || inShelter(ctx)) {
+            return false;
+        }
+        @Nullable PoiMemory way = shelterToWalkTo(ctx);
+        if (way == null) {
+            return false;
+        }
+        double walk = ShelterRace.distance(ctx.percepts().position(), way.anchor()) * DETOUR / WALK_PACE;
+        return left <= walk + LEAVE_MARGIN_TICKS;
+    }
+
     /** How far a walk home may still be at dark — see {@link #PRESS_ON_TICKS}. */
     public static double pressOn() {
         return WALK_PACE * PRESS_ON_TICKS;
@@ -116,11 +144,14 @@ public final class NightShelterStep implements CompoundTask {
 
     /** The nearest remembered way into a shelter within {@link #reach} in a straight line, or null. */
     static @Nullable PoiMemory shelterToWalkTo(BrainContext ctx) {
-        return nearestShelter(ctx, reach(ctx));
+        return nearestShelter(ctx, reach(ctx), false);
     }
 
-    /** The nearest remembered way into a shelter within {@code limit} in a straight line, or null. */
-    private static @Nullable PoiMemory nearestShelter(BrainContext ctx, double limit) {
+    /**
+     * The nearest remembered way into a shelter within {@code limit} in a straight line, or null;
+     * one left alone a while only {@code evenAvoided}.
+     */
+    private static @Nullable PoiMemory nearestShelter(BrainContext ctx, double limit, boolean evenAvoided) {
         Pos here = ctx.percepts().position();
         long now = ctx.percepts().time();
         @Nullable PoiMemory best = null;
@@ -128,7 +159,7 @@ public final class NightShelterStep implements CompoundTask {
         for (PoiMemory way : ctx.knowledge().sighted(PoiKind.SHELTER)) {
             double distance = ShelterRace.distance(here, way.anchor());
             if (!ShelterNoter.dug(way) && distance <= bestDistance
-                    && !ctx.knowledge().isAvoided(PoiKind.SHELTER, way.anchor(), now)) {
+                    && (evenAvoided || !ctx.knowledge().isAvoided(PoiKind.SHELTER, way.anchor(), now))) {
                 best = way;
                 bestDistance = distance;
             }
@@ -208,7 +239,8 @@ public final class NightShelterStep implements CompoundTask {
             double byDark = WALK_PACE * untilDark(ctx);
             @Nullable String line;
             if (!homeward) {
-                line = String.format(Locale.ROOT, "going in for the night at (%d, %d, %d), %.0f blocks off",
+                line = String.format(Locale.ROOT,
+                        "away on purpose, going in for the night at (%d, %d, %d), %.0f blocks off",
                         in.x(), in.y(), in.z(), distance);
             } else if (byDark <= 0.0) {
                 line = null; // the walk says it is pressing on once its route is known
@@ -251,8 +283,9 @@ public final class NightShelterStep implements CompoundTask {
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
+            // Avoided ones too: the one whose walk was just refused is the one to name.
             @Nullable PoiMemory home = DigIn.tonight(ctx) == null
-                    ? nearestShelter(ctx, Double.POSITIVE_INFINITY) : null;
+                    ? nearestShelter(ctx, Double.POSITIVE_INFINITY, true) : null;
             if (home != null) {
                 double distance = ShelterRace.distance(ctx.percepts().position(), home.anchor());
                 ctx.journal().record(Category.BRAIN, "shelter", ctx.awayOnPurpose()
@@ -326,7 +359,7 @@ public final class NightShelterStep implements CompoundTask {
 
         /** Why there is nothing better than waiting. */
         private static String why(BrainContext ctx) {
-            String none = "no shelter in reach";
+            String none = ctx.awayOnPurpose() ? "away on purpose, no shelter in reach" : "no shelter in reach";
             if (!ctx.profile().b(ProfileAspect.NIGHT_DIG_IN)) {
                 return none;
             }
