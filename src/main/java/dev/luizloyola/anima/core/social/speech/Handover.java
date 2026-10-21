@@ -109,6 +109,11 @@ public final class Handover {
         return pendingAt(e, index).filter(u -> u.act().equals(SpeechActs.NOT_WANTED.key()));
     }
 
+    /** The obliging line that line {@code index} answered, if it answered one. */
+    public static Optional<Utterance> answered(Encounter e, int index) {
+        return pendingAt(e, index);
+    }
+
     /**
      * What was owed by whoever said line {@code index}, just before they said it — {@link
      * Picker#pendingOn}'s reading of the record as it stood then.

@@ -293,6 +293,11 @@ public final class ProfileAspect {
                     + "first; it fades over social.join_merged_days.");
     public static final ProfileAspect SOCIAL_JOIN_MERGED_DAYS = register("social.join_merged_days", Kind.INT, 1, 30,
             "Over how many in-game days a merge stops counting against joining again.");
+    public static final ProfileAspect SOCIAL_OPENNESS_THRESHOLD = register("social.openness_threshold", Kind.DOUBLE, -100.0, 100.0,
+            "Above this openness, as this body weighs its party, it takes in whoever asks.");
+    public static final ProfileAspect SOCIAL_JOIN_THRESHOLD = register("social.join_threshold", Kind.DOUBLE, -100.0, 100.0,
+            "Above this willingness to join, as this body weighs its party, it asks to join another "
+                    + "or accepts an invitation, and a homeless one goes looking for a party.");
     public static final ProfileAspect SOCIAL_JOIN_COMPANY = register("social.join_company", Kind.DOUBLE, 0.0, 100.0,
             "How far its members' company moves a party's willingness to join another: all lonely "
                     + "adds this much, all crowded takes it away.");

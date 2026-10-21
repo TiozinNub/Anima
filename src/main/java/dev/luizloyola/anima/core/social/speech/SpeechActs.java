@@ -74,6 +74,29 @@ public final class SpeechActs {
 	/** The giver leaves them: a gift, kept on the record for whatever later judges one. */
 	public static final SpeechAct KEEP_GIFT = register(new SpeechAct(
 			"keep_gift", "anima.speech.keep_gift", 2, true, false, false, false, List.of()));
+	/**
+	 * Grouping up (2026-10-21-group-up-design.md). Asking to join moves the asker's party, inviting
+	 * moves the other's; either obliges, and turning it down comes first so a chooser with no rule of
+	 * its own refuses.
+	 */
+	public static final SpeechAct ASK_JOIN = register(new SpeechAct(
+			"ask_join", "anima.speech.ask_join", 2, true, true, false, false,
+			List.of("refuse_join", "accept_join")));
+	public static final SpeechAct INVITE = register(new SpeechAct(
+			"invite", "anima.speech.invite", 2, true, true, false, false,
+			List.of("refuse_join", "accept_join")));
+	/** Yes — the line the parties merge on. */
+	public static final SpeechAct ACCEPT_JOIN = register(new SpeechAct(
+			"accept_join", "anima.speech.accept_join", 2, true, false, false, false, List.of()));
+	/**
+	 * No, with its reason as the payload's topic rather than declared, so a player is never offered
+	 * it with nothing to answer: not_now, settled, crowded, newcomers, merged, food, beds, busy.
+	 */
+	public static final SpeechAct REFUSE_JOIN = register(new SpeechAct(
+			"refuse_join", "anima.speech.refuse_join", 2, true, false, false, false, List.of()));
+	/** Where the party lives, said to whoever just joined it: a compass point and a distance. */
+	public static final SpeechAct INFORM_HOME = register(new SpeechAct(
+			"inform_home", "anima.speech.inform_home", 2, true, false, false, false, List.of()));
 	/** SYSTEM vocabulary — written by whoever notices, never chosen by a chooser. */
 	public static final SpeechAct IGNORED = register(new SpeechAct(
 			"ignored", "anima.speech.system.ignored", 1, false, false, false, true, List.of()));

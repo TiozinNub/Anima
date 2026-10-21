@@ -284,6 +284,11 @@ public final class FakeContext implements BrainContext {
     }
 
     @Override
+    public dev.luizloyola.anima.core.agent.AgentId self() {
+        return self;
+    }
+
+    @Override
     public boolean colleague(dev.luizloyola.anima.core.agent.AgentId other) {
         return colleagues.contains(other);
     }

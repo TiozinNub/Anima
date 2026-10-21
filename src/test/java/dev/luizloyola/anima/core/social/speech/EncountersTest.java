@@ -169,4 +169,19 @@ class EncountersTest {
         assertTrue(roster.closed().contains(closedRecord));
         assertFalse(roster.open().contains(closedRecord));
     }
+
+    @Test
+    @DisplayName("what was said lately is read off kept records, by speaker, listener, act and time")
+    void saidLatelyReadsKeptRecords() {
+        Encounters roster = new Encounters();
+        Encounter e = roster.join(alice, bob, 100L).orElseThrow();
+        e.append(new Utterance(bob, SpeechActs.REFUSE_JOIN.key(), java.util.Map.of(), 500L));
+        roster.close(e, 600L);
+
+        assertTrue(roster.saidLately(bob, alice, SpeechActs.REFUSE_JOIN.key(), 400L));
+        assertFalse(roster.saidLately(bob, alice, SpeechActs.REFUSE_JOIN.key(), 501L), "too long ago");
+        assertFalse(roster.saidLately(alice, bob, SpeechActs.REFUSE_JOIN.key(), 0L), "she said nothing");
+        assertFalse(roster.saidLately(bob, carol, SpeechActs.REFUSE_JOIN.key(), 0L), "not to carol");
+        assertFalse(roster.saidLately(bob, alice, SpeechActs.ACCEPT_JOIN.key(), 0L), "nor anything else");
+    }
 }

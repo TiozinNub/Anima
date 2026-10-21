@@ -12,6 +12,9 @@ import dev.luizloyola.anima.core.brain.sense.Being;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.log.Entry;
+import dev.luizloyola.anima.core.social.FakeGroupUp;
+import dev.luizloyola.anima.core.social.GroupUp;
+import dev.luizloyola.anima.core.social.GroupUps;
 import dev.luizloyola.anima.core.social.speech.Encounter;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import java.util.ArrayList;
@@ -321,5 +324,27 @@ class SeekCompanyTest {
         new SeekCompany().tick(ctx);
 
         assertEquals(60, ctx.mover.lastY, "the legs lower a goal one cell at most (Luiz, 2026-10-02)");
+    }
+
+    /** Looking for a party walks only to somebody of another party the rule would have it ask. */
+    @Test
+    void aSeekForAPartySkipsColleaguesAndWhomeverTheRuleWouldNotAsk() {
+        Being colleague = FakePercepts.personAt(new Pos(4, 64, 0), 4.0, "Ada");
+        Being refused = FakePercepts.personAt(new Pos(5, 64, 0), 5.0, "Bram");
+        Being asked = FakePercepts.personAt(new Pos(9, 64, 0), 9.0, "Cai");
+        ctx.colleagues.add(colleague.id().asPerson());
+        GroupUps.install(FakeGroupUp.seekingOnly(asked.id().asPerson(), colleague.id().asPerson()));
+        try {
+            ctx.percepts.beings = List.of(colleague, refused);
+            assertFalse(SeekCompany.possible(ctx, null, true), "a colleague is no party to join");
+            assertTrue(SeekCompany.possible(ctx, null, false), "while company is anybody");
+
+            ctx.percepts.beings = List.of(colleague, refused, asked);
+            SeekCompany seek = new SeekCompany(true);
+            seek.tick(ctx);
+            assertEquals(asked.id(), seek.target());
+        } finally {
+            GroupUps.install(GroupUp.NEVER);
+        }
     }
 }

@@ -7,6 +7,8 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.task.Converse;
 import dev.luizloyola.anima.core.config.Config;
 import dev.luizloyola.anima.core.config.Knob;
+import dev.luizloyola.anima.core.social.GroupUp;
+import dev.luizloyola.anima.core.social.GroupUps;
 import dev.luizloyola.anima.core.social.speech.Chooser;
 import dev.luizloyola.anima.core.social.speech.Encounter;
 import dev.luizloyola.anima.core.social.speech.Encounters;
@@ -576,6 +578,21 @@ public final class Talkers {
     private static boolean playerMay(ServerPlayer player, Encounter e, SpeechAct act) {
         if (act == SpeechActs.OFFER || act == SpeechActs.NOT_WANTED) {
             return false; // a player hands things over through the give screen, and takes what comes
+        }
+        if (act == SpeechActs.ASK_JOIN || act == SpeechActs.INVITE) {
+            AgentId self = ContactsSync.idOf(player);
+            GroupUp.Ask wanted = act == SpeechActs.ASK_JOIN ? GroupUp.Ask.JOIN : GroupUp.Ask.INVITE;
+            return e.other(self).flatMap(other -> GroupUps.get().ask(self, other))
+                    .filter(wanted::equals).isPresent();
+        }
+        if (act == SpeechActs.ACCEPT_JOIN) {
+            // Only while the merge it would make still holds — the player's half of the re-check.
+            AgentId self = ContactsSync.idOf(player);
+            return Picker.pendingOn(e, self).flatMap(ask -> Joins.askOf(ask)
+                    .flatMap(kind -> GroupUps.get().move(ask.author(), self, kind))).isPresent();
+        }
+        if (act == SpeechActs.INFORM_HOME) {
+            return false; // the settled side says where it lives
         }
         if (act == SpeechActs.ASK_FOOD) {
             AgentId self = ContactsSync.idOf(player);

@@ -23,6 +23,7 @@ import dev.luizloyola.anima.core.brain.instinct.Instinct;
 import dev.luizloyola.anima.core.brain.instinct.EscapeInstinct;
 import dev.luizloyola.anima.core.brain.instinct.NightShelterInstinct;
 import dev.luizloyola.anima.core.brain.instinct.FightOrFlightInstinct;
+import dev.luizloyola.anima.core.brain.instinct.SeekPartyInstinct;
 import dev.luizloyola.anima.core.brain.instinct.UnburdenInstinct;
 import dev.luizloyola.anima.core.brain.instinct.WanderInstinct;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
@@ -357,6 +358,11 @@ public final class BrainDriver {
             }
 
             @Override
+            public AgentId self() {
+                return person.agentId();
+            }
+
+            @Override
             public boolean colleague(AgentId other) {
                 MinecraftServer server = ((ServerLevel) person.level()).getServer();
                 PartyData parties = PartyData.get(server);
@@ -461,7 +467,7 @@ public final class BrainDriver {
                 // After eating, before talking: a body that cannot carry anything sorts its hands
                 // out before it stops to chat. Position decides exact ties only.
                 new UnburdenInstinct(),
-                new ConverseInstinct(), Drives.SEEK_PEOPLE,
+                new ConverseInstinct(), new SeekPartyInstinct(), Drives.SEEK_PEOPLE,
                 this.wanderDrive),
                 board);
     }

@@ -156,6 +156,8 @@ public final class Speeches {
                     Handovers.accepted(server, e, e.transcript().size() - 1);
                 } else if (u.act().equals(SpeechActs.TAKE_BACK.key())) {
                     Handovers.takenBack(server, e, e.transcript().size() - 1);
+                } else if (u.act().equals(SpeechActs.ACCEPT_JOIN.key())) {
+                    Joins.accepted(server, e, e.transcript().size() - 1);
                 }
             }
 

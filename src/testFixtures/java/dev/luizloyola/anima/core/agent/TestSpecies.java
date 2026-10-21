@@ -86,6 +86,8 @@ public final class TestSpecies {
             .set(ProfileAspect.SOCIAL_JOIN_MERGED, -15.0)
             .set(ProfileAspect.SOCIAL_JOIN_MERGED_DAYS, 3)
             .set(ProfileAspect.SOCIAL_JOIN_COMPANY, 10.0)
+            .set(ProfileAspect.SOCIAL_OPENNESS_THRESHOLD, -25.0)
+            .set(ProfileAspect.SOCIAL_JOIN_THRESHOLD, -10.0)
             .set(ProfileAspect.BODY_HEIGHT, 1.8)
             .set(ProfileAspect.BODY_JUMP_HEIGHT, 1)
             .set(ProfileAspect.BODY_MAX_DROP, 3)

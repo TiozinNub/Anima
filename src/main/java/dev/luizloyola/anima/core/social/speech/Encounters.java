@@ -61,6 +61,26 @@ public final class Encounters {
 
     public List<Encounter> closed() { return Collections.unmodifiableList(closed); }
 
+    /**
+     * Whether {@code by} said {@code act} to {@code to} at or after {@code since}, in any record still
+     * kept — "has she turned me down lately", read off what was said rather than stored beside it.
+     */
+    public boolean saidLately(AgentId by, AgentId to, String act, long since) {
+        for (List<Encounter> list : List.of(open, closed)) {
+            for (Encounter e : list) {
+                if (!e.includes(by) || !e.includes(to)) {
+                    continue;
+                }
+                for (Utterance u : e.transcript()) {
+                    if (by.equals(u.author()) && u.act().equals(act) && u.tick() >= since) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     public boolean stale(Encounter e, long now, long staleGapTicks) {
         return !e.closed() && now - e.lastActivityTick() > staleGapTicks;
     }

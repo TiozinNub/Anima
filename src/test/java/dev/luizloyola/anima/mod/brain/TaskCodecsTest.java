@@ -851,4 +851,11 @@ class TaskCodecsTest {
         assertNull(after.walk());
         assertNull(after.converse());
     }
+
+    @Test
+    void aSeekForAPartyStaysOneAcrossARestart() {
+        // A seek for a party that came back as a lonely one would walk to anybody, colleagues too.
+        assertTrue(assertInstanceOf(SeekCompany.class, roundTrip(new SeekCompany(true))).joining());
+        assertFalse(assertInstanceOf(SeekCompany.class, roundTrip(new SeekCompany())).joining());
+    }
 }

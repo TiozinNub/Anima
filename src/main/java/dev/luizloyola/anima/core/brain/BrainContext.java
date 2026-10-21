@@ -8,10 +8,12 @@ import dev.luizloyola.anima.core.brain.sense.DangerTable;
 import dev.luizloyola.anima.core.brain.sense.Percepts;
 import dev.luizloyola.anima.core.inv.ItemCall;
 import dev.luizloyola.anima.core.log.AgentJournal;
+import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.core.social.speech.Speech;
 import java.util.random.RandomGenerator;
 import dev.luizloyola.anima.core.agent.Pronouns;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Everything the task machinery is handed per call: the body's controls ({@link #actuators()}) and
@@ -182,12 +184,17 @@ public interface BrainContext {
         return false;
     }
 
+    /** This body's own id, for asking world rules about it; null for a rig with none. */
+    default @Nullable AgentId self() {
+        return null;
+    }
+
     /**
      * Whether {@code other} is in this body's party — a colleague, who is shared with on different
      * terms than a stranger (decision: Luiz, 2026-10-02). False by default: a rig with no roster
      * knows nobody.
      */
-    default boolean colleague(dev.luizloyola.anima.core.agent.AgentId other) {
+    default boolean colleague(AgentId other) {
         return false;
     }
 

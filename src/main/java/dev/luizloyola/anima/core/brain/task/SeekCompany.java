@@ -1,5 +1,6 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.sense.Being;
@@ -8,6 +9,7 @@ import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.WalkLevel;
+import dev.luizloyola.anima.core.social.GroupUps;
 import dev.luizloyola.anima.core.social.speech.Speech;
 import org.jspecify.annotations.Nullable;
 
@@ -42,10 +44,20 @@ import org.jspecify.annotations.Nullable;
  */
 public final class SeekCompany implements PrimitiveTask {
 
+    /** Looking for a party to join: only somebody of another party the rule would have us ask. */
+    private final boolean joining;
     private BeingId target;
     private boolean hailed;
     private GoTo walk;
     private Converse converse;
+
+    public SeekCompany() {
+        this(false);
+    }
+
+    public SeekCompany(boolean joining) {
+        this.joining = joining;
+    }
 
     @Override
     public TaskStatus tick(BrainContext ctx) {
@@ -53,7 +65,7 @@ public final class SeekCompany implements PrimitiveTask {
             return converse.tick(ctx);
         }
         if (walk == null) {
-            Being being = nearest(ctx);
+            Being being = nearest(ctx, joining);
             if (being == null) {
                 return TaskStatus.FAILED;
             }
@@ -103,7 +115,12 @@ public final class SeekCompany implements PrimitiveTask {
     @Override
     public String describe() {
         // Once handed off, the executor's own readout should say what the body is actually doing.
-        return converse != null ? converse.describe() : "seek company";
+        return converse != null ? converse.describe() : joining ? "seek a party" : "seek company";
+    }
+
+    /** Whether this is a homeless body looking for a party rather than a lonely one for company. */
+    public boolean joining() {
+        return joining;
     }
 
     // ── continuity ───────────────────────────────────────────────────────────────────────────
@@ -176,11 +193,16 @@ public final class SeekCompany implements PrimitiveTask {
      * skips, so a lone target is nobody to a fresh seek the moment it is picked.
      */
     public static boolean possible(BrainContext ctx, @Nullable Task running) {
-        if (running instanceof SeekCompany seek && seek.target != null
+        return possible(ctx, running, false);
+    }
+
+    /** As {@link #possible(BrainContext, Task)}, for a seek looking for a party to join. */
+    public static boolean possible(BrainContext ctx, @Nullable Task running, boolean joining) {
+        if (running instanceof SeekCompany seek && seek.joining == joining && seek.target != null
                 && ctx.percepts().being(seek.target).isPresent()) {
             return true;
         }
-        return nearest(ctx) != null;
+        return nearest(ctx, joining) != null;
     }
 
     /**
@@ -188,7 +210,7 @@ public final class SeekCompany implements PrimitiveTask {
      * go to — what a method sending a body to somebody is priced by.
      */
     static double distanceToNearest(BrainContext ctx) {
-        Being best = nearest(ctx);
+        Being best = nearest(ctx, false);
         return best == null ? Double.MAX_VALUE : best.distance();
     }
 
@@ -203,11 +225,12 @@ public final class SeekCompany implements PrimitiveTask {
      * before that for a reason worth keeping in mind if the menu ever goes away: the first live
      * test had settlers crossing a field to stand in front of a player and wait out the clock.
      */
-    private static Being nearest(BrainContext ctx) {
+    private static Being nearest(BrainContext ctx, boolean joining) {
         Being best = null;
         for (Being being : ctx.percepts().beings()) {
             if (!being.kind().minded() || !approachable(being)
-                    || ctx.percepts().calledLately(being.id())) {
+                    || ctx.percepts().calledLately(being.id())
+                    || joining && !worthAsking(ctx, being)) {
                 continue;
             }
             if (best == null || being.distance() < best.distance()) {
@@ -215,6 +238,13 @@ public final class SeekCompany implements PrimitiveTask {
             }
         }
         return best;
+    }
+
+    /** Somebody of another party the group-up rule would have this body go and ask. */
+    private static boolean worthAsking(BrainContext ctx, Being being) {
+        AgentId self = ctx.self();
+        AgentId other = being.id().asPerson();
+        return self != null && !ctx.colleague(other) && GroupUps.get().worthSeeking(self, other);
     }
 
     /**
