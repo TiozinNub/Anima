@@ -224,9 +224,47 @@ class DigInTest {
     // ── ground somebody keeps ────────────────────────────────────────────────────────────────
 
     @Test
-    void inOrBesideABuildingGoingUpItStaysRatherThanDig() {
-        DigIn.keepOffBy((x, z) -> x == 1 && z == 0);
-        assertNull(DigIn.where(ctx), "the house's planks are beside its feet");
+    void onABuildingsGroundItWalksOffItAndDigsThere() {
+        DigIn.keepOffBy((x, z) -> Math.abs(x) <= 10 && Math.abs(z) <= 10);
+        DigIn.Pocket pocket = DigIn.where(ctx);
+        assertNotNull(pocket, "a settler on the hut's pad at dusk dug nothing and slept in the open");
+        assertEquals(12, Math.max(Math.abs(pocket.feet().x()), Math.abs(pocket.feet().z())),
+                "the nearest column clear of the kept ground and the one beside it: " + pocket);
+        List<Task> plan = dig();
+        assertTrue(((PrimitiveTask) plan.get(0)).describe().startsWith("goto"), "walks there first");
+        assertTrue(ctx.journalService.recent(ctx.journal().id(), Integer.MAX_VALUE).stream()
+                .anyMatch(e -> e.detail().contains("off the ground kept round a building")));
+    }
+
+    @Test
+    void aBuildingThatGivesCoverIsStayedIn() {
+        DigIn.keepOffBy((x, z) -> Math.abs(x) <= 10 && Math.abs(z) <= 10);
+        ctx.percepts.enclosure = new Enclosure(Enclosure.Openness.OPENABLE, Enclosure.Holes.NONE, true,
+                ctx.percepts.position, java.util.Set.of(ctx.percepts.position), List.of(), List.of(), 1L);
+        assertTrue(method("stay in").applicable(ctx), "a half-built house with its roof on and its door shut");
+        assertEquals("stay in", firstApplicable(), "stayed in, before any dig is looked for");
+    }
+
+    @Test
+    void waitingTheNightOutIsSaidOnceAndWhy() {
+        for (int x = -30; x <= 30; x++) {
+            for (int z = -30; z <= 30; z++) {
+                world.put(new Pos(x, 60, z), CellType.WATER);
+            }
+        }
+        assertEquals("wait the night out", firstApplicable());
+        Method wait = method("wait the night out");
+        wait.decompose(ctx);
+        wait.decompose(ctx);
+        List<String> said = ctx.journalService.recent(ctx.journal().id(), Integer.MAX_VALUE).stream()
+                .map(e -> e.detail()).filter(d -> d.startsWith("waiting the night out")).toList();
+        assertEquals(List.of("waiting the night out at (0, 64, 0): no shelter in reach, and no safe ground to "
+                + "dig in nearby"), said, "one line a night, never a silent night");
+    }
+
+    private String firstApplicable() {
+        return new NightShelterStep().methods().stream().filter(m -> m.applicable(ctx)).findFirst()
+                .orElseThrow().describe();
     }
 
     @Test

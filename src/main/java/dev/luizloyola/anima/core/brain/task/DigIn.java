@@ -45,6 +45,15 @@ public final class DigIn implements CompoundTask {
     /** How far round the body, in columns, a pocket is looked for. */
     static final int AROUND = 2;
 
+    /**
+     * How far a body standing on ground kept off looks for ground that is not: a settler who stood
+     * on the hut's pad at dusk dug nothing, and spent the night in the open (2026-10-21).
+     */
+    static final int OFF_THE_FENCE = 24;
+
+    /** How far up or down the ground a pocket is dug in off the fence may be from the feet. */
+    static final int OFF_THE_FENCE_RISE = 4;
+
     /** Cells dug below the feet: the pocket's two, and the one the cover goes back into. */
     static final int DEPTH = 3;
 
@@ -127,8 +136,9 @@ public final class DigIn implements CompoundTask {
 
     /**
      * Where to dig: tonight's pocket, under way or to go back to within {@link RunToShelter#REACH};
-     * else the nearest safe column round the body. None near ground kept off: a body inside or
-     * beside a building going up stays there rather than dig.
+     * else the nearest safe column round the body, on ground nobody keeps; a body on or beside
+     * ground kept off looks as far as {@link #OFF_THE_FENCE} for some. A building that gives cover
+     * is stayed in before this is asked.
      */
     static @Nullable Pocket where(BrainContext ctx) {
         Pos here = ctx.percepts().position();
@@ -136,14 +146,13 @@ public final class DigIn implements CompoundTask {
         if (tonight != null && ShelterRace.distance(here, tonight.anchor()) <= RunToShelter.REACH) {
             return new Pocket(tonight.anchor(), ShelterNoter.cover(tonight));
         }
-        if (keptOffNear(here.x(), here.z())) {
-            return null;
-        }
+        boolean fenced = keptOffNear(here.x(), here.z());
+        int around = fenced ? OFF_THE_FENCE : AROUND;
         NavGrid grid = ctx.percepts().terrain();
         BlockProbe probe = ctx.percepts().blocks();
         List<int[]> offsets = new ArrayList<>();
-        for (int dx = -AROUND; dx <= AROUND; dx++) {
-            for (int dz = -AROUND; dz <= AROUND; dz++) {
+        for (int dx = -around; dx <= around; dx++) {
+            for (int dz = -around; dz <= around; dz++) {
                 offsets.add(new int[] {dx, dz});
             }
         }
@@ -151,9 +160,16 @@ public final class DigIn implements CompoundTask {
         for (int[] o : offsets) {
             int x = here.x() + o[0];
             int z = here.z() + o[1];
-            Pocket pocket = Pocket.under(x, here.y(), z);
+            if (keptOffNear(x, z)) {
+                continue; // no block read for ground kept off, most of a search off a building
+            }
+            int standing = fenced ? probe.groundY(x, z) + 1 : here.y();
+            if (fenced && Math.abs(standing - here.y()) > OFF_THE_FENCE_RISE) {
+                continue;
+            }
+            Pocket pocket = Pocket.under(x, standing, z);
             if (!ctx.knowledge().isAvoided(PoiKind.SHELTER, pocket.feet(), ctx.percepts().time())
-                    && !keptOffNear(x, z) && safe(grid, probe, x, here.y(), z)) {
+                    && safe(grid, probe, x, standing, z)) {
                 return pocket;
             }
         }
@@ -288,8 +304,10 @@ public final class DigIn implements CompoundTask {
             knowledge.note(ShelterNoter.dugIn(pocket.feet(), pocket.cover(), ctx.percepts().time()),
                     AgentKnowledge.maxPerKind(ctx.profile()));
             Pos at = pocket.top();
+            Pos here = ctx.percepts().position();
             ctx.journal().record(Category.BRAIN, "dig in", String.format(Locale.ROOT,
-                    "digging in for the night at (%d, %d, %d)", at.x(), at.y(), at.z()));
+                    "digging in for the night at (%d, %d, %d)%s", at.x(), at.y(), at.z(),
+                    keptOffNear(here.x(), here.z()) ? ", off the ground kept round a building" : ""));
         }
 
         @Override

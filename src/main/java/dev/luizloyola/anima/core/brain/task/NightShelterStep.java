@@ -1,6 +1,8 @@
 package dev.luizloyola.anima.core.brain.task;
 
+import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.knowledge.ShelterNoter;
@@ -10,6 +12,8 @@ import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.Gait;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.WeakHashMap;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -204,6 +208,13 @@ public final class NightShelterStep implements CompoundTask {
         }
     }
 
+    /**
+     * When each body last said it was waiting the night out, so it says so once a night, not every
+     * hold: a settler spent a whole night in the open with nothing in its journal (2026-10-21). Not
+     * saved; a restart says it once more.
+     */
+    private static final Map<AgentKnowledge, Long> SAID = new WeakHashMap<>();
+
     private static final class WaitOut implements Method {
         @Override
         public boolean applicable(BrainContext ctx) {
@@ -217,7 +228,30 @@ public final class NightShelterStep implements CompoundTask {
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
+            long now = ctx.percepts().time();
+            Long said = SAID.get(ctx.knowledge());
+            if (said == null || now - said >= DigIn.NIGHT_TICKS) {
+                SAID.put(ctx.knowledge(), now);
+                Pos here = ctx.percepts().position();
+                ctx.journal().record(Category.BRAIN, "shelter", String.format(Locale.ROOT,
+                        "waiting the night out at (%d, %d, %d): %s", here.x(), here.y(), here.z(), why(ctx)));
+            }
             return List.of(new Idle(HOLD_TICKS));
+        }
+
+        /** Why there is nothing better than waiting. */
+        private static String why(BrainContext ctx) {
+            String none = "no shelter in reach";
+            if (!ctx.profile().b(ProfileAspect.NIGHT_DIG_IN)) {
+                return none;
+            }
+            if (!ctx.profile().b(ProfileAspect.BODY_CAN_DIG) || !ctx.profile().b(ProfileAspect.BODY_CAN_BUILD)) {
+                return none + ", and no way to dig";
+            }
+            if (!DigIn.possible(ctx)) {
+                return none + ", and no block to close a pocket with";
+            }
+            return none + ", and no safe ground to dig in nearby";
         }
 
         @Override
