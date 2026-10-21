@@ -41,6 +41,14 @@ public interface GroupUp {
     /** The merge {@code ask}, made by {@code asker} of {@code asked}, means now; empty if it no longer holds. */
     Optional<Move> move(AgentId asker, AgentId asked, Ask ask);
 
+    /**
+     * Whether {@code who} is a player leading a party with no HOME — the one whose word settles it,
+     * and so the one offered {@code follow_me} and {@code here} (decision 14).
+     */
+    default boolean decidesHome(AgentId who) {
+        return false;
+    }
+
     /** The rule of a species that does not group up. */
     GroupUp NEVER = new GroupUp() {
         @Override

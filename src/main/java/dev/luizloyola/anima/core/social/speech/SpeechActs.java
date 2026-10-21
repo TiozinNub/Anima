@@ -109,6 +109,18 @@ public final class SpeechActs {
 			"settle_here", "anima.speech.settle_here", 2, true, false, false, false, List.of()));
 	public static final SpeechAct KEEP_LOOKING = register(new SpeechAct(
 			"keep_looking", "anima.speech.keep_looking", 2, true, false, false, false, List.of()));
+	/** A leader takes the party with them to choose a home (group-up spec, decision 14). */
+	public static final SpeechAct FOLLOW_ME = register(new SpeechAct(
+			"follow_me", "anima.speech.follow_me", 2, true, false, false, false, List.of()));
+	/** The leader names the spot they stand on; whoever is asked judges it. */
+	public static final SpeechAct HERE = register(new SpeechAct(
+			"here", "anima.speech.here", 2, true, true, false, false,
+			List.of("not_here", "here_will_do")));
+	public static final SpeechAct HERE_WILL_DO = register(new SpeechAct(
+			"here_will_do", "anima.speech.here_will_do", 2, true, false, false, false, List.of()));
+	/** Not this spot, its strongest reason against as the topic: water, stone, room, party, lava, poor. */
+	public static final SpeechAct NOT_HERE = register(new SpeechAct(
+			"not_here", "anima.speech.not_here", 2, true, false, false, false, List.of()));
 	/** SYSTEM vocabulary — written by whoever notices, never chosen by a chooser. */
 	public static final SpeechAct IGNORED = register(new SpeechAct(
 			"ignored", "anima.speech.system.ignored", 1, false, false, false, true, List.of()));

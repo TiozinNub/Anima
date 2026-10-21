@@ -591,6 +591,16 @@ public final class Talkers {
             return Picker.pendingOn(e, self).flatMap(ask -> Joins.askOf(ask)
                     .flatMap(kind -> GroupUps.get().move(ask.author(), self, kind))).isPresent();
         }
+        if (act == SpeechActs.FOLLOW_ME || act == SpeechActs.HERE) {
+            AgentId self = ContactsSync.idOf(player);
+            PartyData parties = PartyData.get(player.level().getServer());
+            return GroupUps.get().decidesHome(self) && e.other(self)
+                    .filter(other -> parties.currentPartyOf(other).equals(parties.currentPartyOf(self)))
+                    .isPresent();
+        }
+        if (act == SpeechActs.HERE_WILL_DO || act == SpeechActs.NOT_HERE) {
+            return false; // the one asked judges the spot
+        }
         if (act == SpeechActs.INFORM_HOME || act == SpeechActs.SUGGEST_HOME) {
             return false; // the settled side says where it lives; whoever found a place, where that is
         }
