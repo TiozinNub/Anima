@@ -4,11 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.Arbiter;
 import dev.luizloyola.anima.core.brain.act.MoveState;
 import dev.luizloyola.anima.core.brain.instinct.Drives;
 import dev.luizloyola.anima.core.brain.sense.Being;
+import dev.luizloyola.anima.core.brain.sense.BeingId;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.log.Entry;
@@ -346,5 +348,42 @@ class SeekCompanyTest {
         } finally {
             GroupUps.install(GroupUp.NEVER);
         }
+    }
+
+    /** Walking up to ask to join a pair mid-conversation, it waits for them to finish (flight, 2026-10-21). */
+    @Test
+    void aSeekForAPartyWaitsOutABusyTargetAndThenTalks() {
+        BeingId target = BeingId.of(AgentId.random());
+        ctx.percepts.beings = List.of(FakePercepts.personAt(target, new Pos(1, 64, 0), 1.0, "Ada"));
+        Encounter busy = ctx.speech.roster.join(target.asPerson(), AgentId.random(), 0).orElseThrow();
+        SeekCompany seek = new SeekCompany(true).resumeConverse(target, false);
+
+        assertEquals(TaskStatus.RUNNING, seek.tick(ctx), "standing by, not walking off");
+        assertEquals(0, seek.waitingSince());
+
+        ctx.speech.roster.close(busy, 10);
+        ctx.percepts.time = SeekCompany.RETRY_TICKS;
+        assertEquals(TaskStatus.RUNNING, seek.tick(ctx));
+        assertTrue(ctx.speech.current().isPresent(), "they have finished, and now it talks to them");
+    }
+
+    @Test
+    void aLonelySeekTakesTheHintAtOnce() {
+        BeingId target = BeingId.of(AgentId.random());
+        ctx.percepts.beings = List.of(FakePercepts.personAt(target, new Pos(1, 64, 0), 1.0, "Ada"));
+        assertTrue(ctx.speech.roster.join(target.asPerson(), AgentId.random(), 0).isPresent(), "busy elsewhere");
+        assertEquals(TaskStatus.FAILED, new SeekCompany().resumeConverse(target, false).tick(ctx));
+    }
+
+    @Test
+    void aSeekForAPartyGivesUpAfterTheHailsPatience() {
+        BeingId target = BeingId.of(AgentId.random());
+        ctx.percepts.beings = List.of(FakePercepts.personAt(target, new Pos(1, 64, 0), 1.0, "Ada"));
+        assertTrue(ctx.speech.roster.join(target.asPerson(), AgentId.random(), 0).isPresent(), "busy elsewhere");
+        SeekCompany seek = new SeekCompany(true).resumeConverse(target, false);
+        seek.tick(ctx);
+
+        ctx.percepts.time = ctx.profile.i(ProfileAspect.SOCIAL_HAIL_PATIENCE_TICKS);
+        assertEquals(TaskStatus.FAILED, seek.tick(ctx));
     }
 }

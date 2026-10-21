@@ -874,8 +874,9 @@ public final class AnimaTasks {
                         Codec.BOOL.optionalFieldOf("hailed", false).forGetter(task -> task.hailed()),
                         TaskCodecs.codec().optionalFieldOf("walk").forGetter(task ->
                                 java.util.Optional.ofNullable((Task) task.walk())),
-                        Codec.BOOL.optionalFieldOf("joining", false).forGetter(task -> task.joining())
-                ).apply(t, (target, hailed, walk, joining) -> {
+                        Codec.BOOL.optionalFieldOf("joining", false).forGetter(task -> task.joining()),
+                        Codec.LONG.optionalFieldOf("waiting", -1L).forGetter(task -> task.waitingSince())
+                ).apply(t, (target, hailed, walk, joining, waiting) -> {
                     dev.luizloyola.anima.core.brain.task.SeekCompany seek =
                             new dev.luizloyola.anima.core.brain.task.SeekCompany(joining);
                     if (target.isEmpty()) {
@@ -890,7 +891,7 @@ public final class AnimaTasks {
                     // the conversation it handed off to. Anything present but not a GoTo is a
                     // hand-edited file; that falls back to a fresh seek too, same as no target.
                     if (walk.isEmpty()) {
-                        return seek.resumeConverse(target.get(), hailed);
+                        return seek.resumeConverse(target.get(), hailed).waiting(waiting);
                     }
                     if (walk.get() instanceof GoTo leg) {
                         return seek.resume(target.get(), hailed, leg);

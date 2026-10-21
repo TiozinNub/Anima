@@ -50,6 +50,12 @@ public final class SeekCompany implements PrimitiveTask {
     private boolean hailed;
     private GoTo walk;
     private Converse converse;
+    /** Since when a seek for a party has waited for its target to stop talking to someone else; -1 if not. */
+    private long waitingSince = -1;
+    private long nextTry;
+
+    /** How often a waiting seek looks again whether its target has finished talking. */
+    static final int RETRY_TICKS = 40;
 
     public SeekCompany() {
         this(false);
@@ -61,8 +67,24 @@ public final class SeekCompany implements PrimitiveTask {
 
     @Override
     public TaskStatus tick(BrainContext ctx) {
+        if (converse == null && waitingSince >= 0) {
+            if (ctx.percepts().time() < nextTry) {
+                return TaskStatus.RUNNING;
+            }
+            converse = new Converse(target, hailed ? Speech.Opening.I_HAILED : Speech.Opening.QUIET);
+        }
         if (converse != null) {
-            return converse.tick(ctx);
+            TaskStatus status = converse.tick(ctx);
+            if (status == TaskStatus.FAILED && waits(ctx)) {
+                if (waitingSince < 0) {
+                    waitingSince = ctx.percepts().time();
+                    ctx.journal().record(Category.BRAIN, "seek_people", "waiting for them to finish talking");
+                }
+                converse = null;
+                nextTry = ctx.percepts().time() + RETRY_TICKS;
+                return TaskStatus.RUNNING;
+            }
+            return status;
         }
         if (walk == null) {
             Being being = nearest(ctx, joining);
@@ -93,7 +115,18 @@ public final class SeekCompany implements PrimitiveTask {
         }
         walk = null; // spent — the conversation is what this walk was for
         converse = new Converse(target, hailed ? Speech.Opening.I_HAILED : Speech.Opening.QUIET);
-        return converse.tick(ctx);
+        return tick(ctx);
+    }
+
+    /**
+     * Whether a conversation that could not open is worth standing by for: somebody walking up to ask
+     * to join a party whose member is mid-conversation waits for them to finish, up to the hail's
+     * patience, rather than walking off (flight, 2026-10-21). A lonely seek takes the hint at once.
+     */
+    private boolean waits(BrainContext ctx) {
+        return joining && !converse.opened() && ctx.percepts().being(target).isPresent()
+                && (waitingSince < 0
+                        || ctx.percepts().time() - waitingSince < ctx.profile().i(ProfileAspect.SOCIAL_HAIL_PATIENCE_TICKS));
     }
 
     @Override
@@ -116,6 +149,17 @@ public final class SeekCompany implements PrimitiveTask {
     public String describe() {
         // Once handed off, the executor's own readout should say what the body is actually doing.
         return converse != null ? converse.describe() : joining ? "seek a party" : "seek company";
+    }
+
+    /** Since when this seek has waited for its target to finish talking; -1 if it is not waiting. */
+    public long waitingSince() {
+        return waitingSince;
+    }
+
+    /** Puts a seek back to waiting, as it was saved. */
+    public SeekCompany waiting(long since) {
+        this.waitingSince = since;
+        return this;
     }
 
     /** Whether this is a homeless body looking for a party rather than a lonely one for company. */

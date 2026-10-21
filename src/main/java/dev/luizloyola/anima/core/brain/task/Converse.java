@@ -212,6 +212,11 @@ public final class Converse implements PrimitiveTask {
         return other;
     }
 
+    /** Whether a record was ever opened — false when the counterpart was busy talking to someone else. */
+    public boolean opened() {
+        return encounter != null;
+    }
+
     /**
      * How this body credits the encounter's opening if it has to {@link Speech#join join} one —
      * moot once {@link #encounter} is resolved, which is why it, not {@code opening}, is the
