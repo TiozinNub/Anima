@@ -6,6 +6,7 @@ import dev.luizloyola.anima.compat.SavedDatas;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.social.PartyId;
 import dev.luizloyola.anima.core.social.PartyRoster;
+import dev.luizloyola.anima.core.social.PlaceRow;
 import dev.luizloyola.anima.core.social.Places;
 import dev.luizloyola.anima.mod.store.StoreGuard;
 import java.util.ArrayList;
@@ -72,6 +73,11 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
     private @Nullable Places places;
     private final List<Consumer<PartyId>> disbanded = new ArrayList<>();
     private final List<BiConsumer<PartyId, List<AgentId>>> arrived = new ArrayList<>();
+    private final List<Consumer<Merged>> merged = new ArrayList<>();
+
+    /** A whole party moved into another: who came, and the places that came with them. */
+    public record Merged(PartyId from, PartyId into, List<AgentId> members, List<PlaceRow> places) {
+    }
     private Predicate<AgentId> players = who -> false;
 
     /** Constructs an empty store (the {@link SavedDataType} supplier for a fresh save). */
@@ -135,6 +141,11 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
         disbanded.add(listener);
     }
 
+    /** Hears every merge, after its arrival: what a consumer does with places brought from far off. */
+    public void onMerge(Consumer<Merged> listener) {
+        merged.add(listener);
+    }
+
     /** Hears every arrival into company: the party joined, and who came, after their claims moved. */
     public void onArrival(BiConsumer<PartyId, List<AgentId>> listener) {
         arrived.add(listener);
@@ -179,6 +190,8 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
      */
     public boolean merge(PartyId from, PartyId into) {
         List<AgentId> moving = List.copyOf(roster.members(from));
+        List<PlaceRow> brought = places == null ? List.of()
+                : places.rows().stream().filter(row -> from.equals(row.party())).toList();
         if (!dirtyIf(roster.merge(from, into))) {
             return false;
         }
@@ -189,6 +202,8 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
         disband(from);
         playerLeads(into);
         arrive(into, moving);
+        Merged event = new Merged(from, into, moving, brought);
+        merged.forEach(listener -> listener.accept(event));
         return true;
     }
 

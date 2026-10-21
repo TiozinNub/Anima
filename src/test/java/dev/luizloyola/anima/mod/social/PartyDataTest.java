@@ -10,6 +10,7 @@ import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.social.PartyId;
+import dev.luizloyola.anima.core.social.PlaceRow;
 import dev.luizloyola.anima.core.social.Places;
 import java.util.ArrayList;
 import java.util.List;
@@ -200,5 +201,24 @@ class PartyDataTest {
         parties.join(oak, parties.partyOf(rowan));
         parties.merge(parties.partyOf(rowan), parties.partyOf(hazel));
         assertEquals(List.of("1 into 2", "1 into 2", "2 into 4"), heard);
+    }
+
+    @Test
+    void aMergeTellsWhichPlacesCameWithTheParty() {
+        AgentId hazel = AgentId.random();
+        AgentId ivy = AgentId.random();
+        PartyId moving = parties.partyOf(hazel);
+        PartyId staying = parties.partyOf(ivy);
+        store.places().found(BENCH, new Pos(300, 64, 300), null, moving, 5L);
+        store.places().found(BENCH, new Pos(1, 64, 1), null, staying, 5L);
+        List<PartyData.Merged> heard = new ArrayList<>();
+        parties.onMerge(heard::add);
+
+        parties.merge(moving, staying);
+
+        assertEquals(1, heard.size());
+        assertEquals(List.of(hazel), heard.get(0).members());
+        assertEquals(List.of(new Pos(300, 64, 300)), heard.get(0).places().stream().map(PlaceRow::at).toList(),
+                "only what the moving party had, as it was before the merge took it in");
     }
 }
