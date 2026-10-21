@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
@@ -38,19 +39,21 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
     /** This store's file key — public so the boot guard can find it on disk. */
     public static final Identifier ID = Identifier.fromNamespaceAndPath("anima", "parties");
 
-    /** One party's row: {@code {party, members:[…]}} in join order. */
-    private record Row(UUID party, List<UUID> members) {
+    /** One party's row: {@code {party, members:[…], leader?}}, members in join order. */
+    private record Row(UUID party, List<UUID> members, Optional<UUID> leader) {
     }
 
     private static final Codec<Row> ROW_CODEC = RecordCodecBuilder.create(row -> row.group(
             UUIDUtil.CODEC.fieldOf("party").forGetter(Row::party),
-            UUIDUtil.CODEC.listOf().fieldOf("members").forGetter(Row::members)
+            UUIDUtil.CODEC.listOf().fieldOf("members").forGetter(Row::members),
+            UUIDUtil.CODEC.optionalFieldOf("leader").forGetter(Row::leader)
     ).apply(row, Row::new));
 
     /** This store's schema. Bump when the shape below changes incompatibly. */
     private static final int SCHEMA = 1;
 
-    private static final Codec<PartyData> CODEC = RecordCodecBuilder.create(data -> data.group(
+    /** Package-visible for the round-trip tests. */
+    static final Codec<PartyData> CODEC = RecordCodecBuilder.create(data -> data.group(
             Codec.INT.optionalFieldOf("version", 0).forGetter(d -> SCHEMA),
             Codec.INT.optionalFieldOf("rows", StoreGuard.UNCOUNTED)
                     .forGetter(d -> d.rows().size()),
@@ -67,6 +70,7 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
     /** Installed at server start; null until then, since rows load before there is a world. */
     private @Nullable Places places;
     private final List<Consumer<PartyId>> disbanded = new ArrayList<>();
+    private Predicate<AgentId> players = who -> false;
 
     /** Constructs an empty store (the {@link SavedDataType} supplier for a fresh save). */
     public PartyData() {
@@ -119,6 +123,11 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
         this.places = places;
     }
 
+    /** Which agents are players, for the default lead. Installed at server start. */
+    public void knowsPlayers(Predicate<AgentId> players) {
+        this.players = players;
+    }
+
     /** Hears every party that ceased to exist, after its claims have moved. */
     public void onDisband(Consumer<PartyId> listener) {
         disbanded.add(listener);
@@ -144,7 +153,48 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
             places.ownerMovedTo(who, into);
         }
         before.filter(gone -> roster.members(gone).isEmpty()).ifPresent(this::disband);
+        playerLeads(into);
         return true;
+    }
+
+    /**
+     * @see PartyRoster#merge — {@code from}'s communal claims go to {@code into}, each member's own
+     * claims follow them, and {@code from} disbands once, however many members it had.
+     */
+    public boolean merge(PartyId from, PartyId into) {
+        List<AgentId> moving = List.copyOf(roster.members(from));
+        if (!dirtyIf(roster.merge(from, into))) {
+            return false;
+        }
+        if (places != null) {
+            places.partyDisbanded(from, into);
+            moving.forEach(member -> places.ownerMovedTo(member, into));
+        }
+        disband(from);
+        playerLeads(into);
+        return true;
+    }
+
+    /** @see PartyRoster#leader */
+    public Optional<AgentId> leader(PartyId party) {
+        return roster.leader(party);
+    }
+
+    /** @see PartyRoster#lead */
+    public boolean lead(AgentId who) {
+        return dirtyIf(roster.lead(who));
+    }
+
+    /**
+     * A player in company leads it unless someone already does (decision: Luiz, 2026-10-21). Only
+     * on arrival: when a lead passes on it goes by seniority, players or not.
+     */
+    private void playerLeads(PartyId party) {
+        List<AgentId> members = roster.members(party);
+        if (members.size() < 2 || roster.leader(party).isPresent()) {
+            return;
+        }
+        members.stream().filter(players).findFirst().ifPresent(this::lead);
     }
 
     /** @see PartyRoster#leave */
@@ -201,7 +251,7 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
             for (AgentId member : roster.members(party)) {
                 members.add(member.value());
             }
-            rows.add(new Row(party.value(), members));
+            rows.add(new Row(party.value(), members, roster.leader(party).map(AgentId::value)));
         }
         return rows;
     }
@@ -212,6 +262,14 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
             for (UUID member : row.members()) {
                 roster.join(AgentId.of(member), PartyId.of(row.party()));
             }
+        }
+        // After every membership, so a leader filed under the wrong party is refused whatever the
+        // row order, and is not made leader of the party they really are in.
+        for (Row row : rows) {
+            PartyId party = PartyId.of(row.party());
+            row.leader().map(AgentId::of)
+                    .filter(leader -> roster.currentPartyOf(leader).filter(party::equals).isPresent())
+                    .ifPresent(roster::lead);
         }
         return new PartyData(roster, version, declaredRows);
     }

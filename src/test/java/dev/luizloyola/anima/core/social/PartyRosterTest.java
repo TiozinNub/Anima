@@ -129,4 +129,75 @@ class PartyRosterTest {
         assertFalse(roster.evict(alice), "never in a party, so nothing to take them out of");
         assertTrue(roster.parties().isEmpty(), "and asking must not have minted one");
     }
+
+    @Test
+    void mergeMovesTheWholePartyInJoinOrderAndDisbandsIt() {
+        PartyId alices = roster.partyOf(alice);
+        PartyId bobs = roster.partyOf(bob);
+        roster.join(charlie, bobs);
+        assertTrue(roster.merge(bobs, alices));
+        assertEquals(List.of(alice, bob, charlie), roster.members(alices));
+        assertEquals(alices, roster.partyOf(charlie));
+        assertFalse(roster.parties().contains(bobs), "the moving party is gone");
+    }
+
+    @Test
+    void mergeNeedsTwoDistinctLivingParties() {
+        PartyId alices = roster.partyOf(alice);
+        assertFalse(roster.merge(alices, alices));
+        assertFalse(roster.merge(PartyId.random(), alices), "an unknown party has nobody to move");
+        assertFalse(roster.merge(alices, PartyId.random()), "and nowhere is not a party to move into");
+        assertEquals(List.of(alice), roster.members(alices));
+    }
+
+    @Test
+    void theStayingPartyKeepsItsLeaderAndTheMovingOneLosesIts() {
+        PartyId alices = roster.partyOf(alice);
+        PartyId bobs = roster.partyOf(bob);
+        roster.join(charlie, bobs);
+        roster.lead(alice);
+        roster.lead(charlie);
+        roster.merge(bobs, alices);
+        assertEquals(alice, roster.leader(alices).orElseThrow());
+        assertTrue(roster.leader(bobs).isEmpty());
+    }
+
+    @Test
+    void aPartyHasNoLeaderUntilOneIsNamed() {
+        PartyId alices = roster.partyOf(alice);
+        roster.join(bob, alices);
+        assertTrue(roster.leader(alices).isEmpty());
+        assertTrue(roster.lead(bob));
+        assertFalse(roster.lead(bob), "already leads");
+        assertEquals(bob, roster.leader(alices).orElseThrow());
+        assertFalse(roster.lead(charlie), "charlie is in no party");
+    }
+
+    @Test
+    void aLeaderWhoGoesPassesTheLeadToTheMostSeniorLeft() {
+        PartyId party = roster.partyOf(alice);
+        roster.join(bob, party);
+        roster.join(charlie, party);
+        roster.lead(bob);
+
+        roster.leave(bob);
+        assertEquals(alice, roster.leader(party).orElseThrow(), "alice joined first");
+
+        roster.join(bob, party);
+        roster.join(alice, roster.partyOf(AgentId.random()));
+        assertEquals(charlie, roster.leader(party).orElseThrow(), "joining elsewhere is going too");
+
+        roster.evict(charlie);
+        assertEquals(bob, roster.leader(party).orElseThrow(), "and so is dying");
+    }
+
+    @Test
+    void aPartyThatEndsTakesItsLeadWithIt() {
+        PartyId party = roster.partyOf(alice);
+        roster.lead(alice);
+        roster.evict(alice);
+        assertTrue(roster.leader(party).isEmpty());
+        roster.join(bob, party);
+        assertTrue(roster.leader(party).isEmpty(), "a party rebuilt on the same id starts unled");
+    }
 }

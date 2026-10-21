@@ -106,6 +106,8 @@ public final class AnimaMod implements ModInitializer {
             PlacesData store = PlacesData.get(server);
             store.attach(server);
             PartyData.get(server).follows(store.places());
+            // Online only: a player joins a party in a conversation, so they are on the server.
+            PartyData.get(server).knowsPlayers(who -> server.getPlayerList().getPlayer(who.value()) != null);
             dev.luizloyola.anima.mod.brain.KnowledgeData.get(server).registry()
                     .sees(store.places(), server.overworld()::getGameTime);
         });

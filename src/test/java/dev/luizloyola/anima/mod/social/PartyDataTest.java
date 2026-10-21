@@ -1,13 +1,20 @@
 package dev.luizloyola.anima.mod.social;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonObject;
+import com.mojang.serialization.JsonOps;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.social.PartyId;
 import dev.luizloyola.anima.core.social.Places;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import net.minecraft.core.UUIDUtil;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -97,5 +104,82 @@ class PartyDataTest {
 
         assertTrue(store.isDirty(),
                 "hazel's shared claim re-pointed to her new party; PlacesData must learn that");
+    }
+
+    @Test
+    void mergeHandsTheMovingPartysWorkshopOverAndDisbandsOnce() {
+        AgentId hazel = AgentId.random();
+        AgentId rowan = AgentId.random();
+        AgentId ivy = AgentId.random();
+        PartyId moving = parties.partyOf(hazel);
+        parties.join(rowan, moving);
+        PartyId staying = parties.partyOf(ivy);
+        store.places().found(BENCH, new Pos(3, 64, 3), null, moving, 5L);
+        List<PartyId> gone = new ArrayList<>();
+        parties.onDisband(gone::add);
+
+        assertTrue(parties.merge(moving, staying));
+
+        assertEquals(List.of(moving), gone, "two members moved, one party ended");
+        assertTrue(store.places().viewFor(ivy).nearest(BENCH, new Pos(0, 0, 0)).isPresent(),
+                "ivy's party now holds the bench the moving party built");
+        assertEquals(List.of(ivy, hazel, rowan), parties.members(staying));
+    }
+
+    @Test
+    void aPlayerInCompanyLeadsUnlessSomeoneAlreadyDoes() {
+        AgentId player = AgentId.random();
+        AgentId eda = AgentId.random();
+        AgentId cai = AgentId.random();
+        parties.knowsPlayers(player::equals);
+
+        PartyId edas = parties.partyOf(eda);
+        assertTrue(parties.leader(parties.partyOf(player)).isEmpty(), "alone, nobody needs leading");
+        parties.join(player, edas);
+        assertEquals(player, parties.leader(edas).orElseThrow());
+
+        PartyId cais = parties.partyOf(cai);
+        parties.join(AgentId.random(), cais);
+        parties.lead(cai);
+        parties.merge(edas, cais);
+        assertEquals(cai, parties.leader(cais).orElseThrow(), "a party that has a leader keeps it");
+    }
+
+    @Test
+    void theLeaderSurvivesASaveAndAMisfiledOneDoesNot() {
+        AgentId hazel = AgentId.random();
+        AgentId rowan = AgentId.random();
+        AgentId ivy = AgentId.random();
+        PartyId party = parties.partyOf(hazel);
+        parties.join(rowan, party);
+        parties.lead(rowan);
+        PartyId ivys = parties.partyOf(ivy);
+
+        var encoded = PartyData.CODEC.encodeStart(JsonOps.INSTANCE, parties).getOrThrow();
+        PartyData decoded = PartyData.CODEC.parse(JsonOps.INSTANCE, encoded).getOrThrow();
+        assertEquals(rowan, decoded.leader(party).orElseThrow());
+
+        // Ivy written as the leader of a party she is not in: on load she leads neither that one
+        // nor, by way of the roster's lead(), her own.
+        for (var element : encoded.getAsJsonObject().getAsJsonArray("parties")) {
+            JsonObject row = element.getAsJsonObject();
+            if (row.has("leader")) {
+                row.add("leader", UUIDUtil.CODEC.encodeStart(JsonOps.INSTANCE, ivy.value()).getOrThrow());
+            }
+        }
+        PartyData misfiled = PartyData.CODEC.parse(JsonOps.INSTANCE, encoded).getOrThrow();
+        assertTrue(misfiled.leader(party).isEmpty());
+        assertTrue(misfiled.leader(ivys).isEmpty());
+    }
+
+    @Test
+    void aSaveFromBeforeLeadersLoadsUnled() {
+        AgentId hazel = AgentId.random();
+        PartyId party = parties.partyOf(hazel);
+        var encoded = PartyData.CODEC.encodeStart(JsonOps.INSTANCE, parties).getOrThrow();
+        assertFalse(encoded.toString().contains("leader"), "no leader, no field");
+        PartyData decoded = PartyData.CODEC.parse(JsonOps.INSTANCE, encoded).getOrThrow();
+        assertEquals(List.of(hazel), decoded.members(party));
+        assertTrue(decoded.leader(party).isEmpty());
     }
 }

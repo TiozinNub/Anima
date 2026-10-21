@@ -236,6 +236,13 @@ public final class AgentCommands {
                                                 .suggests(Subject.suggestions())
                                                 .executes(ctx -> partyJoin(ctx,
                                                         StringArgumentType.getString(ctx, "whom")))))
+                                .then(Commands.literal("merge")
+                                        .then(Commands.argument("whom", StringArgumentType.string())
+                                                .suggests(Subject.suggestions())
+                                                .executes(ctx -> partyMerge(ctx,
+                                                        StringArgumentType.getString(ctx, "whom")))))
+                                .then(Commands.literal("lead")
+                                        .executes(ctx -> partyLead(ctx)))
                                 .then(Commands.literal("leave")
                                         .executes(ctx -> partyLeave(ctx)));
     }
@@ -2976,10 +2983,13 @@ public final class AgentCommands {
         Replies.send(source, () -> tagged.copy()
                 .append(Component.translatable("anima.command.party.members", members.size()))
                 .withStyle(ChatFormatting.AQUA));
+        Optional<AgentId> leader = PartyData.get(server).leader(party);
         for (AgentId member : members) {
-            String line = label(server, member) + "  " + shortId(member);
-            Replies.send(source, () -> indent(Component.literal(line)
-                    .withStyle(ChatFormatting.GRAY)));
+            Component line = Component.literal(label(server, member) + "  " + shortId(member));
+            Component shown = leader.filter(member::equals).isPresent()
+                    ? line.copy().append(Component.translatable("anima.command.party.leads"))
+                    : line;
+            Replies.send(source, () -> indent(shown.copy().withStyle(ChatFormatting.GRAY)));
         }
         return members.size();
     }
@@ -3019,6 +3029,55 @@ public final class AgentCommands {
         Replies.send(source, () -> Component.translatable("anima.command.party.joined",
                 label(server, self), label(server, other), parties.members(theirs).size())
                 .withStyle(ChatFormatting.AQUA), true);
+        return 1;
+    }
+
+    /**
+     * The source's whole party moves into {@code token}'s, as the group-up handshake will move it:
+     * one disband, the party that stays keeping its own leader.
+     */
+    private static int partyMerge(CommandContext<CommandSourceStack> ctx, String token) {
+        CommandSourceStack source = ctx.getSource();
+        AgentId self = actingIdentity(ctx);
+        if (self == null) return 0;
+        AgentId other = Subject.directoryId(source, token);
+        if (other == null) return 0;
+        MinecraftServer server = source.getServer();
+        PartyData parties = PartyData.get(server);
+        PartyId mine = parties.partyOf(self);
+        PartyId theirs = parties.partyOf(other);
+        int moving = parties.members(mine).size();
+        if (!parties.merge(mine, theirs)) {
+            Replies.send(source, () -> Component.translatable("anima.command.party.same")
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        OpJournal.record(source, List.copyOf(parties.members(theirs)),
+                "merged " + label(server, self) + "'s party into " + label(server, other) + "'s");
+        // LOGGED: as party join — a whole party's boards changed scope at once.
+        Replies.send(source, () -> Component.translatable("anima.command.party.merged",
+                label(server, self), moving, label(server, other), parties.members(theirs).size())
+                .withStyle(ChatFormatting.AQUA), true);
+        return 1;
+    }
+
+    /** The source leads their party — the stand-in for a HOME search naming its scout. */
+    private static int partyLead(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentId self = actingIdentity(ctx);
+        if (self == null) return 0;
+        MinecraftServer server = source.getServer();
+        PartyData parties = PartyData.get(server);
+        PartyId party = parties.partyOf(self);
+        if (!parties.lead(self)) {
+            Replies.send(source, () -> Component.translatable("anima.command.party.already_leads")
+                    .withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+        OpJournal.record(source, List.copyOf(parties.members(party)),
+                "made " + label(server, self) + " the party's leader");
+        Replies.send(source, () -> Component.translatable("anima.command.party.now_leads",
+                label(server, self)).withStyle(ChatFormatting.AQUA), true); // LOGGED: persisted
         return 1;
     }
 
