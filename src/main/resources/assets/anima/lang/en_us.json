@@ -284,8 +284,6 @@
   "anima.config.aspect.social.openness_newcomer_days.desc": "Over how many in-game days a newcomer stops counting against a party's openness.",
   "anima.config.aspect.social.openness_member": "Openness: each member",
   "anima.config.aspect.social.openness_member.desc": "What each member beyond the first counts against a party's openness. The larger it is, the more it needs to spare before it takes one more.",
-  "anima.config.aspect.social.openness_company": "Openness: members' company",
-  "anima.config.aspect.social.openness_company.desc": "How far its members' company moves a party's openness: all lonely adds this much, all crowded takes it away.",
   "anima.config.aspect.social.join_merged": "Joining: just merged",
   "anima.config.aspect.social.join_merged.desc": "What having just merged counts against a party's willingness to join another, at first. It fades over the merge days.",
   "anima.config.aspect.social.join_merged_days": "Joining: merge days",

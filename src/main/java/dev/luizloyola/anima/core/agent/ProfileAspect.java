@@ -285,9 +285,6 @@ public final class ProfileAspect {
     public static final ProfileAspect SOCIAL_OPENNESS_MEMBER = register("social.openness_member", Kind.DOUBLE, -50.0, 0.0,
             "What each member beyond the first counts against a party's openness: the larger it is, "
                     + "the more it needs to have spare before it takes one more.");
-    public static final ProfileAspect SOCIAL_OPENNESS_COMPANY = register("social.openness_company", Kind.DOUBLE, 0.0, 100.0,
-            "How far its members' company moves a party's openness: all lonely adds this much, all "
-                    + "crowded takes it away.");
     public static final ProfileAspect SOCIAL_JOIN_MERGED = register("social.join_merged", Kind.DOUBLE, -100.0, 0.0,
             "What having just merged counts against a party's willingness to join another, at "
                     + "first; it fades over social.join_merged_days.");

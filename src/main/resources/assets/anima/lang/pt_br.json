@@ -284,8 +284,6 @@
   "anima.config.aspect.social.openness_newcomer_days.desc": "Em quantos dias de jogo um recém-chegado deixa de contar contra a abertura do grupo.",
   "anima.config.aspect.social.openness_member": "Abertura: cada membro",
   "anima.config.aspect.social.openness_member.desc": "Quanto cada membro além do primeiro conta contra a abertura do grupo. Quanto maior, mais precisa ter de sobra antes de acolher mais um.",
-  "anima.config.aspect.social.openness_company": "Abertura: companhia dos membros",
-  "anima.config.aspect.social.openness_company.desc": "Quanto a companhia dos membros move a abertura do grupo: todos sozinhos somam isto, todos sufocados tiram.",
   "anima.config.aspect.social.join_merged": "Juntar-se: acabou de se juntar",
   "anima.config.aspect.social.join_merged.desc": "Quanto ter acabado de se juntar conta contra a vontade do grupo de se juntar a outro, de início. Some ao longo dos dias de junção.",
   "anima.config.aspect.social.join_merged_days": "Juntar-se: dias de junção",

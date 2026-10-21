@@ -27,7 +27,8 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * The marks every party's {@link Ledgers} weigh, persisted ({@code anima:ledgers}), and the lines
- * Anima itself contributes: newcomers and a recent merge fade, size and members' company stand.
+ * Anima itself contributes: newcomers and a recent merge fade, size stands, and members' company
+ * pulls on joining only — a party is not less open for having just talked (Luiz, 2026-10-21).
  * A consumer adds its own lines through {@link #ledgers()} once the server has started.
  */
 public final class LedgerData extends SavedData implements StoreGuard.Checked {
@@ -137,8 +138,6 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
             return size > 1 ? OptionalDouble.of((size - 1) * reader.d(ProfileAspect.SOCIAL_OPENNESS_MEMBER))
                     : OptionalDouble.empty();
         }));
-        ledgers.stands(standing(Ledger.OPENNESS, COMPANY, (party, reader) ->
-                scaled(companyOf(server, parties.members(party)), reader.d(ProfileAspect.SOCIAL_OPENNESS_COMPANY))));
         ledgers.stands(standing(Ledger.JOINING, COMPANY, (party, reader) ->
                 scaled(companyOf(server, parties.members(party)), reader.d(ProfileAspect.SOCIAL_JOIN_COMPANY))));
     }

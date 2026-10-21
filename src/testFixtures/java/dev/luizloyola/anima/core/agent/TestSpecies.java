@@ -82,7 +82,6 @@ public final class TestSpecies {
             .set(ProfileAspect.SOCIAL_OPENNESS_NEWCOMER, -10.0)
             .set(ProfileAspect.SOCIAL_OPENNESS_NEWCOMER_DAYS, 3)
             .set(ProfileAspect.SOCIAL_OPENNESS_MEMBER, -2.0)
-            .set(ProfileAspect.SOCIAL_OPENNESS_COMPANY, 10.0)
             .set(ProfileAspect.SOCIAL_JOIN_MERGED, -15.0)
             .set(ProfileAspect.SOCIAL_JOIN_MERGED_DAYS, 3)
             .set(ProfileAspect.SOCIAL_JOIN_COMPANY, 10.0)
