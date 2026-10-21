@@ -77,6 +77,22 @@ class EnsureTableTest {
     }
 
     @Test
+    void aKnownTableFortyBlocksOffBeatsCraftingASpareButNotOneCarried() {
+        // An errand at a tree 41 blocks from the base's table crafted a second one from its four
+        // logs, and carried it home (2026-10-21).
+        standAt(10, 10);
+        rememberTable(51, 10);
+        realTable(51, 10);
+        EnsureTable goal = new EnsureTable();
+        Method walk = goal.methods().get(0);
+        Method place = goal.methods().get(1);
+        assertTrue(walk.estimateCost(ctx) < place.estimateCost(ctx), "the walk, not a log of the wood");
+
+        ctx.percepts.inventory.add(ItemStack.of(Workbench.ITEM_ID, 1, 64));
+        assertTrue(place.estimateCost(ctx) < walk.estimateCost(ctx), "the table in the pack goes down");
+    }
+
+    @Test
     void withNoTableKnownThePlanMakesPlacesAndNotesOneAsItsOwn() {
         standAt(10, 10);
         EnsureTable goal = new EnsureTable();

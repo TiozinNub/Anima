@@ -21,8 +21,9 @@ import org.jspecify.annotations.Nullable;
  * ways otherwise, and their prices are the policy:
  *
  * <ul>
- *   <li><b>Walk to a known one</b>, priced at the distance — so a settlement converges on shared
- *       tables instead of one per person.</li>
+ *   <li><b>Walk to a known one</b>, priced at the distance, less {@link #MAKE_COST} when there is
+ *       none in the pack — so a settlement converges on shared tables instead of one per person,
+ *       and a walk is weighed against the wood a new one would take.</li>
  *   <li><b>Make one and put it down</b>, a flat {@link #PLACE_COST}: obtain the item (log → planks →
  *       table, or one already in the pack) and place it beside. It is this body's own, not the
  *       party's: {@link PackUpTable} picks it back up once the craft is made.</li>
@@ -37,9 +38,17 @@ public final class EnsureTable implements AchieveTask {
 
     /**
      * The walk-vs-place breakeven, in the same blocks-flavoured cost every method prices in: a known
-     * table nearer than this wins.
+     * table nearer than this wins over the one in the pack.
      */
     public static final double PLACE_COST = 32.0;
+
+    /**
+     * The wood a new table takes, priced as walk: with none in the pack, a known one within
+     * {@code PLACE_COST + MAKE_COST} is walked to rather than crafted. Taken off the walk, as added to
+     * the make it would price a first table out of a low-priority craft. Without it an errand at a
+     * tree 41 blocks from the base's table crafted a spare from its four logs (2026-10-21) *(call)*.
+     */
+    public static final double MAKE_COST = 32.0;
 
     /**
      * The occurs-check, threaded through from the {@link CraftFor} that needed the table — so a
@@ -114,8 +123,9 @@ public final class EnsureTable implements AchieveTask {
 
         @Override
         public double estimateCost(BrainContext ctx) {
+            double saved = ctx.percepts().inventory().count(Workbench.ITEM_ID::equals) > 0 ? 0.0 : MAKE_COST;
             return Workbench.nearestKnown(ctx)
-                    .map(known -> Workbench.distance(known.anchor(), ctx.percepts().position()))
+                    .map(known -> Math.max(0.0, Workbench.distance(known.anchor(), ctx.percepts().position()) - saved))
                     .orElse(Double.MAX_VALUE);
         }
 
