@@ -7,6 +7,10 @@ import dev.luizloyola.anima.core.brain.history.Doings;
 import dev.luizloyola.anima.core.brain.task.DigIn;
 import dev.luizloyola.anima.core.brain.task.NightShelterStep;
 import dev.luizloyola.anima.core.brain.task.Task;
+import dev.luizloyola.anima.core.brain.sense.Being;
+import dev.luizloyola.anima.core.brain.sense.Combatant;
+import dev.luizloyola.anima.core.brain.sense.Percepts;
+import dev.luizloyola.anima.core.brain.sense.Sides;
 import java.util.OptionalLong;
 
 /**
@@ -63,9 +67,31 @@ public final class NightShelterInstinct implements Instinct {
         return pull(ctx) > 0.0 && DigIn.begun(ctx) != null;
     }
 
+    /**
+     * Nothing while something fight or flight answers is about on this side of the walls: waiting
+     * in the open is no cover, and a settler outbid her own fear 53 times while spiders hit her
+     * eight (2026-10-21). Shut out behind a shut door, the night still holds.
+     */
     @Override
     public double pressure(BrainContext ctx) {
-        return pull(ctx);
+        double pull = pull(ctx);
+        return pull > 0.0 && threatened(ctx) ? 0.0 : pull;
+    }
+
+    /** Whether something aggressive presses on this body from its side of any wall. */
+    static boolean threatened(BrainContext ctx) {
+        Percepts percepts = ctx.percepts();
+        for (Being being : percepts.beings()) {
+            if (!being.aggressive()) {
+                continue;
+            }
+            Combatant them = percepts.combatant(being.id()).orElse(null);
+            if (FightOrFlightInstinct.pressureOf(ctx.profile(), ctx.danger(), being,
+                    percepts.attackedLately(being.id()), them) > 0.0 && !Sides.shutOut(percepts, being, them)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

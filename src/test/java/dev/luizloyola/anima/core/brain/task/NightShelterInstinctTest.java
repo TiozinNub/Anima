@@ -135,6 +135,15 @@ class NightShelterInstinctTest {
         assertFalse(method("walk in").applicable(ctx), "the next root does not ask it again");
     }
 
+    @Test
+    void somethingAboutOnThisSideOutweighsTheNightAndNothingShutOutDoes() {
+        ctx.percepts.beings = List.of(FakePercepts.monsterAt(new Pos(2, 64, 0), 2.0, true));
+        assertEquals(0.0, night.pressure(ctx), "waiting in the open is no cover: spiders hit her eight times");
+        ctx.percepts.enclosure = new Enclosure(Openness.OPENABLE, Holes.NONE, true,
+                ctx.percepts.position, Set.of(ctx.percepts.position), List.of(), List.of(), 1L);
+        assertEquals(FULL, night.pressure(ctx), "behind a shut door it is shut out, and the night holds");
+    }
+
     private void remember() {
         ctx.knowledge.note(new PoiMemory(PoiKind.SHELTER, DOOR.x() + " " + DOOR.y() + " " + DOOR.z(),
                 IN, Region.of(IN).including(DOOR), 2, false, 0L), 16);
