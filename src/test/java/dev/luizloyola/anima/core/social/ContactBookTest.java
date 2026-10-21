@@ -124,4 +124,34 @@ class ContactBookTest {
         assertFalse(book.erase(bob));
         assertTrue(book.knows(alice, charlie), "an untouched book stays untouched");
     }
+
+    @Test
+    void aNameHeardIsNotKnownUntilItsFaceIs() {
+        AgentId knower = AgentId.random();
+        AgentId whom = AgentId.random();
+        ContactBook book = new ContactBook();
+
+        assertTrue(book.hear(knower, whom));
+        assertFalse(book.hear(knower, whom), "told twice is news once");
+        assertTrue(book.heardOf(knower, whom));
+        assertFalse(book.knows(knower, whom), "no nameplate on a name alone");
+
+        assertTrue(book.learn(knower, whom));
+        assertFalse(book.heardOf(knower, whom), "the face moves it across");
+        assertFalse(book.hear(knower, whom), "and somebody known is not news");
+    }
+
+    @Test
+    void forgettingAndErasingReachNamesOnlyHeard() {
+        AgentId knower = AgentId.random();
+        AgentId whom = AgentId.random();
+        ContactBook book = new ContactBook();
+        book.hear(knower, whom);
+        assertTrue(book.forget(knower, whom));
+        assertTrue(book.hearers().isEmpty());
+
+        book.hear(knower, whom);
+        assertTrue(book.erase(whom), "an agent unmade leaves no name behind either");
+        assertFalse(book.heardOf(knower, whom));
+    }
 }

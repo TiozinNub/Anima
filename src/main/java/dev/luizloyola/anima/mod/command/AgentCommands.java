@@ -2861,7 +2861,19 @@ public final class AgentCommands {
 
 
     private static int printContacts(CommandSourceStack source, AgentId who, Component heading) {
-        return printNames(source, ContactData.get(source.getServer()).contactsOf(who), heading);
+        ContactData contacts = ContactData.get(source.getServer());
+        int known = printNames(source, contacts.contactsOf(who), heading);
+        Set<AgentId> heard = contacts.heardBy(who);
+        if (!heard.isEmpty()) {
+            MinecraftServer server = source.getServer();
+            Replies.send(source, () -> Component.translatable("anima.command.contacts.heard", heard.size())
+                    .withStyle(ChatFormatting.AQUA));
+            for (AgentId id : heard) {
+                String line = label(server, id) + "  " + shortId(id);
+                Replies.send(source, () -> indent(Component.literal(line).withStyle(ChatFormatting.DARK_GRAY)));
+            }
+        }
+        return known;
     }
 
     private static int printNames(CommandSourceStack source, Set<AgentId> known, Component heading) {

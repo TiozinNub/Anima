@@ -11,6 +11,7 @@ import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.store.StoreGuard;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -36,19 +37,21 @@ public final class ContactData extends SavedData implements StoreGuard.Checked {
     /** This store's file key — public so the boot guard can find it on disk. */
     public static final Identifier ID = Identifier.fromNamespaceAndPath("anima", "contacts");
 
-    /** One knower's row: {@code {who, knows:[…]}}. */
-    private record Row(UUID who, List<UUID> knows) {
+    /** One knower's row: {@code {who, knows:[…], heard:[…]}}; {@code heard} is names without faces. */
+    private record Row(UUID who, List<UUID> knows, List<UUID> heard) {
     }
 
     private static final Codec<Row> ROW_CODEC = RecordCodecBuilder.create(row -> row.group(
             UUIDUtil.CODEC.fieldOf("who").forGetter(Row::who),
-            UUIDUtil.CODEC.listOf().fieldOf("knows").forGetter(Row::knows)
+            UUIDUtil.CODEC.listOf().fieldOf("knows").forGetter(Row::knows),
+            UUIDUtil.CODEC.listOf().optionalFieldOf("heard", List.of()).forGetter(Row::heard)
     ).apply(row, Row::new));
 
     /** This store's schema. Bump when the shape below changes incompatibly. */
     private static final int SCHEMA = 1;
 
-    private static final Codec<ContactData> CODEC = RecordCodecBuilder.create(data -> data.group(
+    /** Package-visible for the round-trip tests. */
+    static final Codec<ContactData> CODEC = RecordCodecBuilder.create(data -> data.group(
             // Written always, read as 0 from a file that predates it — either way not the factory's
             // NEVER_LOADED. That is the whole signal StoreGuard reads.
             Codec.INT.optionalFieldOf("version", 0).forGetter(d -> SCHEMA),
@@ -88,7 +91,7 @@ public final class ContactData extends SavedData implements StoreGuard.Checked {
 
     @Override
     public int actualRows() {
-        return book.knowers().size();
+        return rows().size(); // a knower who has only heard of people is a row too
     }
 
     /** Resolves the single, server-global store (kept on the overworld's data storage). */
@@ -104,6 +107,39 @@ public final class ContactData extends SavedData implements StoreGuard.Checked {
     /** @see ContactBook#contactsOf */
     public Set<AgentId> contactsOf(AgentId knower) {
         return book.contactsOf(knower);
+    }
+
+    /** @see ContactBook#heardOf */
+    public boolean heardOf(AgentId knower, AgentId whom) {
+        return book.heardOf(knower, whom);
+    }
+
+    /** @see ContactBook#heardBy */
+    public Set<AgentId> heardBy(AgentId knower) {
+        return book.heardBy(knower);
+    }
+
+    /** @see ContactBook#hearers */
+    public Set<AgentId> hearers() {
+        return book.hearers();
+    }
+
+    /** @see ContactBook#hear — a name is no meeting, so no gauge moves. */
+    public boolean hear(AgentId knower, AgentId whom) {
+        return dirtyIf(book.hear(knower, whom));
+    }
+
+    /**
+     * As {@link #learn}, but no company gauge moves: for a learner the caller counts once however many
+     * it learns at a time — joining a party is one meeting (group-up spec, decision 19).
+     */
+    public boolean learnQuietly(AgentId knower, AgentId whom) {
+        return dirtyIf(book.learn(knower, whom));
+    }
+
+    /** One meeting's worth of company for {@code who}, if their body is loaded. */
+    public static void met(MinecraftServer server, AgentId who) {
+        filled(server, who);
     }
 
     /** @see ContactBook#knowers */
@@ -189,15 +225,21 @@ public final class ContactData extends SavedData implements StoreGuard.Checked {
     }
 
     private List<Row> rows() {
+        Set<AgentId> knowers = new LinkedHashSet<>(book.knowers());
+        knowers.addAll(book.hearers());
         List<Row> rows = new ArrayList<>();
-        for (AgentId knower : book.knowers()) {
-            List<UUID> knows = new ArrayList<>();
-            for (AgentId known : book.contactsOf(knower)) {
-                knows.add(known.value());
-            }
-            rows.add(new Row(knower.value(), knows));
+        for (AgentId knower : knowers) {
+            rows.add(new Row(knower.value(), uuids(book.contactsOf(knower)), uuids(book.heardBy(knower))));
         }
         return rows;
+    }
+
+    private static List<UUID> uuids(Set<AgentId> ids) {
+        List<UUID> out = new ArrayList<>(ids.size());
+        for (AgentId id : ids) {
+            out.add(id.value());
+        }
+        return out;
     }
 
     private static ContactData fromRows(int version, int declaredRows, List<Row> rows) {
@@ -207,6 +249,9 @@ public final class ContactData extends SavedData implements StoreGuard.Checked {
                 // Straight to the book, never through this.learn: the wrapper fills the company
                 // gauge, and a reload is not a room full of introductions.
                 book.learn(AgentId.of(row.who()), AgentId.of(known));
+            }
+            for (UUID heard : row.heard()) {
+                book.hear(AgentId.of(row.who()), AgentId.of(heard));
             }
         }
         return new ContactData(book, version, declaredRows);

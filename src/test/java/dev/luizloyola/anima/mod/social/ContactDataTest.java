@@ -3,6 +3,7 @@ package dev.luizloyola.anima.mod.social;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.mojang.serialization.JsonOps;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.social.ContactBook;
 import java.util.List;
@@ -47,5 +48,27 @@ class ContactDataTest {
 
         assertEquals(List.of(alice), ContactData.freshSides(book, alice, bob),
                 "only alice relearned anything — bob never lost what he already had");
+    }
+
+    @Test
+    void namesHeardSurviveASaveAndCountAsRows() {
+        ContactData data = new ContactData();
+        AgentId knower = AgentId.random();
+        AgentId known = AgentId.random();
+        AgentId heard = AgentId.random();
+        AgentId onlyHeard = AgentId.random();
+        data.learnQuietly(knower, known);
+        data.hear(knower, heard);
+        data.hear(onlyHeard, known);
+
+        var json = ContactData.CODEC.encodeStart(JsonOps.INSTANCE, data).getOrThrow();
+        ContactData back = ContactData.CODEC.parse(JsonOps.INSTANCE, json).getOrThrow();
+
+        assertTrue(back.knows(knower, known));
+        assertTrue(back.heardOf(knower, heard));
+        assertTrue(back.heardOf(onlyHeard, known));
+        assertEquals(2, back.actualRows(),
+                "a knower who has only heard of someone is a row, or the boot guard calls it lost");
+        assertEquals(back.declaredRows(), back.actualRows());
     }
 }

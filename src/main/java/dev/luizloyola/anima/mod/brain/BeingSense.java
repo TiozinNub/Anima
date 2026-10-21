@@ -20,6 +20,7 @@ import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.agent.AgentProfile;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.social.ContactData;
+import dev.luizloyola.anima.mod.social.Introductions;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -193,6 +194,7 @@ public final class BeingSense {
                 person.entity().getZ(), person.entity().getYHeadRot(), person.entity().getXRot(),
                 now, world);
         for (BeingEvent event : events) {
+            named(event);
             if (!narratable(event)) {
                 continue;
             }
@@ -204,6 +206,17 @@ public final class BeingSense {
             }
         }
         noteHerds(feetPos, now);
+    }
+
+    /** An individual just told apart by sight: a name this body only heard finds its face. */
+    private void named(BeingEvent event) {
+        BeingEvent.Type type = event.type();
+        AgentId self = person.agentId();
+        MinecraftServer server = person.level().getServer();
+        if ((type == BeingEvent.Type.SPOTTED || type == BeingEvent.Type.RECOGNIZED)
+                && event.being().identified() == Being.Identified.INDIVIDUAL && self != null && server != null) {
+            Introductions.sighted(server, self, event.being().id().asPerson());
+        }
     }
 
     /** Everything currently perceived — what {@code Percepts.beings()} hands the brain. */

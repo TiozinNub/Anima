@@ -22,6 +22,11 @@ import java.util.Set;
  * <p><b>Knowing is one-directional.</b> {@link #learn} records what one side now knows;
  * {@link #introduce} writes two independent facts at the same moment.
  *
+ * <p><b>A name can be known before its face</b> (group-up spec, decision 18): joining a party
+ * teaches the names of members who were not there, and {@link #hear} keeps those apart from
+ * {@link #knows}, which is what a nameplate and a percept's name read. Learning the face moves the
+ * entry across.
+ *
  * <p>Pure core and single-threaded by contract (the server thread); persistence is the
  * {@code mod} layer's job.
  */
@@ -29,6 +34,8 @@ public final class ContactBook {
 
     /** Insertion-ordered per knower, so a save round-trips in a stable, readable order. */
     private final Map<AgentId, Set<AgentId>> books = new HashMap<>();
+    /** Names told without a face; never holds anyone the same knower {@link #knows}. */
+    private final Map<AgentId, Set<AgentId>> heard = new HashMap<>();
 
     /**
      * Whether {@code knower} can put a name to {@code whom}. Everyone knows themselves, so a
@@ -50,7 +57,50 @@ public final class ContactBook {
         if (knower.equals(whom)) {
             return false; // already true by construction, and never worth storing
         }
-        return books.computeIfAbsent(knower, key -> new LinkedHashSet<>()).add(whom);
+        boolean fresh = books.computeIfAbsent(knower, key -> new LinkedHashSet<>()).add(whom);
+        if (fresh) {
+            drop(heard, knower, whom);
+        }
+        return fresh;
+    }
+
+    /**
+     * {@code knower} is told {@code whom}'s name without seeing who it belongs to. {@code true} when
+     * this is news: somebody already known, or already heard of, changes nothing.
+     */
+    public boolean hear(AgentId knower, AgentId whom) {
+        if (knows(knower, whom)) {
+            return false;
+        }
+        return heard.computeIfAbsent(knower, key -> new LinkedHashSet<>()).add(whom);
+    }
+
+    /** Whether {@code knower} has a name for {@code whom} but not yet a face. */
+    public boolean heardOf(AgentId knower, AgentId whom) {
+        Set<AgentId> names = heard.get(knower);
+        return names != null && names.contains(whom);
+    }
+
+    /** Everyone {@code knower} has only heard of, in the order they were told. */
+    public Set<AgentId> heardBy(AgentId knower) {
+        Set<AgentId> names = heard.get(knower);
+        return names == null ? Set.of() : Collections.unmodifiableSet(names);
+    }
+
+    /** Everyone who has heard of anyone — for saving. */
+    public Set<AgentId> hearers() {
+        return Collections.unmodifiableSet(heard.keySet());
+    }
+
+    private static boolean drop(Map<AgentId, Set<AgentId>> map, AgentId knower, AgentId whom) {
+        Set<AgentId> set = map.get(knower);
+        if (set == null || !set.remove(whom)) {
+            return false;
+        }
+        if (set.isEmpty()) {
+            map.remove(knower);
+        }
+        return true;
     }
 
     /** Both sides learn each other. */
@@ -59,21 +109,16 @@ public final class ContactBook {
         return learn(other, one) || learned;
     }
 
-    /** Returns whether anything was actually dropped. */
+    /** Returns whether anything was actually dropped — a name only heard counts. */
     public boolean forget(AgentId knower, AgentId whom) {
-        Set<AgentId> book = books.get(knower);
-        if (book == null || !book.remove(whom)) {
-            return false;
-        }
-        if (book.isEmpty()) {
-            books.remove(knower); // an empty book is indistinguishable from no book
-        }
-        return true;
+        boolean known = drop(books, knower, whom); // an empty book is indistinguishable from no book
+        return drop(heard, knower, whom) || known;
     }
 
-    /** Returns whether they knew anyone at all. */
+    /** Returns whether they knew, or had heard of, anyone at all. */
     public boolean clear(AgentId knower) {
-        return books.remove(knower) != null;
+        boolean known = books.remove(knower) != null;
+        return heard.remove(knower) != null || known;
     }
 
     /**
@@ -88,6 +133,9 @@ public final class ContactBook {
     public boolean erase(AgentId who) {
         boolean any = clear(who);
         for (AgentId knower : List.copyOf(books.keySet())) {
+            any |= forget(knower, who);
+        }
+        for (AgentId knower : List.copyOf(heard.keySet())) {
             any |= forget(knower, who);
         }
         return any;

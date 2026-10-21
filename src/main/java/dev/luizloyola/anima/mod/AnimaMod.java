@@ -9,6 +9,7 @@ import dev.luizloyola.anima.mod.brain.PlaceIndexes;
 import dev.luizloyola.anima.mod.brain.RegionCaches;
 import dev.luizloyola.anima.mod.config.ConfigFile;
 import dev.luizloyola.anima.mod.identity.AnimaRecords;
+import dev.luizloyola.anima.mod.social.Introductions;
 import dev.luizloyola.anima.mod.social.LedgerData;
 import dev.luizloyola.anima.mod.social.PartyData;
 import dev.luizloyola.anima.mod.social.PlacesData;
@@ -101,6 +102,8 @@ public final class AnimaMod implements ModInitializer {
         // As the server finishes starting: refuses to run a world whose memory did not load,
         // which vanilla swallows and then overwrites.
         StoreGuard.install();
+        // A player's names without faces are matched by sight here; a body's by its own senses.
+        Introductions.init();
         // The roster only exists once there is a server; rows come off disk before that. This is
         // also where PartyData learns what to move when membership changes.
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
@@ -110,6 +113,7 @@ public final class AnimaMod implements ModInitializer {
             // Online only: a player joins a party in a conversation, so they are on the server.
             PartyData.get(server).knowsPlayers(who -> server.getPlayerList().getPlayer(who.value()) != null);
             LedgerData.get(server).install(server);
+            Introductions.install(server);
             dev.luizloyola.anima.mod.brain.KnowledgeData.get(server).registry()
                     .sees(store.places(), server.overworld()::getGameTime);
         });
