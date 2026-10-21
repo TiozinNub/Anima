@@ -5,6 +5,7 @@ import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.history.Deed;
 import dev.luizloyola.anima.core.brain.history.Doings;
+import dev.luizloyola.anima.core.brain.task.DigIn;
 import dev.luizloyola.anima.core.brain.task.EscapeStep;
 import dev.luizloyola.anima.core.brain.task.Task;
 
@@ -64,6 +65,10 @@ public final class EscapeInstinct implements Instinct {
         // Shut in on purpose: a pocket dug for the night is climbed out of at sunrise.
         if (NightShelterInstinct.dugInHere(ctx)) {
             return 0.0;
+        }
+        // By day, out of it filling it behind, sealed or not: the last rise starts one step down.
+        if (DigIn.toFill(ctx) != null) {
+            return pressure(ctx.profile());
         }
         // Exempt unless its own walks keep failing from here: a settler in a crevice retried an
         // unreachable tree for good and was never asked (2026-09-26).

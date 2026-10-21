@@ -6,6 +6,7 @@ import dev.luizloyola.anima.core.agent.need.NeedLevel;
 import dev.luizloyola.anima.core.brain.BrainContext;
 import dev.luizloyola.anima.core.brain.knowledge.BlockKind;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
+import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.continuity.Ephemeral;
 import dev.luizloyola.anima.core.log.Category;
@@ -40,6 +41,8 @@ import org.jspecify.annotations.Nullable;
  * <ol>
  *   <li><b>Rise</b> — in water and short of air, or shut in with the head under, swim to the
  *       nearest air first and tread there until the lungs are full.
+ *   <li><b>Fill it in</b> — the body's own pocket, dug for the night: rise out of it by day laying
+ *       its blocks back ({@link DigIn#toFill}).
  *   <li><b>Straight up</b> — no swim to air: cut the ceiling over the head and rise through it,
  *       proven way out or not. Nothing else is cut under water unless the breath is still easy:
  *       a body sealed in a flooded gap once cut a stair sideways into the rock until it drowned.
@@ -58,7 +61,7 @@ import org.jspecify.annotations.Nullable;
 public final class EscapeStep implements CompoundTask {
 
     private final List<Method> methods =
-            List.of(new Rise(), new StraightUp(), new StepOut(), new CutAStair(),
+            List.of(new Rise(), new FillIn(), new StraightUp(), new StepOut(), new CutAStair(),
                     new LowerYourself(), new SaySo());
 
     @Override
@@ -396,6 +399,32 @@ public final class EscapeStep implements CompoundTask {
         @Override
         public String describe() {
             return "swim up for air";
+        }
+    }
+
+    // ── rung 0a: out of a pocket dug for the night ───────────────────────────────────────────
+
+    /** Up out of the body's own pocket by day, filling it behind: no stair, and no hole left. */
+    private static final class FillIn implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return DigIn.toFill(ctx) != null;
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            return 0.0;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            @Nullable PoiMemory pocket = DigIn.toFill(ctx);
+            return pocket == null ? List.of() : DigIn.fillSteps(ctx, pocket);
+        }
+
+        @Override
+        public String describe() {
+            return "fill the pocket in";
         }
     }
 

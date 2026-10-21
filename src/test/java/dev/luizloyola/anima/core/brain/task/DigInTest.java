@@ -311,6 +311,103 @@ class DigInTest {
                 "sunrise: climb out");
     }
 
+    // ── no hole left behind ──────────────────────────────────────────────────────────────────
+
+    @Test
+    void bySunriseItRisesOutLayingTheDugDirtBack() {
+        inThePocketAtSunrise();
+        for (int y = 61; y <= 63; y++) {
+            ctx.percepts.blocks.drops.put(new Pos(1, y, 0), DIRT);
+        }
+        assertEquals(EscapeInstinct.pressure(ctx.profile), new EscapeInstinct().pressure(ctx),
+                "out, sealed or not: the last rise starts a step down, where it could walk off");
+        assertEquals("fill the pocket in", firstEscape(), "before any stair is cut");
+        List<Task> plan = fillPlan();
+        assertEquals("try: break (0, 63, 0)", ((CompoundTask) plan.get(0)).describe(), "the lid first, into the pack");
+        assertEquals(List.of(DIRT, DIRT, DIRT), risesWith(plan), "one rise a cell, its block laid where it stood");
+        assertInstanceOf(GiveUpShelter.class, plan.get(plan.size() - 1));
+        assertTrue(said("filling the pocket in at (0, 64, 0)"));
+    }
+
+    @Test
+    void eachCellGetsWhatTheGroundBesideItGivesWhenThatIsAtHand() {
+        String cobble = "minecraft:cobblestone";
+        BlocksToCross.layableBy(id -> id.equals(DIRT) || id.equals(cobble));
+        inThePocketAtSunrise();
+        ctx.percepts.inventory.set(0, ItemStack.of(cobble, 5, 64));
+        ctx.percepts.inventory.set(1, ItemStack.of(DIRT, 1, 64));
+        ctx.percepts.blocks.drops.put(new Pos(1, 63, 0), DIRT); // stone below, dug by hand: nothing
+        assertEquals(List.of(cobble, cobble, DIRT), risesWith(fillPlan()),
+                "the dirt by the dirt layer, the most at hand below it");
+    }
+
+    @Test
+    void shortOfBlocksItFillsWhatItCanAndWithNoneItCutsAStair() {
+        inThePocketAtSunrise();
+        ctx.percepts.inventory.set(0, ItemStack.EMPTY);
+        ctx.percepts.blocks.drops.put(LID, DIRT);
+        assertEquals(List.of(DIRT), risesWith(fillPlan()), "the lid's own dirt");
+        assertTrue(said("1 of 3 cells: short of blocks"));
+        ctx.percepts.blocks.drops.clear();
+        assertNull(DigIn.toFill(ctx), "nothing to fill with");
+        assertEquals(0.0, new EscapeInstinct().pressure(ctx), "only shut in sends it out now");
+        ctx.percepts.confinement = new Confinement(true, 2);
+        assertEquals(EscapeInstinct.pressure(ctx.profile), new EscapeInstinct().pressure(ctx));
+        assertFalse(new EscapeStep().methods().stream().filter(m -> m.describe().equals("fill the pocket in"))
+                .findFirst().orElseThrow().applicable(ctx), "the escape cuts its way out, as before");
+    }
+
+    @Test
+    void onlyItsOwnPocketByDayFromInsideIsFilled() {
+        inThePocketAtSunrise();
+        assertNotNull(DigIn.toFill(ctx));
+        ctx.percepts.timeOfDay = 18_000L;
+        assertNull(DigIn.toFill(ctx), "at night it stays in");
+        ctx.percepts.timeOfDay = 0L;
+        ctx.percepts.position = new Pos(0, 64, 0);
+        assertNull(DigIn.toFill(ctx), "on top of it: out already");
+        ctx.percepts.position = new Pos(3, 64, 0);
+        assertNull(DigIn.toFill(ctx), "left it by a flight or a fall: not come back for");
+        ctx.percepts.position = FEET;
+        for (Task task : fillPlan()) {
+            if (task instanceof GiveUpShelter forget) {
+                assertEquals(TaskStatus.SUCCESS, forget.tick(ctx));
+            }
+        }
+        assertNull(DigIn.toFill(ctx), "filled once: forgotten");
+    }
+
+    private void inThePocketAtSunrise() {
+        dig();
+        world.put(new Pos(0, 62, 0), CellType.PASSABLE);
+        world.put(FEET, CellType.PASSABLE);
+        ctx.percepts.position = FEET;
+        ctx.percepts.timeOfDay = 0L;
+        ctx.percepts.time = 6_000L;
+    }
+
+    private List<Task> fillPlan() {
+        PoiMemory pocket = DigIn.toFill(ctx);
+        assertNotNull(pocket);
+        return DigIn.fillSteps(ctx, pocket);
+    }
+
+    private static List<String> risesWith(List<Task> plan) {
+        return plan.stream().filter(Try.class::isInstance).map(t -> ((Try) t).attempt())
+                .filter(Rise.class::isInstance).map(t -> ((Rise) t).spec().name()).map(n -> "minecraft:" + n)
+                .toList();
+    }
+
+    private boolean said(String text) {
+        return ctx.journalService.recent(ctx.journal().id(), Integer.MAX_VALUE).stream()
+                .anyMatch(e -> e.detail().contains(text));
+    }
+
+    private String firstEscape() {
+        return new EscapeStep().methods().stream().filter(m -> m.applicable(ctx)).findFirst()
+                .orElseThrow().describe();
+    }
+
     @Test
     void aPocketSomebodyElseSealedIsStillEscaped() {
         ctx.percepts.position = FEET;

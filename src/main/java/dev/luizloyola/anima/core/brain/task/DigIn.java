@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.agent.ProfileAspect;
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.instinct.NightShelterInstinct;
 import dev.luizloyola.anima.core.brain.knowledge.AgentKnowledge;
 import dev.luizloyola.anima.core.brain.knowledge.BlockProbe;
 import dev.luizloyola.anima.core.brain.knowledge.PoiKind;
@@ -9,13 +10,17 @@ import dev.luizloyola.anima.core.brain.knowledge.PoiMemory;
 import dev.luizloyola.anima.core.brain.knowledge.ShelterNoter;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.inv.Inventory;
+import dev.luizloyola.anima.core.inv.ItemSpec;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.nav.CellType;
 import dev.luizloyola.anima.core.nav.NavGrid;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -34,7 +39,8 @@ import org.jspecify.annotations.Nullable;
  * <p>The pocket is remembered before the first block comes out ({@link ShelterNoter#dugIn}), for
  * the night it is dug ({@link #NIGHT_TICKS}): a dig cut short, by a fight or a restart, carries on
  * where it stopped, a body that left it goes back to it before digging another, and the escape
- * drive leaves a body in its own pocket alone until sunrise, then climbs it out.
+ * drive leaves a body in its own pocket alone until sunrise, then climbs it out filling it behind
+ * ({@link #toFill}).
  *
  * <p>Refused ground ({@link #safe}): anything but solid ground in the column and its walls, a block
  * that falls (sand, gravel) there, anything hollow under the floor, water or lava within a block of
@@ -283,6 +289,100 @@ public final class DigIn implements CompoundTask {
             return true; // in it already
         }
         return lid(ctx, pocket, inColumn(here, pocket) ? here.y() - 1 : pocket.cover().y()) != null;
+    }
+
+    /**
+     * The pocket this body stands down in by day with something to fill it with, or null: climbing
+     * out fills it behind (Luiz, 2026-10-21: no holes left behind). The memory, saved, says whose
+     * hole it is; the world says how much is left. Not one the body stands on top of, nor one it
+     * left another way, a flight or a fall: that hole stays.
+     */
+    public static @Nullable PoiMemory toFill(BrainContext ctx) {
+        if (!possible(ctx) || NightShelterInstinct.pull(ctx) > 0.0) {
+            return null;
+        }
+        Pos here = ctx.percepts().position();
+        for (PoiMemory memory : ctx.knowledge().sighted(PoiKind.SHELTER)) {
+            if (ShelterNoter.dug(memory) && memory.bounds().contains(here)
+                    && here.y() <= ShelterNoter.cover(memory).y()) {
+                return fill(ctx, memory).isEmpty() ? null : memory;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Climbing out of {@code pocket} filling it: the lid broken into the pack, then a rise per open
+     * cell, each laying a block in the cell it leaves, and the pocket forgotten. A rise that fails is
+     * given up rather than retried: the forgotten pocket hands a body still shut in to the stair.
+     */
+    public static List<Task> fillSteps(BrainContext ctx, PoiMemory pocket) {
+        Pos here = ctx.percepts().position();
+        Pos lid = ShelterNoter.cover(pocket);
+        List<String> blocks = fill(ctx, pocket);
+        int cells = lid.y() - here.y() + 1;
+        ctx.journal().record(Category.BRAIN, "dig in", String.format(Locale.ROOT,
+                "filling the pocket in at (%d, %d, %d)%s", lid.x(), lid.y() + 1, lid.z(),
+                blocks.size() < cells ? ", " + blocks.size() + " of " + cells + " cells: short of blocks" : ""));
+        List<Task> steps = new ArrayList<>();
+        if (ctx.percepts().terrain().cell(lid.x(), lid.y(), lid.z()) != CellType.PASSABLE) {
+            steps.add(new Try(new BreakBlock(lid.x(), lid.y(), lid.z(), true)));
+        }
+        for (String block : blocks) {
+            steps.add(new Try(new Rise(ItemSpec.anyOf(Set.of(block)), false)));
+        }
+        Pos at = pocket.anchor();
+        steps.add(new GiveUpShelter(at.x(), at.y(), at.z()));
+        return steps;
+    }
+
+    /**
+     * What fills the pocket's open cells from the feet up to the old ground, bottom-up, as far as
+     * the pack and the lid go: in each, what the ground beside it gives when that is at hand, so
+     * dirt goes back by dirt; else the block most at hand.
+     */
+    static List<String> fill(BrainContext ctx, PoiMemory pocket) {
+        Pos here = ctx.percepts().position();
+        Pos lid = ShelterNoter.cover(pocket);
+        NavGrid grid = ctx.percepts().terrain();
+        BlockProbe probe = ctx.percepts().blocks();
+        Map<String, Integer> atHand = new LinkedHashMap<>();
+        for (Inventory.Entry entry : ctx.percepts().inventory().occupied()) {
+            String id = entry.stack().id();
+            if (BlocksToCross.SPEC.matches(id)) {
+                atHand.merge(id, entry.stack().count(), Integer::sum);
+            }
+        }
+        if (grid.cell(lid.x(), lid.y(), lid.z()) != CellType.PASSABLE) {
+            String drop = probe.dropAt(lid.x(), lid.y(), lid.z());
+            if (!drop.isEmpty() && BlocksToCross.SPEC.matches(drop)) {
+                atHand.merge(drop, 1, Integer::sum);
+            }
+        }
+        List<String> blocks = new ArrayList<>();
+        for (int y = here.y(); y <= lid.y(); y++) {
+            @Nullable String pick = null;
+            for (int[] side : SIDES) {
+                String beside = probe.dropAt(here.x() + side[0], y, here.z() + side[1]);
+                if (atHand.getOrDefault(beside, 0) > 0) {
+                    pick = beside;
+                    break;
+                }
+            }
+            if (pick == null) {
+                for (Map.Entry<String, Integer> held : atHand.entrySet()) {
+                    if (held.getValue() > 0 && (pick == null || held.getValue() > atHand.get(pick))) {
+                        pick = held.getKey();
+                    }
+                }
+            }
+            if (pick == null) {
+                break;
+            }
+            atHand.merge(pick, -1, Integer::sum);
+            blocks.add(pick);
+        }
+        return blocks;
     }
 
     private final class Dig implements Method {
