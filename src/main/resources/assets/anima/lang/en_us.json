@@ -467,7 +467,7 @@
   "anima.command.brain.cancelled": "%s task cancelled; %s",
   "anima.command.brain.woke": "%s gets up",
   "anima.command.brain.not_asleep": "%s is not lying down",
-  "anima.command.brain.bed": "%s sleeps in the bed at %s",
+  "anima.command.brain.bed": "%s's bed is at %s",
   "anima.command.brain.no_bed": "%s holds no bed",
   "anima.command.brain.hailed": "%s called out.",
   "anima.command.brain.not_placeable": "No item places %s.",
