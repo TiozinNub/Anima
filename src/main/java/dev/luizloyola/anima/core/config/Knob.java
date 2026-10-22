@@ -273,11 +273,6 @@ public enum Knob implements KnobSpec {
                     + "a player, in the 5x5 chunks it keeps ticking. Off, they spawn only near "
                     + "players, and an agent away from every player is never attacked."),
 
-    /** @see dev.luizloyola.anima.mod.body.SpawnAnchors */
-    SPAWNING_SLEEPER_MONSTER_SHARE("spawning.sleeper_monster_share", Kind.DOUBLE, 0.5, 0, 1,
-            "How much of its monster cap an agent asleep in a bed keeps: at 0.5, half the monsters "
-                    + "spawn round it. An awake agent or player nearby still counts in full."),
-
     // --- webdebug: the browser debug UI, off unless asked for -----------------------------
 
     /** @see dev.luizloyola.anima.mod.webdebug.WebDebugger */

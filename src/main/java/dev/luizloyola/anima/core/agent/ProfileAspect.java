@@ -354,6 +354,10 @@ public final class ProfileAspect {
     public static final ProfileAspect BODY_ANCHORS_SPAWNS = register("body.anchors_spawns", Kind.BOOL, 0, 1,
             "Whether mobs spawn round this body as they do round a player, so it meets the night "
                     + "with nobody watching. A settler's yes; a pet keeps to its owner's.");
+    public static final ProfileAspect BODY_SLEEPER_MONSTER_SHARE = register("body.sleeper_monster_share",
+            Kind.DOUBLE, 0.0, 1.0,
+            "How much of its monster cap this body keeps while asleep in a bed: at 0.5, half the "
+                    + "monsters spawn round it. An awake body or a player nearby still counts in full.");
     public static final ProfileAspect ESCAPE_PRESSURE = register("escape.pressure", Kind.DOUBLE,
             0.0, 1.0,
             "How hard being shut in presses on this body. High by default: a body that cannot "
