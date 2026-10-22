@@ -50,12 +50,15 @@ public final class BedClaims {
         return true;
     }
 
-    public void release(AgentId who) {
+    /** Let go of {@code who}'s bed; true when it held one. */
+    public boolean release(AgentId who) {
         Pos bed = byBody.remove(who);
-        if (bed != null) {
-            byBed.remove(bed);
-            onChange.run();
+        if (bed == null) {
+            return false;
         }
+        byBed.remove(bed);
+        onChange.run();
+        return true;
     }
 
     public List<Row> rows() {
