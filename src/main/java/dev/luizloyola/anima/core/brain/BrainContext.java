@@ -78,6 +78,11 @@ public interface BrainContext {
         return AgentClaims.SOLO;
     }
 
+    /** This body's own bed, held and taken — see {@link dev.luizloyola.anima.core.rest.OwnBed}. */
+    default dev.luizloyola.anima.core.rest.OwnBed ownBed() {
+        return dev.luizloyola.anima.core.rest.OwnBed.NONE;
+    }
+
     /**
      * This body's one conversation, if it has the machinery for one — see {@link Speech}.
      * Defaults to {@link Speech#NONE}: a rig with no port wired up is a body that cannot talk.

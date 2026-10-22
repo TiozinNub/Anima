@@ -165,6 +165,7 @@ public final class BrainDriver {
         BlockPlacer placer = new AgentBlockPlacer(person);
         dev.luizloyola.anima.core.brain.act.Hand hand = new AgentHand(person);
         dev.luizloyola.anima.core.brain.act.Bed bed = new AgentBed(person);
+        dev.luizloyola.anima.core.rest.OwnBed ownBed = new dev.luizloyola.anima.mod.rest.AgentOwnBed(person);
         ContainerAccess containers =
                 new dev.luizloyola.anima.compat.inv.WorldContainers(person.entity());
         dev.luizloyola.anima.core.brain.act.FurnaceAccess furnaces =
@@ -298,6 +299,11 @@ public final class BrainDriver {
             @Override
             public AgentClaims claims() {
                 return resolveClaims();
+            }
+
+            @Override
+            public dev.luizloyola.anima.core.rest.OwnBed ownBed() {
+                return ownBed;
             }
 
             @Override

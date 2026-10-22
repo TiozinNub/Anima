@@ -107,6 +107,49 @@ class NightShelterInstinctTest {
     }
 
     @Test
+    void inAShelterWithAFreeBedItClaimsItAndSleeps() {
+        Pos bed = new Pos(1, 64, 0);
+        ctx.percepts.enclosure = new Enclosure(Openness.OPENABLE, Holes.NONE, true,
+                ctx.percepts.position, Set.of(ctx.percepts.position, bed), List.of(), List.of(), 1L);
+        ctx.ownBed.free.add(bed);
+
+        Method sleep = new NightShelterStep().methods().get(0);
+        assertEquals("sleep", sleep.describe(), "tried before staying in");
+        assertTrue(sleep.applicable(ctx));
+        List<Task> plan = sleep.decompose(ctx);
+
+        assertEquals(1, plan.size(), "within reach: no walk");
+        assertEquals(bed, assertInstanceOf(Sleep.class, plan.get(0)).bed());
+        assertEquals(bed, ctx.ownBed.held);
+    }
+
+    @Test
+    void aBedAcrossTheRoomIsWalkedToFirst() {
+        Pos bed = new Pos(5, 64, 0);
+        Pos beside = new Pos(4, 64, 0);
+        ctx.percepts.enclosure = new Enclosure(Openness.OPENABLE, Holes.NONE, true,
+                ctx.percepts.position, Set.of(ctx.percepts.position, new Pos(2, 64, 0), beside, bed),
+                List.of(), List.of(), 1L);
+        ctx.ownBed.held = bed;
+
+        List<Task> plan = method("sleep").decompose(ctx);
+
+        assertEquals(new Pos(4, 64, 0), new Pos(((GoTo) plan.get(0)).x(), ((GoTo) plan.get(0)).y(),
+                ((GoTo) plan.get(0)).z()));
+        assertInstanceOf(Sleep.class, plan.get(1));
+    }
+
+    @Test
+    void aBedHeldElsewhereLeavesItStandingIn() {
+        ctx.percepts.enclosure = new Enclosure(Openness.OPENABLE, Holes.NONE, true,
+                ctx.percepts.position, Set.of(ctx.percepts.position), List.of(), List.of(), 1L);
+        ctx.ownBed.held = new Pos(40, 64, 40);
+
+        assertFalse(method("sleep").applicable(ctx));
+        assertTrue(method("stay in").applicable(ctx));
+    }
+
+    @Test
     void anOpenDoorIsShutWithNothingComing() {
         Pos door = new Pos(1, 64, 0);
         ctx.percepts.enclosure = new Enclosure(Openness.CLOSEABLE, Holes.NONE, true,

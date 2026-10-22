@@ -456,6 +456,8 @@
   "anima.command.brain.cancelled": "Tarefa de %s cancelada; %s",
   "anima.command.brain.woke": "%s se levanta",
   "anima.command.brain.not_asleep": "%s não está deitado",
+  "anima.command.brain.bed": "%s dorme na cama em %s",
+  "anima.command.brain.no_bed": "%s não tem cama",
   "anima.command.brain.hailed": "%s chamou.",
   "anima.command.brain.not_placeable": "Nenhum item coloca %s.",
   "anima.command.brain.auto_on": "O automático do cérebro de %s é true — o árbitro está decidindo.",

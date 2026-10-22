@@ -37,6 +37,7 @@ public final class FakeContext implements BrainContext {
     public final FakeCampfires campfires = new FakeCampfires();
     public final FakeHand hand = new FakeHand();
     public final FakeBed bed = new FakeBed();
+    public final FakeOwnBed ownBed = new FakeOwnBed();
     public final FakeGazer gazer = new FakeGazer();
     public final FakeStriker striker = new FakeStriker();
     public final FakePercepts percepts = new FakePercepts();
@@ -189,6 +190,11 @@ public final class FakeContext implements BrainContext {
             return striker;
         }
     };
+
+    @Override
+    public dev.luizloyola.anima.core.rest.OwnBed ownBed() {
+        return ownBed;
+    }
 
     @Override
     public ActuatorAccess actuators() {

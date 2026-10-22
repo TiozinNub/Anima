@@ -51,6 +51,10 @@ public final class AnimaRecords {
         AgentRecords.register("places", true,
                 (server, who) -> PlacesData.get(server).forget(who));
 
+        // A dead sleeper's bed is free for the living.
+        AgentRecords.register("beds", false,
+                (server, who) -> dev.luizloyola.anima.mod.rest.BedClaimsData.get(server).claims().release(who));
+
         // The other half of "a store declares itself": the persistent ones are also checked at
         // boot for a load that vanilla swallowed. The journal ring has no file to guard.
         StoreGuard.guard("knowledge", KnowledgeData.ID, KnowledgeData::get);
@@ -58,6 +62,8 @@ public final class AnimaRecords {
         StoreGuard.guard("ledgers", LedgerData.ID, LedgerData::get);
         StoreGuard.guard("contacts", ContactData.ID, ContactData::get);
         StoreGuard.guard("graves", Graves.ID, Graves::get);
+        StoreGuard.guard("beds", dev.luizloyola.anima.mod.rest.BedClaimsData.ID,
+                dev.luizloyola.anima.mod.rest.BedClaimsData::get);
         StoreGuard.guard("places", PlacesData.ID, PlacesData::get);
         StoreGuard.guard("laid", dev.luizloyola.anima.mod.nav.LaidBlocksData.ID,
                 dev.luizloyola.anima.mod.nav.LaidBlocksData::get);

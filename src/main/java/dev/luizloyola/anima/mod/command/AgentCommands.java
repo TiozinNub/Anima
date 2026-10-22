@@ -830,6 +830,11 @@ public final class AgentCommands {
         return Commands.literal("wake").executes(AgentCommands::brainWake);
     }
 
+    /** {@code brain bed}: the bed this body holds, if any. */
+    public static LiteralArgumentBuilder<CommandSourceStack> bed() {
+        return Commands.literal("bed").executes(AgentCommands::brainBed);
+    }
+
     /** {@code brain gather}: walk over every drop in sight, of anything, and pick it up. */
     public static LiteralArgumentBuilder<CommandSourceStack> gather() {
         return Commands.literal("gather").executes(AgentCommands::brainGather);
@@ -1718,6 +1723,20 @@ public final class AgentCommands {
     private static int brainSleep(CommandContext<CommandSourceStack> ctx, BlockPos pos) {
         return runTask(ctx, new dev.luizloyola.anima.core.brain.task.Sleep(pos.getX(), pos.getY(), pos.getZ()),
                 "told to sleep in the bed at " + pos.toShortString());
+    }
+
+    private static int brainBed(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        java.util.Optional<dev.luizloyola.anima.core.brain.sense.Pos> bed =
+                new dev.luizloyola.anima.mod.rest.AgentOwnBed(person).bed();
+        Replies.send(source, () -> bed.isPresent()
+                ? Component.translatable("anima.command.brain.bed", person.entity().getName(),
+                        bed.get().x() + " " + bed.get().y() + " " + bed.get().z()).withStyle(ChatFormatting.AQUA)
+                : Component.translatable("anima.command.brain.no_bed", person.entity().getName())
+                        .withStyle(ChatFormatting.AQUA));
+        return bed.isPresent() ? 1 : 0;
     }
 
     private static int brainWake(CommandContext<CommandSourceStack> ctx) {

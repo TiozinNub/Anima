@@ -19,8 +19,8 @@ import java.util.WeakHashMap;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Getting under cover for the night, the night shelter instinct's root: stay in a shelter the body
- * stands in, shut the doors of one it is in that stand open, walk in to one it remembers within
+ * Getting under cover for the night, the night shelter instinct's root: sleep in the body's own bed
+ * in the shelter it stands in (sleep spec), stay in a shelter the body stands in, shut the doors of one it is in that stand open, walk in to one it remembers within
  * {@link #reach}, or else {@link DigIn dig in} where it stands. A flight's moves without the race:
  * nothing is coming, so every door is shut and the walk does not hurry.
  *
@@ -52,7 +52,7 @@ public final class NightShelterStep implements CompoundTask {
      */
     static final int PRESS_ON_TICKS = 300;
 
-    private final List<Method> methods = List.of(new StayIn(), new ShutIn(), new WalkIn(), new NoWayIn(),
+    private final List<Method> methods = List.of(new ToBed(), new StayIn(), new ShutIn(), new WalkIn(), new NoWayIn(),
             new DigInHere(), new WaitOut());
 
     /** The shelter this root set out for, left alone a while if the way there fails. Not saved. */
@@ -165,6 +165,55 @@ public final class NightShelterStep implements CompoundTask {
             }
         }
         return best;
+    }
+
+    /** A space read close enough to lie down from: a player's reach of a bed, less a step. */
+    private static final int BED_REACH = 2;
+
+    /** The body's own bed in the shelter it is in, or a free one there it may take (sleep spec). */
+    private static final class ToBed implements Method {
+        @Override
+        public boolean applicable(BrainContext ctx) {
+            return inShelter(ctx) && ctx.ownBed().bedIn(ctx.percepts().enclosure().space()).isPresent();
+        }
+
+        @Override
+        public double estimateCost(BrainContext ctx) {
+            return 0.0;
+        }
+
+        @Override
+        public List<Task> decompose(BrainContext ctx) {
+            java.util.Set<Pos> space = ctx.percepts().enclosure().space();
+            java.util.Optional<Pos> claimed = ctx.ownBed().claimIn(space);
+            if (claimed.isEmpty()) {
+                return List.of();
+            }
+            Pos bed = claimed.get();
+            Pos here = ctx.percepts().position();
+            if (near(here, bed)) {
+                return List.of(new Sleep(bed.x(), bed.y(), bed.z()));
+            }
+            @Nullable Pos stand = null;
+            for (Pos cell : space) {
+                // The nearest to the body, so it stops at the bed's edge rather than climbing on.
+                if (near(cell, bed) && (stand == null || ShelterRace.distance(cell, here) < ShelterRace.distance(stand, here))) {
+                    stand = cell;
+                }
+            }
+            return stand == null ? List.of()
+                    : List.of(new GoTo(stand.x(), stand.y(), stand.z()), new Sleep(bed.x(), bed.y(), bed.z()));
+        }
+
+        private static boolean near(Pos cell, Pos bed) {
+            return Math.abs(cell.x() - bed.x()) <= BED_REACH && Math.abs(cell.y() - bed.y()) <= 1
+                    && Math.abs(cell.z() - bed.z()) <= BED_REACH;
+        }
+
+        @Override
+        public String describe() {
+            return "sleep";
+        }
     }
 
     private static final class StayIn implements Method {
