@@ -112,7 +112,7 @@ public final class Menu {
         List<SpeechAct> out = new ArrayList<>();
         for (SpeechAct act : Picker.applicable(e, self, turnCap)) {
             if (act == SpeechActs.GREETING
-                    || (saysNothing(act) && !owes)
+                    || (saysNothing(act) && !owes && !isOrder(act))
                     || (asksForAName(act) && knowsThem)
                     || (act.introduces() && (knownByThem || alreadySaid(e, self, act)))) {
                 continue;
@@ -120,6 +120,15 @@ public final class Menu {
             out.add(act);
         }
         return out;
+    }
+
+    /**
+     * An order shaped like small talk — it asks nothing back and names no topic — but it does
+     * something: offered whenever its own gate allows, not only while an answer is owed (client run,
+     * 2026-10-22: neither was ever on the menu).
+     */
+    private static boolean isOrder(SpeechAct act) {
+        return act == SpeechActs.FOLLOW_ME || act == SpeechActs.LEAVE_PARTY;
     }
 
     /** A word with no effect and no subject — the shape of a line that says nothing. */

@@ -221,4 +221,14 @@ class MenuTest {
         assertTrue(pick.ok());
         assertTrue(ABOUT.topics().contains(pick.line().payload().get(Utterance.TOPIC)));
     }
+
+    /** Orders that ask no answer still reach the menu (client run, 2026-10-22). */
+    @Test
+    void followMeAndLeavingAreOfferedWithNothingOwed() {
+        AgentId me = AgentId.random();
+        Encounter e = new Encounter(java.util.UUID.randomUUID(), List.of(me, AgentId.random()), 0);
+        List<SpeechAct> offered = Menu.offerable(e, me, 60, (a, b) -> true);
+        assertTrue(offered.contains(SpeechActs.FOLLOW_ME));
+        assertTrue(offered.contains(SpeechActs.LEAVE_PARTY));
+    }
 }
