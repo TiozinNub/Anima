@@ -118,6 +118,8 @@
   "anima.config.category.spawning": "Surgimento de mobs",
   "anima.config.option.spawning.anchor_bodies": "Mobs nascem ao redor de agentes",
   "anima.config.option.spawning.anchor_bodies.desc": "Mobs nascem ao redor de um agente cuja espécie diz que sim (body.anchors_spawns) como nascem ao redor de um jogador, nos 5x5 chunks que ele mantém ativos. Desligado, nascem só perto de jogadores, e um agente longe de todo jogador nunca é atacado.",
+  "anima.config.option.spawning.sleeper_monster_share": "Monstros ao redor de quem dorme",
+  "anima.config.option.spawning.sleeper_monster_share.desc": "Quanto do seu limite de monstros um agente dormindo numa cama mantém: em 0.5, nascem metade dos monstros ao redor dele. Um agente acordado ou um jogador por perto ainda conta inteiro.",
   "anima.config.category.webdebug": "Depurador web",
   "anima.config.option.webdebug.enabled": "Iniciar junto com o mundo",
   "anima.config.option.webdebug.enabled.desc": "Inicia o depurador web automaticamente sempre que um mundo é carregado. Isto é só o interruptor de início automático — /anima webdebug start o executa por uma sessão independentemente disto. É uma ferramenta de desenvolvimento: mostra a mente de cada agente e seus botões os comandam.",

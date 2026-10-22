@@ -27,13 +27,16 @@ public final class Anchors {
 
     private static final int SPAWN_CHUNKS = (2 * SPAWN_RADIUS_CHUNKS + 1) * (2 * SPAWN_RADIUS_CHUNKS + 1);
 
-    public static final Anchors NONE = new Anchors(new double[0]);
+    public static final Anchors NONE = new Anchors(new double[0], new double[0]);
 
     /** x, y, z per body. */
     private final double[] xyz;
+    /** Each anchor's share of the monster cap: 1, or less while it sleeps. */
+    private final double[] monsterShare;
 
-    private Anchors(double[] xyz) {
+    private Anchors(double[] xyz, double[] monsterShare) {
         this.xyz = xyz;
+        this.monsterShare = monsterShare;
     }
 
     public static Builder builder() {
@@ -70,6 +73,11 @@ public final class Anchors {
      */
     public static int localCap(int max, boolean animals) {
         return share(max, SPAWN_CHUNKS, animals);
+    }
+
+    /** Anchor {@code i}'s monster cap: its {@link #localCap} at its share, rounded down (sleep spec). */
+    public int monsterCap(int i, int max) {
+        return (int) Math.floor(localCap(max, false) * monsterShare[i]);
     }
 
     /**
@@ -124,14 +132,22 @@ public final class Anchors {
 
     public static final class Builder {
         private double[] xyz = new double[24];
+        private double[] shares = new double[8];
         private int n;
 
         private Builder() {}
 
         public Builder add(double x, double y, double z) {
+            return add(x, y, z, 1.0);
+        }
+
+        /** An anchor whose share of the monster cap is {@code monsterShare}, 0 to 1. */
+        public Builder add(double x, double y, double z, double monsterShare) {
             if (n + 3 > xyz.length) {
                 xyz = Arrays.copyOf(xyz, xyz.length * 2);
+                shares = Arrays.copyOf(shares, shares.length * 2);
             }
+            shares[n / 3] = Math.max(0.0, Math.min(1.0, monsterShare));
             xyz[n++] = x;
             xyz[n++] = y;
             xyz[n++] = z;
@@ -139,7 +155,7 @@ public final class Anchors {
         }
 
         public Anchors build() {
-            return n == 0 ? NONE : new Anchors(Arrays.copyOf(xyz, n));
+            return n == 0 ? NONE : new Anchors(Arrays.copyOf(xyz, n), Arrays.copyOf(shares, n / 3));
         }
     }
 }

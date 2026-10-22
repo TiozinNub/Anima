@@ -71,8 +71,10 @@ abstract class LocalMobCapCalculatorMixin implements BodyGrant {
         }
         boolean[] under = {false};
         anima$anchors().forEachNear(SpawnAnchors.chunkX(pos), SpawnAnchors.chunkZ(pos), i -> {
-            if (anima$counts[i][category.ordinal()] < Anchors.localCap(category.getMaxInstancesPerChunk(),
-                    category == MobCategory.CREATURE)) {
+            int max = category.getMaxInstancesPerChunk();
+            int cap = category == MobCategory.MONSTER ? anima$anchors.monsterCap(i, max)
+                    : Anchors.localCap(max, category == MobCategory.CREATURE);
+            if (anima$counts[i][category.ordinal()] < cap) {
                 under[0] = true;
             }
         });

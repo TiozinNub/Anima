@@ -77,6 +77,15 @@ class AnchorsTest {
     }
 
     @Test
+    @DisplayName("a sleeper keeps its share of the monster cap, rounded down; an awake body all of it")
+    void monsterCapOfASleeper() {
+        Anchors anchors = Anchors.builder().add(8, 64, 8).add(8, 64, 8, 0.5).add(8, 64, 8, 0.0).build();
+        assertEquals(6, anchors.monsterCap(0, 70));
+        assertEquals(3, anchors.monsterCap(1, 70));
+        assertEquals(0, anchors.monsterCap(2, 70));
+    }
+
+    @Test
     @DisplayName("the global animal cap rounds up: one for a lone body, one each for two apart")
     void animalGlobalCap() {
         assertEquals(1, Anchors.animalGlobalCap(10, 25));

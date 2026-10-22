@@ -45,11 +45,13 @@ public final class SpawnAnchors {
             return Anchors.NONE;
         }
         Anchors.Builder anchors = Anchors.builder();
+        double sleeperShare = Config.get().d(Knob.SPAWNING_SLEEPER_MONSTER_SHARE);
         for (AgentBody body : AgentBodies.loaded(level.getServer())) {
             LivingEntity entity = body.entity();
             if (entity.level() == level && !entity.isRemoved()
                     && body.profile().b(ProfileAspect.BODY_ANCHORS_SPAWNS)) {
-                anchors.add(entity.getX(), entity.getY(), entity.getZ());
+                anchors.add(entity.getX(), entity.getY(), entity.getZ(),
+                        entity.isSleeping() ? sleeperShare : 1.0);
             }
         }
         return anchors.build();
