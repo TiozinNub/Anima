@@ -166,6 +166,15 @@ public final class FakePercepts implements Percepts {
         return attackers.contains(who);
     }
 
+    /** Which way each body faces, by yaw; one left out answers empty, as one only heard does. */
+    public final java.util.Map<BeingId, Double> facings = new java.util.HashMap<>();
+
+    @Override
+    public java.util.OptionalDouble facing(BeingId who) {
+        Double yaw = facings.get(who);
+        return yaw == null ? java.util.OptionalDouble.empty() : java.util.OptionalDouble.of(yaw);
+    }
+
     @Override
     public java.util.Optional<Being> being(BeingId who) {
         for (Being being : beings) {
@@ -271,6 +280,12 @@ public final class FakePercepts implements Percepts {
     public static Being hailingPersonAt(Pos pos, double distance) {
         return personTrack(BeingId.of(UUID.randomUUID()), "", pos, distance, true, false,
                 Being.Identified.SPECIES, Being.Awareness.HEARD);
+    }
+
+    /** A player calling out, seen. */
+    public static Being hailingPlayerAt(Pos pos, double distance) {
+        return personTrack(BeingId.of(UUID.randomUUID()), "", pos, distance, true, true,
+                Being.Identified.INDIVIDUAL, Being.Awareness.SEEN);
     }
 
     /** A person-shaped track, seen and quiet. An empty name is a stranger — somebody whose name

@@ -12,6 +12,7 @@ import dev.luizloyola.anima.core.brain.task.Converse;
 import dev.luizloyola.anima.core.brain.task.Task;
 import dev.luizloyola.anima.core.social.speech.Encounter;
 import dev.luizloyola.anima.core.social.speech.Speech;
+import java.util.Optional;
 
 /**
  * The answering half of a hail — and, since arrival flows into conversation, the resume pull of
@@ -24,8 +25,9 @@ import dev.luizloyola.anima.core.social.speech.Speech;
  * — pulling exactly as hard as a fresh call rather than fading once walked away from.
  *
  * <p><b>Ignoring is not a behaviour</b> (social foundations §5): it is this instinct losing the
- * bid. Its pressure sits below {@code mind.preempt} on purpose, so a body mid-errand waits for the
- * task boundary and "he was busy" is literally true.
+ * bid. Its pressure sits below {@code mind.preempt} on purpose, so a body mid-errand waits for a
+ * stranger's task boundary and "he was busy" is literally true. A player or a party member
+ * {@link #breaksIn breaks in} instead.
  *
  * <p>Stateless, one instance serving every body — everything it needs arrives in the context.
  */
@@ -53,6 +55,22 @@ public final class ConverseInstinct implements Instinct {
         Encounter current = ctx.speech().current().orElseThrow();
         AgentId otherId = ctx.speech().counterpart(current).orElseThrow();
         return new Converse(BeingId.of(otherId), Speech.Opening.QUIET);
+    }
+
+    /**
+     * The one this body would turn to — the nearest caller, else the counterpart of the conversation
+     * already open — is a player or a party member, who are answered now rather than at the task
+     * boundary (breaking-in spec, decision 1). A stranger still waits.
+     */
+    @Override
+    public boolean breaksIn(BrainContext ctx) {
+        Being caller = nearestCaller(ctx);
+        if (caller != null) {
+            return caller.playerControlled() || ctx.colleague(caller.id().asPerson());
+        }
+        Optional<AgentId> other = ctx.speech().current().flatMap(ctx.speech()::counterpart);
+        return other.isPresent() && (ctx.colleague(other.get())
+                || ctx.percepts().being(BeingId.of(other.get())).filter(Being::playerControlled).isPresent());
     }
 
     /**

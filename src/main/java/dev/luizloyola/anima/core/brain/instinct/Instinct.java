@@ -74,6 +74,16 @@ public interface Instinct {
     }
 
     /**
+     * Whether this drive's bid may break in now: cut into any errand, and into any drive that is
+     * not {@link #urgent} and bids under {@link dev.luizloyola.anima.core.brain.Arbiter#preempt},
+     * whatever either is worth. Only for someone who must be answered now and will not keep the
+     * body long: a player or a party member talking to it (breaking-in spec, decision 1).
+     */
+    default boolean breaksIn(BrainContext ctx) {
+        return false;
+    }
+
+    /**
      * Whether this drive's bid is one nothing may outrank or wait out right now: it wins whatever
      * else bids, cuts into any errand at once, and sits out at most
      * {@link dev.luizloyola.anima.core.brain.Arbiter#URGENT_RETRY} ticks after a failure. Only a

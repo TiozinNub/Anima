@@ -47,6 +47,8 @@ import org.jspecify.annotations.Nullable;
  *       the incumbent's task. A drive cut off that way serves its fail cooldown, unless it
  *       yields — idling has nothing to finish. A suspended errand does not: its pacing is the
  *       board's.</li>
+ *   <li>Before both, a drive that {@link Instinct#breaksIn breaks in} is granted over any work and
+ *       over a drive that is neither urgent nor at the preempt bar, which pays no cooldown.</li>
  *   <li>The executor ticks once; across a boundary a FAILED root goes on cooldown and
  *       {@code active} clears either way, re-arbitrating next tick.</li>
  * </ol>
@@ -380,9 +382,35 @@ public final class Arbiter {
             }
         }
 
+        // 2e. A bid that breaks in (a player or a party member talking) is answered before any
+        //     other rule: over whatever work is offered or running, and over a drive that is
+        //     neither danger nor a strong need, which pays no cooldown — being talked to is no
+        //     failure. Its own grant then holds, since nothing under the bar cuts it. Danger or a
+        //     strong need bidding at the same time goes first.
+        int breaker = -1;
+        for (int i = 0; i < n; i++) {
+            if (eligible[i] && lastPressures[i] > 0.0 && !urgent[i] && instincts.get(i).breaksIn(ctx)
+                    && (breaker < 0 || lastPressures[i] > lastPressures[breaker])) {
+                breaker = i;
+            }
+        }
+        boolean stronger = topIndex >= 0 && topIndex != breaker && (urgent[topIndex] || lastPressures[topIndex] >= preempt);
+        boolean breakIn = breaker >= 0 && breaker != activeIndex && !stronger
+                && (!executor.isBusy() || workRunning
+                        || activeIndex >= 0 && breakable(activeIndex, lastPressures[activeIndex], preempt, ctx));
+        if (breakIn && workRunning) {
+            ctx.journal().record(Category.PROJECT, claimedItem.describe(), String.format(Locale.ROOT,
+                    "suspended (by %s %.2f)", instincts.get(breaker).describe(), lastPressures[breaker]));
+            think(ctx, "set aside " + claimedItem.describe(), claimedItem);
+            workRunning = false;
+            setAsideAt = ctx.percepts().time();
+        }
+
         // 3 & 4. Work never preempts mid-flight; a drive cuts a running errand only past the
         // PREEMPT bar, and the claim survives the cut.
-        if (!executor.isBusy()) {
+        if (breakIn) {
+            grant(breaker, secondDrive, ctx);
+        } else if (!executor.isBusy()) {
             if (candidate != null && workEffective > topEffective) {
                 grantWork(candidate, ctx);
             } else if (topIndex >= 0) {
@@ -543,6 +571,11 @@ public final class Arbiter {
      * {@link Instinct#yields}.
      */
     public boolean yieldsTo(double pressure, BrainContext ctx) {
+        return yieldsTo(pressure, false, ctx);
+    }
+
+    /** {@link #yieldsTo(double, BrainContext)} for a bid that may {@link Instinct#breaksIn break in}. */
+    public boolean yieldsTo(double pressure, boolean breaksIn, BrainContext ctx) {
         if (pressure <= 0.0) {
             return false; // zero pressure is not a bid
         }
@@ -551,6 +584,10 @@ public final class Arbiter {
         }
         double stickiness = stickiness(ctx.profile());
         double preempt = preempt(ctx.profile());
+        if (breaksIn) {
+            int activeIndex = indexOf(active);
+            return workRunning || activeIndex >= 0 && breakable(activeIndex, lastPressures[activeIndex], preempt, ctx);
+        }
         if (workRunning) {
             double workEffective = claimedItem == null ? Double.NEGATIVE_INFINITY
                     : claimedItem.priority() + stickiness;
@@ -566,6 +603,11 @@ public final class Arbiter {
         double activeEffective = lastPressures[activeIndex] + stickiness;
         return pressure > activeEffective
                 && (pressure >= preempt || instincts.get(activeIndex).yields(ctx));
+    }
+
+    /** Whether drive {@code i}, bidding {@code pressure}, may be broken into: not danger, not a strong need. */
+    private boolean breakable(int i, double pressure, double preempt, BrainContext ctx) {
+        return !instincts.get(i).urgent(ctx) && pressure < preempt;
     }
 
     /** Whether the errand this body holds, running or set aside, is away from home on purpose. */

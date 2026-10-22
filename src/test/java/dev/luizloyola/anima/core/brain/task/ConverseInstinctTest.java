@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -149,5 +150,19 @@ class ConverseInstinctTest {
                 converse.costTolerance(ctx), 1e-9,
                 "returning to a chat already under way is near, unlike a hail — bound on the "
                         + "narrower radius");
+    }
+
+    // ── breaking in: who is answered now ───────────────────────────────────────────────────────
+
+    @Test
+    void aPlayerOrAPartyMemberBreaksInAndAStrangerWaits() {
+        ctx.percepts.beings = List.of(FakePercepts.hailingPersonAt(new Pos(10, 64, 0), 10.0));
+        assertFalse(converse.breaksIn(ctx), "a stranger waits for the boundary");
+
+        ctx.colleagues.add(ctx.percepts.beings.get(0).id().asPerson());
+        assertTrue(converse.breaksIn(ctx), "a party member does not");
+
+        ctx.percepts.beings = List.of(FakePercepts.hailingPlayerAt(new Pos(10, 64, 0), 10.0));
+        assertTrue(converse.breaksIn(ctx), "nor does a player");
     }
 }
