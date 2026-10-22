@@ -234,6 +234,18 @@ public final class AgentPercepts implements Percepts {
         return java.util.Optional.ofNullable(Fighters.read(body, true));
     }
 
+    /** Read live off the body, for a being this body has made out by sight right now. */
+    @Override
+    public java.util.OptionalDouble facing(BeingId who) {
+        if (!(this.person.level() instanceof ServerLevel level)
+                || being(who).filter(b -> b.identified() == Being.Identified.INDIVIDUAL).isEmpty()) {
+            return java.util.OptionalDouble.empty();
+        }
+        LivingEntity body = AgentStriker.find(level, who);
+        return body == null || body.level() != level ? java.util.OptionalDouble.empty()
+                : java.util.OptionalDouble.of(body.getYHeadRot());
+    }
+
     /** This body, hitting with the weapon its arm would draw rather than whatever it holds. */
     @Override
     public java.util.Optional<Combatant> selfAsCombatant() {

@@ -77,7 +77,8 @@ public final class Answer implements CompoundTask {
 
         @Override
         public List<Task> decompose(BrainContext ctx) {
-            Pos to = Standing.floorUnder(ctx, where);
+            Pos to = ctx.percepts().being(who).map(being -> FacingSpot.before(ctx, being))
+                    .orElseGet(() -> Standing.floorUnder(ctx, where));
             return List.of(new GoTo(to.x(), to.y(), to.z(), Gait.WALK, WalkLevel.WALK_ONLY),
                     new Converse(who, Speech.Opening.THEY_HAILED));
         }

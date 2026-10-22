@@ -11,6 +11,7 @@ import dev.luizloyola.anima.core.nav.Gait;
 import dev.luizloyola.anima.core.nav.WalkLevel;
 import dev.luizloyola.anima.core.social.GroupUps;
 import dev.luizloyola.anima.core.social.speech.Speech;
+import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -55,9 +56,13 @@ public final class SeekCompany implements PrimitiveTask {
     /** Since when a seek for a party has waited for its target to stop talking to someone else; -1 if not. */
     private long waitingSince = -1;
     private long nextTry;
+    /** When the walk was last aimed at where they face. Never saved: a reload just aims afresh. */
+    private long aimedAt = -1;
 
     /** How often a waiting seek looks again whether its target has finished talking. */
     static final int RETRY_TICKS = 40;
+    /** How often the walk is re-aimed at the spot in front of them as they move or turn. */
+    static final int AIM_TICKS = 20;
 
     public SeekCompany() {
         this(false);
@@ -116,8 +121,17 @@ public final class SeekCompany implements PrimitiveTask {
                 ctx.journal().record(Category.BRAIN, "seek_people",
                         "went over to " + being.knownAs());
             }
-            Pos at = Standing.floorUnder(ctx, being.pos());
+            Pos at = FacingSpot.before(ctx, being);
             walk = new GoTo(at.x(), at.y(), at.z(), Gait.WALK, WalkLevel.WALK_ONLY);
+            aimedAt = ctx.percepts().time();
+        } else if (ctx.percepts().time() - aimedAt >= AIM_TICKS) {
+            aimedAt = ctx.percepts().time();
+            Optional<Being> being = ctx.percepts().being(target);
+            Pos at = being.map(b -> FacingSpot.before(ctx, b)).orElse(null);
+            if (at != null && (walk.x() != at.x() || walk.y() != at.y() || walk.z() != at.z())) {
+                walk.cancel(ctx);
+                walk = new GoTo(at.x(), at.y(), at.z(), Gait.WALK, WalkLevel.WALK_ONLY);
+            }
         }
         TaskStatus status = walk.tick(ctx);
         if (status != TaskStatus.SUCCESS) {

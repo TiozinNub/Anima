@@ -253,6 +253,14 @@ public interface Percepts {
     }
 
     /**
+     * Which way a body this one sees right now is facing: its head's yaw in Minecraft's degrees (0
+     * faces +z, 90 faces −x). Empty for one only heard or not perceived, and for a rig with no world.
+     */
+    default java.util.OptionalDouble facing(BeingId who) {
+        return java.util.OptionalDouble.empty();
+    }
+
+    /**
      * How far above its feet this body's eyes are, in blocks — where every reach and every line of
      * sight starts. Read off the live entity, never a species constant: the entity is the one
      * that knows. The default is a humanoid's, for a rig with no body behind it.
