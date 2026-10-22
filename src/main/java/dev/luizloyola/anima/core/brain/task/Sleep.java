@@ -1,13 +1,15 @@
 package dev.luizloyola.anima.core.brain.task;
 
 import dev.luizloyola.anima.core.brain.BrainContext;
+import dev.luizloyola.anima.core.brain.instinct.NightShelterInstinct;
 import dev.luizloyola.anima.core.brain.sense.Pos;
 import dev.luizloyola.anima.core.log.Category;
 import java.util.Locale;
 
 /**
  * Lie down in the bed at a cell, within reach, and stay there (sleep spec). RUNNING while asleep;
- * SUCCEEDS once something else got the body up — a hit, the bed broken, {@code brain wake} — and
+ * SUCCEEDS at sunrise, getting up, or once something else got the body up — a hit, the bed broken,
+ * {@code brain wake} — and
  * FAILS when it could not lie down. Cancelled, it gets up: whoever outbid the night wakes it.
  *
  * <p>Holds nothing a restart would lose: vanilla saves a sleeper lying where it was, and lying down
@@ -37,6 +39,14 @@ public final class Sleep implements PrimitiveTask {
         }
         if (!ctx.actuators().bed().asleep()) {
             ctx.journal().record(Category.BRAIN, "sleep", "woke");
+            return TaskStatus.SUCCESS;
+        }
+        // Gets up by itself: at sunrise nothing may bid enough to cut in, and a sleep held for
+        // want of a rival would last all day.
+        java.util.OptionalLong time = ctx.percepts().timeOfDay();
+        if (time.isPresent() && NightShelterInstinct.pull(time.getAsLong(), 1.0) <= 0.0) {
+            ctx.actuators().bed().getUp();
+            ctx.journal().record(Category.BRAIN, "sleep", "woke: sunrise");
             return TaskStatus.SUCCESS;
         }
         return TaskStatus.RUNNING;

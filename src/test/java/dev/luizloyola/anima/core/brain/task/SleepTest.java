@@ -13,6 +13,10 @@ class SleepTest {
 
     private final FakeContext ctx = new FakeContext();
 
+    {
+        ctx.percepts.timeOfDay = 18_000L;
+    }
+
     @Test
     void liesDownAndStaysAsleep() {
         ctx.bed.beds.add(BED);
@@ -22,6 +26,18 @@ class SleepTest {
             assertEquals(TaskStatus.RUNNING, sleep.tick(ctx));
         }
         assertEquals(BED, ctx.bed.in);
+    }
+
+    @Test
+    void atSunriseItGetsUp() {
+        ctx.bed.beds.add(BED);
+        Sleep sleep = new Sleep(BED.x(), BED.y(), BED.z());
+        sleep.tick(ctx);
+
+        ctx.percepts.timeOfDay = 24_000L + 100L;
+
+        assertEquals(TaskStatus.SUCCESS, sleep.tick(ctx));
+        assertNull(ctx.bed.in);
     }
 
     @Test
