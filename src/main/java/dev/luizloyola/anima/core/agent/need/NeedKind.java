@@ -138,7 +138,7 @@ public final class NeedKind {
             .build();
 
     /**
-     * How long since this body last lay down in a bed (sleep spec, decision 5): rested for a day,
+     * How long since this body last lay down in a bed (sleep spec, decision 5): slept while in it, rested for a day,
      * tired to three — vanilla's own phantom line — exhausted past it. Each level an upper bound,
      * as hunger's are.
      *
@@ -146,6 +146,8 @@ public final class NeedKind {
      * slower hand and, exhausted, slower legs ({@link Rest#costOf}).
      */
     public static final NeedKind REST = declare("rest", Kind.DOUBLE, 0.0, 240_000.0, "ticks awake")
+            // Anchors the floor: an unanchored end of a ramp pins at full pressure.
+            .level("slept", 0, 0.00, 0)
             .level("rested", 24_000, 0.00, 0)
             .level("tired", 72_000, 0.30, 0)
             .level("exhausted", 240_000, 0.60, 0)

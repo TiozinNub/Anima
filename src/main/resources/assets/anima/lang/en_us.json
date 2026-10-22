@@ -169,6 +169,8 @@
   "anima.needs.vigor.buffs.none": "No buffs",
   "anima.needs.vigor.debuffs.none": "No debuffs",
   "anima.needs.rest.name": "Rest",
+  "anima.needs.rest.slept.name": "Slept",
+  "anima.needs.rest.slept.person_is": "well slept",
   "anima.needs.rest.rested.name": "Rested",
   "anima.needs.rest.rested.person_is": "rested",
   "anima.needs.rest.tired.name": "Tired",

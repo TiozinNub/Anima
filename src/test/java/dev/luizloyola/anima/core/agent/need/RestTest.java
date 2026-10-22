@@ -33,6 +33,16 @@ class RestTest {
     }
 
     @Test
+    void freshFromABedNothingPresses() {
+        tick(1, true, false);
+        assertEquals("slept", rest.level().key());
+        assertEquals(0.0, rest.pressure());
+        tick(100, false, false);
+        assertEquals("rested", rest.level().key());
+        assertEquals(0.0, rest.pressure());
+    }
+
+    @Test
     void aNightUnderCoverHoldsTheCountAndABedClearsIt() {
         tick(10_000, false, false);
         tick(10_000, false, true);

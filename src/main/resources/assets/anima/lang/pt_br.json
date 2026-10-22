@@ -63,6 +63,8 @@
   "anima.needs.vigor.buffs.none": "Nenhum efeito benéfico",
   "anima.needs.vigor.debuffs.none": "Nenhum efeito negativo",
   "anima.needs.rest.name": "Descanso",
+  "anima.needs.rest.slept.name": "Dormiu",
+  "anima.needs.rest.slept.person_is": "bem dormido",
   "anima.needs.rest.rested.name": "Descansado",
   "anima.needs.rest.rested.person_is": "descansado",
   "anima.needs.rest.tired.name": "Cansado",
