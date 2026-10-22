@@ -21,6 +21,7 @@ import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import dev.luizloyola.anima.core.social.speech.Utterance;
 import java.util.List;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Participating in a conversation is a task like any other — it holds the body in place,
@@ -164,10 +165,14 @@ public final class Converse implements PrimitiveTask {
         // somebody is a different clock, and making it wait on a hesitation of ours would let a
         // snubber buy time by it.
         if (speech.maySpeak(encounter) && beatElapsed(ctx)) {
-            Chooser.Line line = speech.chooser().choose(ctx, speech.turn(encounter));
+            Chooser.Turn beat = speech.turn(encounter);
+            Chooser.Line line = speech.chooser().choose(ctx, beat);
             if (line != null) {
-                speech.say(encounter, line);
-                ctx.journal().record(Category.BRAIN, "converse", "said " + line.act().key());
+                // Asked only once a line is chosen, and before it is appended, so the account
+                // reads the same turn the choice did and a silent beat costs nothing.
+                speech.say(encounter, line.because(fired(speech.chooser().explain(ctx, beat))));
+                ctx.journal().record(Category.BRAIN, "converse",
+                        "said " + line.act().key() + " (" + encounter.tag() + ")");
                 return encounter.closed() ? TaskStatus.SUCCESS : TaskStatus.RUNNING;
             }
         }
@@ -178,12 +183,14 @@ public final class Converse implements PrimitiveTask {
         if (speech.lapsedFarewell(encounter)) {
             // Nobody answered the goodbye. Not a snub: the last line already says why it ended.
             speech.close(encounter);
-            ctx.journal().record(Category.BRAIN, "converse", "left without an answer");
+            ctx.journal().record(Category.BRAIN, "converse",
+                    "left without an answer (" + encounter.tag() + ")");
             return TaskStatus.SUCCESS;
         }
         return speech.expiredObligation(encounter).map(snubbed -> {
             speech.system(encounter, SpeechActs.IGNORED, snubbed);
-            ctx.journal().record(Category.BRAIN, "converse", "gave up waiting");
+            ctx.journal().record(Category.BRAIN, "converse",
+                    "gave up waiting (" + encounter.tag() + ")");
             return TaskStatus.SUCCESS;
         }).orElse(TaskStatus.RUNNING);
     }
@@ -347,9 +354,24 @@ public final class Converse implements PrimitiveTask {
     private TaskStatus letGo(BrainContext ctx, String why) {
         dropWalk(ctx);
         ctx.speech().system(encounter, SpeechActs.IGNORED, subject(ctx));
-        ctx.journal().record(Category.BRAIN, "converse", why);
+        ctx.journal().record(Category.BRAIN, "converse", why + " (" + encounter.tag() + ")");
         return TaskStatus.SUCCESS;
     }
+
+    /**
+     * The rung an {@link Chooser#explain} account says fired, without its {@code fired:} marker, or
+     * null for a chooser that explains nothing.
+     */
+    static @Nullable String fired(List<String> account) {
+        for (String rung : account) {
+            if (rung.startsWith(FIRED)) {
+                return rung.substring(FIRED.length()).strip();
+            }
+        }
+        return null;
+    }
+
+    private static final String FIRED = "fired:";
 
     /** Lets go of a live leg and the yardstick measuring it — never one without the other. */
     private void dropWalk(BrainContext ctx) {

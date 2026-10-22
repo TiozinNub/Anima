@@ -872,7 +872,8 @@ public final class AgentCommands {
                                 .then(logCategory("sense", Category.SENSE))
                                 .then(logCategory("project", Category.PROJECT))
                                 .then(logCategory("mind", Category.MIND))
-                                .then(logCategory("op", Category.OP));
+                                .then(logCategory("op", Category.OP))
+                                .then(logCategory("social", Category.SOCIAL));
     }
 
     /**
@@ -2554,6 +2555,7 @@ public final class AgentCommands {
             // The one line an agent did not write. White rather than another hue because YELLOW
             // already means "look at this" everywhere else in the tree, and GOLD is BRAIN's.
             case OP -> ChatFormatting.WHITE;
+            case SOCIAL -> ChatFormatting.DARK_AQUA;
         };
     }
 

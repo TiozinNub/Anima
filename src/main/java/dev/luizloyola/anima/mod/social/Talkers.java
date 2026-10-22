@@ -122,6 +122,8 @@ public final class Talkers {
         final SpeechEngine engine;
         /** The record the panel is open on, or null while it is closed. */
         @Nullable UUID panelRecord;
+        /** The record and buttons last written to the social log, so a redraw writes nothing. */
+        @Nullable String loggedMenu;
         /** The record the player was told somebody is talking to them in — once per record. */
         @Nullable UUID hintedRecord;
         /** Which record, at what length, the panel last got buttons for — so the sweep sends them once. */
@@ -240,6 +242,14 @@ public final class Talkers {
      */
     public static @Nullable String say(MinecraftServer server, ServerPlayer player, String act,
             @Nullable String topic) {
+        Encounter before = of(server, player).current().orElse(null);
+        String refusal = sayInto(server, player, act, topic);
+        clicked(server, before, player, act + (topic == null ? "" : " topic=" + topic), refusal);
+        return refusal;
+    }
+
+    private static @Nullable String sayInto(MinecraftServer server, ServerPlayer player, String act,
+            @Nullable String topic) {
         Speech speech = of(server, player);
         Encounter e = speech.current().orElse(null);
         if (e == null) {
@@ -276,6 +286,13 @@ public final class Talkers {
         return null;
     }
 
+    /** One player click in the social log, with the refusal it got if it got one. */
+    private static void clicked(MinecraftServer server, @Nullable Encounter e, ServerPlayer player,
+            String what, @Nullable String refusal) {
+        SocialLog.write(server, e, SocialLog.CLICK, player.getName().getString() + ": " + what
+                + (refusal == null ? "" : ", refused " + refusal));
+    }
+
     /**
      * Leaving on purpose — {@code /anima-say leave}; the panel's Esc only puts the conversation
      * down ({@link #putDown}). The server reads it for what it is (decision: Luiz, 2026-09-14): with their
@@ -288,6 +305,7 @@ public final class Talkers {
     public static @Nullable String leave(MinecraftServer server, ServerPlayer player) {
         Talker talker = seat(server, player);
         Encounter e = talker.engine.current().orElse(null);
+        clicked(server, e, player, "leave", e == null ? "anima.talk.not_talking" : null);
         if (e == null) {
             return "anima.talk.not_talking";
         }
@@ -321,6 +339,7 @@ public final class Talkers {
         if (e == null) {
             return null;
         }
+        clicked(server, e, player, "set aside", null);
         talker.parting.putDown(server.overworld().getGameTime());
         // Said here, once, so the settler's next line does not replace it with "is talking to you".
         talker.hintedRecord = e.id();
@@ -391,7 +410,7 @@ public final class Talkers {
             Optional<AgentId> snubbed = talker.engine.expiredObligation(e);
             if (snubbed.isPresent()) {
                 talker.engine.system(e, SpeechActs.IGNORED, snubbed.get());
-                notice(server, player, "anima.talk.unanswered", snubbed.get());
+                notice(server, e, player, "anima.talk.unanswered", snubbed.get());
                 continue;
             }
             if (talker.engine.lapsedFarewell(e)) {
@@ -401,7 +420,7 @@ public final class Talkers {
             long now = server.overworld().getGameTime();
             if (Picker.unanswered(e, other, now, patienceOf(server, Optional.of(other)))) {
                 talker.engine.system(e, SpeechActs.IGNORED, other);
-                notice(server, player, "anima.talk.ignored", other);
+                notice(server, e, player, "anima.talk.ignored", other);
                 continue;
             }
             if (parted(server, player, talker, e, other, now)) {
@@ -412,7 +431,7 @@ public final class Talkers {
             }
             if (talker.parting.dropped(now, patienceOf(server, Optional.of(other)))) {
                 letGo(talker, e, self);
-                notice(server, player, "anima.talk.dropped", other);
+                notice(server, e, player, "anima.talk.dropped", other);
                 continue;
             }
             if (talker.panelRecord == null || talker.offeredFor(e)) {
@@ -473,12 +492,13 @@ public final class Talkers {
         switch (talker.parting.tick(now, playerLeft, bodyGone, WALKED_AWAY_TICKS,
                 patienceOf(server, Optional.of(other)))) {
             case SELF_LEFT -> {
+                SocialLog.write(server, e, SocialLog.NOTICE, player.getName().getString() + ": walked away");
                 letGo(talker, e, ContactsSync.idOf(player));
                 return true;
             }
             case OTHER_GONE -> {
                 talker.engine.system(e, SpeechActs.IGNORED, other);
-                notice(server, player, "anima.talk.left", other);
+                notice(server, e, player, "anima.talk.left", other);
                 return true;
             }
             default -> {
@@ -503,7 +523,7 @@ public final class Talkers {
             return false;
         }
         talker.engine.system(e, SpeechActs.INTERRUPTED, other);
-        notice(server, player, "anima.talk.interrupted", other);
+        notice(server, e, player, "anima.talk.interrupted", other);
         return true;
     }
 
@@ -563,6 +583,13 @@ public final class Talkers {
                 body == null ? -1 : body.entity().getId(),
                 Speeches.nameFor(server, player, other),
                 other == null ? Optional.empty() : Portraits.of(server, other));
+        String menu = e.id() + offers.stream().map(TalkPayload.Offer::act).toList().toString();
+        if (!menu.equals(talker.loggedMenu)) {
+            // Only a change: the panel is redrawn on every line, and the same buttons again are noise.
+            talker.loggedMenu = menu;
+            SocialLog.write(server, e, SocialLog.MENU, player.getName().getString() + ": " + (offers.isEmpty()
+                    ? "no buttons" : String.join(", ", offers.stream().map(TalkPayload.Offer::act).toList())));
+        }
         talker.panelRecord = e.id();
         talker.parting.pickedUp();
         TalkSync.panel(player, new TalkPayload(true, who, lines, offers));
@@ -671,8 +698,10 @@ public final class Talkers {
         boolean offered = e != null && body != null && Menu.offered(e, self, cap(e, now),
                 ContactData.get(server)::knows).contains(SpeechActs.GIVE);
         Map<String, Integer> moved = new java.util.LinkedHashMap<>();
+        List<String> back = new ArrayList<>();
         for (net.minecraft.world.item.ItemStack stack : given) {
             if (!offered) {
+                back.add(stack.getCount() + " " + ItemStacks.toCore(stack, server.registryAccess()).id());
                 GiveMenu.giveBack(player, stack);
                 continue;
             }
@@ -682,9 +711,17 @@ public final class Talkers {
                 moved.merge(core.id(), core.count() - left.count(), Integer::sum);
             }
             if (!left.isEmpty()) {
+                back.add(left.count() + " " + left.id());
                 GiveMenu.giveBack(player, ItemStacks.toVanilla(left, server.registryAccess()));
             }
         }
+        List<String> into = new ArrayList<>();
+        moved.forEach((id, count) -> into.add(count + " " + id));
+        SocialLog.write(server, e, SocialLog.GIVE, player.getName().getString() + " -> "
+                + (body == null ? "nobody loaded" : SocialLog.name(server, body.agentId())) + ": give screen moved "
+                + (into.isEmpty() ? "nothing" : String.join(", ", into))
+                + (back.isEmpty() ? "" : "; gave back " + String.join(", ", back))
+                + (offered ? "" : " (give is not on offer)"));
         if (!moved.isEmpty()) {
             List<Handover.Item> items = new ArrayList<>();
             moved.forEach((id, count) -> items.add(new Handover.Item(id, count)));
@@ -717,7 +754,9 @@ public final class Talkers {
      * The player's own read of what just happened — social foundations §8's "small on-screen
      * line", on the action bar at last: who it was, and that they never answered.
      */
-    private static void notice(MinecraftServer server, ServerPlayer player, String key, AgentId whom) {
+    private static void notice(MinecraftServer server, Encounter e, ServerPlayer player, String key,
+            AgentId whom) {
+        SocialLog.write(server, e, SocialLog.NOTICE, player.getName().getString() + ": " + key + " (" + SocialLog.name(server, whom) + ")");
         Speeches.aside(player, Component.translatable(key, Speeches.nameFor(server, player, whom))
                 .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
     }

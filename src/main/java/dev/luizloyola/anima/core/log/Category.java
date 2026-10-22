@@ -19,6 +19,8 @@ package dev.luizloyola.anima.core.log;
  *   <li>{@link #OP} — an operator command that CHANGED something, filed under every agent it
  *       touched. Read-only commands are never here: a debugging session fires dozens of those and
  *       would drown the channel that explains the few that matter.</li>
+ *   <li>{@link #SOCIAL} — a conversation opening and closing, by encounter id. The transcript
+ *       itself is in the run's {@code social.log}; this is the pointer into it.</li>
  * </ul>
  *
  * <p>An entry-free layer 3/4 logs through the same service against its {@code AgentId}, so the
@@ -31,5 +33,6 @@ public enum Category {
     SENSE,
     PROJECT,
     MIND,
-    OP
+    OP,
+    SOCIAL
 }

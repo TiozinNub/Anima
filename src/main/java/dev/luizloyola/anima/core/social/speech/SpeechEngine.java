@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The real {@link Speech} — one body's half of the machinery, over a shared {@link Encounters}
@@ -47,15 +48,24 @@ public final class SpeechEngine implements Speech {
     public record Caps(int turnCap, long tickCap, long staleGapTicks, int patienceTicks) {
     }
 
-    /** Notified of every line said and every record closed — the debug journal's hook in. */
+    /** Notified of every record opened, line said and record closed — the social log's hook in. */
     public interface Listener {
-        void said(Encounter e, Utterance u);
+        /** A fresh record, opened by {@code self}'s engine. Not called for a rejoined one. */
+        default void opened(Encounter e, AgentId self, Opening opening) {
+        }
+
+        /** {@code self} could not open a record with {@code other}: one of them is talking. */
+        default void busy(AgentId self, AgentId other) {
+        }
+
+        /** @param why the chooser's account of the line, or null for one nobody explained */
+        void said(Encounter e, Utterance u, @Nullable String why);
 
         void closed(Encounter e);
 
         Listener NONE = new Listener() {
             @Override
-            public void said(Encounter e, Utterance u) {
+            public void said(Encounter e, Utterance u, @Nullable String why) {
             }
 
             @Override
@@ -83,18 +93,23 @@ public final class SpeechEngine implements Speech {
     @Override
     public Optional<Encounter> join(BeingId other, Opening opening) {
         long tick = now.getAsLong();
+        boolean fresh = roster.openFor(self).isEmpty();
         Optional<Encounter> joined = roster.join(self, other.asPerson(), tick);
         if (joined.isEmpty()) {
+            listener.busy(self, other.asPerson());
             return joined; // one of the two is already talking — the roster's rule, not ours
         }
         Encounter e = joined.get();
+        if (fresh) {
+            listener.opened(e, self, opening);
+        }
         if (e.transcript().isEmpty() && opening != Opening.QUIET) {
             // Either party may open first; the record reads the same both ways — credited to
             // whoever actually hailed, never to whichever body's engine happened to call join().
             AgentId hailer = opening == Opening.I_HAILED ? self : other.asPerson();
             Utterance hail = new Utterance(hailer, SpeechActs.HAIL.key(), Map.of(), tick);
             e.append(hail);
-            listener.said(e, hail);
+            listener.said(e, hail, null);
         }
         return joined;
     }
@@ -107,7 +122,7 @@ public final class SpeechEngine implements Speech {
         boolean closes = act.ends() && (!act.obliges() || answersItsOwnKind(e, act));
         Utterance u = new Utterance(self, act.key(), line.payload(), now.getAsLong());
         e.append(u);
-        listener.said(e, u);
+        listener.said(e, u, line.why());
         if (closes) {
             close(e);
         }
@@ -129,7 +144,7 @@ public final class SpeechEngine implements Speech {
         }
         Utterance u = Utterance.system(act.key(), subject, now.getAsLong());
         e.append(u);
-        listener.said(e, u);
+        listener.said(e, u, null);
         if (act.ends()) {
             close(e);
         }

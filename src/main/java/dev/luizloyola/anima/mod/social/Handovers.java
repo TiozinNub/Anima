@@ -39,29 +39,50 @@ final class Handovers {
 
     /** Line {@code index} of {@code e} is an accept: move what the offer it answered held out. */
     static void accepted(MinecraftServer server, Encounter e, int index) {
-        Handover.accepted(e, index).ifPresent(offer -> move(server, offer, e.transcript().get(index)));
+        Handover.accepted(e, index).ifPresent(offer -> move(server, e, offer, e.transcript().get(index)));
     }
 
     /** Line {@code index} is a take-back: what was not wanted goes back to whoever gave it. */
     static void takenBack(MinecraftServer server, Encounter e, int index) {
-        Handover.takenBack(e, index).ifPresent(unwanted -> move(server, unwanted, e.transcript().get(index)));
+        Handover.takenBack(e, index).ifPresent(unwanted -> move(server, e, unwanted, e.transcript().get(index)));
     }
 
     /** Moves the items {@code from} names out of its author's pack into {@code to}'s author's. */
-    private static void move(MinecraftServer server, Utterance from, Utterance to) {
+    private static void move(MinecraftServer server, Encounter e, Utterance from, Utterance to) {
         Pack giver = pack(server, from.author());
         Pack taker = pack(server, to.author());
+        String who = SocialLog.name(server, from.author()) + " -> " + SocialLog.name(server, to.author());
         if (giver == null || taker == null) {
-            return; // one of them is not here to hand over to, and nothing moves
+            // One of them is not here to hand over to, and nothing moves.
+            SocialLog.write(server, e, SocialLog.GIVE, who + ": nothing moved, "
+                    + SocialLog.name(server, giver == null ? from.author() : to.author()) + " not loaded");
+            return;
         }
+        List<String> held = new ArrayList<>();
+        List<String> moved = new ArrayList<>();
+        List<String> back = new ArrayList<>();
         for (Handover.Item item : Handover.read(from.payload())) {
+            held.add(item.count() + " " + item.id());
+            int took = 0;
+            int returned = 0;
             for (ItemStack stack : giver.take(item.id(), item.count())) {
+                took += stack.count();
                 ItemStack left = taker.put(stack);
                 if (!left.isEmpty()) {
+                    returned += left.count();
                     giver.put(left);
                 }
             }
+            if (took > returned) {
+                moved.add((took - returned) + " " + item.id());
+            }
+            if (returned > 0) {
+                back.add(returned + " " + item.id() + " did not fit");
+            }
         }
+        SocialLog.write(server, e, SocialLog.GIVE, who + ": held out " + String.join(", ", held)
+                + "; moved " + (moved.isEmpty() ? "nothing" : String.join(", ", moved))
+                + (back.isEmpty() ? "" : "; " + String.join(", ", back)));
     }
 
     static @Nullable Pack pack(MinecraftServer server, @Nullable AgentId who) {

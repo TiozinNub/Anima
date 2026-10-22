@@ -162,6 +162,20 @@ public final class Journals {
         }
     }
 
+    /**
+     * Queues {@code line} for {@code file} in this run's folder, behind a wall-clock stamp, on the
+     * journal's writer thread — for a log written often enough that opening the file per line, as
+     * {@code territory.log} does, would put I/O on the tick.
+     */
+    public static void appendRun(MinecraftServer server, String file, String line) {
+        of(server);
+        JournalFileSink sink;
+        synchronized (SERVICES) {
+            sink = SINKS.get(server);
+        }
+        sink.onRunLine(file, line);
+    }
+
     /** @see dev.luizloyola.anima.core.log.JournalService#snapshot */
     public static java.util.List<dev.luizloyola.anima.core.log.Entry> snapshot(
             MinecraftServer server, dev.luizloyola.anima.core.agent.AgentId who) {

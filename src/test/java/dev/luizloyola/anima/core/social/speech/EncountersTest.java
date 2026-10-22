@@ -145,8 +145,9 @@ class EncountersTest {
 
         // Ten gaps of 50: 501 ticks of silence is past it, 101 is not — that one is left for a
         // returning participant to close as stale in its own name.
-        roster.prune(501L, 100_000L, 50L);
+        List<Encounter> reaped = roster.prune(501L, 100_000L, 50L);
 
+        assertEquals(List.of(abandoned), reaped, "what it closed is handed back for the social log");
         assertTrue(abandoned.closed(), "nobody will ever re-read it, so prune has to");
         assertTrue(roster.closed().contains(abandoned));
         assertTrue(abandoned.hasSystem(SpeechActs.STALE.key(), alice), "it ends the way a stale record ends");

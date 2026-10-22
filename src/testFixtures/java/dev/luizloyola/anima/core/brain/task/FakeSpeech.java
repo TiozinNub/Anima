@@ -46,7 +46,7 @@ public final class FakeSpeech implements Speech {
         this.engine = new SpeechEngine(self, now, roster, () -> chooser, () -> caps,
                 new SpeechEngine.Listener() {
                     @Override
-                    public void said(Encounter e, Utterance u) {
+                    public void said(Encounter e, Utterance u, String why) {
                         saidLines.add(u);
                     }
 

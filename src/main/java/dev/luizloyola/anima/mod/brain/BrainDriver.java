@@ -55,6 +55,7 @@ import dev.luizloyola.anima.mod.body.AgentBodies;
 import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.social.EncounterData;
 import dev.luizloyola.anima.mod.social.PartyData;
+import dev.luizloyola.anima.mod.social.SocialLog;
 import dev.luizloyola.anima.mod.social.Speeches;
 import java.util.ArrayList;
 import java.util.List;
@@ -248,13 +249,15 @@ public final class BrainDriver {
                     @Override
                     public void hail(BeingId whom) {
                         BeingHails.hailed(person.entity());
-                        reachedOut(whom);
+                        SocialLog.hailed(person, whom, "called out");
+                        // The sensor keeps the mark: it decays on the hail-patience clock beside
+                        // the track it belongs to, and the sound is not what spends it.
+                        person.beingSense().calledOut(whom);
                     }
 
                     @Override
                     public void reachedOut(BeingId whom) {
-                        // The sensor keeps the mark: it decays on the hail-patience clock beside
-                        // the track it belongs to, and the sound is not what spends it.
+                        SocialLog.hailed(person, whom, "walking over");
                         person.beingSense().calledOut(whom);
                     }
                 };

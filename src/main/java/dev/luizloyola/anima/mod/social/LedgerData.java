@@ -29,6 +29,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The marks every party's {@link Ledgers} weigh, persisted ({@code anima:ledgers}), and the lines
@@ -81,6 +82,8 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
     private final int loadedVersion;
     private final int declaredRows;
     private boolean installed;
+    /** Set at {@link #install}; the social log needs it and a saved-data load has none. */
+    private @Nullable MinecraftServer server;
 
     public LedgerData() {
         this(StoreGuard.NEVER_LOADED, StoreGuard.UNCOUNTED);
@@ -121,6 +124,7 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
 
     public void mark(PartyId party, Ledger ledger, String key, long now) {
         ledgers.mark(party, ledger, key, now);
+        logged(party, ledger + " marked " + key);
         setDirty();
     }
 
@@ -140,6 +144,7 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
     public long away(PartyId party, long now) {
         Long since = awaySince.putIfAbsent(party, now);
         if (since == null) {
+            logged(party, "the leader is away, the clock starts");
             setDirty();
             return now;
         }
@@ -148,7 +153,9 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
 
     /** The leader is back, or no longer leads: the clock stops. */
     public void back(PartyId party) {
-        if (awaySince.remove(party) != null) {
+        Long since = awaySince.remove(party);
+        if (since != null) {
+            logged(party, "the away clock stops after " + (server == null ? "?" : now(server) - since) + " ticks");
             setDirty();
         }
     }
@@ -162,6 +169,7 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
             return;
         }
         installed = true;
+        this.server = server;
         PartyData parties = PartyData.get(server);
         parties.onArrival((into, who) -> arrived(into, who.size(), now(server)));
         parties.onDisband(this::forget);
@@ -178,7 +186,13 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
                 scaled(companyOf(server, parties.members(party)), reader.d(ProfileAspect.SOCIAL_JOIN_COMPANY))));
     }
 
-    /** The clock every mark is stamped and read against. */
+    private void logged(PartyId party, String what) {
+        if (server != null) {
+            SocialLog.write(server, null, SocialLog.LEDGER, Joins.party(server, party) + ": " + what);
+        }
+    }
+
+        /** The clock every mark is stamped and read against. */
     public static long now(MinecraftServer server) {
         return server.overworld().getGameTime();
     }
@@ -189,6 +203,8 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
             ledgers.mark(into, Ledger.OPENNESS, NEWCOMER, now);
         }
         ledgers.refresh(into, Ledger.JOINING, MERGED, now);
+        logged(into, Ledger.OPENNESS + " marked " + NEWCOMER + " x" + newcomers + ", "
+                + Ledger.JOINING + " refreshed " + MERGED);
         setDirty();
     }
 

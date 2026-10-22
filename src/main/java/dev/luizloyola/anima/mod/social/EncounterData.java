@@ -121,8 +121,8 @@ public final class EncounterData extends SavedData implements StoreGuard.Checked
     }
 
     /** @see Encounters#prune — drops closed encounters past retention, closes abandoned open ones. */
-    public void prune(long now) {
-        roster.prune(now, Config.get().i(Knob.SOCIAL_ENCOUNTER_RETENTION_TICKS),
+    public List<Encounter> prune(long now) {
+        return roster.prune(now, Config.get().i(Knob.SOCIAL_ENCOUNTER_RETENTION_TICKS),
                 Config.get().i(Knob.SOCIAL_ENCOUNTER_STALE_TICKS));
     }
 

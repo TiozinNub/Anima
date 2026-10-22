@@ -14,14 +14,26 @@ import org.jspecify.annotations.Nullable;
  */
 public interface Chooser {
 
-    /** One line to say — an act plus whatever payload it needs. */
-    record Line(SpeechAct act, Map<String, String> payload) {
+    /**
+     * One line to say — an act plus whatever payload it needs. {@code why} is the account of the
+     * rule that chose it, for the social log; the caller of {@link #choose} fills it from
+     * {@link #explain}, so a chooser never has to.
+     */
+    record Line(SpeechAct act, Map<String, String> payload, @Nullable String why) {
         public Line {
             payload = Map.copyOf(payload);
         }
 
+        public Line(SpeechAct act, Map<String, String> payload) {
+            this(act, payload, null);
+        }
+
         public static Line of(SpeechAct act) {
             return new Line(act, Map.of());
+        }
+
+        public Line because(@Nullable String reason) {
+            return new Line(act, payload, reason);
         }
     }
 
@@ -53,6 +65,9 @@ public interface Chooser {
      *
      * <p>Empty means mute, and that is the honest default: a chooser owes nobody an account of
      * itself, and {@link Choosers#BASIC} has three lines of logic to read instead.
+     *
+     * <p>A line starting {@code fired:} names the rule that took the turn; the social log quotes it
+     * after every line this chooser says, so keep that prefix on exactly one line.
      */
     default List<String> explain(BrainContext ctx, Turn turn) {
         return List.of();

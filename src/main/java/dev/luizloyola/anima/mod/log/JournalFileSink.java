@@ -26,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -92,6 +93,13 @@ public final class JournalFileSink {
 
     private record Pending(AgentId id, Entry entry, LocalDateTime at) {}
 
+    /** A line for a file that is no one agent's, such as {@code social.log}. */
+    private record RunLine(String file, String line, LocalDateTime at) {}
+
+    private final LinkedBlockingQueue<RunLine> runQueue = new LinkedBlockingQueue<>();
+    /** Open run-level writers by file name. A run has a handful, so no LRU. Writer-thread only. */
+    private final Map<String, BufferedWriter> runHandles = new LinkedHashMap<>();
+
     private JournalFileSink(Path dir, String runStamp, Supplier<LocalDateTime> clock,
             Function<AgentId, String> nameResolver) {
         this.dir = dir;
@@ -121,7 +129,12 @@ public final class JournalFileSink {
         Path root = FabricLoader.getInstance().getGameDir().resolve("logs").resolve(AnimaMod.MOD_ID);
         String stamp = LocalDateTime.now().format(STAMP); // real wall-clock — mod code, not a workflow
         JournalFileSink sink = new JournalFileSink(root.resolve(stamp), stamp, LocalDateTime::now,
-                id -> AgentDirectory.of(server).nameOf(id).orElse("unknown"));
+                id -> AgentDirectory.of(server).nameOf(id)
+                        // A player's uuid is their agent id, and party and social lines are filed
+                        // under it; without this their file was agent-<uuid>-unknown.log.
+                        .or(() -> Optional.ofNullable(server.getPlayerList().getPlayer(id.value()))
+                                .map(player -> player.getName().getString()))
+                        .orElse("unknown"));
         // Before subscribing, so this run's own folder is never in the set being counted.
         prune(server, root, stamp);
         journal.subscribe(sink::onEntry);
@@ -137,6 +150,14 @@ public final class JournalFileSink {
     void onEntry(AgentId id, Entry entry) {
         names.computeIfAbsent(id, this::resolveName);
         queue.offer(new Pending(id, entry, clock.get()));
+    }
+
+    /**
+     * Server thread: queue {@code line} for {@code file} in this run's folder, stamped with the wall
+     * clock now. Written on the same cadence as the agent files and drained the same way at stop.
+     */
+    void onRunLine(String file, String line) {
+        runQueue.offer(new RunLine(file, line, clock.get()));
     }
 
     private String resolveName(AgentId id) {
@@ -158,6 +179,7 @@ public final class JournalFileSink {
 
     /** Drain everything queued since the last cadence, grouped by person, appended and flushed. */
     private void flush() {
+        flushRunLines();
         List<Pending> batch = new ArrayList<>();
         queue.drainTo(batch);
         if (batch.isEmpty()) {
@@ -178,6 +200,37 @@ public final class JournalFileSink {
                 out.flush();
             } catch (IOException e) {
                 AnimaMod.LOGGER.warn("journal: failed writing log for {}", person.getKey(), e);
+            }
+        }
+    }
+
+    private void flushRunLines() {
+        List<RunLine> batch = new ArrayList<>();
+        runQueue.drainTo(batch);
+        if (batch.isEmpty()) {
+            return;
+        }
+        Map<String, List<String>> byFile = new LinkedHashMap<>();
+        for (RunLine pending : batch) {
+            byFile.computeIfAbsent(pending.file(), key -> new ArrayList<>())
+                    .add(pending.at().format(LINE_STAMP) + " " + pending.line());
+        }
+        for (Map.Entry<String, List<String>> file : byFile.entrySet()) {
+            try {
+                BufferedWriter out = runHandles.get(file.getKey());
+                if (out == null) {
+                    Files.createDirectories(dir);
+                    out = Files.newBufferedWriter(dir.resolve(file.getKey()), StandardCharsets.UTF_8,
+                            StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                    runHandles.put(file.getKey(), out);
+                }
+                for (String line : file.getValue()) {
+                    out.write(line);
+                    out.newLine();
+                }
+                out.flush();
+            } catch (IOException e) {
+                AnimaMod.LOGGER.warn("journal: failed writing {}", file.getKey(), e);
             }
         }
     }
@@ -230,6 +283,10 @@ public final class JournalFileSink {
             closeQuietly(out);
         }
         handles.clear();
+        for (BufferedWriter out : runHandles.values()) {
+            closeQuietly(out);
+        }
+        runHandles.clear();
     }
 
     private static void closeQuietly(BufferedWriter out) {

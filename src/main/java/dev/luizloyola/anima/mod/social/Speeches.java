@@ -11,6 +11,7 @@ import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.social.speech.Encounter;
 import dev.luizloyola.anima.core.social.speech.LineSlots;
 import dev.luizloyola.anima.core.social.speech.Recounting;
+import dev.luizloyola.anima.core.social.speech.Speech;
 import dev.luizloyola.anima.core.social.speech.SpeechAct;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import dev.luizloyola.anima.core.social.speech.SpeechEngine;
@@ -138,8 +139,20 @@ public final class Speeches {
             Supplier<LivingEntity> writer, IntSupplier radius) {
         return new SpeechEngine.Listener() {
             @Override
-            public void said(Encounter e, Utterance u) {
+            public void opened(Encounter e, AgentId self, Speech.Opening opening) {
+                SocialLog.opened(server, e, self, opening);
+            }
+
+            @Override
+            public void busy(AgentId self, AgentId other) {
+                SocialLog.busy(server, self, other);
+            }
+
+            @Override
+            public void said(Encounter e, Utterance u, @Nullable String why) {
                 EncounterData.get(server).dirty();
+                // Before delivery, so the names it teaches and the items it moves follow it.
+                SocialLog.said(server, e, u, why);
                 LivingEntity body = writer.get();
                 if (!u.system()) {
                     BeingSpeech.spoke(body);
@@ -159,7 +172,7 @@ public final class Speeches {
                 } else if (u.act().equals(SpeechActs.ACCEPT_JOIN.key())) {
                     Joins.accepted(server, e, e.transcript().size() - 1);
                 } else if (u.act().equals(SpeechActs.LEAVE_PARTY.key()) && u.author() != null) {
-                    Joins.left(server, u.author());
+                    Joins.left(server, e, u.author());
                 }
                 SpeechEffects.fire(server, e, e.transcript().size() - 1);
             }
@@ -168,14 +181,17 @@ public final class Speeches {
             public void closed(Encounter e) {
                 EncounterData data = EncounterData.get(server);
                 data.dirty();
+                SocialLog.closed(server, e, SocialLog.CLOSE);
                 // Pruning rides the close: cheap, and the only place an abandoned record is reaped.
-                data.prune(server.overworld().getGameTime());
+                for (Encounter reaped : data.prune(server.overworld().getGameTime())) {
+                    SocialLog.closed(server, reaped, SocialLog.REAPED);
+                }
             }
         };
     }
 
     /** The author as a client can find it — a loaded agent body, or the player themself; null when neither is around to draw over. */
-    private static @Nullable Entity bodyOf(MinecraftServer server, AgentId author) {
+    static @Nullable Entity bodyOf(MinecraftServer server, AgentId author) {
         AgentBody body = AgentBodies.findLoaded(server, author);
         return body != null ? body.entity() : server.getPlayerList().getPlayer(author.value());
     }
@@ -237,7 +253,7 @@ public final class Speeches {
             int radius, List<ServerPlayer> audience, AgentId author, String name) {
         for (AgentId them : e.participants()) {
             if (!them.equals(author)) {
-                learn(server, them, author, name);
+                learn(server, e, "spoken to", them, author, name);
             }
         }
         BeingId who = BeingId.of(author);
@@ -247,7 +263,7 @@ public final class Speeches {
                     || !made(body, who)) {
                 continue;
             }
-            learn(server, id, body, author, name);
+            learn(server, e, "overheard, seen", id, body, author, name);
         }
         for (ServerPlayer player : audience) {
             AgentId id = ContactsSync.idOf(player);
@@ -257,7 +273,7 @@ public final class Speeches {
             if (player.hasLineOfSight(writer)) {
                 // Narrated only on a name that was actually news: somebody who has known Alma for a
                 // week does not need telling every time she introduces herself across the square.
-                if (learn(server, id, null, author, name)) {
+                if (learn(server, e, "overheard, seen", id, null, author, name)) {
                     aside(player, narration("anima.social.overheard.seen", name));
                 }
                 continue;
@@ -273,8 +289,9 @@ public final class Speeches {
     }
 
     /** {@code learner} now knows {@code whom}, its body resolved from the index. */
-    private static boolean learn(MinecraftServer server, AgentId learner, AgentId whom, String name) {
-        return learn(server, learner, AgentBodies.findLoaded(server, learner), whom, name);
+    private static boolean learn(MinecraftServer server, Encounter e, String how, AgentId learner,
+            AgentId whom, String name) {
+        return learn(server, e, how, learner, AgentBodies.findLoaded(server, learner), whom, name);
     }
 
     /**
@@ -288,14 +305,17 @@ public final class Speeches {
      * sweep it again per learner, and a player learner passes {@code null} rather than paying for a
      * scan that can only miss.
      */
-    private static boolean learn(MinecraftServer server, AgentId learner, @Nullable AgentBody body,
-            AgentId whom, String name) {
+    private static boolean learn(MinecraftServer server, Encounter e, String how, AgentId learner,
+            @Nullable AgentBody body, AgentId whom, String name) {
         if (!ContactData.get(server).learn(server, learner, whom)) {
             return false;
         }
+        SocialLog.write(server, e, SocialLog.LEARN,
+                nameOf(server, learner) + " learned " + name + " (" + how + ")");
         ContactsSync.learned(server, learner, whom);
         if (body != null) {
-            body.journal().record(Category.BRAIN, "converse", "learned their name — " + name);
+            body.journal().record(Category.BRAIN, "converse",
+                    "learned their name — " + name + " (" + how + ", " + e.tag() + ")");
             // The percept's name is read out of this same book on the sensor's own attention
             // cadence, so a learner left to wait for it re-asks a name it was told seconds ago —
             // the per-record "already given here" guard cannot see across into a fresh record.

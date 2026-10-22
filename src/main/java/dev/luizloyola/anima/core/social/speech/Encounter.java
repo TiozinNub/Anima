@@ -32,6 +32,9 @@ public final class Encounter {
 
     public UUID id() { return id; }
 
+    /** The id cut to its first 8 hex digits — what a log line names this record by. */
+    public String tag() { return id.toString().substring(0, 8); }
+
     public List<AgentId> participants() { return participants; }
 
     public boolean includes(AgentId who) { return participants.contains(who); }

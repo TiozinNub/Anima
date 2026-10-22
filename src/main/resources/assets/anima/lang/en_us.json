@@ -63,6 +63,8 @@
   "anima.config.option.journal.op.desc": "Log commands you run that change something, in the journal of every agent they touch — a party-wide order lands in every member's. On by default: read-only commands are never logged, so this stays rare.",
   "anima.config.option.journal.project_offer": "Log empty work offers",
   "anima.config.option.journal.project_offer.desc": "Log why a body was offered no work, when the reason changes. On by default: it only speaks when the answer moves, so a benched settler writes one line, not one per tick.",
+  "anima.config.option.journal.social_log": "Write the social log",
+  "anima.config.option.journal.social_log.desc": "Write every conversation to logs/anima/<run>/social.log: each line said, with its payload and the rule that chose it, the player's buttons and clicks, handovers, joins and endings. On by default: a whole settlement says a few hundred lines an hour.",
   "anima.config.category.terrain": "Terrain",
   "anima.config.option.terrain.smooth_radius": "Smoothing radius",
   "anima.config.option.terrain.smooth_radius.desc": "Half-width of the window the ground is smoothed over, in blocks. Flatness is judged across it: wider turns short rises into roughness instead of slope.",

@@ -14,6 +14,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Right-clicking somebody is a tap on the shoulder — social foundations §8's initiating click,
@@ -76,29 +77,43 @@ public final class PlayerTaps {
         Optional<Encounter> mine = speech.current();
         if (mine.isPresent()) {
             if (mine.get().includes(id)) {
+                tapped(server, mine.get(), player, id, "panel opened again");
                 Talkers.open(server, player);
             } else {
+                tapped(server, mine.get(), player, id, "refused busy.you, the player is talking here");
                 aside(player, "anima.talk.busy.you",
                         Speeches.nameFor(server, player, mine.get().other(
                                 ContactsSync.idOf(player)).orElse(null)));
             }
             return InteractionResult.SUCCESS;
         }
-        if (EncounterData.get(server).roster().openFor(id).isPresent()) {
+        Optional<Encounter> theirs = EncounterData.get(server).roster().openFor(id);
+        if (theirs.isPresent()) {
+            tapped(server, theirs.get(), player, id, "refused busy.them, they are talking here");
             aside(player, "anima.talk.busy.them", Speeches.nameFor(server, player, id));
             return InteractionResult.SUCCESS;
         }
         if (!body.brain().interruptible()) {
+            tapped(server, null, player, id, "refused busy.now, their task will not be interrupted");
             aside(player, "anima.talk.busy.now", Speeches.nameFor(server, player, id));
             return InteractionResult.SUCCESS;
         }
-        if (speech.join(BeingId.of(id), Speech.Opening.QUIET).isEmpty()) {
+        Optional<Encounter> opened = speech.join(BeingId.of(id), Speech.Opening.QUIET);
+        if (opened.isEmpty()) {
+            tapped(server, null, player, id, "refused busy.them, the join was refused");
             aside(player, "anima.talk.busy.them", Speeches.nameFor(server, player, id));
             return InteractionResult.SUCCESS;
         }
+        tapped(server, opened.get(), player, id, "opened");
         body.beingSense().tappedBy(player);
         Talkers.open(server, player);
         return InteractionResult.SUCCESS;
+    }
+
+    private static void tapped(MinecraftServer server, @Nullable Encounter e, ServerPlayer player,
+            @Nullable AgentId id, String outcome) {
+        SocialLog.write(server, e, SocialLog.TAP, player.getName().getString() + " -> "
+                + SocialLog.name(server, id) + ": " + outcome);
     }
 
     /** Why the click did nothing, on the action bar. */

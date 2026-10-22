@@ -58,4 +58,16 @@ class JournalFileSinkTest {
         assertEquals("17:22:19 [1] body - hurt", written.get(1)); // written.get(0) is the file header
         assertEquals("17:22:25 [2] body - died - sweet berry bush", written.get(2));
     }
+
+    /** A run-level line lands in its own file, behind the wall clock it was queued at. */
+    @Test
+    void aRunLineIsWrittenToItsOwnFile(@TempDir Path dir) throws IOException {
+        JournalFileSink sink = JournalFileSink.sinkFor(dir, () -> LocalDateTime.of(2026, 10, 22, 17, 1, 46));
+
+        sink.onRunLine("social.log", "[53739607] e7f3a1c0 open   Tia + TiozinNub, Tia hailed");
+        sink.close();
+
+        assertEquals(List.of("17:01:46 [53739607] e7f3a1c0 open   Tia + TiozinNub, Tia hailed"),
+                Files.readAllLines(dir.resolve("social.log")));
+    }
 }

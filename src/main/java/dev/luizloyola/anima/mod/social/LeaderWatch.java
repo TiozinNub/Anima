@@ -65,6 +65,9 @@ public final class LeaderWatch {
                     .mapToDouble(Ledgers.Line::points).sum();
             double days = (double) (now - since) / Ledgers.DAY_TICKS;
             if (Deposing.deposes(days, discontent.total(), discontent.total() - away, weigher.profile())) {
+                SocialLog.write(server, null, SocialLog.LEAD, "%s deposes %s: away %.2f days, discontent %.2f, of it distress %.2f, weighed by %s"
+                        .formatted(Joins.party(server, party), SocialLog.name(server, leader.get()), days,
+                                discontent.total(), discontent.total() - away, SocialLog.name(server, weigher.agentId())));
                 parties.depose(party).ifPresent(next -> deposed(server, party, leader.get(), next, player));
                 ledgers.back(party);
             }
@@ -86,6 +89,8 @@ public final class LeaderWatch {
             @Nullable ServerPlayer player) {
         String line = AgentCommands.label(server, next) + " took the lead while " + AgentCommands.label(server, was)
                 + " was away.";
+        SocialLog.write(server, null, SocialLog.LEAD, SocialLog.name(server, next) + " leads "
+                + Joins.party(server, party));
         for (AgentId member : PartyData.get(server).members(party)) {
             Journals.of(server).record(member, Category.BRAIN, "party", line);
         }

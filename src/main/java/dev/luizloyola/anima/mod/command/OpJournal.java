@@ -21,8 +21,8 @@ import org.jspecify.annotations.Nullable;
  * its silence looks exactly like nothing having happened
  * ({@code docs/superpowers/specs/2026-08-28-journal-observability-design.md}).
  *
- * <p><b>Duplicated across a party, not filed under a subject.</b> A player has no journal, so a
- * party-wide command is written to every member — each settler's file then explains, on its own,
+ * <p><b>Duplicated across a party, not filed under a subject.</b> A player's journal holds only
+ * their party and social lines, so a party-wide command is written to every member — each settler's file then explains, on its own,
  * why work appeared, which a subject the command never had could not.
  *
  * <p>The {@code journal.op} knob mutes {@link Category#OP} whole, so nothing here consults it:
@@ -63,8 +63,8 @@ public final class OpJournal {
      *
      * <p>A PLAYER's own id arrives here through {@code contacts meet}, {@code party join} and
      * {@code party leave}, where an operator acting as themselves is one of the parties. Filtered
-     * here rather than at those call sites: a player has no journal, and minting one would leave a
-     * ring and a {@code logs/anima/} file for somebody who never thinks.
+     * here rather than at those call sites: a player's journal holds only what they said and
+     * joined, and an operator line there would be about somebody who never thinks.
      */
     static void record(JournalService journal, AgentDirectory directory, Collection<AgentId> touched,
                        String operator, String detail) {

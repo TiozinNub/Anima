@@ -92,16 +92,21 @@ public final class Encounters {
      * <p>A stale record is otherwise closed only by a participant re-reading it, so one whose
      * participants all died or never load again stayed open for the life of the world. A
      * stopgap: the proper reap is a death line that closes the record like any other ending.
+     *
+     * @return the records this closed, for the social log — no engine's listener saw them end
      */
-    public void prune(long now, long retentionTicks, long staleGapTicks) {
+    public List<Encounter> prune(long now, long retentionTicks, long staleGapTicks) {
+        List<Encounter> reaped = new ArrayList<>();
         for (Encounter e : new ArrayList<>(open)) {
             if (now - e.lastActivityTick() > ABANDONED_GAPS * staleGapTicks) {
                 // The subject is nominal: nobody came back to notice.
                 e.append(Utterance.system(SpeechActs.STALE.key(), e.participants().get(0), now));
                 close(e, now);
+                reaped.add(e);
             }
         }
         closed.removeIf(e -> now - e.closedAt() > retentionTicks);
+        return reaped;
     }
 
     /** Far past the gap a returning participant would close at, so this never pre-empts one. */

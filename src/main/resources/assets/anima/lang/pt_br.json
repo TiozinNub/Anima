@@ -183,6 +183,8 @@
   "anima.config.option.journal.op.desc": "Registra os comandos que você executa e que mudam alguma coisa, no diário de cada agente que eles tocam — uma ordem para o grupo inteiro cai no diário de cada membro. Ligado por padrão: comandos que apenas leem nunca são registrados, então isso continua raro.",
   "anima.config.option.journal.project_offer": "Registrar ofertas de trabalho vazias",
   "anima.config.option.journal.project_offer.desc": "Registra por que um corpo não recebeu nenhum trabalho, quando o motivo muda. Ligado por padrão: só fala quando a resposta muda, então um colono de folga escreve uma linha, não uma por tick.",
+  "anima.config.option.journal.social_log": "Gravar o registro social",
+  "anima.config.option.journal.social_log.desc": "Grava cada conversa em logs/anima/<run>/social.log: cada fala, com seus dados e a regra que a escolheu, os botões e cliques do jogador, entregas, entradas em grupo e encerramentos. Ligado por padrão: um povoado inteiro diz algumas centenas de falas por hora.",
   "anima.config.aspect.mind.stickiness": "Bônus de permanência",
   "anima.config.aspect.mind.stickiness.desc": "Bônus somado ao que a Pessoa já está fazendo, para que pequenas variações de pressão não a deixem alternando entre dois impulsos.",
   "anima.config.aspect.mind.preempt": "Limiar de interrupção",

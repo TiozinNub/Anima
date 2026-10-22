@@ -77,6 +77,7 @@ class ProfileAspectTest {
             // a view on: it is about what the person AT THE KEYBOARD wants to be able to read back.
             Knob.JOURNAL_OP,
             Knob.JOURNAL_PROJECT_OFFER,
+            Knob.JOURNAL_SOCIAL_LOG,
             // How the ground is judged flat and usable — a reading of the world, tuned per world by
             // whoever runs it (Luiz, 2026-09-25), the way the debug view and a site chooser see it.
             Knob.TERRAIN_SMOOTH_RADIUS,

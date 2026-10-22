@@ -42,14 +42,28 @@ class SpeechEngineTest {
         }
     }
 
-    /** Records every {@code said}/{@code closed} notification, in order, for direct assertions. */
+    /** Records every notification, in order, for direct assertions. */
     private static final class Recorder implements SpeechEngine.Listener {
         final List<Utterance> said = new ArrayList<>();
+        final List<String> whys = new ArrayList<>();
+        final List<Encounter> opened = new ArrayList<>();
+        final List<AgentId> busy = new ArrayList<>();
         final List<Encounter> closed = new ArrayList<>();
 
         @Override
-        public void said(Encounter e, Utterance u) {
+        public void opened(Encounter e, AgentId self, Speech.Opening opening) {
+            opened.add(e);
+        }
+
+        @Override
+        public void busy(AgentId self, AgentId other) {
+            busy.add(other);
+        }
+
+        @Override
+        public void said(Encounter e, Utterance u, String why) {
             said.add(u);
+            whys.add(why);
         }
 
         @Override
@@ -102,6 +116,40 @@ class SpeechEngineTest {
         Utterance hail = e.transcript().get(0);
         assertEquals(bob, hail.author(), "THEY_HAILED credits the other party as the hailer");
         assertEquals(SpeechActs.HAIL.key(), hail.act());
+    }
+
+    @Test
+    @DisplayName("a fresh record is reported opened once; a rejoin and a refusal are not")
+    void openedFiresOnceForAFreshRecord() {
+        Encounters roster = new Encounters();
+        long[] clock = {0L};
+        Recorder recorder = new Recorder();
+        SpeechEngine engine = engineFor(alice, roster, clock, CAPS, recorder);
+
+        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
+        assertSame(e, engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow());
+        assertEquals(List.of(e), recorder.opened);
+
+        AgentId carol = AgentId.random();
+        assertTrue(engine.join(BeingId.of(carol), Speech.Opening.QUIET).isEmpty());
+        assertEquals(List.of(e), recorder.opened, "a refused join opens nothing");
+        assertEquals(List.of(carol), recorder.busy, "and is reported busy, naming who was asked");
+    }
+
+    @Test
+    @DisplayName("a line's reason reaches the listener; a line with none, and a system line, carry null")
+    void theReasonTravelsWithTheLine() {
+        Encounters roster = new Encounters();
+        long[] clock = {0L};
+        Recorder recorder = new Recorder();
+        SpeechEngine engine = engineFor(alice, roster, clock, CAPS, recorder);
+        Encounter e = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
+
+        engine.say(e, Chooser.Line.of(SpeechActs.GREETING).because("11 greet — not greeted yet"));
+        engine.say(e, Chooser.Line.of(SpeechActs.GREETING));
+        engine.system(e, SpeechActs.IGNORED, bob);
+
+        assertEquals(java.util.Arrays.asList("11 greet — not greeted yet", null, null), recorder.whys);
     }
 
     @Test

@@ -195,6 +195,12 @@ public enum Knob implements KnobSpec {
             "Log why a body was offered no work, when the reason changes. On by default: it only "
                     + "speaks when the answer moves, so a benched settler writes one line, not one "
                     + "per tick."),
+    /** Read by the social log on every line, so a config set applies at once. */
+    JOURNAL_SOCIAL_LOG("journal.social_log", Kind.BOOL, 1, 0, 1,
+            "Write every conversation to logs/anima/<run>/social.log: each line said, with its "
+                    + "payload and the rule that chose it, the player's buttons and clicks, "
+                    + "handovers, joins and endings. On by default: a whole settlement says a few "
+                    + "hundred lines an hour."),
 
     // --- terrain: how the ground is judged, by /anima terrain and whatever chooses a site ---
 

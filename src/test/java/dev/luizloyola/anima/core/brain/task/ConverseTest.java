@@ -678,10 +678,11 @@ class ConverseTest {
         return (c, turn) -> queue.isEmpty() ? null : queue.poll();
     }
 
+    /** A converse line reading {@code detail}, then the record it was about if it had one: {@code (e7f3a1c0)}. */
     private static boolean journaled(FakeContext ctx, String detail) {
         return ctx.journalService.recent(ctx.journal().id(), Integer.MAX_VALUE).stream()
                 .anyMatch(entry -> entry.category() == Category.BRAIN && "converse".equals(entry.event())
-                        && entry.detail().equals(detail));
+                        && entry.detail().matches(java.util.regex.Pattern.quote(detail) + "( \\([0-9a-f]{8}\\))?"));
     }
 
     /**
@@ -758,5 +759,15 @@ class ConverseTest {
 
         assertEquals(1, ctx.mover.moveToCalls);
         assertEquals(60, ctx.mover.lastY, "the legs lower a goal one cell at most (Luiz, 2026-10-02)");
+    }
+
+    @Test
+    void theFiredRungIsTheReasonAndAMuteChooserGivesNone() {
+        assertEquals("15 ask to group up — would ask_join", Converse.fired(List.of(
+                "skipped: 14 ask their name — known both ways",
+                "fired:   15 ask to group up — would ask_join",
+                "skipped: 17 small talk — company 0.40 < content 0.60")));
+        assertEquals(null, Converse.fired(List.of()));
+        assertEquals(null, Converse.fired(List.of("skipped: 19 say goodbye — silent 20 of 160 ticks")));
     }
 }

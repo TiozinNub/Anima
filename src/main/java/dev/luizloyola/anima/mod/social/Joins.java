@@ -11,6 +11,8 @@ import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import dev.luizloyola.anima.core.social.speech.Utterance;
 import dev.luizloyola.anima.mod.command.AgentCommands;
 import dev.luizloyola.anima.mod.log.Journals;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import net.minecraft.server.MinecraftServer;
 
@@ -21,17 +23,30 @@ final class Joins {
     }
 
     /** A player said they are leaving: they go, and those left are told. */
-    static void left(MinecraftServer server, AgentId who) {
+    static void left(MinecraftServer server, Encounter e, AgentId who) {
         PartyData parties = PartyData.get(server);
         Optional<PartyId> party = parties.currentPartyOf(who);
         if (party.isEmpty() || !parties.leave(who)) {
+            SocialLog.write(server, e, SocialLog.LEAVE, SocialLog.name(server, who)
+                    + " said they are leaving, but " + (party.isEmpty() ? "has no party" : "could not leave"));
             return;
         }
+        SocialLog.write(server, e, SocialLog.LEAVE, SocialLog.name(server, who) + " left "
+                + party(server, party.get()));
         String line = AgentCommands.label(server, who) + " left the party.";
         for (AgentId member : parties.members(party.get())) {
             Journals.of(server).record(member, Category.BRAIN, "party", line);
         }
         Journals.of(server).record(who, Category.BRAIN, "party", "left the party");
+    }
+
+    /** {@code party 9c41a2b0 (Tia, Bram)}, members as they stand now. */
+    static String party(MinecraftServer server, PartyId party) {
+        List<String> names = new ArrayList<>();
+        for (AgentId member : PartyData.get(server).members(party)) {
+            names.add(SocialLog.name(server, member));
+        }
+        return "party " + party.value().toString().substring(0, 8) + " (" + String.join(", ", names) + ")";
     }
 
     /** Which way {@code ask} goes, if it is an ask to group up at all. */
@@ -63,8 +78,11 @@ final class Joins {
         }
         Optional<GroupUp.Move> move = GroupUps.get().move(ask.author(), asked, kind.get());
         if (move.isPresent()) {
+            SocialLog.write(server, e, SocialLog.JOIN, party(server, move.get().from()) + " into "
+                    + party(server, move.get().into()) + ", by " + ask.act());
             PartyData.get(server).merge(move.get().from(), move.get().into());
         } else {
+            SocialLog.write(server, e, SocialLog.JOIN, ask.act() + " accepted, but the move no longer held");
             for (AgentId who : e.participants()) {
                 Journals.of(server).record(who, Category.BRAIN, "party", "agreed to group up, but it no longer held");
             }
