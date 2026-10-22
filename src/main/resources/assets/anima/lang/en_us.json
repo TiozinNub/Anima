@@ -454,6 +454,8 @@
   "anima.command.follow.target_gone": "somebody gone",
   "anima.command.brain.auto_disabled": " (auto disabled — re-enable with /anima brain auto true)",
   "anima.command.brain.cancelled": "%s task cancelled; %s",
+  "anima.command.brain.woke": "%s gets up",
+  "anima.command.brain.not_asleep": "%s is not lying down",
   "anima.command.brain.hailed": "%s called out.",
   "anima.command.brain.not_placeable": "No item places %s.",
   "anima.command.brain.auto_on": "%s's brain auto is true — the arbiter is deciding.",

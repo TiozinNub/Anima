@@ -284,6 +284,14 @@ public final class AnimaTasks {
                 ).apply(t, (x, y, z, pause, item) ->
                         new dev.luizloyola.anima.core.brain.task.UseBlock(item, x, y, z).resume(pause))));
 
+        // Lying down again in the bed a sleeper is already in is a no-op, so the cell is all of it.
+        TaskCodecs.register("anima:sleep", dev.luizloyola.anima.core.brain.task.Sleep.class,
+                RecordCodecBuilder.mapCodec(t -> t.group(
+                        Codec.INT.fieldOf("x").forGetter(task -> task.bed().x()),
+                        Codec.INT.fieldOf("y").forGetter(task -> task.bed().y()),
+                        Codec.INT.fieldOf("z").forGetter(task -> task.bed().z())
+                ).apply(t, dev.luizloyola.anima.core.brain.task.Sleep::new)));
+
         // Nothing to carry but the door: the shut lands on one tick or not at all.
         TaskCodecs.register("anima:shut_door", dev.luizloyola.anima.core.brain.task.ShutDoor.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(

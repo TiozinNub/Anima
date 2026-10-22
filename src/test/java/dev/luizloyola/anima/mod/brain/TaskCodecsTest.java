@@ -57,6 +57,13 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aSleepComesBackWithItsBed() {
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.Sleep.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.Sleep(4, 70, -2)));
+        assertEquals(new dev.luizloyola.anima.core.brain.sense.Pos(4, 70, -2), after.bed());
+    }
+
+    @Test
     void aWalkShortOfBlocksComesBackWithWhereAndHowMany() {
         var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.BlocksToCross.class,
                 roundTrip(new dev.luizloyola.anima.core.brain.task.BlocksToCross(4, 70, -2, Gait.STROLL,

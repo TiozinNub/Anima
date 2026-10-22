@@ -164,6 +164,7 @@ public final class BrainDriver {
         ItemConsumer consumer = new AgentItemConsumer(person);
         BlockPlacer placer = new AgentBlockPlacer(person);
         dev.luizloyola.anima.core.brain.act.Hand hand = new AgentHand(person);
+        dev.luizloyola.anima.core.brain.act.Bed bed = new AgentBed(person);
         ContainerAccess containers =
                 new dev.luizloyola.anima.compat.inv.WorldContainers(person.entity());
         dev.luizloyola.anima.core.brain.act.FurnaceAccess furnaces =
@@ -223,6 +224,11 @@ public final class BrainDriver {
             @Override
             public dev.luizloyola.anima.core.brain.act.Hand hand() {
                 return hand; // one-shot, like the placer
+            }
+
+            @Override
+            public dev.luizloyola.anima.core.brain.act.Bed bed() {
+                return bed; // the body's own sleeping state, read live
             }
 
             @Override

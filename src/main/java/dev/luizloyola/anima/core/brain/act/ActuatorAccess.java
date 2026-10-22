@@ -50,6 +50,11 @@ public interface ActuatorAccess {
         return Hand.NONE;
     }
 
+    /** Lying in a bed — see {@link Bed}. A body without one never sleeps. */
+    default Bed bed() {
+        return Bed.NONE;
+    }
+
     /**
      * The eyes — see {@link Gazer}. Defaults to {@link Gazer#NONE}, unlike the ports above: a body
      * that cannot look is only a blind one (every headless rig in the test fixtures), where a mover

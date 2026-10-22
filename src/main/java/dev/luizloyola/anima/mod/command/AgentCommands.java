@@ -818,6 +818,18 @@ public final class AgentCommands {
                                                 ctx.getSource().registryAccess()).id()))));
     }
 
+    /** {@code brain sleep <pos>}: lie down in the bed there, within reach, until woken. */
+    public static LiteralArgumentBuilder<CommandSourceStack> sleep() {
+        return Commands.literal("sleep")
+                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                        .executes(ctx -> brainSleep(ctx, BlockPosArgument.getLoadedBlockPos(ctx, "pos"))));
+    }
+
+    /** {@code brain wake}: get up out of bed. */
+    public static LiteralArgumentBuilder<CommandSourceStack> wake() {
+        return Commands.literal("wake").executes(AgentCommands::brainWake);
+    }
+
     /** {@code brain gather}: walk over every drop in sight, of anything, and pick it up. */
     public static LiteralArgumentBuilder<CommandSourceStack> gather() {
         return Commands.literal("gather").executes(AgentCommands::brainGather);
@@ -1701,6 +1713,27 @@ public final class AgentCommands {
     private static int brainUse(CommandContext<CommandSourceStack> ctx, BlockPos pos, String itemId) {
         return runTask(ctx, new dev.luizloyola.anima.core.brain.task.UseBlock(itemId, pos.getX(), pos.getY(), pos.getZ()),
                 "given a block to use at " + pos.toShortString() + (itemId.isEmpty() ? "" : " with " + itemId));
+    }
+
+    private static int brainSleep(CommandContext<CommandSourceStack> ctx, BlockPos pos) {
+        return runTask(ctx, new dev.luizloyola.anima.core.brain.task.Sleep(pos.getX(), pos.getY(), pos.getZ()),
+                "told to sleep in the bed at " + pos.toShortString());
+    }
+
+    private static int brainWake(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        AgentBody person = Subject.body(ctx);
+        if (person == null) return 0;
+        if (!person.entity().isSleeping()) {
+            Replies.send(source, () -> Component.translatable("anima.command.brain.not_asleep",
+                    person.entity().getName()).withStyle(ChatFormatting.AQUA));
+            return 0;
+        }
+        dev.luizloyola.anima.compat.agent.Sleeping.getUp(person.entity());
+        OpJournal.record(source, person.agentId(), "woken by hand");
+        Replies.send(source, () -> Component.translatable("anima.command.brain.woke",
+                person.entity().getName()).withStyle(ChatFormatting.AQUA));
+        return 1;
     }
 
     private static int brainGather(CommandContext<CommandSourceStack> ctx) {
