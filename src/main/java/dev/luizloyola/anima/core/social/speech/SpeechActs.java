@@ -121,6 +121,9 @@ public final class SpeechActs {
 	/** Not this spot, its strongest reason against as the topic: water, stone, room, party, lava, poor. */
 	public static final SpeechAct NOT_HERE = register(new SpeechAct(
 			"not_here", "anima.speech.not_here", 2, true, false, false, false, List.of()));
+	/** A player going their own way, said to somebody of their own party (group-up spec, decision 23). */
+	public static final SpeechAct LEAVE_PARTY = register(new SpeechAct(
+			"leave_party", "anima.speech.leave_party", 2, true, false, false, false, List.of()));
 	/** SYSTEM vocabulary — written by whoever notices, never chosen by a chooser. */
 	public static final SpeechAct IGNORED = register(new SpeechAct(
 			"ignored", "anima.speech.system.ignored", 1, false, false, false, true, List.of()));

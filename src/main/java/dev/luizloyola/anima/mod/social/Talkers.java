@@ -598,6 +598,14 @@ public final class Talkers {
                     .filter(other -> parties.currentPartyOf(other).equals(parties.currentPartyOf(self)))
                     .isPresent();
         }
+        if (act == SpeechActs.LEAVE_PARTY) {
+            // Said to somebody of the party, while there is a party to leave.
+            AgentId self = ContactsSync.idOf(player);
+            PartyData parties = PartyData.get(player.level().getServer());
+            return parties.currentPartyOf(self).filter(party -> parties.members(party).size() > 1)
+                    .filter(party -> e.other(self).flatMap(parties::currentPartyOf).filter(party::equals).isPresent())
+                    .isPresent();
+        }
         if (act == SpeechActs.HERE_WILL_DO || act == SpeechActs.NOT_HERE) {
             return false; // the one asked judges the spot
         }

@@ -49,6 +49,14 @@ public interface GroupUp {
         return false;
     }
 
+    /**
+     * Whether {@code leader}, online, is away from their party by the consumer's measure: far from its
+     * home, or from its members without one. Offline is away whatever this says (decision 17).
+     */
+    default boolean awayFromParty(AgentId leader) {
+        return false;
+    }
+
     /** The rule of a species that does not group up. */
     GroupUp NEVER = new GroupUp() {
         @Override

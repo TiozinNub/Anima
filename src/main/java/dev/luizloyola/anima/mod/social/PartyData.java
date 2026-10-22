@@ -212,6 +212,13 @@ public final class PartyData extends SavedData implements StoreGuard.Checked {
         return roster.leader(party);
     }
 
+    /** @see PartyRoster#depose */
+    public Optional<AgentId> depose(PartyId party) {
+        Optional<AgentId> next = roster.depose(party);
+        next.ifPresent(who -> setDirty());
+        return next;
+    }
+
     /** @see PartyRoster#lead */
     public boolean lead(AgentId who) {
         return dirtyIf(roster.lead(who));

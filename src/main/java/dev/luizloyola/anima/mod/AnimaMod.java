@@ -104,6 +104,8 @@ public final class AnimaMod implements ModInitializer {
         StoreGuard.install();
         // A player's names without faces are matched by sight here; a body's by its own senses.
         Introductions.init();
+        // A player leader away long enough, while the party suffers, loses the lead (decision 17).
+        dev.luizloyola.anima.mod.social.LeaderWatch.init();
         // The roster only exists once there is a server; rows come off disk before that. This is
         // also where PartyData learns what to move when membership changes.
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {

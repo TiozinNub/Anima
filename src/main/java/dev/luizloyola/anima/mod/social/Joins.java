@@ -4,10 +4,12 @@ import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.log.Category;
 import dev.luizloyola.anima.core.social.GroupUp;
 import dev.luizloyola.anima.core.social.GroupUps;
+import dev.luizloyola.anima.core.social.PartyId;
 import dev.luizloyola.anima.core.social.speech.Encounter;
 import dev.luizloyola.anima.core.social.speech.Handover;
 import dev.luizloyola.anima.core.social.speech.SpeechActs;
 import dev.luizloyola.anima.core.social.speech.Utterance;
+import dev.luizloyola.anima.mod.command.AgentCommands;
 import dev.luizloyola.anima.mod.log.Journals;
 import java.util.Optional;
 import net.minecraft.server.MinecraftServer;
@@ -16,6 +18,20 @@ import net.minecraft.server.MinecraftServer;
 final class Joins {
 
     private Joins() {
+    }
+
+    /** A player said they are leaving: they go, and those left are told. */
+    static void left(MinecraftServer server, AgentId who) {
+        PartyData parties = PartyData.get(server);
+        Optional<PartyId> party = parties.currentPartyOf(who);
+        if (party.isEmpty() || !parties.leave(who)) {
+            return;
+        }
+        String line = AgentCommands.label(server, who) + " left the party.";
+        for (AgentId member : parties.members(party.get())) {
+            Journals.of(server).record(member, Category.BRAIN, "party", line);
+        }
+        Journals.of(server).record(who, Category.BRAIN, "party", "left the party");
     }
 
     /** Which way {@code ask} goes, if it is an ask to group up at all. */

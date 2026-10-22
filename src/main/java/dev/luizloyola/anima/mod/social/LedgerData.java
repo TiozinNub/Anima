@@ -16,6 +16,11 @@ import dev.luizloyola.anima.mod.body.AgentBody;
 import dev.luizloyola.anima.mod.store.StoreGuard;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.LinkedHashSet;
+import java.util.Optional;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.OptionalDouble;
 import java.util.UUID;
 import net.minecraft.core.UUIDUtil;
@@ -38,11 +43,13 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
     public static final String MERGED = "anima.ledger.merged";
     public static final String SIZE = "anima.ledger.size";
     public static final String COMPANY = "anima.ledger.company";
+    public static final String AWAY = "anima.ledger.away";
 
     private record MarkRow(String ledger, String key, long since) {
     }
 
-    private record Row(UUID party, List<MarkRow> marks) {
+    /** One party's marks, and since when its player leader has been away, if they are. */
+    private record Row(UUID party, List<MarkRow> marks, Optional<Long> awaySince) {
     }
 
     private static final Codec<MarkRow> MARK_CODEC = RecordCodecBuilder.create(m -> m.group(
@@ -53,7 +60,8 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
 
     private static final Codec<Row> ROW_CODEC = RecordCodecBuilder.create(row -> row.group(
             UUIDUtil.CODEC.fieldOf("party").forGetter(Row::party),
-            MARK_CODEC.listOf().fieldOf("marks").forGetter(Row::marks)
+            MARK_CODEC.listOf().fieldOf("marks").forGetter(Row::marks),
+            Codec.LONG.optionalFieldOf("away_since").forGetter(Row::awaySince)
     ).apply(row, Row::new));
 
     private static final int SCHEMA = 1;
@@ -69,6 +77,7 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
             SavedDatas.type(ID, LedgerData::new, CODEC, DataFixTypes.LEVEL);
 
     private final Ledgers ledgers = new Ledgers();
+    private final Map<PartyId, Long> awaySince = new LinkedHashMap<>();
     private final int loadedVersion;
     private final int declaredRows;
     private boolean installed;
@@ -102,7 +111,7 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
 
     @Override
     public int actualRows() {
-        return ledgers.all().size();
+        return rows().size(); // a party whose leader is away is a row, marks or not
     }
 
     /** The ledgers, to read or to add a consumer's lines to. Marks go through {@link #mark}. */
@@ -116,7 +125,30 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
     }
 
     public void forget(PartyId party) {
-        if (ledgers.forget(party)) {
+        boolean marked = ledgers.forget(party);
+        if (awaySince.remove(party) != null || marked) {
+            setDirty();
+        }
+    }
+
+    /** Since when {@code party}'s player leader has been away, if they are. */
+    public Optional<Long> awaySince(PartyId party) {
+        return Optional.ofNullable(awaySince.get(party));
+    }
+
+    /** The leader is away from now, unless already counted away. */
+    public long away(PartyId party, long now) {
+        Long since = awaySince.putIfAbsent(party, now);
+        if (since == null) {
+            setDirty();
+            return now;
+        }
+        return since;
+    }
+
+    /** The leader is back, or no longer leads: the clock stops. */
+    public void back(PartyId party) {
+        if (awaySince.remove(party) != null) {
             setDirty();
         }
     }
@@ -138,6 +170,10 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
             return size > 1 ? OptionalDouble.of((size - 1) * reader.d(ProfileAspect.SOCIAL_OPENNESS_MEMBER))
                     : OptionalDouble.empty();
         }));
+        ledgers.stands(standing(Ledger.DISCONTENT, AWAY, (party, reader) -> awaySince(party)
+                .map(since -> OptionalDouble.of((double) (now(server) - since) / Ledgers.DAY_TICKS
+                        * reader.d(ProfileAspect.SOCIAL_DISCONTENT_AWAY_DAY)))
+                .orElse(OptionalDouble.empty())));
         ledgers.stands(standing(Ledger.JOINING, COMPANY, (party, reader) ->
                 scaled(companyOf(server, parties.members(party)), reader.d(ProfileAspect.SOCIAL_JOIN_COMPANY))));
     }
@@ -196,20 +232,23 @@ public final class LedgerData extends SavedData implements StoreGuard.Checked {
     }
 
     private List<Row> rows() {
+        Set<PartyId> parties = new LinkedHashSet<>(ledgers.all().keySet());
+        parties.addAll(awaySince.keySet());
         List<Row> rows = new ArrayList<>();
-        ledgers.all().forEach((party, marks) -> {
+        for (PartyId party : parties) {
             List<MarkRow> saved = new ArrayList<>();
-            for (Ledgers.Mark mark : marks) {
+            for (Ledgers.Mark mark : ledgers.marks(party)) {
                 saved.add(new MarkRow(mark.ledger().key(), mark.key(), mark.since()));
             }
-            rows.add(new Row(party.value(), saved));
-        });
+            rows.add(new Row(party.value(), saved, Optional.ofNullable(awaySince.get(party))));
+        }
         return rows;
     }
 
     private static LedgerData fromRows(int version, int declaredRows, List<Row> rows) {
         LedgerData data = new LedgerData(version, declaredRows);
         for (Row row : rows) {
+            row.awaySince().ifPresent(since -> data.awaySince.put(PartyId.of(row.party()), since));
             for (MarkRow mark : row.marks()) {
                 data.ledgers.restore(PartyId.of(row.party()),
                         new Ledgers.Mark(Ledger.of(mark.ledger()), mark.key(), mark.since()));

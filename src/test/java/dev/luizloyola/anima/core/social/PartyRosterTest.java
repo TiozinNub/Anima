@@ -200,4 +200,24 @@ class PartyRosterTest {
         roster.join(bob, party);
         assertTrue(roster.leader(party).isEmpty(), "a party rebuilt on the same id starts unled");
     }
+
+    @Test
+    void deposingGivesTheLeadToTheMostSeniorOtherMember() {
+        PartyId party = roster.partyOf(alice);
+        roster.join(bob, party);
+        roster.join(charlie, party);
+        roster.lead(alice);
+        assertEquals(java.util.Optional.of(bob), roster.depose(party));
+        assertEquals(bob, roster.leader(party).orElseThrow());
+        assertEquals(java.util.Optional.of(alice), roster.depose(party), "the most senior one not leading");
+    }
+
+    @Test
+    void thereIsNothingToDeposeWithoutALeaderOrAnybodyElse() {
+        PartyId party = roster.partyOf(alice);
+        assertTrue(roster.depose(party).isEmpty());
+        roster.lead(alice);
+        assertTrue(roster.depose(party).isEmpty(), "nobody else to lead");
+        assertEquals(alice, roster.leader(party).orElseThrow());
+    }
 }

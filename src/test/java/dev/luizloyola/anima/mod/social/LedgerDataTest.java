@@ -57,4 +57,20 @@ class LedgerDataTest {
         assertEquals(2, data.ledgers().read(Ledger.OPENNESS, party, TestSpecies.PROFILE, Ledgers.DAY_TICKS)
                 .lines().get(0).count(), "while each newcomer still counts");
     }
+
+    @Test
+    void whenTheLeaderWentAwaySurvivesASaveAndCountsAsARow() {
+        LedgerData data = new LedgerData();
+        PartyId party = PartyId.random();
+        assertEquals(500L, data.away(party, 500L));
+        assertEquals(500L, data.away(party, 900L), "away since the first time, not the latest look");
+
+        var json = LedgerData.CODEC.encodeStart(JsonOps.INSTANCE, data).getOrThrow();
+        LedgerData back = LedgerData.CODEC.parse(JsonOps.INSTANCE, json).getOrThrow();
+
+        assertEquals(java.util.Optional.of(500L), back.awaySince(party));
+        assertEquals(1, back.actualRows(), "or the boot guard calls the row lost");
+        back.back(party);
+        assertTrue(back.awaySince(party).isEmpty());
+    }
 }

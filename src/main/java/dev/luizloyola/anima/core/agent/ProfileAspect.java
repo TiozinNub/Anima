@@ -295,6 +295,18 @@ public final class ProfileAspect {
     public static final ProfileAspect SOCIAL_JOIN_THRESHOLD = register("social.join_threshold", Kind.DOUBLE, -100.0, 100.0,
             "Above this willingness to join, as this body weighs its party, it asks to join another "
                     + "or accepts an invitation, and a homeless one goes looking for a party.");
+    public static final ProfileAspect SOCIAL_DISCONTENT_AWAY_DAY = register("social.discontent_away_day", Kind.DOUBLE, 0.0, 100.0,
+            "What each in-game day a player leader stays away counts toward the party's discontent "
+                    + "with them, as this body weighs it.");
+    public static final ProfileAspect SOCIAL_DEPOSE_THRESHOLD = register("social.depose_threshold", Kind.DOUBLE, 0.0, 200.0,
+            "Discontent at which a party gives up on a player leader who has been away at least "
+                    + "social.depose_min_away_days.");
+    public static final ProfileAspect SOCIAL_DEPOSE_VERY_BAD = register("social.depose_very_bad", Kind.DOUBLE, 0.0, 200.0,
+            "Distress alone, besides time away, at which a party gives up on an absent player "
+                    + "leader however short the absence.");
+    public static final ProfileAspect SOCIAL_DEPOSE_MIN_AWAY_DAYS = register("social.depose_min_away_days", Kind.INT, 0, 30,
+            "How many in-game days a player leader must be away before ordinary discontent can "
+                    + "depose them.");
     public static final ProfileAspect SOCIAL_JOIN_COMPANY = register("social.join_company", Kind.DOUBLE, 0.0, 100.0,
             "How far its members' company moves a party's willingness to join another: all lonely "
                     + "adds this much, all crowded takes it away.");

@@ -127,6 +127,25 @@ public final class PartyRoster {
         return !who.equals(leaders.put(party, who));
     }
 
+    /**
+     * The party takes the lead from whoever holds it and gives it to the most senior other member.
+     * The new leader, or empty when there is no leader to depose or nobody else to lead.
+     */
+    public Optional<AgentId> depose(PartyId party) {
+        AgentId leader = leaders.get(party);
+        List<AgentId> members = parties.get(party);
+        if (leader == null || members == null) {
+            return Optional.empty();
+        }
+        for (AgentId member : members) {
+            if (!member.equals(leader)) {
+                leaders.put(party, member);
+                return Optional.of(member);
+            }
+        }
+        return Optional.empty();
+    }
+
     /** The members of {@code party} in join order — empty if no such party (any more). */
     public List<AgentId> members(PartyId party) {
         List<AgentId> members = parties.get(party);

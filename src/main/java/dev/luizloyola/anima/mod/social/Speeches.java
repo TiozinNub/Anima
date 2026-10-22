@@ -158,6 +158,8 @@ public final class Speeches {
                     Handovers.takenBack(server, e, e.transcript().size() - 1);
                 } else if (u.act().equals(SpeechActs.ACCEPT_JOIN.key())) {
                     Joins.accepted(server, e, e.transcript().size() - 1);
+                } else if (u.act().equals(SpeechActs.LEAVE_PARTY.key()) && u.author() != null) {
+                    Joins.left(server, u.author());
                 }
                 SpeechEffects.fire(server, e, e.transcript().size() - 1);
             }
