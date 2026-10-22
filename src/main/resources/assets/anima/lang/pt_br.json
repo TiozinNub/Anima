@@ -710,6 +710,8 @@
   "anima.compass.northwest": "a noroeste",
   "anima.speech.suggest_home.1": "Achei um lugar para morar, %s daqui, uns %s blocos. Vamos nos assentar lá?",
   "anima.speech.suggest_home.2": "Tem terra boa %s, uns %s blocos. Fazemos a nossa casa lá?",
+  "anima.speech.suggest_home.bed.1": "E onde está a sua cama? Poderíamos morar lá.",
+  "anima.speech.suggest_home.bed.2": "A sua cama está num bom lugar. Fazemos a nossa casa lá?",
   "anima.speech.suggest_home.button": "Sugerir um lugar para morar",
   "anima.speech.settle_here.1": "Sim, vamos nos assentar lá.",
   "anima.speech.settle_here.2": "Serve. Vamos morar lá.",

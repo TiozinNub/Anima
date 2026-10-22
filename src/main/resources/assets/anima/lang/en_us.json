@@ -710,6 +710,8 @@
   "anima.compass.northwest": "northwest",
   "anima.speech.suggest_home.1": "I found a place to live, %s of here, about %s blocks. Shall we settle there?",
   "anima.speech.suggest_home.2": "There's good land %s, %s blocks or so. Should we make our home there?",
+  "anima.speech.suggest_home.bed.1": "What about where your bed is? We could live there.",
+  "anima.speech.suggest_home.bed.2": "Your bed is in a good spot. Shall we make our home there?",
   "anima.speech.suggest_home.button": "Suggest a place to live",
   "anima.speech.settle_here.1": "Yes, let's settle there.",
   "anima.speech.settle_here.2": "That will do. Let's live there.",
