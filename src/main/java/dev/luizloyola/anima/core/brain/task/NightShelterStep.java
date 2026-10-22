@@ -127,6 +127,14 @@ public final class NightShelterStep implements CompoundTask {
                 ? NightShelterInstinct.NIGHTFALL - t : 0L;
     }
 
+    /**
+     * Whether the body is spending the night under cover — dark, and in a shelter or a dug pocket.
+     * What holds its rest without a bed (sleep spec, decision 5).
+     */
+    public static boolean nightUnderCover(BrainContext ctx) {
+        return dark(ctx) && inShelter(ctx);
+    }
+
     /** Whether it is dark: nightfall to sunrise. */
     static boolean dark(BrainContext ctx) {
         OptionalLong time = ctx.percepts().timeOfDay();

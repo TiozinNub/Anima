@@ -138,6 +138,21 @@ public final class NeedKind {
             .build();
 
     /**
+     * How long since this body last lay down in a bed (sleep spec, decision 5): rested for a day,
+     * tired to three — vanilla's own phantom line — exhausted past it. Each level an upper bound,
+     * as hunger's are.
+     *
+     * <p>It drives nothing: a tired body never stops work to sleep by day. What it costs is a
+     * slower hand and, exhausted, slower legs ({@link Rest#costOf}).
+     */
+    public static final NeedKind REST = declare("rest", Kind.DOUBLE, 0.0, 240_000.0, "ticks awake")
+            .level("rested", 24_000, 0.00, 0)
+            .level("tired", 72_000, 0.30, 0)
+            .level("exhausted", 240_000, 0.60, 0)
+            .modulate("work_pace")
+            .build();
+
+    /**
      * The line a source's own reading prints on — {@code "%s is %s"}, filled with what the source
      * is called and the number. Shared by every need, like the three param labels, which is what
      * keeps an itemised readout from costing a string per need per source.
