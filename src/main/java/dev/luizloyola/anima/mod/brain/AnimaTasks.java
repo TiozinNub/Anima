@@ -292,13 +292,16 @@ public final class AnimaTasks {
                         Codec.INT.fieldOf("z").forGetter(task -> task.bed().z())
                 ).apply(t, dev.luizloyola.anima.core.brain.task.Sleep::new)));
 
-        // Nothing to carry but the door: the shut lands on one tick or not at all.
+        // The door, and how long the shut has waited on somebody coming through it.
         TaskCodecs.register("anima:shut_door", dev.luizloyola.anima.core.brain.task.ShutDoor.class,
                 RecordCodecBuilder.mapCodec(t -> t.group(
                         Codec.INT.fieldOf("x").forGetter(task -> task.door().x()),
                         Codec.INT.fieldOf("y").forGetter(task -> task.door().y()),
-                        Codec.INT.fieldOf("z").forGetter(task -> task.door().z())
-                ).apply(t, dev.luizloyola.anima.core.brain.task.ShutDoor::new)));
+                        Codec.INT.fieldOf("z").forGetter(task -> task.door().z()),
+                        Codec.INT.optionalFieldOf("waited", 0).forGetter(
+                                dev.luizloyola.anima.core.brain.task.ShutDoor::waited)
+                ).apply(t, (x, y, z, waited) ->
+                        new dev.luizloyola.anima.core.brain.task.ShutDoor(x, y, z).resume(waited))));
 
         // Whether the route was judged rides along: a run restored mid-way does not judge the route
         // a second time from wherever the reload left it. A walk home keeps being one, and says

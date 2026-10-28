@@ -81,6 +81,13 @@ class TaskCodecsTest {
     }
 
     @Test
+    void aShutComesBackWithHowLongItWaited() {
+        var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.ShutDoor.class,
+                roundTrip(new dev.luizloyola.anima.core.brain.task.ShutDoor(4, -59, 0).resume(37)));
+        assertEquals(37, after.waited());
+    }
+
+    @Test
     void aRunForShelterComesBackWithItsCellAndHowFarItGot() {
         var after = assertInstanceOf(dev.luizloyola.anima.core.brain.task.RunToShelter.class,
                 roundTrip(new dev.luizloyola.anima.core.brain.task.RunToShelter(4, -59, 1)

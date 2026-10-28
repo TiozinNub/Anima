@@ -65,6 +65,11 @@ public final class Doorways {
      * others stop waiting for it — it died, was unloaded, or took another road.
      */
     private static final long STALE_TICKS = 100;
+    /**
+     * How long since a body last readied a door it still counts as coming through it. It readies
+     * the door every tick it is within reach on its way through, so this is only slack.
+     */
+    private static final long READYING_TICKS = 10;
 
     /**
      * Whether a door is a house's — shut after passing, however it was found. The consuming mod
@@ -93,6 +98,8 @@ public final class Doorways {
     private static final class Crossing {
         final boolean foundOpen;
         final Map<UUID, Long> users = new HashMap<>();
+        /** Who last readied it on the way through, and when — not those only holding it after. */
+        final Map<UUID, Long> readying = new HashMap<>();
 
         Crossing(boolean foundOpen) {
             this.foundOpen = foundOpen;
@@ -173,7 +180,7 @@ public final class Doorways {
      * and out if there is one, else the one it comes in by; from inside, the one it leaves by.
      */
     private void ready(ServerLevel level, BlockPos cell, int code, int in, int out, boolean inside) {
-        join(level, cell);
+        join(level, cell).readying.put(this.body.entity().getUUID(), level.getGameTime());
         if (inside) {
             if (out != 0 && !Doorway.free(code, false, out) && Doorway.swingsInside(code, true)) {
                 swing(level, cell);
@@ -206,7 +213,7 @@ public final class Doorways {
                 : new BlockPos[] {into, into.above()};
         for (BlockPos cell : candidates) {
             if (level.isLoaded(cell) && WorldSnapshot.hatchAt(level, cell) && withinReach(cell)) {
-                join(level, cell);
+                join(level, cell).readying.put(this.body.entity().getUUID(), level.getGameTime());
                 swing(level, cell);
                 return;
             }
@@ -289,6 +296,28 @@ public final class Doorways {
     }
 
     /**
+     * Whether anybody but {@code body} is going through the door at {@code pos}: another body
+     * readying it for its crossing (either half), or anyone standing in the doorway.
+     */
+    public static boolean crossedByOthers(AgentBody body, ServerLevel level, BlockPos pos) {
+        LivingEntity self = body.entity();
+        Map<BlockPos, Crossing> crossings = CROSSINGS.get(level);
+        if (crossings != null) {
+            long now = level.getGameTime();
+            for (BlockPos half : new BlockPos[] {pos, pos.above(), pos.below()}) {
+                Crossing crossing = crossings.get(half);
+                if (crossing != null && crossing.readying.entrySet().stream().anyMatch(
+                        e -> !e.getKey().equals(self.getUUID()) && now - e.getValue() <= READYING_TICKS)) {
+                    return true;
+                }
+            }
+        }
+        AABB doorway = new AABB(pos).expandTowards(0.0, 1.0, 0.0);
+        return !level.getEntitiesOfClass(LivingEntity.class, doorway,
+                other -> other != self && other.isPushable()).isEmpty();
+    }
+
+    /**
      * Whether a door is a house's: the consuming mod says so, or it is a way into a shelter this body
      * remembers, a stranger's included (shelter spec, decision 12).
      */
@@ -325,7 +354,7 @@ public final class Doorways {
     }
 
     /** Joins, or keeps up, this body's part in going through a door; remembers it to settle later. */
-    private void join(ServerLevel level, BlockPos pos) {
+    private Crossing join(ServerLevel level, BlockPos pos) {
         Map<BlockPos, Crossing> crossings = CROSSINGS.computeIfAbsent(level, l -> new HashMap<>());
         Crossing crossing = crossings.get(pos);
         if (crossing == null) {
@@ -336,9 +365,11 @@ public final class Doorways {
         long now = level.getGameTime();
         crossing.users.put(this.body.entity().getUUID(), now);
         crossing.users.values().removeIf(seen -> now - seen > STALE_TICKS);
+        crossing.readying.values().removeIf(seen -> now - seen > READYING_TICKS);
         if (this.passed.stream().noneMatch(door -> door.pos().equals(pos))) {
             this.passed.add(new Passed(pos.immutable(), crossing.foundOpen));
         }
+        return crossing;
     }
 
     /** This body is through a door; answers the crossing as it stands after, if it still exists. */
@@ -350,6 +381,7 @@ public final class Doorways {
         }
         long now = level.getGameTime();
         crossing.users.remove(this.body.entity().getUUID());
+        crossing.readying.remove(this.body.entity().getUUID());
         crossing.users.values().removeIf(seen -> now - seen > STALE_TICKS);
         if (crossing.users.isEmpty()) {
             crossings.remove(pos);

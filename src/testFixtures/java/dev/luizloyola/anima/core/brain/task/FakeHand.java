@@ -21,6 +21,13 @@ public final class FakeHand implements Hand {
     public final Set<Pos> jammed = new LinkedHashSet<>();
     /** Every shut asked for, in order. */
     public final List<Pos> shut = new ArrayList<>();
+    /** Doors somebody else is going through. */
+    public final Set<Pos> crossing = new LinkedHashSet<>();
+
+    @Override
+    public boolean crossing(Pos door) {
+        return crossing.contains(door);
+    }
 
     @Override
     public boolean shut(Pos door) {

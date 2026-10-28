@@ -31,4 +31,13 @@ public interface Hand {
     default boolean shut(Pos door) {
         return false;
     }
+
+    /**
+     * Whether somebody else is going through {@code door} now: another body readying it for its own
+     * crossing, or anyone standing in the doorway. A door is not shut on them — they would only
+     * swing it open again, and the two would trade it back and forth.
+     */
+    default boolean crossing(Pos door) {
+        return false;
+    }
 }

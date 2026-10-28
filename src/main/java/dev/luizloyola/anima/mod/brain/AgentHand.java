@@ -81,4 +81,13 @@ public final class AgentHand implements Hand {
         }
         return Doorways.shut(person, level, pos);
     }
+
+    @Override
+    public boolean crossing(Pos door) {
+        if (!(person.level() instanceof ServerLevel level)) {
+            return false;
+        }
+        BlockPos pos = new BlockPos(door.x(), door.y(), door.z());
+        return level.isLoaded(pos) && Doorways.crossedByOthers(person, level, pos);
+    }
 }
