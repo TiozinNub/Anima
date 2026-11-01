@@ -332,6 +332,16 @@ loom {
     decompilerOptions.named("vineflower") {
         options.put("mark-corresponding-synthetics", "1")
     }
+
+    // Native Wayland window instead of Xwayland, as in Autarkia's dev client: vanilla forces GLFW
+    // onto X11 unless PREFER_WAYLAND is set, and Xwayland's one scale blurs the window on mixed-
+    // scale monitors. MC_DEBUG_ENABLED only unlocks the other MC_DEBUG_* flags. -Px11 opts out.
+    runConfigs.all {
+        if (name == "client" && !providers.gradleProperty("x11").isPresent) {
+            jvmArguments.add("-DMC_DEBUG_ENABLED")
+            jvmArguments.add("-DMC_DEBUG_PREFER_WAYLAND")
+        }
+    }
 }
 
 java {
