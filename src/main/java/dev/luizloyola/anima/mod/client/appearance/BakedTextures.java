@@ -1,6 +1,6 @@
 package dev.luizloyola.anima.mod.client.appearance;
 
-import dev.luizloyola.anima.compat.client.appearance.NativeImages;
+import dev.luizloyola.anima.compat.client.appearance.BakedTexture;
 import dev.luizloyola.anima.core.appearance.Canonical;
 import dev.luizloyola.anima.core.appearance.Compositor;
 import dev.luizloyola.anima.core.appearance.Recipe;
@@ -16,14 +16,13 @@ import java.util.Map;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Where a {@link Recipe} becomes something an {@code Identifier} can name: bake the pixels, wrap
- * them in a {@code DynamicTexture}, register it under the recipe's hash, hand back the name. The
+ * them in a {@link BakedTexture}, register it under the recipe's hash, hand back the name. The
  * composed look then works anywhere an id is accepted, with no consumer aware it was synthesised.
  *
  * <h2>No mixin</h2>
@@ -181,8 +180,8 @@ public final class BakedTextures {
      * Drop every baked texture and every decoded source sprite.
      *
      * <p>Called on a resource reload — the source art may have been replaced by a newly loaded
-     * pack, and a plain {@code DynamicTexture} is not a {@code ReloadableTexture}, so vanilla
-     * leaves ours showing the previous pack's pixels. Also on disconnect, where the agents holding
+     * pack, and vanilla never reloads a texture registered directly, so ours would go on showing
+     * the previous pack's pixels. Also on disconnect, where the agents holding
      * these handles are gone but nothing guarantees each was told.
      */
     public static void clear() {
@@ -259,8 +258,8 @@ public final class BakedTextures {
             Entry evicted = live().remove(oldest.next());
             oldest.remove();
             if (evicted != null) {
-                // release() removes the texture from the manager and closes it. That is what frees
-                // the NativeImage the DynamicTexture took ownership of.
+                // release() removes the texture from the manager and closes it, which is what
+                // frees its native memory.
                 unregister(evicted);
             }
         }
@@ -276,16 +275,14 @@ public final class BakedTextures {
             return new Entry(MissingTextureAtlasSprite.getLocation(), null, false);
         }
         Identifier id = idFor(hash);
-        // The DynamicTexture takes ownership of the image and closes it when the manager releases
-        // the texture.
-        DynamicTexture texture = new DynamicTexture(() -> id.toString(), NativeImages.imageOf(baked.image()));
-        Minecraft.getInstance().getTextureManager().register(id, texture);
+        BakedTexture texture = BakedTexture.upload(id, baked.image());
+        texture.register(id);
         // ONE texture under TWO names. An entity renderer asks for the raw id; a chat glyph names
         // the same face as a skin asset and the client expands that into a textures/….png path
         // before it looks anything up. Baking a second copy for the second name would double the
         // native memory this class is careful about, so the map gets two keys instead.
         Identifier alias = BakedIds.texturePathOf(hash);
-        Minecraft.getInstance().getTextureManager().register(alias, texture);
+        texture.register(alias);
         dumpIfAsked(id, texture);
         return new Entry(id, alias, true);
     }
@@ -298,7 +295,7 @@ public final class BakedTextures {
      * command — it exists only on the GPU and in native memory. The acceptance test is that the
      * bake changed nothing, and a PNG is what makes that checkable against the source art.
      */
-    private static void dumpIfAsked(Identifier id, DynamicTexture texture) {
+    private static void dumpIfAsked(Identifier id, BakedTexture texture) {
         String directory = System.getProperty("anima.appearance.dump");
         if (directory == null) {
             return;
@@ -306,7 +303,7 @@ public final class BakedTextures {
         try {
             Path target = Path.of(directory);
             Files.createDirectories(target);
-            texture.dumpContents(id, target);
+            texture.dump(id, target);
             AnimaMod.LOGGER.info("appearance: dumped {} to {}", id, target);
         } catch (IOException unwritable) {
             AnimaMod.LOGGER.warn("appearance: could not dump {}: {}", id, unwritable.getMessage());

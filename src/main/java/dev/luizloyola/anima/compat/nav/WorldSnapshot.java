@@ -14,7 +14,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
-import net.minecraft.util.Mth;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
@@ -969,7 +968,7 @@ public final class WorldSnapshot implements NavGrid {
      */
     @Override
     public boolean inBounds(int x, int y, int z) {
-        return index(x, Mth.clamp(y, this.worldMinY, this.worldMaxY), z) >= 0;
+        return index(x, Math.clamp(y, this.worldMinY, this.worldMaxY), z) >= 0;
     }
 
     /** {@link #index}, with the cell read first when this is a {@link #lazy} snapshot. */

@@ -15,7 +15,6 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.util.Mth;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -313,7 +312,7 @@ public final class Escorts {
      * therefore tolerates 1.5m of drift, not 2.5m.
      */
     private static double driftTolerance(double near, double far) {
-        return Mth.clamp(far - near, DRIFT_MIN, DRIFT_MAX);
+        return Math.clamp(far - near, DRIFT_MIN, DRIFT_MAX);
     }
 
     /**

@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.util.Mth;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -414,9 +413,9 @@ public final class PathfinderService {
      */
     private static BlockPos[] boxAround(ServerLevel level, BlockPos start, BlockPos goal,
             int margin) {
-        int gx = Mth.clamp(goal.getX(), start.getX() - MAX_REACH, start.getX() + MAX_REACH);
+        int gx = Math.clamp(goal.getX(), start.getX() - MAX_REACH, start.getX() + MAX_REACH);
         int gy = goal.getY();
-        int gz = Mth.clamp(goal.getZ(), start.getZ() - MAX_REACH, start.getZ() + MAX_REACH);
+        int gz = Math.clamp(goal.getZ(), start.getZ() - MAX_REACH, start.getZ() + MAX_REACH);
         int minX = Math.min(start.getX(), gx) - margin;
         int minZ = Math.min(start.getZ(), gz) - margin;
         int maxX = Math.max(start.getX(), gx) + margin;

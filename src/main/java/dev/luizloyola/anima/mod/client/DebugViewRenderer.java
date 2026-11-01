@@ -279,7 +279,7 @@ public final class DebugViewRenderer {
      * empty bar would draw it identically to a need with nothing to want.
      */
     private static String meter(float pressure) {
-        float clamped = Mth.clamp(pressure, 0.0F, 1.0F);
+        float clamped = Math.clamp(pressure, 0.0F, 1.0F);
         int filled = clamped <= 0.0F
                 ? 0
                 : Math.max(1, Math.round(clamped * METER_CELLS));
@@ -326,7 +326,7 @@ public final class DebugViewRenderer {
         if (path.isEmpty()) {
             return;
         }
-        int index = Mth.clamp(route.index(), 0, path.size());
+        int index = Math.clamp(route.index(), 0, path.size());
         // Behind them: waypoint to waypoint, faded. Not chained through the current
         // position — those cells are left behind, and hanging them off the feet would draw a long
         // line backwards to the start of the path.
@@ -793,7 +793,7 @@ public final class DebugViewRenderer {
     private static int elevationColor(Vec3 eye, Vec3 crest) {
         double flat = Math.hypot(crest.x - eye.x, crest.z - eye.z);
         double tan = flat < 1.0 ? HOTTEST_TAN : (crest.y - eye.y) / flat;
-        double ramp = Mth.clamp((tan - COLDEST_TAN) / (HOTTEST_TAN - COLDEST_TAN), 0.0, 1.0);
+        double ramp = Math.clamp((tan - COLDEST_TAN) / (HOTTEST_TAN - COLDEST_TAN), 0.0, 1.0);
         return Mth.hsvToArgb(0.6F * (1.0F - (float) ramp), 0.85F, 1.0F, SKYLINE_ALPHA);
     }
 
@@ -881,7 +881,7 @@ public final class DebugViewRenderer {
         if (!faded) {
             return argb;
         }
-        int alpha = Mth.clamp((argb >>> 24) / 4, 16, 255);
+        int alpha = Math.clamp((argb >>> 24) / 4, 16, 255);
         return (alpha << 24) | (argb & 0x00FFFFFF);
     }
 

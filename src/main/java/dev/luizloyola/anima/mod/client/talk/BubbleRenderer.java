@@ -17,7 +17,6 @@ import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityAttachment;
 import net.minecraft.world.level.ClipContext;
@@ -177,6 +176,6 @@ final class BubbleRenderer {
     }
 
     private static int argb(int alpha, int rgb) {
-        return (Mth.clamp(alpha, 0, 255) << 24) | rgb;
+        return (Math.clamp(alpha, 0, 255) << 24) | rgb;
     }
 }

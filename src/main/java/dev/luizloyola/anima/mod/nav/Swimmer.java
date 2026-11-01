@@ -321,7 +321,7 @@ public final class Swimmer {
         double wanted = 0.0;
         if (motion.lengthSqr() > MOVING_ENOUGH_TO_AIM) {
             // Degrees, positive downward — vanilla's convention, and the sign the renderer tilts by.
-            wanted = Mth.clamp(Math.toDegrees(Math.atan2(-motion.y, horizontal)), -MAX_LOOK, MAX_LOOK);
+            wanted = Math.clamp(Math.toDegrees(Math.atan2(-motion.y, horizontal)), -MAX_LOOK, MAX_LOOK);
         }
         entity.setXRot((float) Mth.lerp(LOOK_EASE, entity.getXRot(), wanted));
     }

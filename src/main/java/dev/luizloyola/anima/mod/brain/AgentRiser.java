@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.compat.agent.Arms;
+import dev.luizloyola.anima.compat.agent.BlockSounds;
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.act.RiseState;
 import dev.luizloyola.anima.core.brain.act.Riser;
@@ -15,13 +16,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.phys.Vec3;
@@ -194,9 +193,7 @@ public final class AgentRiser implements Riser {
             level.setBlockAndUpdate(base, blockState);
             level.gameEvent(GameEvent.BLOCK_PLACE, base,
                     GameEvent.Context.of(person.entity(), blockState));
-            SoundType sound = blockState.getSoundType();
-            level.playSound(null, base, sound.getPlaceSound(), SoundSource.BLOCKS,
-                    (sound.getVolume() + 1.0F) / 2.0F, sound.getPitch() * 0.8F);
+            BlockSounds.placed(level, base, blockState);
             Arms.swingToInteract(person.entity(), InteractionHand.MAIN_HAND);
             person.inventory().remove(itemId, 1);
             if (recorded) {

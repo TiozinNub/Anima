@@ -1,6 +1,7 @@
 package dev.luizloyola.anima.mod.brain;
 
 import dev.luizloyola.anima.compat.agent.Arms;
+import dev.luizloyola.anima.compat.agent.BlockSounds;
 import dev.luizloyola.anima.core.brain.act.BlockPlacer;
 import dev.luizloyola.anima.core.brain.act.Placing;
 import dev.luizloyola.anima.mod.body.AgentBody;
@@ -12,7 +13,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.BlockItem;
@@ -22,7 +22,6 @@ import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -177,9 +176,7 @@ public final class AgentBlockPlacer implements BlockPlacer {
         // place-marks that let a WATCHING peer read the swing as building, not mining.
         level.gameEvent(net.minecraft.world.level.gameevent.GameEvent.BLOCK_PLACE, pos,
                 net.minecraft.world.level.gameevent.GameEvent.Context.of(body, placed));
-        SoundType sound = placed.getSoundType();
-        level.playSound(null, pos, sound.getPlaceSound(), SoundSource.BLOCKS,
-                (sound.getVolume() + 1.0F) / 2.0F, sound.getPitch() * 0.8F);
+        BlockSounds.placed(level, pos, placed);
         Arms.swingToInteract(body, InteractionHand.MAIN_HAND);
         person.inventory().remove(itemId, 1);
         person.brain().workSpots().record(new dev.luizloyola.anima.core.brain.sense.Pos(pos.getX(), pos.getY(),

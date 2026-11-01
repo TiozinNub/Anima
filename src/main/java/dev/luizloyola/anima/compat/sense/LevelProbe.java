@@ -226,7 +226,9 @@ public final class LevelProbe implements BlockProbe {
         if (state.requiresCorrectToolForDrops()) {
             return "";
         }
-        for (net.minecraft.world.item.ItemStack drop : Block.getDrops(state, server, at, server.getBlockEntity(at))) {
+        // The six-argument form is the one every node has; 26.4 dropped the four-argument one.
+        for (net.minecraft.world.item.ItemStack drop : Block.getDrops(state, server, at, server.getBlockEntity(at),
+                null, net.minecraft.world.item.ItemStack.EMPTY)) {
             if (!drop.isEmpty()) {
                 return BuiltInRegistries.ITEM.getKey(drop.getItem()).toString();
             }

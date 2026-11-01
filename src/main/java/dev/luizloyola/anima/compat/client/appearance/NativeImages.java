@@ -38,8 +38,8 @@ public final class NativeImages {
 
     /**
      * A fresh image holding a baked sprite's pixels. <b>The caller owns it</b>, and it is native
-     * memory — invisible to a heap profiler if it leaks; the only caller hands it to a
-     * {@code DynamicTexture}, which takes ownership and closes it.
+     * memory — invisible to a heap profiler if it leaks; the only caller is {@link BakedTexture},
+     * which sees it closed.
      *
      * <p>Allocated zeroed (one 16 KB {@code calloc} per bake), so a future partial write cannot
      * upload whatever was in that memory before.

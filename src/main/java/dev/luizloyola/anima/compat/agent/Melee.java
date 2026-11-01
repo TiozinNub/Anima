@@ -72,7 +72,7 @@ public final class Melee {
     /** {@code Player.getAttackStrengthScale(0.5)}: 0 just after a swing, 1 when fully charged. */
     public static float charge(LivingEntity body) {
         float delay = (float) (1.0 / body.getAttributeValue(Attributes.ATTACK_SPEED) * 20.0);
-        return Mth.clamp((chargeTicks(body) + 0.5F) / delay, 0.0F, 1.0F);
+        return Math.clamp((chargeTicks(body) + 0.5F) / delay, 0.0F, 1.0F);
     }
 
     /** One hit of a weapon: what it deals before armour, and how many land a second at full charge. */

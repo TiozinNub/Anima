@@ -163,7 +163,12 @@ public final class MobAttacks {
             }
             if (goal instanceof RangedAttackGoal ranged) {
                 RangedAttackGoalAccessor bounds = (RangedAttackGoalAccessor) ranged;
+                //? if >=26.4-alpha {
+                /*double interval = (bounds.anima$attackIntervalMin().getAsInt()
+                        + bounds.anima$attackIntervalMax().getAsInt()) / 2.0;
+                *///?} else {
                 double interval = (bounds.anima$attackIntervalMin() + bounds.anima$attackIntervalMax()) / 2.0;
+                //?}
                 if (hand.is(Items.TRIDENT)) {
                     return new Attack(TRIDENT_DAMAGE, interval, false, 0);
                 }

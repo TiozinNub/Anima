@@ -5,7 +5,6 @@ import java.util.Set;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.EntityTypeTags;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.Attribute;
@@ -77,7 +76,7 @@ public final class Fighters {
             piercing = attack.piercing();
             linger = attack.lingerTicks();
             if (mob instanceof Creeper creeper) {
-                fuse = Mth.clamp(creeper.getSwelling(1.0F), 0.0F, 1.0F);
+                fuse = Math.clamp(creeper.getSwelling(1.0F), 0.0F, 1.0F);
                 blastReach = 2.0 * CREEPER_POWER * (creeper.isPowered() ? 2.0 : 1.0);
             }
         } else {

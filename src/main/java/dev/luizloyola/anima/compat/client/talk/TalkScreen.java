@@ -19,7 +19,12 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.input.KeyEvent;
+//? if >=26.4-alpha {
+/*import net.minecraft.client.gui.GuiPipeline;
+import net.minecraft.client.gui.screens.social.EntityPortraitWidget;
+*///?} else {
 import net.minecraft.client.renderer.RenderPipelines;
+//?}
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
@@ -145,7 +150,36 @@ public final class TalkScreen extends Screen {
         //?}
     }
 
-    //? if >=26.1 {
+    //? if >=26.4-alpha {
+    /*@Override
+    public void extractBackground(GuiGraphicsExtractor graphics) {
+        panel.paint(new TalkPanel.Canvas() {
+            @Override
+            public void background(Identifier texture, int x, int y, int width, int height) {
+                graphics.blit(GuiPipeline.TEXTURED, texture, x, y, 0.0F, 0.0F,
+                        width, height, width, height);
+            }
+
+            @Override
+            public void text(FormattedCharSequence line, int x, int y, int color) {
+                graphics.text(font, line, x, y, color);
+            }
+
+            @Override
+            public void text(Component text, int x, int y, int color) {
+                graphics.text(font, text, x, y, color);
+            }
+
+            // The doll reads the mouse off the extractor itself on 26.4.
+            @Override
+            public void doll(LivingEntity who, int left, int top, int right, int bottom,
+                    int scale, int mouseX, int mouseY) {
+                EntityPortraitWidget.extractEntityInInventoryFollowsMouse(graphics, left, top,
+                        right, bottom, scale, DOLL_Y_OFFSET, who);
+            }
+        }, font, BACKGROUND, doll(), graphics.mouseX(), graphics.mouseY());
+    }
+    *///?} elif >=26.1 {
     @Override
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
             float partialTick) {
