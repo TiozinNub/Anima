@@ -16,8 +16,15 @@ public interface GroupUp {
         JOIN, INVITE
     }
 
-    /** The merge an accepted ask means: {@code from}'s members move into {@code into}. */
-    record Move(PartyId from, PartyId into) {
+    /**
+     * The merge an accepted ask means: {@code from}'s members move into {@code into} — or, with
+     * {@code alone} set, that one member only, leaving its party behind. Only a party's leader moves
+     * the party (decision: Luiz, 2026-11-02, group-up spec, decision 7).
+     */
+    record Move(PartyId from, PartyId into, Optional<AgentId> alone) {
+        public Move(PartyId from, PartyId into) {
+            this(from, into, Optional.empty());
+        }
     }
 
     /**

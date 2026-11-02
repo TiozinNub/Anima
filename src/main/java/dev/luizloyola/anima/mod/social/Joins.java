@@ -77,7 +77,18 @@ final class Joins {
             return;
         }
         Optional<GroupUp.Move> move = GroupUps.get().move(ask.author(), asked, kind.get());
-        if (move.isPresent()) {
+        if (move.isPresent() && move.get().alone().isPresent()) {
+            AgentId who = move.get().alone().get();
+            String from = party(server, move.get().from());
+            if (PartyData.get(server).join(who, move.get().into())) {
+                SocialLog.write(server, e, SocialLog.JOIN, SocialLog.name(server, who) + " alone, out of "
+                        + from + " into " + party(server, move.get().into()) + ", by " + ask.act());
+                String line = AgentCommands.label(server, who) + " left the party.";
+                for (AgentId member : PartyData.get(server).members(move.get().from())) {
+                    Journals.of(server).record(member, Category.BRAIN, "party", line);
+                }
+            }
+        } else if (move.isPresent()) {
             SocialLog.write(server, e, SocialLog.JOIN, party(server, move.get().from()) + " into "
                     + party(server, move.get().into()) + ", by " + ask.act());
             PartyData.get(server).merge(move.get().from(), move.get().into());
