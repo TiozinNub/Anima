@@ -61,6 +61,18 @@ public final class Encounters {
 
     public List<Encounter> closed() { return Collections.unmodifiableList(closed); }
 
+    /** The records holding both {@code a} and {@code b} that closed at or after {@code since}, oldest first. */
+    public List<Encounter> closedBetween(AgentId a, AgentId b, long since) {
+        List<Encounter> out = new ArrayList<>();
+        for (Encounter e : closed) {
+            if (e.closedAt() >= since && e.includes(a) && e.includes(b)) {
+                out.add(e);
+            }
+        }
+        out.sort(java.util.Comparator.comparingLong(Encounter::closedAt));
+        return out;
+    }
+
     /**
      * Whether {@code by} said {@code act} to {@code to} at or after {@code since}, in any record still
      * kept — "has she turned me down lately", read off what was said rather than stored beside it.

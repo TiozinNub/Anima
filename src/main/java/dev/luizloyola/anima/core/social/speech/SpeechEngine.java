@@ -2,6 +2,7 @@ package dev.luizloyola.anima.core.social.speech;
 
 import dev.luizloyola.anima.core.agent.AgentId;
 import dev.luizloyola.anima.core.brain.sense.BeingId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -43,9 +44,14 @@ public final class SpeechEngine implements Speech {
      * The tunables a body's conversation runs on — {@code turnCap}/{@code tickCap} bound how long
      * a record may run (by line count and by duration), {@code staleGapTicks} how long silence is
      * tolerated before {@link #current()} calls it dead, {@code patienceTicks} how long an
-     * unanswered obligation is tolerated before {@link #expiredObligation} names the snubber.
+     * unanswered obligation is tolerated before {@link #expiredObligation} names the snubber,
+     * {@code greetedForTicks} how long a closed conversation between the same two still counts.
      */
-    public record Caps(int turnCap, long tickCap, long staleGapTicks, int patienceTicks) {
+    public record Caps(int turnCap, long tickCap, long staleGapTicks, int patienceTicks,
+            long greetedForTicks) {
+        public Caps(int turnCap, long tickCap, long staleGapTicks, int patienceTicks) {
+            this(turnCap, tickCap, staleGapTicks, patienceTicks, 0);
+        }
     }
 
     /** Notified of every record opened, line said and record closed — the social log's hook in. */
@@ -199,7 +205,10 @@ public final class SpeechEngine implements Speech {
         // outside party spoke last, not necessarily self); acceptable today, nothing reads it
         // as an identity claim.
         Optional<Utterance> awaiting = counterpart.flatMap(other -> Picker.pendingOn(e, other));
-        return new Chooser.Turn(e, applicable, pending, awaiting, greeted(e), counterpart);
+        List<Utterance> earlier = counterpart.map(other -> earlier(other, c.greetedForTicks()))
+                .orElse(List.of());
+        return new Chooser.Turn(e, applicable, pending, awaiting, greeted(e) || !earlier.isEmpty(),
+                counterpart, earlier);
     }
 
     @Override
@@ -223,6 +232,22 @@ public final class SpeechEngine implements Speech {
      * "Hello" read backwards (decision: Luiz, 2026-10-03, "after the first message, no hello is
      * needed anymore").
      */
+    /**
+     * What self and {@code other} said in conversations closed within {@code windowTicks}: met
+     * again that soon, they do not say hello twice nor bring the same small talk up again
+     * (decision: Luiz, 2026-11-02). Empty with a window of 0.
+     */
+    private List<Utterance> earlier(AgentId other, long windowTicks) {
+        if (windowTicks <= 0) {
+            return List.of();
+        }
+        List<Utterance> lines = new ArrayList<>();
+        for (Encounter past : roster.closedBetween(self, other, now.getAsLong() - windowTicks)) {
+            lines.addAll(past.transcript());
+        }
+        return lines;
+    }
+
     private boolean greeted(Encounter e) {
         for (Utterance u : e.transcript()) {
             if (u.system()) {

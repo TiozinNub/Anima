@@ -39,6 +39,8 @@
   "anima.config.option.social.encounter_tick_cap.desc": "How long, in ticks, a conversation may stay open before only farewells are left to say. 6000 ticks is five minutes.",
   "anima.config.option.social.encounter_stale_ticks": "Silence before a chat goes stale",
   "anima.config.option.social.encounter_stale_ticks.desc": "How long, in ticks, an open conversation may sit silent before whoever returns to it closes it as forgotten instead of picking it back up.",
+  "anima.config.option.social.greeted_for_ticks": "Greeting window",
+  "anima.config.option.social.greeted_for_ticks.desc": "How long, in ticks, after two bodies last talked a new conversation between them skips the greeting and the small talk they already made. 6000 ticks is five minutes.",
   "anima.config.option.social.encounter_retention_ticks": "Closed chat retention",
   "anima.config.option.social.encounter_retention_ticks.desc": "How long, in ticks, a closed conversation is kept — a record for debugging, and what overheard lines are checked against. 72000 ticks is three in-game days.",
   "anima.config.option.journal.max_entries_per_person": "Entries per Person",

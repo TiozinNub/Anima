@@ -438,4 +438,45 @@ class SpeechEngineTest {
         assertEquals(Chooser.Line.of(SpeechActs.GREETING),
                 Choosers.BASIC.choose(new FakeContext(), alicesEngine.turn(e)));
     }
+
+    @Test
+    @DisplayName("met again inside the greeting window: already greeted, and the last chat's lines carried")
+    void aChatSoonAfterTheLastOneSkipsTheGreeting() {
+        Encounters roster = new Encounters();
+        long[] clock = {0L};
+        SpeechEngine.Caps window = new SpeechEngine.Caps(60, 6_000, 1_200, 300, 6_000);
+        SpeechEngine engine = engineFor(alice, roster, clock, window, new Recorder());
+
+        Encounter first = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
+        engine.say(first, Chooser.Line.of(SpeechActs.GREETING));
+        clock[0] = 100;
+        engine.close(first);
+
+        clock[0] = 220; // six seconds later, the Bia case
+        Encounter second = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
+        assertNotSame(first, second);
+        Chooser.Turn turn = engine.turn(second);
+        assertTrue(turn.greeted(), "a hello six seconds after the last goodbye reads as forgetful");
+        assertEquals(first.transcript(), turn.earlier(), "the last chat's lines travel with the turn");
+
+        engine.close(second);
+        clock[0] = 220 + 6_001;
+        Chooser.Turn later = engine.turn(engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow());
+        assertFalse(later.greeted(), "past the window, a fresh hello");
+        assertTrue(later.earlier().isEmpty());
+    }
+
+    @Test
+    @DisplayName("with no greeting window, every chat greets afresh")
+    void aZeroWindowCarriesNothing() {
+        Encounters roster = new Encounters();
+        long[] clock = {0L};
+        SpeechEngine engine = engineFor(alice, roster, clock, CAPS, new Recorder());
+        Encounter first = engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow();
+        engine.close(first);
+        clock[0] = 20;
+        Chooser.Turn turn = engine.turn(engine.join(BeingId.of(bob), Speech.Opening.QUIET).orElseThrow());
+        assertFalse(turn.greeted());
+        assertTrue(turn.earlier().isEmpty());
+    }
 }

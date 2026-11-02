@@ -50,9 +50,16 @@ public interface Chooser {
      * beat.
      */
     record Turn(Encounter encounter, List<SpeechAct> applicable, Optional<Utterance> pending,
-            Optional<Utterance> awaiting, boolean greeted, Optional<AgentId> counterpart) {
+            Optional<Utterance> awaiting, boolean greeted, Optional<AgentId> counterpart,
+            List<Utterance> earlier) {
         public Turn {
             applicable = List.copyOf(applicable);
+            earlier = List.copyOf(earlier);
+        }
+
+        public Turn(Encounter encounter, List<SpeechAct> applicable, Optional<Utterance> pending,
+                Optional<Utterance> awaiting, boolean greeted, Optional<AgentId> counterpart) {
+            this(encounter, applicable, pending, awaiting, greeted, counterpart, List.of());
         }
     }
 

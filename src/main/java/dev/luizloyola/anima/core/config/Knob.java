@@ -141,6 +141,9 @@ public enum Knob implements KnobSpec {
     SOCIAL_ENCOUNTER_STALE_TICKS("social.encounter_stale_ticks", Kind.INT, 1_200, 100, 72_000,
             "How long (ticks) an open encounter may sit silent before whoever returns to it "
                     + "closes it as forgotten instead of resuming it."),
+    SOCIAL_GREETED_FOR_TICKS("social.greeted_for_ticks", Kind.INT, 6_000, 0, 72_000,
+            "How long (ticks) after two bodies last talked a new conversation between them skips "
+                    + "the greeting and the small talk already made. 6000 ticks is five minutes."),
     SOCIAL_ENCOUNTER_RETENTION_TICKS("social.encounter_retention_ticks", Kind.INT, 72_000, 1_200, 1_728_000,
             "How long (ticks) a closed encounter is kept — the debugging artifact, and what "
                     + "overheard lines resolve against. 72000 ticks is three in-game days."),

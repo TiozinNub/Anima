@@ -59,6 +59,7 @@ class ProfileAspectTest {
             Knob.SOCIAL_ENCOUNTER_TICK_CAP,
             Knob.SOCIAL_ENCOUNTER_STALE_TICKS,
             Knob.SOCIAL_ENCOUNTER_RETENTION_TICKS,
+            Knob.SOCIAL_GREETED_FOR_TICKS, // read off the same roster, so both sides agree
             // A debugging facility and its disk use. No species has an opinion about these.
             Knob.JOURNAL_MAX_ENTRIES,
             Knob.JOURNAL_MAX_AGE_TICKS,

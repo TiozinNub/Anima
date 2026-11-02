@@ -721,7 +721,8 @@ public final class BrainDriver {
                     Config.get().i(Knob.SOCIAL_ENCOUNTER_TURN_CAP),
                     Config.get().i(Knob.SOCIAL_ENCOUNTER_TICK_CAP),
                     Config.get().i(Knob.SOCIAL_ENCOUNTER_STALE_TICKS),
-                    person.profile().i(ProfileAspect.SOCIAL_PATIENCE_TICKS));
+                    person.profile().i(ProfileAspect.SOCIAL_PATIENCE_TICKS),
+                    Config.get().i(Knob.SOCIAL_GREETED_FOR_TICKS));
             SpeechEngine.Listener listener = Speeches.listener(server, person::entity,
                     () -> person.profile().i(ProfileAspect.SOCIAL_CHAT_RADIUS));
             this.speech = new SpeechEngine(this.person.agentId(), now,

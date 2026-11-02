@@ -159,6 +159,8 @@
   "anima.config.option.social.encounter_tick_cap.desc": "Por quanto tempo, em tiques, uma conversa pode ficar aberta antes de restarem só despedidas para dizer. 6000 tiques são cinco minutos.",
   "anima.config.option.social.encounter_stale_ticks": "Silêncio até a conversa esfriar",
   "anima.config.option.social.encounter_stale_ticks.desc": "Por quanto tempo, em tiques, uma conversa aberta pode ficar em silêncio antes que quem voltar a ela a encerre como esquecida, em vez de retomá-la.",
+  "anima.config.option.social.greeted_for_ticks": "Janela da saudação",
+  "anima.config.option.social.greeted_for_ticks.desc": "Por quanto tempo, em tiques, depois da última conversa entre dois corpos uma nova conversa entre eles pula a saudação e a conversa fiada que já tiveram. 6000 tiques são cinco minutos.",
   "anima.config.option.social.encounter_retention_ticks": "Retenção de conversas encerradas",
   "anima.config.option.social.encounter_retention_ticks.desc": "Por quanto tempo, em tiques, uma conversa encerrada é guardada — um registro para depuração, e o que as falas ouvidas de longe são conferidas. 72000 tiques são três dias no jogo.",
   "anima.config.option.journal.max_entries_per_person": "Entradas por Pessoa",

@@ -797,7 +797,8 @@ public final class Talkers {
                 Config.get().i(Knob.SOCIAL_ENCOUNTER_TURN_CAP),
                 Config.get().i(Knob.SOCIAL_ENCOUNTER_TICK_CAP),
                 Config.get().i(Knob.SOCIAL_ENCOUNTER_STALE_TICKS),
-                patienceOf(server, counterpartOf(roster, self)));
+                patienceOf(server, counterpartOf(roster, self)),
+                Config.get().i(Knob.SOCIAL_GREETED_FOR_TICKS));
         // Resolved per call rather than captured: a respawn or a dimension change hands the same
         // account a new entity, and the old one is where the line would otherwise be spoken from.
         Supplier<LivingEntity> writer = () -> {
