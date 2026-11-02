@@ -569,6 +569,58 @@ class BeingSensorCoreTest {
     }
 
     @Test
+    void aBodyOnlyHeardStepJoinsNoHerdUntilItIsNamed() {
+        world.addCreature(Being.Kind.PASSIVE, "pig", true, false, new Pos(0, 64, 6), 6.0);
+        world.addCreature(Being.Kind.PASSIVE, "pig", true, false, new Pos(2, 64, 7), 7.0);
+        BeingId walled = world.addCreature(Being.Kind.PASSIVE, "pig", true, false,
+                new Pos(4, 64, 8), 9.0);
+        world.hidden.add(walled);
+        sensor.heard(world.bodies.get(walled), now, false); // a step, no voice
+        tickN(12);
+
+        List<Being> beings = sensor.beings();
+        assertEquals(3, beings.size(), "two pigs and a someone, not a herd of three: " + beings);
+        assertTrue(beings.stream().noneMatch(Being::herd));
+        assertEquals(1, beings.stream().filter(b -> b.species().isEmpty()).count(),
+                "the one only heard stays unnamed, on its own");
+
+        world.hidden.remove(walled);
+        tickN(12);
+        Being herd = only();
+        assertTrue(herd.herd(), "once seen it is a pig, and the three are one herd");
+        assertEquals(3, herd.count());
+        assertTrue(herd.members().stream().allMatch(m -> sensor.being(m)
+                        .map(b -> b.species().equals("pig")).orElse(false)),
+                "every member a herd reads out names its species");
+    }
+
+    @Test
+    void aSavedHerdHoldingAnUnnamedBodyIsRestoredWithoutIt() {
+        BeingId a = world.addCreature(Being.Kind.PASSIVE, "pig", true, false, new Pos(0, 64, 6), 6.0);
+        BeingId b = world.addCreature(Being.Kind.PASSIVE, "pig", true, false, new Pos(2, 64, 7), 7.0);
+        BeingId c = world.addCreature(Being.Kind.PASSIVE, "pig", true, false, new Pos(4, 64, 8), 9.0);
+        BeingId d = world.addCreature(Being.Kind.PASSIVE, "pig", true, false, new Pos(5, 64, 9), 10.0);
+        tickN(12);
+        BeingSensorCore.State saved = sensor.snapshot();
+        // As an older save could hold it: one member never made out past a step.
+        List<BeingSensorCore.TrackState> tracks = saved.tracks().stream()
+                .map(t -> t.last().id().equals(d) ? new BeingSensorCore.TrackState(t.last(),
+                        t.awareness(), Being.Identified.NONE, t.nextCheckAt(), t.lastLiveAt(),
+                        t.heardAt(), t.activityAt(), t.trendDistance(), t.trendAt(),
+                        t.trendSelfX(), t.trendSelfZ(), t.approaching(), t.herd(), t.attackedAt())
+                        : t)
+                .toList();
+        sensor.restore(new BeingSensorCore.State(tracks, saved.herds(), saved.lastSweepAt(),
+                saved.lastFeet()));
+
+        Being herd = sensor.beings().stream().filter(Being::herd).findFirst().orElseThrow();
+        assertEquals(java.util.Set.of(a, b, c), java.util.Set.copyOf(herd.members()),
+                "the unnamed one is dropped on restore");
+        assertTrue(sensor.being(d).map(being -> !being.herd() && being.species().isEmpty())
+                .orElse(false), "and reads out on its own, unnamed");
+    }
+
+    @Test
     void herdsSplitBySpeciesAndByDistance() {
         world.addCreature(Being.Kind.PASSIVE, "cow", true, false, new Pos(0, 64, 6), 6.0);
         world.addCreature(Being.Kind.PASSIVE, "cow", true, false, new Pos(2, 64, 7), 7.0);

@@ -651,7 +651,10 @@ public final class BeingSensorCore {
     private void regroupHerds(long now) {
         List<Map.Entry<BeingId, Track>> herdable = new ArrayList<>();
         for (Map.Entry<BeingId, Track> entry : tracks.entrySet()) {
-            if (entry.getValue().last.herdAnimal() && !entry.getValue().unplaced) {
+            Track track = entry.getValue();
+            // Grouped by the unmasked reading, so a body not yet named would carry its species into
+            // the herd while reading out blank on its own — a hunt then aimed at nothing (2026-11-02).
+            if (track.last.herdAnimal() && !track.unplaced && track.tier != Being.Identified.NONE) {
                 herdable.add(entry);
             }
         }
@@ -1150,8 +1153,23 @@ public final class BeingSensorCore {
             tracks.put(saved.last().id(), track);
         }
         for (HerdState saved : state.herds()) {
+            // The grouping rule holds for a saved herd too: one saved before it could hold a body
+            // not yet named, and the regroup that would drop it is a sweep away.
+            List<BeingId> named = new ArrayList<>(saved.members().size());
+            for (BeingId member : saved.members()) {
+                Track track = tracks.get(member);
+                if (track != null && track.tier != Being.Identified.NONE) {
+                    named.add(member);
+                } else if (track != null) {
+                    track.herd = null;
+                }
+            }
+            if (named.size() < HERD_MIN) {
+                named.forEach(member -> tracks.get(member).herd = null);
+                continue;
+            }
             Herd herd = new Herd(saved.id(), saved.species());
-            herd.members = new ArrayList<>(saved.members());
+            herd.members = named;
             herds.put(saved.id(), herd);
         }
         this.lastSweepAt = state.lastSweepAt();
