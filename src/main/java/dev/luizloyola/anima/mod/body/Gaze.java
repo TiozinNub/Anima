@@ -142,6 +142,14 @@ public final class Gaze implements Gazer {
             // yet, and one tick of not looking anywhere is not something an observer could catch.
             return;
         }
+        if (entity.isSleeping()) {
+            // A sleeper's eyes are shut: nothing to pick, and a head turning in bed reads as awake.
+            this.attention.clear();
+            this.turning = false;
+            this.aim = null;
+            this.reason = "asleep";
+            return;
+        }
         Claim winner = null;
         Priority rank = null;
         for (int i = this.claims.length - 1; i >= 0; i--) {
